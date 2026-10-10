@@ -29,6 +29,17 @@ Done and verified on localhost:
 
 Still to do in Phase 1: contacts and companies, Smart Lists, prospecting worklists with CSV import, quotes, contracts, client conversion (needs accounting), commissions setup.
 
+## Phase 3 (started early): accounting core, first slice done
+
+Done, covered by 21 automated tests including real-database concurrency tests:
+- Chart of accounts (editable seed), double-entry journal; every entry must balance; posted lines are immutable (database trigger); corrections use reversing entries
+- Clients, invoices (draft, issue, cancel by reversal), numbering, company and bank snapshot frozen at issue
+- Payments with FIFO allocation across invoices, partial payments, advances for any excess, idempotency key so retries never duplicate, row locks so concurrent payments cannot over-allocate
+- Client statement with running balance that reconciles to the AR control account; trial balance per currency
+- Revenue is recognised on invoice issue (accrual); a payment never counts as revenue
+
+Known limits: no exchange rates yet (balances are per currency, never mixed); invoice PDF is browser Print/Save as PDF (server PDF engine later); credit notes, refunds, write-offs, expense vouchers, budgets, vendor bills, bank reconciliation, fiscal period locking and financial statements are not built yet.
+
 ## Decisions
 
 - Brand colour follows the supplied red H logo; the spec's blue/purple can be added as a theme if wanted.

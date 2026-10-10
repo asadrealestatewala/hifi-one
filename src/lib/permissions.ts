@@ -16,6 +16,10 @@ export const PERMISSIONS = {
   "crm.edit": "Create and edit leads, move pipeline stages",
   "catalog.view": "View the service catalog and pricing",
   "catalog.edit": "Edit services, plans and prices",
+  "clients.view": "View client accounts",
+  "clients.edit": "Create and edit client accounts",
+  "finance.view": "View ledgers, invoices, payments and reports",
+  "finance.post": "Create and issue invoices, record payments",
 } as const;
 
 export type PermissionKey = keyof typeof PERMISSIONS;
@@ -28,14 +32,14 @@ type RoleDef = { key: string; name: string; permissions: PermissionKey[] | "ALL"
 // New modules add their own permissions and extend these mappings.
 export const ROLE_DEFS: RoleDef[] = [
   { key: "SUPER_ADMIN", name: "Super Admin", permissions: "ALL" },
-  { key: "CEO", name: "CEO / Director", permissions: ["dashboard.view", "settings.company.view", "bank.view", "users.view", "audit.view", "crm.view", "crm.view_all", "catalog.view"] },
+  { key: "CEO", name: "CEO / Director", permissions: ["dashboard.view", "settings.company.view", "bank.view", "users.view", "audit.view", "crm.view", "crm.view_all", "catalog.view", "clients.view", "finance.view"] },
   { key: "MARKETING_DIRECTOR", name: "Marketing Director", permissions: ["dashboard.view", "crm.view", "crm.view_all", "catalog.view", "catalog.edit"] },
   { key: "BRANCH_MANAGER", name: "Branch Manager", permissions: ["dashboard.view", "users.view"] },
-  { key: "FINANCE_MANAGER", name: "Finance Manager", permissions: ["dashboard.view", "settings.company.view", "bank.view", "bank.view_full", "bank.edit"] },
-  { key: "ACCOUNTANT", name: "Accountant", permissions: ["dashboard.view", "bank.view"] },
+  { key: "FINANCE_MANAGER", name: "Finance Manager", permissions: ["dashboard.view", "settings.company.view", "bank.view", "bank.view_full", "bank.edit", "clients.view", "clients.edit", "finance.view", "finance.post"] },
+  { key: "ACCOUNTANT", name: "Accountant", permissions: ["dashboard.view", "bank.view", "clients.view", "clients.edit", "finance.view", "finance.post"] },
   { key: "HR_MANAGER", name: "HR Manager", permissions: ["dashboard.view", "users.view"] },
   { key: "PAYROLL_OFFICER", name: "Payroll Officer", permissions: ["dashboard.view"] },
-  { key: "SALES_MANAGER", name: "Sales Manager", permissions: ["dashboard.view", "crm.view", "crm.view_all", "crm.edit", "catalog.view"] },
+  { key: "SALES_MANAGER", name: "Sales Manager", permissions: ["dashboard.view", "crm.view", "crm.view_all", "crm.edit", "catalog.view", "clients.view"] },
   { key: "SALES_AGENT", name: "Sales Agent", permissions: ["dashboard.view", "crm.view", "crm.edit", "catalog.view"] },
   { key: "SUCCESS_MANAGER", name: "Success Manager", permissions: ["dashboard.view"] },
   { key: "PROJECT_MANAGER", name: "Project Manager", permissions: ["dashboard.view"] },

@@ -224,6 +224,8 @@ model BankAccount {
   active         Boolean  @default(true)
   paymentInstructions String?
   verified       Boolean  @default(false) // manual entry never implies verified
+  ledgerAccountId String?
+  ledgerAccount  Account? @relation(fields: [ledgerAccountId], references: [id])
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -351,4 +353,170 @@ model LeadActivity {
   lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
   @@index([leadId, createdAt])
+}
+
+// ---------- Phase 3: accounting core ----------
+
+model NumberSequence {
+  organizationId String
+  key            String // INV, RCT, JE
+  next           Int    @default(1)
+
+  @@id([organizationId, key])
+}
+
+model Client {
+  id             String   @id @default(cuid())
+  organizationId String
+  code           String? // assigned on creation, e.g. C-0001
+  name           String
+  email          String?
+  phone          String?
+  billingAddress String?
+  country        String?
+  taxId          String?
+  currency       String   @default("USD")
+  paymentTermsDays Int    @default(14)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  invoices Invoice[]
+  payments Payment[]
+  journalLines JournalLine[]
+
+  @@unique([organizationId, name])
+}
+
+model Account {
+  id             String  @id @default(cuid())
+  organizationId String
+  code           String
+  name           String
+  type           String // ASSET | LIABILITY | EQUITY | REVENUE | DIRECT_COST | OPEX | OTHER_INCOME | OTHER_EXPENSE
+  systemKey      String? // AR | TAX_PAYABLE | CUSTOMER_ADVANCES | REVENUE_SERVICE (used by automatic postings)
+  active         Boolean @default(true)
+
+  lines        JournalLine[]
+  bankAccounts BankAccount[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, systemKey])
+}
+
+model JournalEntry {
+  id             String   @id @default(cuid())
+  organizationId String
+  number         String
+  date           DateTime
+  memo           String?
+  currency       String
+  status         String   @default("POSTED") // POSTED | REVERSED
+  sourceType     String? // INVOICE | PAYMENT | MANUAL | REVERSAL
+  sourceId       String?
+  idempotencyKey String   @unique
+  reversalOfId   String?  @unique
+  postedById     String?
+  createdAt      DateTime @default(now())
+
+  lines JournalLine[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, date])
+  @@index([sourceType, sourceId])
+}
+
+model JournalLine {
+  id        String  @id @default(cuid())
+  entryId   String
+  accountId String
+  clientId  String?
+  debit     Decimal @default(0) @db.Decimal(14, 2)
+  credit    Decimal @default(0) @db.Decimal(14, 2)
+  memo      String?
+
+  entry   JournalEntry @relation(fields: [entryId], references: [id])
+  account Account      @relation(fields: [accountId], references: [id])
+  client  Client?      @relation(fields: [clientId], references: [id])
+
+  @@index([accountId])
+  @@index([clientId])
+  @@index([entryId])
+}
+
+model Invoice {
+  id             String   @id @default(cuid())
+  organizationId String
+  number         String? // assigned when issued
+  clientId       String
+  status         String   @default("DRAFT") // DRAFT | ISSUED | PARTIALLY_PAID | PAID | CANCELLED
+  currency       String
+  issueDate      DateTime?
+  dueDate        DateTime?
+  subtotal       Decimal  @default(0) @db.Decimal(14, 2)
+  taxRate        Decimal  @default(0) @db.Decimal(5, 2) // percent
+  taxAmount      Decimal  @default(0) @db.Decimal(14, 2)
+  total          Decimal  @default(0) @db.Decimal(14, 2)
+  amountPaid     Decimal  @default(0) @db.Decimal(14, 2)
+  notes          String?
+  // Frozen at issue time so later settings changes never alter issued documents
+  companySnapshot Json?
+  bankSnapshot    Json?
+  journalEntryId String?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  client      Client       @relation(fields: [clientId], references: [id])
+  lines       InvoiceLine[]
+  allocations PaymentAllocation[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, clientId, status])
+}
+
+model InvoiceLine {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Decimal @db.Decimal(12, 2)
+  unitPrice   Decimal @db.Decimal(14, 2)
+  amount      Decimal @db.Decimal(14, 2)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id             String   @id @default(cuid())
+  organizationId String
+  number         String
+  clientId       String
+  bankAccountId  String
+  currency       String
+  amount         Decimal  @db.Decimal(14, 2)
+  unallocated    Decimal  @default(0) @db.Decimal(14, 2)
+  date           DateTime
+  method         String   @default("BANK_TRANSFER")
+  reference      String?
+  idempotencyKey String   @unique
+  journalEntryId String?
+  receivedById   String?
+  bankSnapshot   Json?
+  createdAt      DateTime @default(now())
+
+  client      Client      @relation(fields: [clientId], references: [id])
+  allocations PaymentAllocation[]
+
+  @@unique([organizationId, number])
+}
+
+model PaymentAllocation {
+  id        String  @id @default(cuid())
+  paymentId String
+  invoiceId String
+  amount    Decimal @db.Decimal(14, 2)
+
+  payment Payment @relation(fields: [paymentId], references: [id])
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId])
 }

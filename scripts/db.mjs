@@ -21,7 +21,10 @@ const pg = new EmbeddedPostgres({
 const fresh = !fs.existsSync(path.join(dataDir, "PG_VERSION"));
 if (fresh) await pg.initialise();
 await pg.start();
-if (fresh) await pg.createDatabase(dbName);
+if (fresh) {
+  await pg.createDatabase(dbName);
+  await pg.createDatabase("hifi_one_test"); // used by integration tests only
+}
 
 console.log(`PostgreSQL ready: postgresql://hifi:hifi_local_dev@localhost:${port}/${dbName}`);
 

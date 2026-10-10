@@ -37,8 +37,24 @@ async function addAccount(formData: FormData) {
   const hasDefault = await db.bankAccount.findFirst({
     where: { organizationId: user.organizationId, currency: parsed.data.currency, isDefault: true, active: true },
   });
-  const created = await db.bankAccount.create({
-    data: { ...parsed.data, organizationId: user.organizationId, isDefault: !hasDefault },
+  // Each bank account gets its own ledger account so payments post to the right cash/bank balance.
+  const created = await db.$transaction(async (tx) => {
+    const existing = await tx.account.findMany({
+      where: { organizationId: user.organizationId, code: { startsWith: "11" } },
+      select: { code: true },
+    });
+    const next = Math.max(1099, ...existing.map((a) => Number(a.code))) + 1;
+    const ledger = await tx.account.create({
+      data: {
+        organizationId: user.organizationId,
+        code: String(next),
+        name: `Bank - ${parsed.data.internalName} (${parsed.data.currency})`,
+        type: "ASSET",
+      },
+    });
+    return tx.bankAccount.create({
+      data: { ...parsed.data, organizationId: user.organizationId, isDefault: !hasDefault, ledgerAccountId: ledger.id },
+    });
   });
   await audit(user, { action: "bank_account.create", entity: "BankAccount", entityId: created.id, after: safe(created) });
   revalidatePath("/settings/bank-accounts");

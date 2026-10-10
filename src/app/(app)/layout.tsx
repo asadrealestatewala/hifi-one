@@ -20,7 +20,16 @@ const NAV: NavGroup[] = [
   },
   {
     title: "Services & Clients",
-    items: [{ href: "/services", label: "Service Catalog & Pricing", permission: "catalog.view" }],
+    items: [
+      { href: "/services", label: "Service Catalog & Pricing", permission: "catalog.view" },
+      { href: "/clients", label: "Client Accounts", permission: "clients.view" },
+      { href: "/finance/invoices", label: "Invoices", permission: "finance.view" },
+      { href: "/finance/payments", label: "Payments & Receipts", permission: "finance.view" },
+    ],
+  },
+  {
+    title: "Finance & Accounting",
+    items: [{ href: "/finance/ledger", label: "General Ledger", permission: "finance.view" }],
   },
   {
     title: "Analytics & Administration",
