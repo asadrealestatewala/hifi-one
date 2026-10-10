@@ -1,0 +1,233 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Identity, organization, access control ----------
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branches    Branch[]
+  departments Department[]
+  users       User[]
+  roles       Role[]
+  profiles    CompanyProfile[]
+  bankAccounts BankAccount[]
+  auditLogs   AuditLog[]
+  settingChanges SettingChange[]
+}
+
+model Branch {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  kind           String   @default("OFFICE") // REGISTERED_OFFICE | SALES_CENTRE | OFFICE
+  country        String?
+  address        String?
+  timezone       String?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  users        User[]
+
+  @@unique([organizationId, name])
+}
+
+model Department {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  users        User[]
+
+  @@unique([organizationId, name])
+}
+
+model User {
+  id             String    @id @default(cuid())
+  organizationId String
+  email          String    @unique
+  name           String
+  passwordHash   String
+  active         Boolean   @default(true)
+  userType       String    @default("EMPLOYEE") // EMPLOYEE | CLIENT | VENDOR | PARTNER | INVESTOR
+  branchId       String?
+  departmentId   String?
+  managerId      String?
+  failedLogins   Int       @default(0)
+  lockedUntil    DateTime?
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  branch       Branch?      @relation(fields: [branchId], references: [id])
+  department   Department?  @relation(fields: [departmentId], references: [id])
+  manager      User?        @relation("Reports", fields: [managerId], references: [id])
+  reports      User[]       @relation("Reports")
+  roles        UserRole[]
+  sessions     Session[]
+  auditLogs    AuditLog[]
+
+  @@index([organizationId])
+}
+
+model Role {
+  id             String  @id @default(cuid())
+  organizationId String
+  key            String // e.g. SUPER_ADMIN
+  name           String
+  isSystem       Boolean @default(false)
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  permissions  RolePermission[]
+  users        UserRole[]
+
+  @@unique([organizationId, key])
+}
+
+model Permission {
+  id          String @id @default(cuid())
+  key         String @unique // e.g. bank.view_full
+  description String
+
+  roles RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model UserRole {
+  userId  String
+  roleId  String
+  expiresAt DateTime? // temporary access delegation
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  ip        String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ---------- Governance ----------
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  actorId        String?
+  action         String // e.g. bank_account.update
+  entity         String
+  entityId       String?
+  before         Json?
+  after          Json?
+  ip             String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  actor        User?        @relation(fields: [actorId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([entity, entityId])
+}
+
+// Configuration change history (who changed which setting, when, old/new)
+model SettingChange {
+  id             String   @id @default(cuid())
+  organizationId String
+  section        String
+  actorId        String?
+  before         Json?
+  after          Json?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, section, createdAt])
+}
+
+// ---------- Company settings ----------
+
+// One row per legal entity / document profile. Edits create a new version;
+// issued documents later store a snapshot, so old rows are never overwritten.
+model CompanyProfile {
+  id             String   @id @default(cuid())
+  organizationId String
+  isDefault      Boolean  @default(false)
+  version        Int      @default(1)
+  legalName      String
+  tradingName    String?
+  website        String?
+  email          String?
+  description    String?
+  globalUan      String?
+  localUan       String?
+  registeredOffice String?
+  salesCentre    String?
+  registrationNo String?
+  taxId          String?
+  legalNotice    String?
+  invoiceFooter  String?
+  defaultCurrency String  @default("USD")
+  timezone       String   @default("UTC")
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+}
+
+model BankAccount {
+  id             String   @id @default(cuid())
+  organizationId String
+  internalName   String
+  bankName       String
+  accountHolder  String
+  country        String?
+  branchName     String?
+  accountNumber  String // shown masked unless bank.view_full
+  iban           String?
+  swift          String?
+  routingCode    String?
+  currency       String // PKR | USD | AED | GBP
+  accountType    String   @default("CURRENT")
+  isDefault      Boolean  @default(false)
+  active         Boolean  @default(true)
+  paymentInstructions String?
+  verified       Boolean  @default(false) // manual entry never implies verified
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, currency])
+}

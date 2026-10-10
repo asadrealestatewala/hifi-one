@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f5f6f9;
+  --foreground: #14172b;
+  --surface: #ffffff;
+  --border: #e3e5ee;
+  --muted: #6b7087;
+  --navy: #12163a;
+  --brand: #e11d1d;
+  --brand-dark: #b81414;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0c0f24;
+    --foreground: #eceef8;
+    --surface: #151a3a;
+    --border: #262c55;
+    --muted: #9aa0c3;
+    --navy: #080a1c;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-navy: var(--navy);
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+.input {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+}
+.input:focus {
+  outline: 2px solid var(--brand);
+  outline-offset: -1px;
+}
+.btn {
+  background: var(--brand);
+  color: #fff;
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.btn:hover {
+  background: var(--brand-dark);
+}
+.btn-ghost {
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8125rem;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+}
+.label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 0.25rem;
+}
