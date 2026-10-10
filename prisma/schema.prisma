@@ -231,3 +231,124 @@ model BankAccount {
 
   @@index([organizationId, currency])
 }
+
+// ---------- Phase 1: service catalog and CRM ----------
+
+model ServiceCategory {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  sortOrder      Int      @default(0)
+  active         Boolean  @default(true)
+
+  plans ServicePlan[]
+
+  @@unique([organizationId, name])
+}
+
+model ServicePlan {
+  id             String   @id @default(cuid())
+  organizationId String
+  categoryId     String
+  name           String
+  tagline        String?
+  billingInterval String  @default("MONTHLY") // ONE_TIME | MONTHLY | QUARTERLY | ANNUAL | HOURLY | MILESTONE | CUSTOM
+  isPopular      Boolean  @default(false)
+  isPublic       Boolean  @default(true)
+  active         Boolean  @default(true)
+  version        Int      @default(1)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  category ServiceCategory @relation(fields: [categoryId], references: [id])
+  prices   PlanPrice[]
+  features PlanFeature[]
+  leads    Lead[]
+
+  @@index([organizationId, categoryId])
+}
+
+// Independent price per currency (never a converted copy of another currency)
+model PlanPrice {
+  id       String  @id @default(cuid())
+  planId   String
+  currency String
+  amount   Decimal @db.Decimal(14, 2)
+  setupFee Decimal? @db.Decimal(14, 2)
+
+  plan ServicePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, currency])
+}
+
+model PlanFeature {
+  id        String  @id @default(cuid())
+  planId    String
+  text      String
+  included  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  plan ServicePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+}
+
+model PipelineStage {
+  id             String  @id @default(cuid())
+  organizationId String
+  name           String
+  sortOrder      Int
+  probability    Int     @default(0)
+  isWon          Boolean @default(false)
+  isLost         Boolean @default(false)
+
+  leads Lead[]
+
+  @@unique([organizationId, name])
+}
+
+model Lead {
+  id             String   @id @default(cuid())
+  organizationId String
+  number         Int      @default(autoincrement())
+  name           String
+  company        String?
+  email          String?
+  phone          String?
+  country        String?
+  source         String?
+  serviceInterest String?
+  planId         String?
+  dealValue      Decimal? @db.Decimal(14, 2)
+  currency       String   @default("USD")
+  priority       String   @default("MEDIUM")
+  stageId        String
+  stageChangedAt DateTime @default(now())
+  assignedToId   String?
+  nextFollowUp   DateTime?
+  notes          String?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  stage      PipelineStage @relation(fields: [stageId], references: [id])
+  plan       ServicePlan?  @relation(fields: [planId], references: [id])
+  activities LeadActivity[]
+
+  @@index([organizationId, stageId])
+  @@index([organizationId, assignedToId])
+  @@index([organizationId, email])
+  @@index([organizationId, phone])
+}
+
+model LeadActivity {
+  id        String   @id @default(cuid())
+  leadId    String
+  actorId   String?
+  kind      String // NOTE | CALL | EMAIL | STAGE_CHANGE | CREATED
+  body      String?
+  createdAt DateTime @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId, createdAt])
+}

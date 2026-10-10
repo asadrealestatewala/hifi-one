@@ -19,12 +19,18 @@ Still to do in Phase 0:
 - Integration tests for permissions and audit; Playwright smoke test
 - Password reset and optional MFA
 
-## Next: Phase 1 (CRM and commercial engine)
+## Phase 1: CRM and commercial engine (first slice done)
 
-Leads, contacts, opportunities kanban, Smart Lists, worklists, service catalog and regional price books, quotes, client conversion.
+Done and verified on localhost:
+- Service catalog: 20 categories, public-style pricing page with plan cards, Most Popular highlight, per-currency price (PKR/USD/AED/GBP), edit price with audit and plan version bump. Only AED example prices are seeded; other currencies show "Price not set".
+- Leads: create with duplicate detection (email/phone), search, detail page with notes and activity timeline, record-level access (agents see own leads, managers see all).
+- Pipeline board: configurable stages (seeded), drag and drop plus a stage menu for touch/keyboard, persisted, optimistic with rollback.
+- Closed Won is deliberately blocked until the client conversion workflow exists.
+
+Still to do in Phase 1: contacts and companies, Smart Lists, prospecting worklists with CSV import, quotes, contracts, client conversion (needs accounting), commissions setup.
 
 ## Decisions
 
 - Brand colour follows the supplied red H logo; the spec's blue/purple can be added as a theme if wanted.
-- Local database is PostgreSQL 17 from the `embedded-postgres` package (no Docker here). Production should use a managed PostgreSQL.
+- Local database must be UTF-8 (fixed after a WIN1252 default broke non-Latin text). Local database is PostgreSQL 17 from the `embedded-postgres` package (no Docker here). Production should use a managed PostgreSQL.
 - Bank details and company profile edits never rewrite issued documents; documents will store snapshots (built with invoicing in Phase 3).

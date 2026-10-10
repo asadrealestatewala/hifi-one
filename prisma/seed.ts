@@ -9,6 +9,65 @@ import { PERMISSIONS, ROLE_DEFS, ALL_PERMISSIONS } from "../src/lib/permissions"
 
 const db = new PrismaClient();
 
+const CATEGORIES = [
+  "Digital Marketing", "Social Media Management", "Video Editing and Production", "Graphic Design and Creative",
+  "Website Design and Development", "Software Development", "AI Bots, Agents and Solutions", "SaaS Products and Subscriptions",
+  "SEO Services", "Email Marketing", "Cold Calling and Telemarketing", "Lead Generation and Prospecting",
+  "Meta Ads Management", "TikTok Ads Management", "YouTube Ads Management", "Google Ads and PPC",
+  "Marketing Automation and CRM Setup", "Website Maintenance", "CGI, 3D and Animation", "Custom Projects and Other",
+];
+
+// Illustrative seed plans from the spec. Prices are editable examples, and only
+// AED is seeded: other currencies must be entered as their own prices, not converted.
+const PLANS: { category: string; name: string; aed: number; popular?: boolean; features: string[] }[] = [
+  { category: "Social Media Management", name: "Social Starter", aed: 799, features: ["3 social platforms", "10 posts per month", "Basic analytics", "Monthly report"] },
+  { category: "Social Media Management", name: "Social Pro", aed: 1499, popular: true, features: ["All supported social platforms", "20 posts plus stories", "Paid ad management", "Advanced analytics", "Content strategy", "Weekly reports"] },
+  { category: "Social Media Management", name: "Social Enterprise", aed: 2999, features: ["Full marketing suite", "Content volume per contract", "Full ad management", "Influencer marketing", "Dedicated account manager", "Real-time analytics"] },
+  { category: "SaaS Products and Subscriptions", name: "ERP Basic", aed: 499, features: ["Lead management", "Contact database", "Email tracking", "Basic reports"] },
+  { category: "SaaS Products and Subscriptions", name: "ERP Pro", aed: 999, popular: true, features: ["Full CRM features", "Sales pipeline", "Email automation", "Advanced analytics", "Tool integration", "5 user accounts"] },
+  { category: "SaaS Products and Subscriptions", name: "ERP Enterprise", aed: 2999, features: ["Complete ERP solution", "Inventory management", "HR and payroll", "Financial management", "Custom modules", "Users per agreement"] },
+];
+
+const STAGES: [string, number, boolean, boolean][] = [
+  ["New", 10, false, false], ["Interested", 25, false, false], ["Follow-up", 35, false, false],
+  ["Proposal Sent", 50, false, false], ["Negotiation", 70, false, false], ["Closed Won", 100, true, false],
+  ["Closed Lost", 0, false, true], ["Not Interested", 0, false, true], ["Nurture", 5, false, false],
+];
+
+async function seedCatalog(orgId: string) {
+  const cats = new Map<string, string>();
+  for (const [i, name] of CATEGORIES.entries()) {
+    const c = await db.serviceCategory.upsert({
+      where: { organizationId_name: { organizationId: orgId, name } },
+      update: {},
+      create: { organizationId: orgId, name, sortOrder: i },
+    });
+    cats.set(name, c.id);
+  }
+  if ((await db.servicePlan.count({ where: { organizationId: orgId } })) === 0) {
+    for (const [i, p] of PLANS.entries()) {
+      await db.servicePlan.create({
+        data: {
+          organizationId: orgId,
+          categoryId: cats.get(p.category)!,
+          name: p.name,
+          isPopular: Boolean(p.popular),
+          sortOrder: i,
+          prices: { create: { currency: "AED", amount: p.aed } },
+          features: { create: p.features.map((text, n) => ({ text, sortOrder: n })) },
+        },
+      });
+    }
+  }
+  for (const [i, [name, probability, isWon, isLost]] of STAGES.entries()) {
+    await db.pipelineStage.upsert({
+      where: { organizationId_name: { organizationId: orgId, name } },
+      update: {},
+      create: { organizationId: orgId, name, sortOrder: i, probability, isWon, isLost },
+    });
+  }
+}
+
 async function main() {
   let org = await db.organization.findFirst();
   if (!org) org = await db.organization.create({ data: { name: "Hifi Marketing and Technologies" } });
@@ -72,6 +131,8 @@ async function main() {
       },
     });
   }
+
+  await seedCatalog(org.id);
 
   const demo = [
     { email: "admin@hifi.local", name: "Demo Super Admin", role: "SUPER_ADMIN" },

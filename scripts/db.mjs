@@ -14,6 +14,8 @@ const pg = new EmbeddedPostgres({
   password: "hifi_local_dev",
   port,
   persistent: true,
+  // UTF-8 is required for Urdu/Arabic names and any non-Latin text.
+  initdbFlags: ["--encoding=UTF8", "--locale=C"],
 });
 
 const fresh = !fs.existsSync(path.join(dataDir, "PG_VERSION"));

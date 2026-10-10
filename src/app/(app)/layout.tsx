@@ -12,6 +12,17 @@ type NavGroup = { title: string; items: NavItem[] };
 const NAV: NavGroup[] = [
   { title: "Overview", items: [{ href: "/dashboard", label: "Dashboard", permission: "dashboard.view" }] },
   {
+    title: "CRM & Sales",
+    items: [
+      { href: "/leads", label: "Leads", permission: "crm.view" },
+      { href: "/pipeline", label: "Pipeline", permission: "crm.view" },
+    ],
+  },
+  {
+    title: "Services & Clients",
+    items: [{ href: "/services", label: "Service Catalog & Pricing", permission: "catalog.view" }],
+  },
+  {
     title: "Analytics & Administration",
     items: [
       { href: "/settings/company", label: "Company Settings", permission: "settings.company.view" },
