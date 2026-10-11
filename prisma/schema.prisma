@@ -12,6 +12,7 @@ datasource db {
 model Organization {
   id        String   @id @default(cuid())
   name      String
+  baseCurrency String @default("USD")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1241,4 +1242,20 @@ model DocumentSetting {
   updatedAt      DateTime @updatedAt
 
   @@unique([organizationId, docType])
+}
+
+// Rate meaning: 1 unit of `currency` = `rate` units of the organization's base currency, valid from `effectiveDate`.
+// Rows are never edited; a correction is a new row for the same date (the latest entry wins) so history stays traceable.
+model ExchangeRate {
+  id             String   @id @default(cuid())
+  organizationId String
+  currency       String
+  rate           Decimal  @db.Decimal(18, 8)
+  effectiveDate  String   // YYYY-MM-DD
+  source         String   @default("MANUAL")
+  note           String?
+  createdById    String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, currency, effectiveDate])
 }

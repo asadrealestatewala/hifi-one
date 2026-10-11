@@ -1,6 +1,6 @@
 // Financial statements built from the same journal lines as the ledger, so every figure
 // reconciles. Pure builders (no database) take account balance rows; the loaders run the SQL.
-// Amounts are kept per currency and never added across currencies (exchange rates are not built yet).
+// Amounts are kept per currency here; the consolidated reports convert them first (see fx.ts).
 import type { PrismaClient } from "@prisma/client";
 import { dec, round2 } from "./ledger-math";
 

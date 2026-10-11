@@ -2,6 +2,15 @@
 
 Phases follow section 35 of [spec.md](spec.md).
 
+## Exchange rates and consolidated reports (done)
+
+- Base currency per organization (USD by default; changeable only before any rate exists) and an append-only rate history (a correction is a newer entry for the same date), with who entered it
+- Exchange Rates screen; the new `fx.manage` permission goes to Super Admin and Finance Manager; viewing needs `reports.view`
+- Consolidated Profit & Loss and Balance Sheet in the base currency, converting each currency at the rate in force on the report date; a currency without a rate is listed as not included and is never treated as 1:1; conversion rounding is shown on its own line and a real imbalance is flagged
+- 12 automated tests (rate lookup by date, corrections, validation, organization separation, base currency lock, merge across currencies, missing rates, balance after conversion) plus a browser run
+- `npm run roles:sync` registers new permissions and gives them to Super Admin after an upgrade
+Limits: this is a presentation conversion at one rate, not accounting revaluation; no realised or unrealised exchange gains or losses are booked; rates are typed in, not fetched; the dashboard and receivables aging stay per currency.
+
 ## File storage, server-side PDFs and document templates (done)
 
 Done, 48 automated tests plus a browser run (an invoice PDF downloaded and inspected visually; a receipt uploaded to an expense voucher; the download worked only with the right link; a missing or tampered link gave 404; an HTML file renamed .pdf was refused):

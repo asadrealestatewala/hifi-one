@@ -27,6 +27,7 @@ Keep these in your host's secret store, never in git. Only `.env.example` (place
 ```bash
 npm ci --legacy-peer-deps
 npx prisma migrate deploy      # creates all tables; safe to re-run
+# After upgrading to a version that adds permissions, run: npm run roles:sync (gives them to Super Admin; grant other roles in Roles & Permissions)
 npm run build
 npm run start                  # serves on port 3000 (use -p to change)
 ```

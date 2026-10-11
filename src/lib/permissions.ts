@@ -60,6 +60,7 @@ export const PERMISSIONS = {
   "journal.approve": "Approve, reject and reverse manual journal entries",
   "coa.manage": "Add, rename and deactivate ledger accounts",
   "period.lock": "Close and reopen accounting periods",
+  "fx.manage": "Set exchange rates and the base currency",
   "finance.refund": "Refund money held on account to a client",
   "clients.view": "View client accounts",
   "clients.edit": "Create and edit client accounts",
@@ -114,7 +115,7 @@ const EXTRA: Record<string, PermissionKey[]> = {
   VIDEO_EDITOR: ["content.view", "content.manage"],
   ADS_MANAGER: ["content.view"],
   CEO: ["hr.view", "leave.approve", "payroll.view", "payroll.approve", "expenses.view", "expenses.approve", "budget.view", "budget.approve", "budget.override", "vendors.view", "assets.view", "investments.view", "reports.view", "dashboard.executive", "journal.approve", "period.lock"],
-  FINANCE_MANAGER: ["payroll.view", "payroll.approve", "payroll.post", "expenses.view", "expenses.review", "expenses.approve", "expenses.post", "budget.view", "budget.manage", "vendors.view", "vendors.bills", "vendors.post", "assets.view", "assets.manage", "assets.post", "investments.view", "investments.manage", "reports.view", "dashboard.executive", "journal.create", "journal.approve", "coa.manage", "period.lock", "finance.refund"],
+  FINANCE_MANAGER: ["payroll.view", "payroll.approve", "payroll.post", "expenses.view", "expenses.review", "expenses.approve", "expenses.post", "budget.view", "budget.manage", "vendors.view", "vendors.bills", "vendors.post", "assets.view", "assets.manage", "assets.post", "investments.view", "investments.manage", "reports.view", "dashboard.executive", "journal.create", "journal.approve", "coa.manage", "period.lock", "finance.refund", "fx.manage"],
   ACCOUNTANT: ["expenses.view", "expenses.review", "expenses.post", "budget.view", "vendors.view", "vendors.post", "assets.view", "assets.manage", "reports.view", "journal.create"],
   PAYROLL_OFFICER: ["hr.view", "payroll.view", "payroll.manage"],
 };

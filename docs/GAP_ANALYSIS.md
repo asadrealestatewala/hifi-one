@@ -27,7 +27,7 @@ The spec ([spec.md](spec.md)) describes a very large platform. The accounting, H
 | Employee activity monitoring | Not built, by design (needs a separate desktop agent and written policy) |
 | File storage and uploads | Partial (receipts, vendor bill documents, employee documents, content media; no virus scanning) |
 | Server-side PDF and document templates | Partial (invoice, receipt, credit note, statement, payslip, voucher; template toggles; Latin text only) |
-| Exchange rates and multi-currency reporting | Not built |
+| Exchange rates and multi-currency reporting | Partial (rate table, base currency, consolidated P&L and balance sheet; no revaluation or realised FX gains/losses, no automatic rate feed, no consolidated dashboard) |
 
 ## Detail by spec section
 
@@ -114,7 +114,7 @@ The spec ([spec.md](spec.md)) describes a very large platform. The accounting, H
 2. ~~First-run setup, user and role administration, password reset, multi-factor authentication~~ (done). Still needed: branches and departments screens, enforce two-step verification for sensitive roles.
 3. ~~File storage~~ (done for receipts, bill documents, employee documents and content media). Still needed: contracts, a virus scanner, other attachment points (quotes, projects, assets).
 4. ~~Server-side PDF and document templates~~ (done for six document types). Still needed: right-to-left languages such as Urdu and Arabic, quotations and contracts, emailing documents, letterheads.
-5. **Exchange rates** and consolidated reports.
+5. ~~Exchange rates and consolidated reports~~ (done as presentation conversion). Still needed: foreign-exchange gain/loss accounting, revaluation, a rate feed, consolidated figures on the executive dashboard.
 6. **Service catalog editing, quotations, contracts, subscriptions and renewals**, completing the sales-to-cash flow.
 7. **Project depth**: milestones, deliverables, costs, profitability, timeline and calendar views.
 8. **Integrations** one at a time (email first, then WhatsApp, then ads), each needing your provider accounts.
