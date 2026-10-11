@@ -6,6 +6,8 @@ import { audit, requirePermission } from "@/lib/auth";
 import { LedgerError, recordPayment } from "@/lib/accounting";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
+import { Empty, NewButton, Notice, PageHeader, PanelForm, SearchBox, Stat } from "@/components/ui";
+import Drawer from "@/components/ui/Drawer";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +25,7 @@ async function receive(formData: FormData) {
   "use server";
   const user = await requirePermission("finance.post");
   const parsed = schema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) redirect(`/finance/payments?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
+  if (!parsed.success) redirect(`/finance/payments?new=1&error=${encodeURIComponent(parsed.error.issues[0].message)}`);
   const d = parsed.data;
   let pid: string;
   try {
@@ -34,92 +36,86 @@ async function receive(formData: FormData) {
     pid = p.id;
     await audit(user, { action: "payment.record", entity: "Payment", entityId: p.id, after: { number: p.number, amount: p.amount.toString(), currency: p.currency } });
   } catch (e) {
-    if (e instanceof LedgerError) redirect(`/finance/payments?error=${encodeURIComponent(e.message)}`);
+    if (e instanceof LedgerError) redirect(`/finance/payments?new=1&error=${encodeURIComponent(e.message)}`);
     throw e;
   }
   redirect(`/finance/payments?ok=${pid}`);
 }
 
-export default async function Payments({ searchParams }: { searchParams: Promise<{ error?: string; ok?: string }> }) {
+export default async function Payments({ searchParams }: { searchParams: Promise<{ error?: string; ok?: string; q?: string; new?: string }> }) {
   const user = await requirePermission("finance.view");
-  const { error, ok } = await searchParams;
+  const { error, ok, q, new: isNew } = await searchParams;
   const canPost = user.permissions.has("finance.post");
+  const search = q?.trim();
   const profile = await db.companyProfile.findFirst({ where: { organizationId: user.organizationId, isDefault: true } });
   // Default to today in the company timezone, not UTC, so receipts are not dated before their invoice
   const today = new Date().toLocaleDateString("en-CA", { timeZone: profile?.timezone ?? "UTC" });
+  const open = Boolean(canPost && isNew);
   const [payments, clients, banks] = await Promise.all([
-    db.payment.findMany({ where: { organizationId: user.organizationId }, orderBy: { createdAt: "desc" }, take: 100, include: { client: true, allocations: { include: { invoice: true } } } }),
-    db.client.findMany({ where: { organizationId: user.organizationId, active: true }, orderBy: { name: "asc" } }),
-    db.bankAccount.findMany({ where: { organizationId: user.organizationId, active: true, ledgerAccountId: { not: null } }, orderBy: { internalName: "asc" } }),
+    db.payment.findMany({
+      where: { organizationId: user.organizationId, ...(search ? { OR: [{ number: { contains: search, mode: "insensitive" } }, { client: { name: { contains: search, mode: "insensitive" } } }, { reference: { contains: search, mode: "insensitive" } }] } : {}) },
+      orderBy: { createdAt: "desc" }, take: 100, include: { client: true, allocations: { include: { invoice: true } } },
+    }),
+    open ? db.client.findMany({ where: { organizationId: user.organizationId, active: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
+    open ? db.bankAccount.findMany({ where: { organizationId: user.organizationId, active: true, ledgerAccountId: { not: null } }, orderBy: { internalName: "asc" } }) : Promise.resolve([]),
   ]);
+  // Received this month and advances held, per currency, never mixed
+  const monthStart = today.slice(0, 7);
+  const sum = (rows: typeof payments, f: (p: (typeof payments)[number]) => { toString(): string } | null) => {
+    const m = new Map<string, number>();
+    for (const p of rows) { const v = f(p); if (v) m.set(p.currency, (m.get(p.currency) ?? 0) + Number(v.toString())); }
+    return [...m].map(([c, v]) => formatMoney(v.toFixed(2), c)).join(" · ") || "None";
+  };
+  const thisMonth = payments.filter((p) => p.createdAt.toISOString().slice(0, 7) === monthStart);
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Payments & Receipts</h1>
-      {ok && <p className="text-sm bg-green-600/10 text-green-700 rounded-lg px-3 py-2">Payment recorded and applied to open invoices, oldest first.</p>}
-      <div className="card overflow-x-auto">
-        {payments.length === 0 ? <p className="text-sm text-muted">No payments yet.</p> : (
+    <div className="space-y-5">
+      <PageHeader title="Payments & receipts" subtitle="Money received, and which invoices it settled." actions={canPost ? <NewButton href="/finance/payments?new=1">Record payment</NewButton> : undefined} />
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Stat label="Receipts shown" value={payments.length} />
+        <Stat label="Received this month" value={sum(thisMonth, (p) => p.amount)} hint="per currency" />
+        <Stat label="Held as advances" value={sum(payments, (p) => (p.unallocated.gt(0) ? p.unallocated : null))} hint="not yet applied to an invoice" />
+      </div>
+      {ok && <Notice kind="ok">Payment recorded and applied to open invoices, oldest first.</Notice>}
+      {error && !open && <Notice kind="error">{error}</Notice>}
+      <SearchBox q={search} placeholder="Search receipt, client or reference" />
+      {payments.length === 0 ? <Empty title={search ? "No payments match" : "No payments yet"}>{canPost ? "Record the first one with Record payment." : "Receipts will appear here."}</Empty> : (
+        <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted">
-              <tr><th className="py-2 pr-4">Receipt</th><th className="pr-4">Client</th><th className="pr-4">Applied to</th><th className="pr-4 text-right">Amount</th><th className="text-right">Held as advance</th></tr>
+            <thead className="bg-hover/60 text-left text-xs text-muted">
+              <tr><th className="px-4 py-2.5">Receipt</th><th className="pr-4">Client</th><th className="pr-4">Applied to</th><th className="pr-4 text-right">Amount</th><th className="pr-4 text-right">Held as advance</th></tr>
             </thead>
             <tbody>
               {payments.map((p) => (
-                <tr key={p.id} className="border-t border-border">
-                  <td className="py-2 pr-4 font-medium"><a className="underline" href={`/finance/payments/${p.id}/pdf`} target="_blank" rel="noopener">{p.number}</a></td>
+                <tr key={p.id} className="border-t border-border transition hover:bg-hover/50">
+                  <td className="px-4 py-3 font-medium"><a className="hover:underline" href={`/finance/payments/${p.id}/pdf`} target="_blank" rel="noopener">{p.number}</a></td>
                   <td className="pr-4">{p.client.name}</td>
-                  <td className="pr-4">
-                    {p.allocations.map((a) => (
-                      <Link key={a.id} href={`/finance/invoices/${a.invoiceId}`} className="underline mr-2">{a.invoice.number}</Link>
-                    ))}
-                  </td>
-                  <td className="pr-4 text-right">{formatMoney(p.amount, p.currency)}</td>
-                  <td className="text-right">{p.unallocated.gt(0) ? formatMoney(p.unallocated, p.currency) : ""}</td>
+                  <td className="pr-4">{p.allocations.map((a) => <Link key={a.id} href={`/finance/invoices/${a.invoiceId}`} className="mr-2 text-primary hover:underline">{a.invoice.number}</Link>)}</td>
+                  <td className="pr-4 text-right tabular-nums">{formatMoney(p.amount, p.currency)}</td>
+                  <td className="pr-4 text-right tabular-nums">{p.unallocated.gt(0) ? formatMoney(p.unallocated, p.currency) : ""}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </div>
-      {canPost && (
-        <form action={receive} className="card grid gap-4 sm:grid-cols-2">
-          <h2 className="font-semibold sm:col-span-2">Record payment received</h2>
-          {error && <p role="alert" className="sm:col-span-2 text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
-          {/* Same key on refresh or double click means the payment is only recorded once */}
-          <input type="hidden" name="idempotencyKey" value={randomUUID()} />
-          <div>
-            <label className="label" htmlFor="clientId">Client</label>
-            <select id="clientId" name="clientId" required className="input">
-              <option value="">Choose…</option>
-              {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="label" htmlFor="bankAccountId">Received into</label>
-            <select id="bankAccountId" name="bankAccountId" required className="input">
-              <option value="">Choose…</option>
-              {banks.map((b) => <option key={b.id} value={b.id}>{b.internalName} ({b.currency})</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="label" htmlFor="amount">Amount (in the bank account currency)</label>
-            <input id="amount" name="amount" required inputMode="decimal" className="input" />
-          </div>
-          <div>
-            <label className="label" htmlFor="date">Date received</label>
-            <input id="date" name="date" type="date" required defaultValue={today} className="input" />
-          </div>
-          <div>
-            <label className="label" htmlFor="method">Method</label>
-            <select id="method" name="method" className="input">
-              {["BANK_TRANSFER", "CASH", "CARD", "CHEQUE", "OTHER"].map((m) => <option key={m}>{m}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="label" htmlFor="reference">Transaction reference</label>
-            <input id="reference" name="reference" className="input" />
-          </div>
-          <div className="sm:col-span-2"><button className="btn">Record payment</button></div>
-        </form>
+        </div>
+      )}
+      {open && (
+        <Drawer title="Record payment received" closeTo="/finance/payments">
+          <PanelForm action={receive} closeTo="/finance/payments" submit="Record payment" error={error} hint="Applied to open invoices oldest first. Submitting twice records it once.">
+            {/* Same key on refresh or double click means the payment is only recorded once */}
+            <input type="hidden" name="idempotencyKey" value={randomUUID()} />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div><label className="label" htmlFor="clientId">Client</label>
+                <select id="clientId" name="clientId" required className="input"><option value="">Choose…</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+              <div><label className="label" htmlFor="bankAccountId">Received into</label>
+                <select id="bankAccountId" name="bankAccountId" required className="input"><option value="">Choose…</option>{banks.map((b) => <option key={b.id} value={b.id}>{b.internalName} ({b.currency})</option>)}</select></div>
+              <div><label className="label" htmlFor="amount">Amount (in the bank account currency)</label><input id="amount" name="amount" required inputMode="decimal" className="input" /></div>
+              <div><label className="label" htmlFor="date">Date received</label><input id="date" name="date" type="date" required defaultValue={today} className="input" /></div>
+              <div><label className="label" htmlFor="method">Method</label>
+                <select id="method" name="method" className="input">{["BANK_TRANSFER", "CASH", "CARD", "CHEQUE", "OTHER"].map((m) => <option key={m}>{m}</option>)}</select></div>
+              <div><label className="label" htmlFor="reference">Transaction reference</label><input id="reference" name="reference" className="input" /></div>
+            </div>
+          </PanelForm>
+        </Drawer>
       )}
     </div>
   );

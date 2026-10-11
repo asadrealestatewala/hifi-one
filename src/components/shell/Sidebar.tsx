@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import Icon from "./Icon";
+import { MODULE_COLOR } from "./nav-colors";
+import type { NavStats } from "@/lib/nav-stats";
 
 type Item = { href: string; label: string };
 type Group = { id: string; title: string; icon: string; items: Item[] };
@@ -19,7 +21,7 @@ const write = (key: string, value: unknown) => { try { localStorage.setItem(key,
 
 // Grouped, collapsible navigation. Each group is a dropdown; the group holding the current page opens by itself;
 // the whole bar can shrink to icons. Choices are remembered in this browser only.
-export default function Sidebar({ groups, mobileOpen, onClose }: { groups: Group[]; mobileOpen: boolean; onClose: () => void }) {
+export default function Sidebar({ groups, stats, mobileOpen, onClose }: { groups: Group[]; stats: NavStats; mobileOpen: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [open, setOpen] = useState<string[]>([]);
@@ -61,16 +63,18 @@ export default function Sidebar({ groups, mobileOpen, onClose }: { groups: Group
             return (
               <div key={g.id} className="mb-0.5">
                 {collapsed ? (
-                  <Link href={g.items[0].href} title={g.title} className={`flex h-10 items-center justify-center rounded-lg ${holdsActive ? "bg-white/12 text-white" : "text-sidebar-fg hover:bg-white/8 hover:text-white"}`}>
-                    <Icon name={g.icon} />
+                  <Link href={g.items[0].href} title={g.title} className={`relative flex h-10 items-center justify-center rounded-lg ${holdsActive ? "bg-white/12" : "hover:bg-white/8"}`}>
+                    <Chip color={MODULE_COLOR[g.id]} on={holdsActive}><Icon name={g.icon} className="h-4 w-4" /></Chip>
+                    {stats.badges[g.id] ? <span className="absolute right-1.5 top-1 h-2 w-2 rounded-full bg-brand ring-2 ring-sidebar" /> : null}
                   </Link>
                 ) : (
                   <button
                     type="button" onClick={() => toggleGroup(g.id)} aria-expanded={isOpen} aria-controls={`nav-${g.id}`}
-                    className={`group flex h-10 w-full items-center gap-3 rounded-lg px-3 text-[13.5px] font-medium transition-colors ${holdsActive ? "text-white" : "text-sidebar-fg hover:bg-white/8 hover:text-white"}`}
+                    className={`group flex h-10 w-full items-center gap-3 rounded-lg px-3 text-[13.5px] font-medium transition-all duration-150 hover:translate-x-0.5 ${holdsActive ? "text-white" : "text-sidebar-fg hover:bg-white/8 hover:text-white"}`}
                   >
-                    <Icon name={g.icon} className={`h-[18px] w-[18px] ${holdsActive ? "text-accent" : ""}`} />
+                    <Chip color={MODULE_COLOR[g.id]} on={holdsActive}><Icon name={g.icon} className="h-4 w-4" /></Chip>
                     <span className="flex-1 text-left">{g.title}</span>
+                    {stats.badges[g.id] ? <span title={g.id === "crm" ? "Follow-ups due" : "Overdue tasks"} className="min-w-5 rounded-full bg-brand px-1.5 text-center text-[11px] font-semibold leading-5 text-white [animation:pop_.3s_ease-out]">{stats.badges[g.id]}</span> : null}
                     <Icon name="chevron" className={`h-3.5 w-3.5 opacity-60 transition-transform ${isOpen ? "rotate-90" : ""}`} />
                   </button>
                 )}
@@ -81,7 +85,8 @@ export default function Sidebar({ groups, mobileOpen, onClose }: { groups: Group
                       return (
                         <li key={i.href}>
                           <Link href={i.href} onClick={onClose} aria-current={on ? "page" : undefined}
-                            className={`block rounded-md px-3 py-1.5 text-[13px] transition-colors ${on ? "bg-white/12 font-medium text-white" : "text-sidebar-fg/80 hover:bg-white/8 hover:text-white"}`}>
+                            className={`relative block rounded-md px-3 py-1.5 text-[13px] transition-all duration-150 hover:translate-x-1 ${on ? "bg-gradient-to-r from-white/15 to-transparent font-medium text-white" : "text-sidebar-fg/80 hover:bg-white/8 hover:text-white"}`}>
+                            {on && <span aria-hidden className="absolute -left-[13px] top-1.5 h-[18px] w-0.5 rounded-full" style={{ background: MODULE_COLOR[g.id] ?? "var(--accent)" }} />}
                             {i.label}
                           </Link>
                         </li>
@@ -94,6 +99,7 @@ export default function Sidebar({ groups, mobileOpen, onClose }: { groups: Group
           })}
         </nav>
 
+        {stats.quest && <QuestMini q={stats.quest} collapsed={collapsed} onNavigate={onClose} />}
         <div className="hidden shrink-0 border-t border-white/10 p-2 md:block">
           <button type="button" onClick={toggleCollapsed} className="flex h-9 w-full items-center gap-3 rounded-lg px-3 text-[13px] text-sidebar-fg hover:bg-white/8 hover:text-white" aria-label={collapsed ? "Expand menu" : "Collapse menu"}>
             <Icon name="menu" />{!collapsed && <span>Collapse menu</span>}
@@ -101,5 +107,37 @@ export default function Sidebar({ groups, mobileOpen, onClose }: { groups: Group
         </div>
       </aside>
     </>
+  );
+}
+
+function Chip({ color = "#5648e8", on, children }: { color?: string; on: boolean; children: React.ReactNode }) {
+  return (
+    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white transition-transform duration-150 group-hover:scale-110 ${on ? "shadow-lg" : "opacity-90"}`}
+      style={{ background: on ? `linear-gradient(135deg, ${color}, color-mix(in srgb, ${color} 60%, #fff))` : `color-mix(in srgb, ${color} 55%, #1e2247)`, boxShadow: on ? `0 4px 14px color-mix(in srgb, ${color} 55%, transparent)` : undefined }}>{children}</span>
+  );
+}
+
+// Level, XP and today's goals, always in sight. Fills as you work; links to the goals on your dashboard.
+function QuestMini({ q, collapsed, onNavigate }: { q: NonNullable<NavStats["quest"]>; collapsed: boolean; onNavigate: () => void }) {
+  const span = q.nextLevelAt ? q.nextLevelAt - q.levelStartsAt : 1;
+  const pct = q.nextLevelAt ? Math.min(100, Math.max(0, Math.round(((q.xp - q.levelStartsAt) / span) * 100))) : 100;
+  const done = q.goalsDone === q.goalsTotal;
+  if (collapsed) return <Link href="/dashboard" onClick={onNavigate} title={`Level ${q.level} ${q.levelName}, ${q.goalsDone}/${q.goalsTotal} goals today`} className="mx-auto mb-2 hidden h-9 w-9 items-center justify-center rounded-full bg-white/10 text-xs font-bold text-white md:flex">{q.level}</Link>;
+  return (
+    <Link href="/dashboard" onClick={onNavigate} className="group mx-2 mb-2 block shrink-0 rounded-xl border border-white/10 bg-white/5 p-3 transition hover:bg-white/10" aria-label={`Level ${q.level} ${q.levelName}. ${q.goalsDone} of ${q.goalsTotal} daily goals done.`}>
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-sm font-bold text-white shadow-md">{q.level}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[13px] font-semibold text-white">{q.levelName}</span>
+          <span className="block text-[11px] text-sidebar-fg">{q.xp} XP{q.nextLevelAt ? ` · ${q.nextLevelAt - q.xp} to level ${q.level + 1}` : ""}</span>
+        </span>
+        {q.streak > 0 && <span title={`${q.streak}-day streak`} className="text-xs font-semibold text-amber-300">🔥{q.streak}</span>}
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}><div className="h-full rounded-full bg-gradient-to-r from-primary to-accent transition-all duration-700" style={{ width: `${pct}%` }} /></div>
+      <div className="mt-2 flex items-center justify-between text-[11px] text-sidebar-fg">
+        <span>Today&apos;s goals</span>
+        <span className="flex items-center gap-1">{Array.from({ length: q.goalsTotal }).map((_, i) => <span key={i} className={`h-2 w-2 rounded-full ${i < q.goalsDone ? "bg-emerald-400" : "bg-white/20"}`} />)}<span className={done ? "ml-1 font-semibold text-emerald-300" : "ml-1"}>{done ? "All done!" : `${q.goalsDone}/${q.goalsTotal}`}</span></span>
+      </div>
+    </Link>
   );
 }
