@@ -43,7 +43,7 @@ export default function Board({ stages, cards: initial, canEdit, totals }: { sta
               onDrop={() => { setOver(null); if (dragId) move(dragId, s.id); }}>
               <header className="flex items-center justify-between px-2 pb-2 pt-1">
                 <h2 className="text-xs font-semibold uppercase tracking-wide">{s.name} <span className="ml-1 rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-medium text-muted">{col.length}</span></h2>
-                <span className="text-[11px] text-muted">{s.probability}% · {totals[s.id] ?? ""}</span>
+                <span className="text-[11px] text-muted">{s.probability}%{totals[s.id] ? ` · ${totals[s.id]}` : ""}</span>
               </header>
               <div className="min-h-12 space-y-2">
                 {col.map((c) => (
