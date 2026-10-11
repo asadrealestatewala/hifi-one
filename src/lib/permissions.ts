@@ -67,6 +67,7 @@ export const PERMISSIONS = {
   "commissions.own": "See your own commission and bonus statements",
   "commissions.manage": "Set commission rates, work out commissions, add bonuses and void entries",
   "commissions.approve": "Approve commission and bonus payouts and record their payment",
+  "assistant.use": "Ask the business assistant questions about information you can already see",
   "quotes.view": "View quotations",
   "quotes.manage": "Create, send and record decisions on quotations",
   "contracts.view": "View client contracts",
@@ -133,5 +134,5 @@ const EXTRA: Record<string, PermissionKey[]> = {
 };
 for (const r of ROLE_DEFS) {
   if (r.permissions === "ALL" || EXTERNAL_ROLES.has(r.key)) continue;
-  r.permissions = [...new Set<PermissionKey>([...r.permissions, "self.attendance", "self.leave", "self.payslip", "self.expense", ...(EXTRA[r.key] ?? [])])];
+  r.permissions = [...new Set<PermissionKey>([...r.permissions, "self.attendance", "self.leave", "self.payslip", "self.expense", "assistant.use", ...(EXTRA[r.key] ?? [])])];
 }

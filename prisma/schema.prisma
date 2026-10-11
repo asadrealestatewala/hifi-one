@@ -1538,3 +1538,17 @@ model CommissionEntry {
   @@index([organizationId, status])
   @@index([userId, createdAt])
 }
+
+// What people asked the assistant and which data it read, for audit. Answers are not stored: they are rebuilt from live data when asked again.
+model AssistantLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  question       String
+  toolsUsed      String[]
+  status         String   // ANSWERED | FAILED | NOT_CONFIGURED
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
+}

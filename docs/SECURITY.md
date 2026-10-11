@@ -33,6 +33,13 @@ What is in place, how it is checked, and what is not done yet.
 - Documents are generated server-side from the same loaders as downloads; drafts and cancelled documents cannot be emailed, and another organization's records are never found.
 - Every attempt is logged (who, to whom, which document, result). The log says SENT only when the mail server accepted the message.
 
+## Business assistant
+
+- Read-only: it has no tools that change data, so text hidden inside a record cannot make it act.
+- Permission-checked twice: the tools offered depend on the person's permissions, and each tool call checks again on the server, so a tool the person may not use is refused even if the model asks for it. Records of other organizations are never read.
+- Nothing leaves the system unless ANTHROPIC_API_KEY is set. Payroll, bank account numbers, passwords and files are not available to it at all.
+- Questions are logged with the data sources used; answers are not stored.
+
 ## Files and documents
 
 - Uploads are checked on the server by looking inside the file: the extension must match the contents, programs, scripts, HTML and SVG are refused, Office files with macros are refused, and the size limit is 15 MB. The server decides the content type; the uploader cannot.

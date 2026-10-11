@@ -90,7 +90,8 @@ The spec ([spec.md](spec.md)) describes a very large platform. The accounting, H
 - Not built, deliberately. Screenshots, app and website usage need a separate signed desktop agent, a written monitoring policy and employee disclosure. A browser cannot and should not do this silently. Attendance and time worked are built; activity tracking is not.
 
 ### 27 and 28: Integrations and AI
-- Not built: WhatsApp Business, email, calendar, ad platforms, telephony, AI assistants with permission-aware retrieval. Each needs credentials from the provider and setup guides.
+- Done: email sending (needs an SMTP account), a read-only permission-checked assistant (needs an Anthropic API key), commissions and bonuses.
+- Not built: WhatsApp Business, calendar, ad platforms, telephony, video meetings, AI actions that change data, AI-written summaries stored on records. Each needs credentials from the provider and setup guides.
 
 ### 29 and 30: Dashboards, reports, PDF
 - Done: executive dashboard, financial reports reconciled to the ledger.

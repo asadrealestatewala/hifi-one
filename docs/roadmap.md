@@ -2,6 +2,12 @@
 
 Phases follow section 35 of [spec.md](spec.md).
 
+## Commissions and the assistant (done; the assistant needs an API key to go live)
+
+- Commissions: a rate per salesperson, applied to the tax-free share of money actually received from clients they converted (lead owner), one commission per payment (database-unique), only on payments after the rate was set; manual bonuses; approval by someone other than the earner books the cost (Dr commissions, Cr payroll payable), payment settles it from a same-currency bank account; void while unapproved; each person has a private statement ("My Commissions"); 3 new permissions. 11 tests
+- Assistant: asks in plain language, answers from six read-only data tools (receivables, overdue invoices, month profit, pipeline, projects, own tasks), each re-checked against the person's permissions; refuses forbidden tools; stops runaway loops; logs questions; off and honest ("Not connected") without ANTHROPIC_API_KEY. 8 tests with a scripted model; not exercised against the live service because no key was available
+Limits: commission clawback after refunds or write-offs is manual (void before approval, or add a negative adjustment through finance); no tiers, targets or splits between people; the assistant cannot act, summarise documents or answer HR/payroll questions.
+
 ## Email (done, needs a mail account to go live)
 
 - SMTP sending (Google Workspace, Microsoft 365, SendGrid, Mailgun, Amazon SES, any SMTP); settings from environment variables; Settings > Email shows status honestly ("Not connected" until configured), tests the connection, sends a test message to yourself, and lists a delivery log

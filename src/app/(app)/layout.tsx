@@ -37,6 +37,7 @@ const NAV: NavGroup[] = [
       { href: "/me/leave", label: "My Leave", permission: "self.leave" },
       { href: "/me/documents", label: "My Documents", permission: "self.leave" },
       { href: "/me/commissions", label: "My Commissions", permission: "commissions.own" },
+      { href: "/assistant", label: "Assistant", permission: "assistant.use" },
       { href: "/me/payslips", label: "My Payslips", permission: "self.payslip" },
       { href: "/expenses", label: "Expense Vouchers", permission: "self.expense" },
     ],
