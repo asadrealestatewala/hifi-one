@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { LedgerError } from "@/lib/ledger-math";
 import { ExpenseError, approveVoucher, budgetStatus, cancelVoucher, payVoucher, postVoucher, rejectVoucher, reviewVoucher } from "@/lib/expenses";
 import { formatMoney } from "@/lib/money";
+import { notify, notifyPermission } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,12 @@ async function step(formData: FormData) {
     else if (which === "pay") await payVoucher(db, { organizationId: o, id, bankAccountId: String(formData.get("bankAccountId")), actorId: user.id });
     else if (which === "cancel") await cancelVoucher(db, { organizationId: o, id, userId: user.id });
     await audit(user, { action: `expense.${which}`, entity: "ExpenseVoucher", entityId: id });
+    const v = await db.expenseVoucher.findUnique({ where: { id } });
+    if (v) {
+      const text: Record<string, string> = { approve: "was approved", reject: "was rejected", post: "was posted", pay: "was paid" };
+      if (text[which]) await notify(db, v.submittedById, { kind: `expense.${which}`, title: `Your expense ${v.number} ${text[which]}`, link: `/expenses/${v.id}`, dedupeKey: `expense:${v.id}:${which}` });
+      if (which === "review") await notifyPermission(db, user.organizationId, "expenses.approve", { kind: "expense.review", title: `Voucher ${v.number} is ready to approve`, link: `/expenses/${v.id}`, dedupeKey: `expense-review:${v.id}` }, v.submittedById);
+    }
   } catch (e) {
     if (e instanceof ExpenseError || e instanceof LedgerError) redirect(`/expenses/${id}?error=${encodeURIComponent(e.message)}`);
     throw e;

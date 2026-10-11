@@ -4,6 +4,7 @@ import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { HrError, cancelLeave, decideLeave, leaveBalances, requestLeave } from "@/lib/hr";
 import { dateInZone } from "@/lib/hr-rules";
+import { notify } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,8 @@ async function submit(formData: FormData) {
       startDate: String(formData.get("startDate")), endDate: String(formData.get("endDate")), reason: String(formData.get("reason") ?? ""),
     });
     await audit(user, { action: "leave.request", entity: "LeaveRequest", entityId: r.id, after: { start: r.startDate, end: r.endDate, days: r.days.toString() } });
+    const me = await db.user.findUnique({ where: { id: user.id }, select: { managerId: true } });
+    if (me?.managerId) await notify(db, me.managerId, { kind: "leave.request", title: `${user.name} requested leave`, body: `${r.startDate} to ${r.endDate} (${r.days.toString()} days)`, link: "/me/leave", dedupeKey: `leave:${r.id}` });
   } catch (e) {
     if (e instanceof HrError) fail(e.message);
     throw e;
@@ -47,11 +50,12 @@ async function decide(formData: FormData) {
   const approve = formData.get("decision") === "approve";
   try {
     // HR (attendance.view_all) can decide for anyone; managers only for their direct reports.
-    await decideLeave(db, {
+    const decided = await decideLeave(db, {
       requestId: String(formData.get("id")), approverId: user.id, approve, note: String(formData.get("note") ?? ""),
       canApproveAll: user.permissions.has("attendance.view_all"),
     });
     await audit(user, { action: approve ? "leave.approve" : "leave.reject", entity: "LeaveRequest", entityId: String(formData.get("id")) });
+    await notify(db, decided.userId, { kind: "leave.decision", title: approve ? "Your leave was approved" : "Your leave was not approved", body: `${decided.startDate} to ${decided.endDate}`, link: "/me/leave", dedupeKey: `leave-decision:${decided.id}` });
   } catch (e) {
     if (e instanceof HrError) fail(e.message);
     throw e;

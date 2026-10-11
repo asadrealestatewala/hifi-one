@@ -9,7 +9,4 @@ export function leadScope(user: SessionUser): Prisma.LeadWhereInput {
   return { ...base, OR: [{ assignedToId: user.id }, { createdById: user.id }] };
 }
 
-export function normalizePhone(p: string | null | undefined): string | null {
-  const d = (p ?? "").replace(/[^\d+]/g, "");
-  return d.length >= 6 ? d : null;
-}
+export { normalizePhone } from "./contacts";

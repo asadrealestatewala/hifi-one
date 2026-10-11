@@ -2,6 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { logout, requireUser } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { unreadCount } from "@/lib/notifications";
 import type { PermissionKey } from "@/lib/permissions";
 
 type NavItem = { href: string; label: string; permission: PermissionKey };
@@ -16,6 +18,7 @@ const NAV: NavGroup[] = [
     items: [
       { href: "/leads", label: "Leads", permission: "crm.view" },
       { href: "/pipeline", label: "Pipeline", permission: "crm.view" },
+      { href: "/leads/worklists", label: "Prospecting Worklists", permission: "crm.view" },
     ],
   },
   {
@@ -46,7 +49,10 @@ const NAV: NavGroup[] = [
   },
   {
     title: "Project Operations",
-    items: [{ href: "/projects", label: "Projects & Tasks", permission: "projects.view" }],
+    items: [
+      { href: "/projects", label: "Projects & Tasks", permission: "projects.view" },
+      { href: "/content", label: "Content Calendar", permission: "content.view" },
+    ],
   },
   {
     title: "Procurement & Vendors",
@@ -84,6 +90,7 @@ async function signOut() {
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
+  const unread = await unreadCount(db, user.id);
   const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => user.permissions.has(i.permission)) })).filter(
     (g) => g.items.length > 0,
   );
@@ -119,6 +126,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               <p className="text-sm font-semibold leading-tight">{user.name}</p>
               <p className="text-xs text-muted">{user.roles.join(", ")}</p>
             </div>
+            <Link href="/notifications" className="text-sm relative" aria-label={`Notifications, ${unread} unread`}>
+              <span aria-hidden>🔔</span>{unread > 0 && <span className="ml-1 rounded-full bg-brand px-1.5 py-0.5 text-[11px] font-semibold text-white">{unread}</span>}
+            </Link>
             <Link href="/account/password" className="text-xs text-muted hover:underline">Password</Link>
             <form action={signOut}>
               <button className="btn-ghost">Sign out</button>

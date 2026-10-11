@@ -13,6 +13,7 @@ async function signOut() {
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const user = await requireClientUser();
   const client = await db.client.findUnique({ where: { id: user.clientId }, select: { name: true } });
+  const pending = await db.contentItem.count({ where: { clientId: user.clientId, status: "CLIENT_REVIEW" } });
   return (
     <div className="min-h-screen">
       <header className="bg-navy text-white">
@@ -23,6 +24,7 @@ export default async function PortalLayout({ children }: { children: React.React
           </div>
           <nav aria-label="Portal" className="flex items-center gap-4 text-sm">
             <Link href="/portal" className="hover:underline">Overview</Link>
+            <Link href="/portal/content" className="hover:underline">Content{pending > 0 && ` (${pending})`}</Link>
             <Link href="/portal/statement" className="hover:underline">Statement</Link>
             <form action={signOut}><button className="underline">Sign out</button></form>
           </nav>

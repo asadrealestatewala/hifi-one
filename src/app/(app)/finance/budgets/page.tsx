@@ -3,6 +3,7 @@ import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ExpenseError, budgetStatus, createBudget, decideTransfer, requestTransfer } from "@/lib/expenses";
 import { formatMoney } from "@/lib/money";
+import { notifyPermission } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,7 @@ async function transfer(formData: FormData) {
       amount: String(formData.get("amount") ?? ""), reason: String(formData.get("reason") ?? ""), requestedById: user.id,
     });
     await audit(user, { action: "budget.transfer_request", entity: "BudgetTransfer", entityId: t.id, after: { amount: t.amount.toString() } });
+    await notifyPermission(db, user.organizationId, "budget.approve", { kind: "budget.transfer", title: "A budget transfer needs approval", body: t.reason, link: "/finance/budgets", dedupeKey: `budget-transfer:${t.id}` }, user.id);
   } catch (e) {
     if (e instanceof ExpenseError) fail(e.message);
     throw e;

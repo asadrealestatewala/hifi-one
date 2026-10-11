@@ -4,6 +4,7 @@ import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ExpenseError, submitVoucher } from "@/lib/expenses";
 import { formatMoney } from "@/lib/money";
+import { notifyPermission } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ async function submit(formData: FormData) {
       budgetId: String(formData.get("budgetId") ?? "") || null, currency: String(formData.get("currency")), amount: String(formData.get("amount") ?? ""),
     });
     id = v.id;
+    await notifyPermission(db, user.organizationId, "expenses.review", { kind: "expense.submitted", title: `New expense voucher ${v.number}`, body: `${v.payee}: ${v.amount.toString()} ${v.currency}`, link: `/expenses/${v.id}`, dedupeKey: `expense-submitted:${v.id}` }, user.id);
     await audit(user, { action: "expense.submit", entity: "ExpenseVoucher", entityId: v.id, after: { number: v.number, amount: v.amount.toString(), currency: v.currency } });
   } catch (e) {
     if (e instanceof ExpenseError) redirect(`/expenses?error=${encodeURIComponent(e.message)}`);

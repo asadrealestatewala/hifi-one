@@ -1028,3 +1028,117 @@ model InvestmentTransaction {
 
   @@index([investmentId])
 }
+
+// ---------- Notifications, content calendar, prospecting worklists ----------
+
+model Notification {
+  id          String    @id @default(cuid())
+  userId      String
+  kind        String
+  title       String
+  body        String?
+  link        String?
+  dedupeKey   String?
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, readAt, createdAt])
+}
+
+model ContentItem {
+  id             String   @id @default(cuid())
+  organizationId String
+  clientId       String
+  projectId      String?
+  platform       String // FACEBOOK | INSTAGRAM | TIKTOK | LINKEDIN | YOUTUBE | OTHER
+  title          String
+  copy           String
+  hashtags       String?
+  plannedDate    String? // YYYY-MM-DD
+  status         String   @default("DRAFT") // DRAFT | INTERNAL_REVIEW | CLIENT_REVIEW | CHANGES_REQUESTED | APPROVED | SCHEDULED | PUBLISHED
+  version        Int      @default(1)
+  assignedToId   String?
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  events   ContentEvent[]
+  versions ContentVersion[]
+
+  @@index([organizationId, status])
+  @@index([clientId, status])
+}
+
+model ContentVersion {
+  id        String   @id @default(cuid())
+  itemId    String
+  version   Int
+  copy      String
+  hashtags  String?
+  createdAt DateTime @default(now())
+
+  item ContentItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, version])
+}
+
+model ContentEvent {
+  id         String   @id @default(cuid())
+  itemId     String
+  actorId    String
+  actorType  String // STAFF | CLIENT
+  fromStatus String?
+  toStatus   String
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  item ContentItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId, createdAt])
+}
+
+model SuppressedContact {
+  id             String   @id @default(cuid())
+  organizationId String
+  email          String?
+  phone          String?
+  reason         String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, email])
+  @@index([organizationId, phone])
+}
+
+model Worklist {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  source         String?
+  assignedToId   String?
+  targetDate     String?
+  createdById    String
+  createdAt      DateTime @default(now())
+
+  rows WorklistRow[]
+}
+
+model WorklistRow {
+  id             String   @id @default(cuid())
+  worklistId     String
+  rowNumber      Int // original row in the source file
+  name           String
+  company        String?
+  email          String?
+  phone          String?
+  raw            Json
+  status         String   @default("NEW") // NEW | CONTACTED | NOT_INTERESTED | DO_NOT_CONTACT | CONVERTED
+  note           String?
+  duplicateLeadId String?
+  convertedLeadId String?
+  updatedAt      DateTime @updatedAt
+
+  worklist Worklist @relation(fields: [worklistId], references: [id], onDelete: Cascade)
+
+  @@index([worklistId, status])
+}

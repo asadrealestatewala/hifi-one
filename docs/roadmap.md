@@ -39,6 +39,14 @@ Done and verified on localhost:
 
 Still to do: Gantt/timeline, calendar, subtasks and dependencies, task comments, files, budget and cost tracking, project creation from a won deal, content calendar and approvals, success reviews, meetings.
 
+## Notifications, content calendar and prospecting worklists (first slice done)
+
+Done, 28 automated tests (13 pure, 15 against the database) plus a browser run (CSV import with a bad email, an in-file duplicate and an Urdu name; a lead made from a row; content created, blocked from self-review, approved-for-review by a second person, then a client requested changes and staff were notified):
+- Notifications: in-app bell with unread count and a notifications page; retried events notify once (dedupe key); users can only mark their own as read; wired to leave, expense vouchers, vendor bills, task assignment, budget transfers and content approvals
+- Content calendar: platforms, versions of the copy, workflow Draft, Internal review, Client review, Changes requested, Approved, Scheduled, Published; copy locked while with the client; internal review must be done by someone other than the author; only the client can approve or request changes (reason required), recorded against the named client user; another client's items look like they do not exist; drafts never reach the portal; Published only after an authorized person confirms it
+- Prospecting worklists kept apart from the CRM: CSV import (quotes, semicolons, BOM, Urdu), invalid and duplicate rows skipped with a row-by-row reason, CRM duplicates flagged, do-not-contact list that also blocks existing rows and conversion, rows convert to real leads once (even under concurrent clicks), and two separate metrics: records processed vs CRM leads generated
+Limits: no email, WhatsApp or push delivery and no notification preferences; the client portal has no bell (it shows a pending count on the Content link); content has no media/file attachments (needs file storage), no calendar month grid (board view only), no auto-publishing to platforms; worklists accept CSV only (not XLSX), have no field-mapping screen (headers are matched by name) and no import history screen or export; clients cannot comment without making a decision.
+
 ## Financial statements and executive dashboard (first slice done)
 
 Done, 14 automated tests (9 pure, 5 against the database) plus a browser check (balance sheets balanced in PKR and USD):

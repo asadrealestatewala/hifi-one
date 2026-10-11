@@ -6,6 +6,7 @@ import { z } from "zod";
 import { audit, requirePermission, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { projectScope } from "@/lib/projects";
+import { notify } from "@/lib/notifications";
 import { TASK_STATUSES, canCompleteProject } from "@/lib/project-rules";
 
 const optDate = z.string().optional().transform((v) => (v ? new Date(v) : null));
@@ -87,6 +88,7 @@ export async function createTask(formData: FormData) {
     },
   });
   await audit(user, { action: "task.create", entity: "Task", entityId: task.id, after: { title, projectId, assigneeId } });
+  if (assigneeId && assigneeId !== user.id) await notify(db, assigneeId, { kind: "task.assigned", title: "A task was assigned to you", body: title, link: `/projects/${projectId}`, dedupeKey: `task:${task.id}` });
   revalidatePath(`/projects/${projectId}`);
 }
 
