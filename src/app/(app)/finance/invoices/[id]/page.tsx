@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { randomUUID } from "node:crypto";
 import { cancelInvoice, issueInvoice, LedgerError } from "@/lib/accounting";
-import { issueCreditNote } from "@/lib/bookkeeping";
+import { issueCreditNote, writeOffInvoice } from "@/lib/bookkeeping";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import PrintButton from "@/components/PrintButton";
@@ -45,6 +45,20 @@ async function creditNote(formData: FormData) {
   try {
     const cn = await issueCreditNote(db, { organizationId: user.organizationId, invoiceId: id, amount: String(formData.get("amount") ?? ""), reason: String(formData.get("reason") ?? ""), actorId: user.id, idempotencyKey: String(formData.get("key")) });
     await audit(user, { action: "credit_note.issue", entity: "CreditNote", entityId: cn.id, after: { number: cn.number, amount: cn.amount.toString() } });
+  } catch (e) {
+    if (e instanceof LedgerError) redirect(`/finance/invoices/${id}?error=${encodeURIComponent(e.message)}`);
+    throw e;
+  }
+  redirect(`/finance/invoices/${id}`);
+}
+
+async function writeOff(formData: FormData) {
+  "use server";
+  const user = await requirePermission("finance.writeoff");
+  const id = String(formData.get("id"));
+  try {
+    const cn = await writeOffInvoice(db, { organizationId: user.organizationId, invoiceId: id, amount: String(formData.get("amount") ?? ""), reason: String(formData.get("reason") ?? ""), reverseTax: formData.get("reverseTax") === "on", actorId: user.id, idempotencyKey: String(formData.get("key")) });
+    await audit(user, { action: "invoice.write_off", entity: "CreditNote", entityId: cn.id, after: { number: cn.number, amount: cn.amount.toString(), reverseTax: formData.get("reverseTax") === "on" } });
   } catch (e) {
     if (e instanceof LedgerError) redirect(`/finance/invoices/${id}?error=${encodeURIComponent(e.message)}`);
     throw e;
@@ -144,7 +158,7 @@ export default async function InvoicePage({
         {inv.creditNotes.length > 0 && (
           <section className="text-sm print:hidden">
             <p className="label">Credit notes</p>
-            <ul>{inv.creditNotes.map((c) => <li key={c.id}>{c.number}: {formatMoney(c.amount, inv.currency)} · {c.reason} · <a className="underline" href={`/finance/credit-notes/${c.id}/pdf`} target="_blank" rel="noopener">PDF</a></li>)}</ul>
+            <ul>{inv.creditNotes.map((c) => <li key={c.id}>{c.number}{c.kind === "WRITE_OFF" ? " (write-off)" : ""}: {formatMoney(c.amount, inv.currency)} · {c.reason} · <a className="underline" href={`/finance/credit-notes/${c.id}/pdf`} target="_blank" rel="noopener">PDF</a></li>)}</ul>
           </section>
         )}
         {inv.allocations.length > 0 && (
@@ -162,6 +176,17 @@ export default async function InvoicePage({
           <div><label className="label" htmlFor="amount">Amount ({inv.currency})</label><input id="amount" name="amount" required inputMode="decimal" className="input !w-36" /></div>
           <div className="flex-1 min-w-48"><label className="label" htmlFor="reason">Reason</label><input id="reason" name="reason" required className="input" /></div>
           <button className="btn">Issue credit note</button>
+        </form>
+      )}
+      {user.permissions.has("finance.writeoff") && (inv.status === "ISSUED" || inv.status === "PARTIALLY_PAID") && (
+        <form action={writeOff} className="card flex flex-wrap items-end gap-3 max-w-3xl print:hidden">
+          <input type="hidden" name="id" value={inv.id} />
+          <input type="hidden" name="key" value={randomUUID()} />
+          <div className="w-full"><h2 className="font-semibold">Write off as bad debt</h2><p className="text-xs text-muted">Gives up on money the client will not pay. The cost goes to Bad Debt Expense; the balance due falls by the same amount. Tick the box only if your tax authority allows the tax on the debt to be reclaimed.</p></div>
+          <div><label className="label" htmlFor="woAmount">Amount ({inv.currency})</label><input id="woAmount" name="amount" required inputMode="decimal" className="input !w-36" /></div>
+          <div className="flex-1 min-w-48"><label className="label" htmlFor="woReason">Reason</label><input id="woReason" name="reason" required minLength={5} className="input" /></div>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="reverseTax" /> Also reverse the tax</label>
+          <button className="btn-ghost">Write off</button>
         </form>
       )}
     </div>

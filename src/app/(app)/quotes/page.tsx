@@ -43,10 +43,11 @@ export default async function Quotes({ searchParams }: { searchParams: Promise<{
   const org = user.organizationId;
   await expireQuotes(db, org, new Date().toISOString().slice(0, 10));
   const canManage = user.permissions.has("quotes.manage");
-  const [quotes, clients, plans] = await Promise.all([
+  const [quotes, clients, plans, rates] = await Promise.all([
     db.quote.findMany({ where: { organizationId: org }, orderBy: { createdAt: "desc" }, take: 200, include: { client: true } }),
     db.client.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" } }),
     db.servicePlan.findMany({ where: { organizationId: org, active: true, category: { active: true } }, orderBy: [{ category: { sortOrder: "asc" } }, { sortOrder: "asc" }], include: { category: true } }),
+    db.taxRate.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" } }),
   ]);
   return (
     <div className="space-y-6">
@@ -76,7 +77,7 @@ export default async function Quotes({ searchParams }: { searchParams: Promise<{
             <select id="clientId" name="clientId" required className="input"><option value="">Choose…</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.currency})</option>)}</select></div>
           <div><label className="label" htmlFor="currency">Currency</label>
             <select id="currency" name="currency" className="input" defaultValue="USD">{["PKR", "USD", "AED", "GBP"].map((c) => <option key={c}>{c}</option>)}</select></div>
-          <div><label className="label" htmlFor="taxRate">Tax rate (%)</label><input id="taxRate" name="taxRate" defaultValue="0" className="input" /></div>
+          <div><label className="label" htmlFor="taxRate">Tax rate (%)</label><input id="taxRate" name="taxRate" defaultValue="0" list="taxrates" className="input" /><datalist id="taxrates">{rates.map((r) => <option key={r.id} value={r.ratePercent.toString()}>{r.name}</option>)}</datalist></div>
           <div><label className="label" htmlFor="validUntil">Valid until</label><input id="validUntil" name="validUntil" type="date" className="input" /></div>
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="sm:col-span-4 grid gap-2 sm:grid-cols-[12rem_1fr_5rem_8rem]">

@@ -66,7 +66,7 @@ export async function loadCreditNoteDoc(db: PrismaClient, p: { organizationId: s
   const cn = await db.creditNote.findFirst({ where: { id: p.creditNoteId, organizationId: p.organizationId, ...(p.clientId ? { clientId: p.clientId } : {}) }, include: { invoice: { include: { client: true } } } });
   if (!cn) return null;
   return {
-    number: cn.number, date: cn.createdAt, currency: cn.currency, amount: cn.amount.toString(), taxPortion: cn.taxPortion.toString(), reason: cn.reason, invoiceNumber: cn.invoice.number,
+    number: cn.number, date: cn.createdAt, currency: cn.currency, amount: cn.amount.toString(), taxPortion: cn.taxPortion.toString(), reason: cn.reason, invoiceNumber: cn.invoice.number, kind: cn.kind,
     client: { name: cn.invoice.client.name, billingAddress: cn.invoice.client.billingAddress },
     company: (cn.invoice.companySnapshot ? companyFrom(cn.invoice.companySnapshot as Json) : await liveCompany(db, p.organizationId)),
     config: (await getDocConfig(db, p.organizationId, "CREDIT_NOTE")).config,

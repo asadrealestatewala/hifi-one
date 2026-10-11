@@ -63,6 +63,7 @@ export const PERMISSIONS = {
   "fx.manage": "Set exchange rates and the base currency",
   "projects.costs": "See project costs, cost rates and profitability",
   "bank.reconcile": "Import bank statements, match them to the ledger and complete reconciliations",
+  "finance.writeoff": "Write off unpaid invoices as bad debt",
   "quotes.view": "View quotations",
   "quotes.manage": "Create, send and record decisions on quotations",
   "contracts.view": "View client contracts",
@@ -123,7 +124,7 @@ const EXTRA: Record<string, PermissionKey[]> = {
   VIDEO_EDITOR: ["content.view", "content.manage"],
   ADS_MANAGER: ["content.view"],
   CEO: ["hr.view", "leave.approve", "payroll.view", "payroll.approve", "expenses.view", "expenses.approve", "budget.view", "budget.approve", "budget.override", "vendors.view", "assets.view", "investments.view", "reports.view", "dashboard.executive", "journal.approve", "period.lock", "quotes.view", "contracts.view", "projects.costs"],
-  FINANCE_MANAGER: ["payroll.view", "payroll.approve", "payroll.post", "expenses.view", "expenses.review", "expenses.approve", "expenses.post", "budget.view", "budget.manage", "vendors.view", "vendors.bills", "vendors.post", "assets.view", "assets.manage", "assets.post", "investments.view", "investments.manage", "reports.view", "dashboard.executive", "journal.create", "journal.approve", "coa.manage", "period.lock", "finance.refund", "fx.manage", "quotes.view", "contracts.view", "contracts.manage", "subscriptions.manage", "projects.costs", "bank.reconcile"],
+  FINANCE_MANAGER: ["payroll.view", "payroll.approve", "payroll.post", "expenses.view", "expenses.review", "expenses.approve", "expenses.post", "budget.view", "budget.manage", "vendors.view", "vendors.bills", "vendors.post", "assets.view", "assets.manage", "assets.post", "investments.view", "investments.manage", "reports.view", "dashboard.executive", "journal.create", "journal.approve", "coa.manage", "period.lock", "finance.refund", "fx.manage", "quotes.view", "contracts.view", "contracts.manage", "subscriptions.manage", "projects.costs", "bank.reconcile", "finance.writeoff"],
   ACCOUNTANT: ["expenses.view", "expenses.review", "expenses.post", "budget.view", "vendors.view", "vendors.post", "assets.view", "assets.manage", "reports.view", "journal.create", "quotes.view", "contracts.view", "bank.reconcile"],
   PAYROLL_OFFICER: ["hr.view", "payroll.view", "payroll.manage"],
 };

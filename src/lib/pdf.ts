@@ -260,12 +260,12 @@ export async function quotePdf(d: QuoteDoc, b: Build = {}) {
 
 // ---- Credit note ----
 export type CreditNoteDoc = {
-  number: string; date: Date; currency: string; amount: string; taxPortion: string; reason: string; invoiceNumber: string | null;
+  number: string; date: Date; currency: string; amount: string; taxPortion: string; reason: string; invoiceNumber: string | null; kind?: string;
   client: { name: string; billingAddress?: string | null }; company: Company; config: DocConfig;
 };
 export async function creditNotePdf(d: CreditNoteDoc, b: Build = {}) {
   const { ctx, done } = start({ ...b, title: `Credit note ${d.number}`, cfg: d.config });
-  header(ctx, d.company, "CREDIT NOTE", d.number);
+  header(ctx, d.company, d.kind === "WRITE_OFF" ? "WRITE-OFF NOTICE" : "CREDIT NOTE", d.number);
   kv(ctx, [["Client", d.client.name], ["Address", d.client.billingAddress], ["Date", fmtDate(d.date)], ["Against invoice", d.invoiceNumber], ["Reason", d.reason]]);
   totals(ctx, [["Revenue reversed", pdfMoney(Number(d.amount) - Number(d.taxPortion), d.currency)], ["Tax reversed", pdfMoney(d.taxPortion, d.currency)], ["Total credit", pdfMoney(d.amount, d.currency), true]]);
   footer(ctx, d.company);

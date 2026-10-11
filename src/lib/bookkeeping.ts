@@ -224,3 +224,46 @@ export async function refundAdvance(
     });
   });
 }
+
+// ----- Write-offs -----
+// A write-off gives up on money a client will not pay. It reduces the invoice balance exactly like a credit note
+// (so statements and aging agree) but the cost goes to Bad Debt Expense instead of reversing revenue. Tax is only
+// reversed when the caller says the tax authority allows relief; otherwise it stays payable.
+export async function writeOffInvoice(
+  db: PrismaClient,
+  p: { organizationId: string; invoiceId: string; amount: string; reason: string; reverseTax: boolean; actorId: string; idempotencyKey: string },
+) {
+  if (!MONEY.test(p.amount) || Number(p.amount) <= 0) throw new LedgerError("Enter the amount to write off.");
+  if (p.reason.trim().length < 5) throw new LedgerError("Give a reason for the write-off.");
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Invoice" WHERE id = ${p.invoiceId} FOR UPDATE`;
+    const prior = await tx.creditNote.findUnique({ where: { idempotencyKey: p.idempotencyKey } });
+    if (prior) return prior;
+    const inv = await tx.invoice.findFirst({ where: { id: p.invoiceId, organizationId: p.organizationId } });
+    if (!inv) throw new LedgerError("Invoice not found.");
+    if (!["ISSUED", "PARTIALLY_PAID"].includes(inv.status)) throw new LedgerError("Only an issued invoice with a balance can be written off.");
+    const outstanding = inv.total.sub(inv.amountPaid).sub(inv.creditedAmount);
+    const amount = round2(p.amount);
+    if (amount.gt(outstanding)) throw new LedgerError(`The write-off exceeds the balance due (${outstanding.toString()} ${inv.currency}).`);
+    const taxPortion = p.reverseTax && inv.total.gt(0) ? round2(amount.mul(inv.taxAmount).div(inv.total)) : dec(0);
+    const ar = await tx.account.findFirstOrThrow({ where: { organizationId: p.organizationId, systemKey: "AR" } });
+    let bad = await tx.account.findFirst({ where: { organizationId: p.organizationId, systemKey: "BAD_DEBT" } });
+    if (!bad) {
+      // Older installations do not have the account yet: add it on first use.
+      const code = (await tx.account.findFirst({ where: { organizationId: p.organizationId, code: "6050" } })) ? "6059" : "6050";
+      bad = await tx.account.create({ data: { organizationId: p.organizationId, code, name: "Bad Debt Expense", type: "OPEX", systemKey: "BAD_DEBT" } });
+    }
+    const number = await seq(tx, p.organizationId, "WO", "WO");
+    const lines: DraftLine[] = [{ accountId: bad.id, debit: amount.sub(taxPortion), memo: number }, { accountId: ar.id, credit: amount, clientId: inv.clientId, memo: number }];
+    if (taxPortion.gt(0)) lines.splice(1, 0, { accountId: (await tx.account.findFirstOrThrow({ where: { organizationId: p.organizationId, systemKey: "TAX_PAYABLE" } })).id, debit: taxPortion, memo: number });
+    const entry = await postJournal(tx, {
+      organizationId: p.organizationId, date: new Date(), memo: `Write-off ${number} of ${inv.number}: ${p.reason.trim()}`, currency: inv.currency,
+      sourceType: "WRITE_OFF", sourceId: inv.id, idempotencyKey: `write-off:${p.idempotencyKey}`, postedById: p.actorId, lines,
+    });
+    const credited = inv.creditedAmount.add(amount);
+    await tx.invoice.update({ where: { id: inv.id }, data: { creditedAmount: credited, status: invoiceStatusAfterPayment(inv.total, inv.amountPaid, credited) } });
+    return tx.creditNote.create({
+      data: { organizationId: p.organizationId, number, invoiceId: inv.id, clientId: inv.clientId, amount, taxPortion, currency: inv.currency, reason: p.reason.trim(), kind: "WRITE_OFF", idempotencyKey: p.idempotencyKey, journalEntryId: entry.id, createdById: p.actorId },
+    });
+  });
+}

@@ -1196,6 +1196,7 @@ model CreditNote {
   taxPortion     Decimal  @db.Decimal(14, 2)
   currency       String
   reason         String
+  kind           String   @default("CREDIT") // CREDIT | WRITE_OFF
   idempotencyKey String   @unique
   journalEntryId String?
   createdById    String
@@ -1458,4 +1459,16 @@ model BankReconciliation {
   createdAt          DateTime @default(now())
 
   @@index([organizationId, bankAccountId, statementDate])
+}
+
+// Named tax rates offered when writing invoices, quotations and subscriptions. An invoice still stores the percentage it was issued with.
+model TaxRate {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  ratePercent    Decimal  @db.Decimal(5, 2)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  @@unique([organizationId, name])
 }

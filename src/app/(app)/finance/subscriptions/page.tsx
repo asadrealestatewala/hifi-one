@@ -55,10 +55,11 @@ export default async function Subscriptions({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const org = user.organizationId;
   const canManage = user.permissions.has("subscriptions.manage");
-  const [subs, clients, dueCount] = await Promise.all([
+  const [subs, clients, dueCount, rates] = await Promise.all([
     db.subscription.findMany({ where: { organizationId: org }, orderBy: [{ status: "asc" }, { nextBillingDate: "asc" }], include: { client: true, _count: { select: { invoices: true } } } }),
     db.client.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" } }),
     db.subscription.count({ where: { organizationId: org, status: "ACTIVE", nextBillingDate: { lte: today() } } }),
+    db.taxRate.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" } }),
   ]);
   const btn = (id: string, op: string, label: string) => (
     <form action={change} className="inline"><input type="hidden" name="id" value={id} /><input type="hidden" name="op" value={op} /><button className="underline text-sm">{label}</button></form>
@@ -107,7 +108,7 @@ export default async function Subscriptions({ searchParams }: { searchParams: Pr
             <select id="clientId" name="clientId" required className="input"><option value="">Choose…</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
           <div><label className="label" htmlFor="currency">Currency</label><select id="currency" name="currency" className="input" defaultValue="USD">{["PKR", "USD", "AED", "GBP"].map((c) => <option key={c}>{c}</option>)}</select></div>
           <div><label className="label" htmlFor="amount">Amount each period</label><input id="amount" name="amount" required inputMode="decimal" className="input" /></div>
-          <div><label className="label" htmlFor="taxRate">Tax rate (%)</label><input id="taxRate" name="taxRate" defaultValue="0" className="input" /></div>
+          <div><label className="label" htmlFor="taxRate">Tax rate (%)</label><input id="taxRate" name="taxRate" defaultValue="0" list="taxrates" className="input" /><datalist id="taxrates">{rates.map((r) => <option key={r.id} value={r.ratePercent.toString()}>{r.name}</option>)}</datalist></div>
           <div><label className="label" htmlFor="interval">Billed</label><select id="interval" name="interval" className="input"><option value="MONTHLY">Monthly</option><option value="QUARTERLY">Quarterly</option><option value="ANNUAL">Annually</option></select></div>
           <div><label className="label" htmlFor="startDate">First billing date</label><input id="startDate" name="startDate" type="date" required defaultValue={today()} className="input" /></div>
           <div><label className="label" htmlFor="endDate">Ends (optional)</label><input id="endDate" name="endDate" type="date" className="input" /></div>

@@ -48,9 +48,10 @@ export default async function Invoices({ searchParams }: { searchParams: Promise
   const user = await requirePermission("finance.view");
   const { error } = await searchParams;
   const canPost = user.permissions.has("finance.post");
-  const [invoices, clients] = await Promise.all([
+  const [invoices, clients, rates] = await Promise.all([
     db.invoice.findMany({ where: { organizationId: user.organizationId }, orderBy: { createdAt: "desc" }, take: 200, include: { client: true } }),
     db.client.findMany({ where: { organizationId: user.organizationId, active: true }, orderBy: { name: "asc" } }),
+    db.taxRate.findMany({ where: { organizationId: user.organizationId, active: true }, orderBy: { name: "asc" } }),
   ]);
   return (
     <div className="space-y-6">
@@ -94,7 +95,7 @@ export default async function Invoices({ searchParams }: { searchParams: Promise
           </div>
           <div>
             <label className="label" htmlFor="taxRate">Tax rate (%)</label>
-            <input id="taxRate" name="taxRate" defaultValue="0" className="input" />
+            <input id="taxRate" name="taxRate" defaultValue="0" list="taxrates" className="input" /><datalist id="taxrates">{rates.map((r) => <option key={r.id} value={r.ratePercent.toString()}>{r.name}</option>)}</datalist>
           </div>
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="sm:col-span-3 grid gap-2 grid-cols-[1fr_5rem_8rem]">

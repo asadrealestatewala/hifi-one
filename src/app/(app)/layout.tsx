@@ -87,6 +87,7 @@ const NAV: NavGroup[] = [
       { href: "/settings/bank-accounts", label: "Bank Accounts", permission: "bank.view" },
       { href: "/settings/documents", label: "Document Templates", permission: "settings.company.view" },
       { href: "/settings/exchange-rates", label: "Exchange Rates", permission: "reports.view" },
+      { href: "/settings/tax-rates", label: "Tax Rates", permission: "settings.company.view" },
       { href: "/users", label: "Users", permission: "users.view" },
       { href: "/roles", label: "Roles & Permissions", permission: "roles.manage" },
       { href: "/audit-logs", label: "Audit Logs", permission: "audit.view" },

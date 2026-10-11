@@ -3,12 +3,13 @@ import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { consolidateRows, consolidatedBalanceSheet, getBaseCurrency, ratesOn } from "@/lib/fx";
-import { AGING_BUCKETS, buildBalanceSheet, buildIncomeStatement, groupByCurrency, loadBalances, loadCashMovement, loadReceivablesAging, type Line } from "@/lib/statements";
+import { AGING_BUCKETS, buildBalanceSheet, buildIncomeStatement, groupByCurrency, loadBalances, loadCashMovement, loadPayablesAging, loadReceivablesAging, type Line } from "@/lib/statements";
+import { salesTaxReport } from "@/lib/tax";
 import PrintButton from "@/components/PrintButton";
 
 export const dynamic = "force-dynamic";
 
-const TABS = [["pl", "Profit & Loss"], ["bs", "Balance Sheet"], ["cpl", "Consolidated P&L"], ["cbs", "Consolidated Balance Sheet"], ["cash", "Cash Movement"], ["aging", "Receivables Aging"]] as const;
+const TABS = [["pl", "Profit & Loss"], ["bs", "Balance Sheet"], ["cpl", "Consolidated P&L"], ["cbs", "Consolidated Balance Sheet"], ["cash", "Cash Movement"], ["aging", "Receivables Aging"], ["ap", "Payables Aging"], ["tax", "Sales Tax"]] as const;
 
 function Section({ title, lines, cur, total, bold }: { title: string; lines: Line[]; cur: string; total?: { label: string; value: { toString(): string } }; bold?: boolean }) {
   return (
@@ -112,6 +113,47 @@ export default async function Reports({ searchParams }: { searchParams: Promise<
         </>
       );
     }
+  } else if (type === "tax") {
+    const report = await salesTaxReport(db, org, { from, to });
+    body = report.length === 0 ? <div className="card text-sm text-muted">No invoices were issued in this period.</div> : (
+      <>
+        {report.map((r) => (
+          <section key={r.currency} className="card overflow-x-auto">
+            <h2 className="font-semibold mb-2">Sales tax, {r.currency}, {from} to {to}</h2>
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-muted"><tr><th className="py-2 pr-4">Rate</th><th className="pr-4 text-right">Invoices</th><th className="pr-4 text-right">Taxable sales</th><th className="text-right">Tax charged</th></tr></thead>
+              <tbody>{r.lines.map((l) => <tr key={l.rate} className="border-t border-border"><td className="py-2 pr-4">{l.rate}%</td><td className="pr-4 text-right">{l.count}</td><td className="pr-4 text-right">{formatMoney(l.taxable.toString(), r.currency)}</td><td className="text-right">{formatMoney(l.tax.toString(), r.currency)}</td></tr>)}</tbody>
+            </table>
+            <dl className="text-sm mt-3 ml-auto w-72 space-y-1">
+              <div className="flex justify-between"><dt>Tax charged</dt><dd>{formatMoney(r.collected.toString(), r.currency)}</dd></div>
+              <div className="flex justify-between"><dt>Less tax reversed by credit notes</dt><dd>{formatMoney(r.reversed.toString(), r.currency)}</dd></div>
+              <div className="flex justify-between font-bold border-t border-border pt-1"><dt>Net tax for the period</dt><dd>{formatMoney(r.net.toString(), r.currency)}</dd></div>
+            </dl>
+          </section>
+        ))}
+        <p className="text-xs text-muted">Built from invoices issued in the period (cancelled invoices excluded). Tax paid on purchases is not tracked yet, so this is tax charged, not the amount due to the authority.</p>
+      </>
+    );
+  } else if (type === "ap") {
+    const ap = await loadPayablesAging(db, org);
+    body = ap.byCurrency.size === 0 ? <div className="card text-sm text-muted">No unpaid posted vendor bills.</div> : (
+      <>
+        {[...ap.byCurrency].map(([cur, m]) => (
+          <section key={cur} className="card overflow-x-auto">
+            <h2 className="font-semibold mb-2">Payables aging, {cur}</h2>
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-muted"><tr>{AGING_BUCKETS.map((b) => <th key={b} className="py-2 pr-4 text-right">{b}</th>)}<th className="text-right">Total</th></tr></thead>
+              <tbody><tr className="border-t border-border">
+                {AGING_BUCKETS.map((b) => <td key={b} className="py-2 pr-4 text-right">{formatMoney((m.get(b) ?? 0).toString(), cur)}</td>)}
+                <td className="text-right font-semibold">{formatMoney([...m.values()].reduce((a, v) => a + Number(v), 0), cur)}</td>
+              </tr></tbody>
+            </table>
+            <ul className="text-sm mt-3">{ap.detail.filter((d) => d.currency === cur).map((d) => <li key={d.id} className="flex justify-between border-t border-border py-1"><span>{d.number} · {d.vendor} · {d.bucket}</span><span>{formatMoney(d.amount.toString(), cur)}</span></li>)}</ul>
+          </section>
+        ))}
+        <p className="text-xs text-muted">Age runs from the day the bill was posted, because vendor bills do not have due dates yet.</p>
+      </>
+    );
   } else if (type === "cash") {
     const moves = await loadCashMovement(db, org, { from, to });
     body = (
@@ -169,7 +211,7 @@ export default async function Reports({ searchParams }: { searchParams: Promise<
       <nav aria-label="Report" className="flex flex-wrap gap-2 print:hidden">
         {TABS.map(([k, label]) => <Link key={k} href={q(k)} className={`btn-ghost ${k === type ? "!bg-navy !text-white" : ""}`}>{label}</Link>)}
       </nav>
-      {type !== "aging" && (
+      {type !== "aging" && type !== "ap" && (
         <form className="flex flex-wrap items-end gap-3 print:hidden">
           <input type="hidden" name="type" value={type} />
           {type !== "bs" && type !== "cbs" && <div><label className="label" htmlFor="from">From</label><input id="from" name="from" type="date" defaultValue={from} className="input" /></div>}

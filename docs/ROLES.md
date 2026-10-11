@@ -69,6 +69,7 @@ A role grants a permission when it is listed; Super Admin holds every permission
 | `fx.manage` | Set exchange rates and the base currency |
 | `projects.costs` | See project costs, cost rates and profitability |
 | `bank.reconcile` | Import bank statements, match them to the ledger and complete reconciliations |
+| `finance.writeoff` | Write off unpaid invoices as bad debt |
 | `quotes.view` | View quotations |
 | `quotes.manage` | Create, send and record decisions on quotations |
 | `contracts.view` | View client contracts |
@@ -84,7 +85,7 @@ A role grants a permission when it is listed; Super Admin holds every permission
 
 ### Super Admin
 
-`dashboard.view`, `settings.company.view`, `settings.company.edit`, `bank.view`, `bank.view_full`, `bank.edit`, `users.view`, `users.manage`, `roles.manage`, `audit.view`, `crm.view`, `crm.view_all`, `crm.edit`, `crm.convert`, `catalog.view`, `catalog.edit`, `projects.view`, `projects.view_all`, `projects.manage`, `tasks.edit`, `self.attendance`, `self.leave`, `leave.approve`, `hr.view`, `hr.manage`, `hr.view_sensitive`, `attendance.view_all`, `payroll.view`, `payroll.manage`, `payroll.approve`, `payroll.post`, `self.payslip`, `self.expense`, `expenses.view`, `expenses.review`, `expenses.approve`, `expenses.post`, `budget.view`, `budget.manage`, `budget.approve`, `budget.override`, `vendors.view`, `vendors.manage`, `vendors.bills`, `vendors.post`, `assets.view`, `assets.manage`, `assets.post`, `investments.view`, `investments.manage`, `reports.view`, `dashboard.executive`, `content.view`, `content.manage`, `content.publish`, `journal.create`, `journal.approve`, `coa.manage`, `period.lock`, `fx.manage`, `projects.costs`, `bank.reconcile`, `quotes.view`, `quotes.manage`, `contracts.view`, `contracts.manage`, `subscriptions.manage`, `finance.refund`, `clients.view`, `clients.edit`, `finance.view`, `finance.post`
+`dashboard.view`, `settings.company.view`, `settings.company.edit`, `bank.view`, `bank.view_full`, `bank.edit`, `users.view`, `users.manage`, `roles.manage`, `audit.view`, `crm.view`, `crm.view_all`, `crm.edit`, `crm.convert`, `catalog.view`, `catalog.edit`, `projects.view`, `projects.view_all`, `projects.manage`, `tasks.edit`, `self.attendance`, `self.leave`, `leave.approve`, `hr.view`, `hr.manage`, `hr.view_sensitive`, `attendance.view_all`, `payroll.view`, `payroll.manage`, `payroll.approve`, `payroll.post`, `self.payslip`, `self.expense`, `expenses.view`, `expenses.review`, `expenses.approve`, `expenses.post`, `budget.view`, `budget.manage`, `budget.approve`, `budget.override`, `vendors.view`, `vendors.manage`, `vendors.bills`, `vendors.post`, `assets.view`, `assets.manage`, `assets.post`, `investments.view`, `investments.manage`, `reports.view`, `dashboard.executive`, `content.view`, `content.manage`, `content.publish`, `journal.create`, `journal.approve`, `coa.manage`, `period.lock`, `fx.manage`, `projects.costs`, `bank.reconcile`, `finance.writeoff`, `quotes.view`, `quotes.manage`, `contracts.view`, `contracts.manage`, `subscriptions.manage`, `finance.refund`, `clients.view`, `clients.edit`, `finance.view`, `finance.post`
 
 ### CEO / Director
 
@@ -100,7 +101,7 @@ A role grants a permission when it is listed; Super Admin holds every permission
 
 ### Finance Manager
 
-`dashboard.view`, `settings.company.view`, `bank.view`, `bank.view_full`, `bank.edit`, `clients.view`, `clients.edit`, `finance.view`, `finance.post`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `payroll.view`, `payroll.approve`, `payroll.post`, `expenses.view`, `expenses.review`, `expenses.approve`, `expenses.post`, `budget.view`, `budget.manage`, `vendors.view`, `vendors.bills`, `vendors.post`, `assets.view`, `assets.manage`, `assets.post`, `investments.view`, `investments.manage`, `reports.view`, `dashboard.executive`, `journal.create`, `journal.approve`, `coa.manage`, `period.lock`, `finance.refund`, `fx.manage`, `quotes.view`, `contracts.view`, `contracts.manage`, `subscriptions.manage`, `projects.costs`, `bank.reconcile`
+`dashboard.view`, `settings.company.view`, `bank.view`, `bank.view_full`, `bank.edit`, `clients.view`, `clients.edit`, `finance.view`, `finance.post`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `payroll.view`, `payroll.approve`, `payroll.post`, `expenses.view`, `expenses.review`, `expenses.approve`, `expenses.post`, `budget.view`, `budget.manage`, `vendors.view`, `vendors.bills`, `vendors.post`, `assets.view`, `assets.manage`, `assets.post`, `investments.view`, `investments.manage`, `reports.view`, `dashboard.executive`, `journal.create`, `journal.approve`, `coa.manage`, `period.lock`, `finance.refund`, `fx.manage`, `quotes.view`, `contracts.view`, `contracts.manage`, `subscriptions.manage`, `projects.costs`, `bank.reconcile`, `finance.writeoff`
 
 ### Accountant
 

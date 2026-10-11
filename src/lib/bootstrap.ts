@@ -35,7 +35,7 @@ export const CHART: [string, string, string, string?][] = [
   ["4000", "Service Revenue", "REVENUE", "REVENUE_SERVICE"], ["4010", "SaaS Revenue", "REVENUE"], ["4020", "Advertising Management Revenue", "REVENUE"],
   ["5000", "Direct Labor and Contractors", "DIRECT_COST"], ["5010", "Direct Software and Hosting", "DIRECT_COST"],
   ["6000", "Marketing Expense", "OPEX"], ["6010", "Rent and Utilities", "OPEX"], ["6020", "Salaries and Commissions", "OPEX", "PAYROLL_EXPENSE"],
-  ["6030", "Taxes", "OPEX"], ["6040", "Depreciation", "OPEX", "DEPRECIATION_EXPENSE"],
+  ["6030", "Taxes", "OPEX"], ["6040", "Depreciation", "OPEX", "DEPRECIATION_EXPENSE"], ["6050", "Bad Debt Expense", "OPEX", "BAD_DEBT"],
   ["7000", "Investment Income", "OTHER_INCOME", "INVESTMENT_INCOME"], ["7100", "Gain on Asset Disposal", "OTHER_INCOME", "GAIN_DISPOSAL"],
   ["8000", "Other Expenses", "OTHER_EXPENSE"], ["8100", "Loss on Asset Disposal", "OTHER_EXPENSE", "LOSS_DISPOSAL"],
 ];

@@ -113,3 +113,17 @@ export async function loadReceivablesAging(db: PrismaClient, organizationId: str
   });
   return { detail, byCurrency };
 }
+
+// Unpaid vendor bills by age since they were posted, per currency. Bills carry no due date yet, so age runs from posting.
+export async function loadPayablesAging(db: PrismaClient, organizationId: string, asOf = new Date()) {
+  const bills = await db.vendorBill.findMany({ where: { organizationId, status: "POSTED" }, include: { vendor: { select: { name: true } } }, orderBy: { createdAt: "asc" } });
+  const byCurrency = new Map<string, Map<string, D>>();
+  const detail = bills.map((b) => {
+    const bucket = agingBucket(b.createdAt, asOf);
+    const m = byCurrency.get(b.currency) ?? new Map<string, D>();
+    m.set(bucket, (m.get(bucket) ?? dec(0)).add(b.amount.toString()));
+    byCurrency.set(b.currency, m);
+    return { id: b.id, number: b.number, vendor: b.vendor.name, currency: b.currency, postedOn: b.createdAt, amount: round2(b.amount.toString()), bucket };
+  });
+  return { detail, byCurrency };
+}
