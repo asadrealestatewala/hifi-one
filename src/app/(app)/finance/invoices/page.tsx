@@ -68,7 +68,7 @@ export default async function Invoices({ searchParams }: { searchParams: Promise
                   <td className="pr-4">{i.client.name}</td>
                   <td className="pr-4">{i.status.replace("_", " ")}</td>
                   <td className="pr-4 text-right">{formatMoney(i.total, i.currency)}</td>
-                  <td className="text-right">{i.status === "DRAFT" || i.status === "CANCELLED" ? "" : formatMoney(i.total.sub(i.amountPaid), i.currency)}</td>
+                  <td className="text-right">{i.status === "DRAFT" || i.status === "CANCELLED" ? "" : formatMoney(i.total.sub(i.amountPaid).sub(i.creditedAmount), i.currency)}</td>
                 </tr>
               ))}
             </tbody>

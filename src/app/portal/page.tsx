@@ -12,7 +12,7 @@ export default async function PortalHome() {
   const user = await requireClientUser();
   const [invoices, projects] = await Promise.all([portalInvoices(db, user.clientId), portalProjects(db, user.clientId)]);
   const owed = new Map<string, number>();
-  for (const i of invoices) owed.set(i.currency, (owed.get(i.currency) ?? 0) + Number(i.total.sub(i.amountPaid)));
+  for (const i of invoices) owed.set(i.currency, (owed.get(i.currency) ?? 0) + Number(i.total.sub(i.amountPaid).sub(i.creditedAmount)));
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Your account</h1>
@@ -36,7 +36,7 @@ export default async function PortalHome() {
                   <td className="pr-4">{i.dueDate?.toLocaleDateString()}</td>
                   <td className="pr-4">{i.status.replace("_", " ")}</td>
                   <td className="pr-4 text-right">{formatMoney(i.total, i.currency)}</td>
-                  <td className="text-right">{formatMoney(i.total.sub(i.amountPaid), i.currency)}</td>
+                  <td className="text-right">{formatMoney(i.total.sub(i.amountPaid).sub(i.creditedAmount), i.currency)}</td>
                 </tr>
               ))}
             </tbody>

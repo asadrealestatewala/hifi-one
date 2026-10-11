@@ -43,7 +43,8 @@ export default async function PortalInvoice({ params }: { params: Promise<{ id: 
           <div className="flex justify-between"><dt>Tax ({inv.taxRate.toString()}%)</dt><dd>{formatMoney(inv.taxAmount, inv.currency)}</dd></div>
           <div className="flex justify-between font-bold border-t border-border pt-1"><dt>Total</dt><dd>{formatMoney(inv.total, inv.currency)}</dd></div>
           <div className="flex justify-between"><dt>Paid</dt><dd>{formatMoney(inv.amountPaid, inv.currency)}</dd></div>
-          <div className="flex justify-between font-bold"><dt>Balance due</dt><dd>{formatMoney(inv.total.sub(inv.amountPaid), inv.currency)}</dd></div>
+          {inv.creditedAmount.gt(0) && <div className="flex justify-between"><dt>Credited</dt><dd>{formatMoney(inv.creditedAmount, inv.currency)}</dd></div>}
+          <div className="flex justify-between font-bold"><dt>Balance due</dt><dd>{formatMoney(inv.total.sub(inv.amountPaid).sub(inv.creditedAmount), inv.currency)}</dd></div>
         </dl>
         {bank && (
           <section className="text-sm border-t border-border pt-4">

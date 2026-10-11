@@ -2,6 +2,7 @@
 // and records payments. Everything runs in a database transaction and is idempotent.
 // Deliberately free of Next.js imports so it can be tested directly against the database.
 import { Prisma, type PrismaClient } from "@prisma/client";
+import { periodLockMessage } from "./period-lock";
 import {
   LedgerError, allocateFifo, assertBalanced, computeInvoiceTotals, dec, invoiceStatusAfterPayment, round2, type DraftLine,
 } from "./ledger-math";
@@ -42,6 +43,10 @@ export async function postJournal(
   const existing = await tx.journalEntry.findUnique({ where: { idempotencyKey: p.idempotencyKey } });
   if (existing) return existing; // retry: return the original, never post twice
   assertBalanced(p.lines);
+  // A closed period accepts no new postings, whatever module they come from
+  const lock = await tx.periodLock.findUnique({ where: { organizationId: p.organizationId } });
+  const blocked = periodLockMessage(lock?.lockedThrough, p.date);
+  if (blocked) throw new LedgerError(blocked);
   const ids = [...new Set(p.lines.map((l) => l.accountId))];
   const found = await tx.account.count({ where: { id: { in: ids }, organizationId: p.organizationId, active: true } });
   if (found !== ids.length) throw new LedgerError("A line uses an unknown or inactive account.");
@@ -137,7 +142,7 @@ export async function cancelInvoice(db: PrismaClient, p: { organizationId: strin
     if (!inv) throw new LedgerError("Invoice not found.");
     if (inv.status === "CANCELLED") return inv;
     if (inv.status === "DRAFT") return tx.invoice.update({ where: { id: inv.id }, data: { status: "CANCELLED" } });
-    if (!inv.amountPaid.isZero()) throw new LedgerError("This invoice has payments. Refund or credit it instead of cancelling.");
+    if (!inv.amountPaid.isZero() || !inv.creditedAmount.isZero()) throw new LedgerError("This invoice has payments or credit notes. Use a credit note instead of cancelling.");
     const original = await tx.journalEntry.findUniqueOrThrow({ where: { id: inv.journalEntryId! }, include: { lines: true } });
     await postJournal(tx, {
       organizationId: p.organizationId, date: new Date(), memo: `Reversal of ${original.number} (cancelled invoice ${inv.number})`,
@@ -158,6 +163,8 @@ export async function recordPayment(
   },
 ) {
   return db.$transaction(async (tx) => {
+    // Lock the client first so two identical requests (a double click) run one after the other
+    await tx.$queryRaw`SELECT id FROM "Client" WHERE id = ${p.clientId} FOR UPDATE`;
     const done = await tx.payment.findUnique({ where: { idempotencyKey: p.idempotencyKey } });
     if (done) return done; // retried request: same payment, no duplicates
     const amount = round2(p.amount);
@@ -168,15 +175,15 @@ export async function recordPayment(
     const client = await tx.client.findFirst({ where: { id: p.clientId, organizationId: p.organizationId } });
     if (!client) throw new LedgerError("Unknown client.");
 
-    const open = await tx.$queryRaw<{ id: string; total: Prisma.Decimal; amountPaid: Prisma.Decimal }[]>`
-      SELECT id, total, "amountPaid" FROM "Invoice"
+    const open = await tx.$queryRaw<{ id: string; total: Prisma.Decimal; amountPaid: Prisma.Decimal; creditedAmount: Prisma.Decimal }[]>`
+      SELECT id, total, "amountPaid", "creditedAmount" FROM "Invoice"
       WHERE "organizationId" = ${p.organizationId} AND "clientId" = ${p.clientId} AND currency = ${bank.currency}
         AND status IN ('ISSUED', 'PARTIALLY_PAID')
         ${p.invoiceIds?.length ? Prisma.sql`AND id IN (${Prisma.join(p.invoiceIds)})` : Prisma.empty}
       ORDER BY "issueDate" ASC, id ASC FOR UPDATE`;
     const { allocations, unallocated } = allocateFifo(
       amount,
-      open.map((i) => ({ id: i.id, outstanding: dec(i.total).sub(i.amountPaid) })),
+      open.map((i) => ({ id: i.id, outstanding: dec(i.total).sub(i.amountPaid).sub(i.creditedAmount) })),
     );
     const allocated = amount.sub(unallocated);
 
@@ -204,7 +211,7 @@ export async function recordPayment(
     for (const a of allocations) {
       const inv = await tx.invoice.findUniqueOrThrow({ where: { id: a.invoiceId } });
       const paid = inv.amountPaid.add(a.amount);
-      await tx.invoice.update({ where: { id: inv.id }, data: { amountPaid: paid, status: invoiceStatusAfterPayment(inv.total, paid) } });
+      await tx.invoice.update({ where: { id: inv.id }, data: { amountPaid: paid, status: invoiceStatusAfterPayment(inv.total, paid, inv.creditedAmount) } });
     }
     return payment;
   });

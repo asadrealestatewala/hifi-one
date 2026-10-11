@@ -69,7 +69,8 @@ The spec ([spec.md](spec.md)) describes a very large platform. The accounting, H
 
 ### 18 to 20: Accounting and expenses
 - Done: chart of accounts (view), double-entry journal with immutable posted lines, invoices, payments with allocation, advances, customer statements, trial balance, profit and loss, balance sheet, cash movement, receivables aging, expense vouchers with approval chain, budgets with controls and transfers.
-- Not built: **manual journal entries**, editing the chart of accounts, fiscal periods and period locking, year-end closing, credit notes, refunds, write-offs, discounts, multiple tax rates and tax reports, bank reconciliation and statement import, accounts payable aging, project profitability, departmental expense reports, commission and payroll liability reports, general ledger by account with drill-down, receipt documents, expense voucher printing, document template manager.
+- Done since the first version: manual journal entries with approval and reversal, chart of accounts editing, period locking, credit notes, refunds of money held on account.
+- Not built: year-end closing (profit is not moved to retained earnings), write-offs, discounts, multiple tax rates and tax reports, bank reconciliation and statement import, accounts payable aging, project profitability, departmental expense reports, commission and payroll liability reports, general ledger by account with drill-down, receipt documents, expense voucher printing, document template manager.
 
 ### 21 and 22: Vendors, partners
 - Done: vendor directory, portal, opportunity to payment workflow, vendor ledger.
@@ -108,7 +109,7 @@ The spec ([spec.md](spec.md)) describes a very large platform. The accounting, H
 
 ## Suggested order for the next work
 
-1. **Manual journal entries, chart of accounts editing, fiscal periods and period locking, credit notes and refunds.** An accountant cannot run the books without these.
+1. ~~Manual journal entries, chart of accounts editing, period locking, credit notes and refunds~~ (done). Still needed for accountants: year-end closing, bank reconciliation, tax rates and tax reports, accounts payable aging, write-offs.
 2. **First-run setup and user administration screens** (create the first Super Admin, roles, branches, departments), plus password reset and multi-factor authentication.
 3. **File storage** (private, signed downloads) unlocking receipts, contracts, expense attachments, employee and vendor documents, content media.
 4. **Server-side PDF and document templates** for invoices, receipts, statements, payslips and vouchers.

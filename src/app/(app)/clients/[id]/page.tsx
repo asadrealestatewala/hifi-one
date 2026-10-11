@@ -5,15 +5,18 @@ import { clientStatement } from "@/lib/accounting";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import InviteForm from "./InviteForm";
+import RefundForm from "./RefundForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   const user = await requirePermission("clients.view");
   const { id } = await params;
+  const { error } = await searchParams;
   const client = await db.client.findFirst({ where: { id, organizationId: user.organizationId } });
   if (!client) notFound();
   const canSeeFinance = user.permissions.has("finance.view");
+  const banks = user.permissions.has("finance.refund") ? await db.bankAccount.findMany({ where: { organizationId: user.organizationId, active: true, ledgerAccountId: { not: null } } }) : [];
   const [statement, invoices] = canSeeFinance
     ? await Promise.all([
         clientStatement(db, user.organizationId, client.id),
@@ -30,7 +33,11 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           <div key={k} className="contents"><span className="text-muted">{k}</span><span className="col-span-2">{v ?? ""}</span></div>
         ))}
       </section>
+      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
       {user.permissions.has("clients.edit") && <InviteForm clientId={client.id} />}
+      {user.permissions.has("finance.refund") && statement?.advances.map((a) => (
+        <RefundForm key={a.currency} clientId={client.id} currency={a.currency} held={a.amount.toString()} banks={banks.filter((b) => b.currency === a.currency).map((b) => ({ id: b.id, name: b.internalName }))} />
+      ))}
       {statement && (
         <section className="card overflow-x-auto space-y-3">
           <h2 className="font-semibold">Account statement</h2>

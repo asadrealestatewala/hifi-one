@@ -7,13 +7,13 @@ import type { PrismaClient } from "@prisma/client";
 import { LedgerError } from "./ledger-math";
 
 // Only issued documents are visible to clients (no drafts, no cancelled).
-const VISIBLE_STATUSES = ["ISSUED", "PARTIALLY_PAID", "PAID"];
+const VISIBLE_STATUSES = ["ISSUED", "PARTIALLY_PAID", "PAID", "CREDITED"];
 
 export function portalInvoices(db: PrismaClient, clientId: string) {
   return db.invoice.findMany({
     where: { clientId, status: { in: VISIBLE_STATUSES } },
     orderBy: { issueDate: "desc" },
-    select: { id: true, number: true, status: true, currency: true, issueDate: true, dueDate: true, total: true, amountPaid: true },
+    select: { id: true, number: true, status: true, currency: true, issueDate: true, dueDate: true, total: true, amountPaid: true, creditedAmount: true },
   });
 }
 

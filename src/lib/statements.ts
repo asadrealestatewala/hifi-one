@@ -100,7 +100,7 @@ export async function loadReceivablesAging(db: PrismaClient, organizationId: str
   });
   const byCurrency = new Map<string, Map<string, D>>();
   const detail = invoices.map((i) => {
-    const outstanding = round2(i.total.sub(i.amountPaid));
+    const outstanding = round2(i.total.sub(i.amountPaid).sub(i.creditedAmount));
     const bucket = agingBucket(i.dueDate, asOf);
     const m = byCurrency.get(i.currency) ?? new Map<string, D>();
     m.set(bucket, (m.get(bucket) ?? dec(0)).add(outstanding));

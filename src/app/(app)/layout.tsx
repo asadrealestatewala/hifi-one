@@ -65,6 +65,9 @@ const NAV: NavGroup[] = [
     title: "Finance & Accounting",
     items: [
       { href: "/finance/ledger", label: "General Ledger", permission: "finance.view" },
+      { href: "/finance/journals", label: "Manual Journals", permission: "finance.view" },
+      { href: "/finance/accounts", label: "Chart of Accounts", permission: "finance.view" },
+      { href: "/finance/close", label: "Close Periods", permission: "finance.view" },
       { href: "/finance/reports", label: "Financial Reports", permission: "reports.view" },
       { href: "/finance/budgets", label: "Budgets", permission: "budget.view" },
       { href: "/assets", label: "Fixed Assets", permission: "assets.view" },

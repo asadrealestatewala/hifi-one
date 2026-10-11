@@ -285,3 +285,15 @@ describe("client portal isolation", () => {
     await expect(acceptInvite(db, { token, name: "Late", password: "a-long-enough-password" })).rejects.toThrow(/expired|used/);
   });
 });
+
+describe("duplicate submissions", () => {
+  it("two identical payment requests at the same moment record one payment", async () => {
+    const inv = await newInvoice("120");
+    const results = await Promise.all([1, 2, 3].map(() =>
+      recordPayment(db, { organizationId: org, actorId: actor, clientId: client, bankAccountId: bank, amount: "120", date: new Date(), method: "BANK_TRANSFER", idempotencyKey: "double-click-1", invoiceIds: [inv.id] }),
+    ));
+    expect(new Set(results.map((r) => r.id)).size).toBe(1);
+    expect(await db.payment.count({ where: { idempotencyKey: "double-click-1" } })).toBe(1);
+    expect((await db.invoice.findUniqueOrThrow({ where: { id: inv.id } })).amountPaid.toString()).toBe("120");
+  });
+});

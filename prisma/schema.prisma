@@ -465,6 +465,7 @@ model Invoice {
   taxAmount      Decimal  @default(0) @db.Decimal(14, 2)
   total          Decimal  @default(0) @db.Decimal(14, 2)
   amountPaid     Decimal  @default(0) @db.Decimal(14, 2)
+  creditedAmount Decimal  @default(0) @db.Decimal(14, 2)
   notes          String?
   // Frozen at issue time so later settings changes never alter issued documents
   companySnapshot Json?
@@ -477,6 +478,7 @@ model Invoice {
   client      Client       @relation(fields: [clientId], references: [id])
   lines       InvoiceLine[]
   allocations PaymentAllocation[]
+  creditNotes CreditNote[]
 
   @@unique([organizationId, number])
   @@index([organizationId, clientId, status])
@@ -1141,4 +1143,50 @@ model WorklistRow {
   worklist Worklist @relation(fields: [worklistId], references: [id], onDelete: Cascade)
 
   @@index([worklistId, status])
+}
+
+// ---------- Accountant essentials ----------
+
+model PeriodLock {
+  organizationId String   @id
+  lockedThrough  String // YYYY-MM-DD: nothing may be posted on or before this date
+  lockedById     String?
+  updatedAt      DateTime @updatedAt
+}
+
+model ManualJournal {
+  id             String   @id @default(cuid())
+  organizationId String
+  date           String // YYYY-MM-DD
+  memo           String
+  currency       String
+  lines          Json // [{ accountId, debit, credit, memo }]
+  status         String   @default("PENDING") // PENDING | POSTED | REJECTED
+  createdById    String
+  decidedById    String?
+  decisionNote   String?
+  journalEntryId String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, status])
+}
+
+model CreditNote {
+  id             String   @id @default(cuid())
+  organizationId String
+  number         String
+  invoiceId      String
+  clientId       String
+  amount         Decimal  @db.Decimal(14, 2)
+  taxPortion     Decimal  @db.Decimal(14, 2)
+  currency       String
+  reason         String
+  idempotencyKey String   @unique
+  journalEntryId String?
+  createdById    String
+  createdAt      DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@unique([organizationId, number])
 }

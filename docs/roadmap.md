@@ -2,6 +2,17 @@
 
 Phases follow section 35 of [spec.md](spec.md).
 
+## Accountant essentials (done)
+
+Done, 14 database tests plus a browser run (entry prepared by one person and posted by another; credit note reduced a balance from 3,410.93 less 1,000 paid to 2,000 due; closing the books blocked a backdated entry and a future close):
+- Manual journal entries: prepared, then approved and posted by a different person; unbalanced entries, control accounts (receivables, payables, customer advances) and inactive accounts refused; rejection needs a reason; reversal of a posted manual entry (once, with reason)
+- Chart of accounts: add accounts (unique valid codes), rename, deactivate only when empty, not system accounts, not bank-linked; code and type never change
+- Period lock: every module's posting is refused on or before the closing date (invoices, payments, payroll, depreciation...); cannot close a period that has not ended; reopening needs a reason; history kept
+- Credit notes against open invoices: revenue and tax reversed in proportion, balance and aging reduced, payments settle only what is still owed, fully credited invoices show CREDITED; idempotent and safe under simultaneous requests
+- Refunds of money held on account, never above what the client holds
+- Bug found and fixed: simultaneous duplicate submissions of a payment (a double click) raised an error instead of returning the first payment; payment, credit note and refund now take their lock before checking for a duplicate
+Limits: no year-end close (profit stays in revenue and expense accounts); credit notes cannot refund an already-paid invoice (use a refund of the resulting advance only if the payment was left as an advance); no recurring or reversing-on-date entries; no attachments on journals (needs file storage).
+
 ## Production readiness pass (done)
 
 - Security headers and strict CSP/HSTS in production; sign-in and invitation rate limiting (proved in the browser: blocked on the 9th attempt); dependency audit clean (two transitive packages pinned); demo seed refuses to run in production; `/api/health`

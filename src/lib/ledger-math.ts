@@ -59,9 +59,11 @@ export function allocateFifo(amount: Prisma.Decimal.Value, open: { id: string; o
 
 const D_min = (a: D, b: D) => (a.lte(b) ? a : b);
 
-export function invoiceStatusAfterPayment(total: Prisma.Decimal.Value, paid: Prisma.Decimal.Value) {
+// Status follows what has been paid and credited. A fully credited invoice with no payment is CREDITED.
+export function invoiceStatusAfterPayment(total: Prisma.Decimal.Value, paid: Prisma.Decimal.Value, credited: Prisma.Decimal.Value = 0) {
   const t = round2(total);
   const p = round2(paid);
-  if (p.gte(t)) return "PAID" as const;
-  return p.gt(0) ? ("PARTIALLY_PAID" as const) : ("ISSUED" as const);
+  const c = round2(credited);
+  if (p.add(c).gte(t)) return p.gt(0) ? ("PAID" as const) : ("CREDITED" as const);
+  return p.gt(0) || c.gt(0) ? ("PARTIALLY_PAID" as const) : ("ISSUED" as const);
 }

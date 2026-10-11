@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
+import { randomUUID } from "node:crypto";
 import { cancelInvoice, issueInvoice, LedgerError } from "@/lib/accounting";
+import { issueCreditNote } from "@/lib/bookkeeping";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import PrintButton from "@/components/PrintButton";
@@ -36,6 +38,20 @@ async function cancel(formData: FormData) {
   redirect(`/finance/invoices/${id}`);
 }
 
+async function creditNote(formData: FormData) {
+  "use server";
+  const user = await requirePermission("finance.post");
+  const id = String(formData.get("id"));
+  try {
+    const cn = await issueCreditNote(db, { organizationId: user.organizationId, invoiceId: id, amount: String(formData.get("amount") ?? ""), reason: String(formData.get("reason") ?? ""), actorId: user.id, idempotencyKey: String(formData.get("key")) });
+    await audit(user, { action: "credit_note.issue", entity: "CreditNote", entityId: cn.id, after: { number: cn.number, amount: cn.amount.toString() } });
+  } catch (e) {
+    if (e instanceof LedgerError) redirect(`/finance/invoices/${id}?error=${encodeURIComponent(e.message)}`);
+    throw e;
+  }
+  redirect(`/finance/invoices/${id}`);
+}
+
 type Snap = Record<string, string | null>;
 
 export default async function InvoicePage({
@@ -47,7 +63,7 @@ export default async function InvoicePage({
   const { error } = await searchParams;
   const inv = await db.invoice.findFirst({
     where: { id, organizationId: user.organizationId },
-    include: { client: true, lines: true, allocations: { include: { payment: true } } },
+    include: { client: true, lines: true, allocations: { include: { payment: true } }, creditNotes: { orderBy: { createdAt: "asc" } } },
   });
   if (!inv) notFound();
   const canPost = user.permissions.has("finance.post");
@@ -109,7 +125,8 @@ export default async function InvoicePage({
           <div className="flex justify-between"><dt>Tax ({inv.taxRate.toString()}%)</dt><dd>{formatMoney(inv.taxAmount, inv.currency)}</dd></div>
           <div className="flex justify-between font-bold border-t border-border pt-1"><dt>Total</dt><dd>{formatMoney(inv.total, inv.currency)}</dd></div>
           <div className="flex justify-between"><dt>Paid</dt><dd>{formatMoney(inv.amountPaid, inv.currency)}</dd></div>
-          <div className="flex justify-between font-bold"><dt>Balance due</dt><dd>{formatMoney(inv.total.sub(inv.amountPaid), inv.currency)}</dd></div>
+          {inv.creditedAmount.gt(0) && <div className="flex justify-between"><dt>Credited</dt><dd>{formatMoney(inv.creditedAmount, inv.currency)}</dd></div>}
+          <div className="flex justify-between font-bold"><dt>Balance due</dt><dd>{formatMoney(inv.total.sub(inv.amountPaid).sub(inv.creditedAmount), inv.currency)}</dd></div>
         </dl>
         {bank ? (
           <section className="text-sm border-t border-border pt-4">
@@ -123,6 +140,12 @@ export default async function InvoicePage({
         ) : null}
         {inv.notes && <p className="text-sm text-muted">{inv.notes}</p>}
         {co?.invoiceFooter && <p className="text-xs text-muted border-t border-border pt-3">{co.invoiceFooter}</p>}
+        {inv.creditNotes.length > 0 && (
+          <section className="text-sm print:hidden">
+            <p className="label">Credit notes</p>
+            <ul>{inv.creditNotes.map((c) => <li key={c.id}>{c.number}: {formatMoney(c.amount, inv.currency)} · {c.reason}</li>)}</ul>
+          </section>
+        )}
         {inv.allocations.length > 0 && (
           <section className="text-sm print:hidden">
             <p className="label">Payments received</p>
@@ -130,6 +153,16 @@ export default async function InvoicePage({
           </section>
         )}
       </article>
+      {canPost && (inv.status === "ISSUED" || inv.status === "PARTIALLY_PAID") && (
+        <form action={creditNote} className="card flex flex-wrap items-end gap-3 max-w-3xl print:hidden">
+          <input type="hidden" name="id" value={inv.id} />
+          <input type="hidden" name="key" value={randomUUID()} />
+          <div className="w-full"><h2 className="font-semibold">Issue a credit note</h2><p className="text-xs text-muted">Reduces what the client owes on this invoice (up to the balance due), reversing revenue and tax in proportion.</p></div>
+          <div><label className="label" htmlFor="amount">Amount ({inv.currency})</label><input id="amount" name="amount" required inputMode="decimal" className="input !w-36" /></div>
+          <div className="flex-1 min-w-48"><label className="label" htmlFor="reason">Reason</label><input id="reason" name="reason" required className="input" /></div>
+          <button className="btn">Issue credit note</button>
+        </form>
+      )}
     </div>
   );
 }
