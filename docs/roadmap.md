@@ -46,7 +46,9 @@ Done, verified in the browser plus 16 automated tests (10 rules, 6 against the d
 - Attendance: clock in/out, breaks, office or remote, times in the company timezone. Being signed in never counts as working. A forgotten clock-out blocks the next clock-in until HR corrects it with a reason, recorded against the HR user
 - Leave: types with yearly allowances (unpaid has no limit), working-day counting (weekends skipped; public holidays not configured yet), overlap and balance checks, approval only by the employee's manager or HR (never self), double approval prevented, cancellation rules
 
-Still to do: payroll and payslips, shifts and grace rules, overtime, timesheets linked to projects, holidays calendar, documents with expiry, recruitment, performance, onboarding/offboarding, assets assignment.
+Payroll (done, 12 automated tests): salary structures with effective-dated history; monthly run per currency calculated from structure, unpaid leave (pro rata on basic) and bonus; approval by a different person than the preparer; approved runs frozen by a database trigger; posting makes one balanced journal entry (expense, net payable, tax withheld); salary payment recorded separately against a bank account in the run currency; payslips (own only, after approval). Limits: tax is a flat percentage per employee (no jurisdiction rules, no statutory contributions), no loans/advances/overtime/commission lines yet, adjustments after approval need a later-period correction flow that is not built.
+
+Still to do: shifts and grace rules, overtime, timesheets linked to projects, holidays calendar, documents with expiry, recruitment, performance, onboarding/offboarding, assets assignment.
 
 ## Client portal (first slice done)
 

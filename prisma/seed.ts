@@ -40,12 +40,12 @@ const CHART: [string, string, string, string?][] = [
   ["1500", "Furniture and Equipment", "ASSET"], ["1510", "Investments", "ASSET"], ["1520", "Partnership and JV Balances", "ASSET"],
   ["2000", "Accounts Payable", "LIABILITY"], ["2100", "Customer Advances", "LIABILITY", "CUSTOMER_ADVANCES"],
   ["2200", "Tax Payable", "LIABILITY", "TAX_PAYABLE"], ["2300", "Accrued Expenses", "LIABILITY"],
-  ["2400", "Deferred Revenue", "LIABILITY"], ["2500", "Payroll Liabilities", "LIABILITY"],
+  ["2400", "Deferred Revenue", "LIABILITY"], ["2500", "Payroll Liabilities", "LIABILITY", "PAYROLL_PAYABLE"], ["2510", "Payroll Tax Withheld", "LIABILITY", "PAYROLL_TAX"],
   ["3000", "Owner's Equity", "EQUITY"], ["3100", "Retained Earnings", "EQUITY"],
   ["4000", "Service Revenue", "REVENUE", "REVENUE_SERVICE"], ["4010", "SaaS Revenue", "REVENUE"],
   ["4020", "Advertising Management Revenue", "REVENUE"],
   ["5000", "Direct Labor and Contractors", "DIRECT_COST"], ["5010", "Direct Software and Hosting", "DIRECT_COST"],
-  ["6000", "Marketing Expense", "OPEX"], ["6010", "Rent and Utilities", "OPEX"], ["6020", "Salaries and Commissions", "OPEX"],
+  ["6000", "Marketing Expense", "OPEX"], ["6010", "Rent and Utilities", "OPEX"], ["6020", "Salaries and Commissions", "OPEX", "PAYROLL_EXPENSE"],
   ["6030", "Taxes", "OPEX"], ["6040", "Depreciation", "OPEX"],
   ["7000", "Investment Income", "OTHER_INCOME"], ["8000", "Other Expenses", "OTHER_EXPENSE"],
 ];
@@ -54,7 +54,7 @@ async function seedChart(orgId: string) {
   for (const [code, name, type, systemKey] of CHART) {
     await db.account.upsert({
       where: { organizationId_code: { organizationId: orgId, code } },
-      update: {},
+      update: systemKey ? { systemKey } : {},
       create: { organizationId: orgId, code, name, type, systemKey: systemKey ?? null },
     });
   }

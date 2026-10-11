@@ -701,3 +701,60 @@ model LeaveRequest {
 
   @@index([userId, status])
 }
+
+// ---------- Phase 4: payroll ----------
+
+model SalaryStructure {
+  id            String   @id @default(cuid())
+  userId        String
+  effectiveFrom String // YYYY-MM-DD
+  currency      String
+  basic         Decimal  @db.Decimal(14, 2)
+  allowance     Decimal  @default(0) @db.Decimal(14, 2)
+  taxPercent    Decimal  @default(0) @db.Decimal(5, 2) // flat withholding; replace with jurisdiction rules later
+  createdById   String?
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, effectiveFrom])
+  @@index([userId])
+}
+
+model PayrollRun {
+  id             String   @id @default(cuid())
+  organizationId String
+  period         String // YYYY-MM
+  currency       String
+  status         String   @default("DRAFT") // DRAFT | APPROVED | POSTED | PAID
+  createdById    String?
+  approvedById   String?
+  approvedAt     DateTime?
+  postedAt       DateTime?
+  paidAt         DateTime?
+  journalEntryId String?
+  paymentEntryId String?
+  createdAt      DateTime @default(now())
+
+  items PayrollItem[]
+
+  @@unique([organizationId, period, currency])
+}
+
+model PayrollItem {
+  id              String  @id @default(cuid())
+  runId           String
+  userId          String
+  workingDays     Int
+  unpaidDays      Decimal @db.Decimal(5, 1)
+  basic           Decimal @db.Decimal(14, 2)
+  allowance       Decimal @db.Decimal(14, 2)
+  bonus           Decimal @default(0) @db.Decimal(14, 2)
+  unpaidDeduction Decimal @db.Decimal(14, 2)
+  gross           Decimal @db.Decimal(14, 2)
+  taxPercent      Decimal @db.Decimal(5, 2)
+  tax             Decimal @db.Decimal(14, 2)
+  net             Decimal @db.Decimal(14, 2)
+
+  run PayrollRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, userId])
+}
