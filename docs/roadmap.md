@@ -39,6 +39,15 @@ Done and verified on localhost:
 
 Still to do: Gantt/timeline, calendar, subtasks and dependencies, task comments, files, budget and cost tracking, project creation from a won deal, content calendar and approvals, success reviews, meetings.
 
+## Financial statements and executive dashboard (first slice done)
+
+Done, 14 automated tests (9 pure, 5 against the database) plus a browser check (balance sheets balanced in PKR and USD):
+- Profit and Loss for any period, Balance Sheet as at any date (earnings to date shown on their own line because year-end closing is not built), Cash Movement per bank account with opening and closing, Receivables Aging; all per currency, printable
+- Every figure comes from the same journal lines as the ledger; tests prove the balance sheet balances, P&L uses recognised revenue (not cash), aging equals the AR control account, cash movement equals the bank ledger, dashboard equals the reports
+- Executive dashboard: revenue, net profit, cash, owed by customers, payables per currency; open pipeline value; active projects, employees, overdue tasks; needs-attention list (vouchers, bills, payroll, leave, budget transfers, overdue invoices, open attendance sessions, budgets at 90%+), every card links to its detail
+- Bugs found and fixed by the tests: period filters were shifted by the database time zone (bounds are now plain text cast to timestamp), and depreciation was dated in the following month (now the last day of the month it covers)
+Limits: no year-end closing or fiscal period locking; no multi-currency consolidation (needs exchange rates); no proper cash flow statement (operating, investing, financing); no CSV/XLSX export or server-generated PDF yet (browser print only); no role-specific dashboards for HR, sales, project managers or clients beyond the portals; no saved or scheduled reports.
+
 ## Fixed assets and investments (first slice done)
 
 Done, 21 automated tests plus a browser run (a USD 2,400 asset over 24 months: after 3 months accumulated depreciation 300, net book value 2,100, trial balance balanced):

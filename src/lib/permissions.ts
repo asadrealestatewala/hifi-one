@@ -51,6 +51,8 @@ export const PERMISSIONS = {
   "assets.post": "Run depreciation and dispose of assets",
   "investments.view": "View investments",
   "investments.manage": "Create investments and record capital and income",
+  "reports.view": "View financial statements and aging reports",
+  "dashboard.executive": "View the executive dashboard",
   "clients.view": "View client accounts",
   "clients.edit": "Create and edit client accounts",
   "finance.view": "View ledgers, invoices, payments and reports",
@@ -98,9 +100,9 @@ const EXTRA: Record<string, PermissionKey[]> = {
   BRANCH_MANAGER: ["leave.approve", "hr.view"],
   SALES_MANAGER: ["leave.approve"],
   PROJECT_MANAGER: ["leave.approve", "budget.view", "vendors.view", "vendors.manage"],
-  CEO: ["hr.view", "leave.approve", "payroll.view", "payroll.approve", "expenses.view", "expenses.approve", "budget.view", "budget.approve", "budget.override", "vendors.view", "assets.view", "investments.view"],
-  FINANCE_MANAGER: ["payroll.view", "payroll.approve", "payroll.post", "expenses.view", "expenses.review", "expenses.approve", "expenses.post", "budget.view", "budget.manage", "vendors.view", "vendors.bills", "vendors.post", "assets.view", "assets.manage", "assets.post", "investments.view", "investments.manage"],
-  ACCOUNTANT: ["expenses.view", "expenses.review", "expenses.post", "budget.view", "vendors.view", "vendors.post", "assets.view", "assets.manage"],
+  CEO: ["hr.view", "leave.approve", "payroll.view", "payroll.approve", "expenses.view", "expenses.approve", "budget.view", "budget.approve", "budget.override", "vendors.view", "assets.view", "investments.view", "reports.view", "dashboard.executive"],
+  FINANCE_MANAGER: ["payroll.view", "payroll.approve", "payroll.post", "expenses.view", "expenses.review", "expenses.approve", "expenses.post", "budget.view", "budget.manage", "vendors.view", "vendors.bills", "vendors.post", "assets.view", "assets.manage", "assets.post", "investments.view", "investments.manage", "reports.view", "dashboard.executive"],
+  ACCOUNTANT: ["expenses.view", "expenses.review", "expenses.post", "budget.view", "vendors.view", "vendors.post", "assets.view", "assets.manage", "reports.view"],
   PAYROLL_OFFICER: ["hr.view", "payroll.view", "payroll.manage"],
 };
 for (const r of ROLE_DEFS) {

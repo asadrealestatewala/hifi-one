@@ -7,6 +7,12 @@ import { postJournal } from "./accounting";
 import { monthlyAmount, periodsDue, addMonths, startPeriod } from "./asset-rules";
 
 export class AssetError extends Error {}
+
+// Depreciation belongs to the month it covers, so it is dated on that month's last day.
+const lastDayOf = (period: string) => {
+  const [y, m] = period.split("-").map(Number);
+  return new Date(Date.UTC(y, m, 0));
+};
 type Tx = Prisma.TransactionClient;
 const MONEY = /^\d{1,12}(\.\d{1,2})?$/;
 
@@ -110,7 +116,7 @@ export async function runDepreciation(db: PrismaClient, p: { organizationId: str
       const fingerprint = crypto.createHash("sha1").update(g.items.map((i) => i.assetId).sort().join(",")).digest("hex").slice(0, 16);
       const lines: DraftLine[] = [{ accountId: expense.id, debit: total, memo: `Depreciation ${g.period}` }, { accountId: accum.id, credit: total, memo: `Depreciation ${g.period}` }];
       const entry = await postJournal(tx, {
-        organizationId: p.organizationId, date: new Date(`${addMonths(g.period, 1)}-01T00:00:00Z`), memo: `Depreciation ${g.period} (${g.currency})`, currency: g.currency,
+        organizationId: p.organizationId, date: lastDayOf(g.period), memo: `Depreciation ${g.period} (${g.currency})`, currency: g.currency,
         sourceType: "DEPRECIATION", idempotencyKey: `depr:${p.organizationId}:${g.period}:${g.currency}:${fingerprint}`, postedById: p.actorId, lines,
       });
       await tx.depreciationEntry.createMany({ data: g.items.map((i) => ({ assetId: i.assetId, period: g.period, amount: i.amount, journalEntryId: entry.id })) });
