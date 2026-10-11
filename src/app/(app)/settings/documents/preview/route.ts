@@ -1,6 +1,6 @@
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { creditNotePdf, invoicePdf, payslipPdf, receiptPdf, statementPdf, voucherPdf } from "@/lib/pdf";
+import { creditNotePdf, invoicePdf, payslipPdf, quotePdf, receiptPdf, statementPdf, voucherPdf } from "@/lib/pdf";
 import { DOC_TYPES, companyFrom, getDocConfig, type DocType } from "@/lib/pdf-data";
 import { notFound, pdfResponse } from "@/lib/pdf-response";
 
@@ -18,7 +18,10 @@ export async function GET(req: Request) {
   const sampleBank = bank ? { bankName: bank.bankName, accountHolder: bank.accountHolder, accountNumber: "SAMPLE-0000", paymentInstructions: bank.paymentInstructions } : { bankName: "Sample Bank", accountHolder: company.legalName, accountNumber: "SAMPLE-0000" };
   const d = new Date();
   let pdf: Buffer;
-  if (type === "INVOICE") {
+  if (type === "QUOTE") {
+    pdf = await quotePdf({ number: "QT-SAMPLE", status: "SENT", currency: "USD", date: d, validUntil: d.toISOString().slice(0, 10), notes: "Sample notes.", terms: "50% upfront, balance on delivery.", client: { name: "Sample Client Ltd", billingAddress: "1 Example Street" },
+      lines: [{ description: "Sample service", quantity: "2", unitPrice: "500.00", amount: "1000.00" }], subtotal: "1000.00", taxRate: "5", taxAmount: "50.00", total: "1050.00", company, config });
+  } else if (type === "INVOICE") {
     pdf = await invoicePdf({ number: "INV-SAMPLE", status: "ISSUED", currency: "USD", issueDate: d, dueDate: d, notes: "Sample notes.", client: { name: "Sample Client Ltd", billingAddress: "1 Example Street" },
       lines: [{ description: "Sample service", quantity: "2", unitPrice: "500.00", amount: "1000.00" }], subtotal: "1000.00", taxRate: "5", taxAmount: "50.00", total: "1050.00", amountPaid: "0", creditedAmount: "0", company, bank: sampleBank, config });
   } else if (type === "RECEIPT") {

@@ -36,12 +36,14 @@ export async function loadExecutiveDashboard(db: PrismaClient, organizationId: s
   for (const r of allRows.filter((x) => x.code === "2000")) cur(r.currency).payables = String(Number(r.credit) - Number(r.debit));
 
   const soon = new Date(now.getTime() + 30 * 86400000).toISOString().slice(0, 10);
-  const [pipeline, activeProjects, overdueTasks, employees, openSessions, expiringDocs] = await Promise.all([
+  const [pipeline, activeProjects, overdueTasks, employees, openSessions, expiringDocs, contractsEnding, subsDue] = await Promise.all([
     db.lead.groupBy({ by: ["currency"], where: { organizationId, stage: { isWon: false, isLost: false }, dealValue: { not: null } }, _sum: { dealValue: true }, _count: true }),
     db.project.count({ where: { organizationId, status: "ACTIVE" } }),
     db.task.count({ where: { project: { organizationId }, status: { not: "DONE" }, dueDate: { lt: now } } }),
     db.employeeProfile.count({ where: { organizationId, status: "ACTIVE" } }),
     db.attendanceRecord.count({ where: { clockOut: null, workDate: { lt: today } } }),
+    db.contract.count({ where: { organizationId, status: "ACTIVE", endDate: { not: null, lte: soon, gte: today } } }),
+    db.subscription.count({ where: { organizationId, status: "ACTIVE", nextBillingDate: { lte: today } } }),
     db.storedFile.count({ where: { organizationId, ownerType: "EMPLOYEE", deletedAt: null, expiresOn: { not: null, lte: soon } } }),
   ]);
 
@@ -63,7 +65,7 @@ export async function loadExecutiveDashboard(db: PrismaClient, organizationId: s
   return {
     money: [...money].map(([currency, v]) => ({ currency, ...v })).sort((a, b) => a.currency.localeCompare(b.currency)),
     pipeline: pipeline.map((p) => ({ currency: p.currency, value: p._sum.dealValue?.toString() ?? "0", count: p._count })),
-    activeProjects, overdueTasks, employees, openSessions, expiringDocs,
+    activeProjects, overdueTasks, employees, openSessions, expiringDocs, contractsEnding, subsDue,
     attention: { vouchers, payrollRuns, bills, leave, transfers },
     budgetAlerts,
     overdueInvoices: aging.detail.filter((d) => d.bucket !== "Not yet due").length,

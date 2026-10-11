@@ -11,7 +11,7 @@ export type FileActor = {
   permissions: ReadonlySet<string>;
 };
 
-export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE"] as const;
+export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT"] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 export type Mode = "read" | "upload" | "delete";
 
@@ -48,6 +48,13 @@ export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: 
       return a.userType === "CLIENT" && a.clientId !== null && a.clientId === c.clientId && CLIENT_VISIBLE.includes(c.status); // never drafts
     }
     return has("content.manage") && CONTENT_EDITABLE.includes(c.status);
+  }
+
+  if (ownerType === "CONTRACT") {
+    const k = await db.contract.findFirst({ where: { id: ownerId, organizationId: a.organizationId } });
+    if (!k) return false;
+    if (mode === "read") return has("contracts.view");
+    return has("contracts.manage") && k.status !== "TERMINATED";
   }
 
   if (ownerType === "EMPLOYEE") {

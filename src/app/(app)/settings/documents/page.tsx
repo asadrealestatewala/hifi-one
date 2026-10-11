@@ -6,7 +6,7 @@ import { DOC_TYPES, getDocConfig, type DocType } from "@/lib/pdf-data";
 
 export const dynamic = "force-dynamic";
 
-const TITLES: Record<DocType, string> = { INVOICE: "Invoices", RECEIPT: "Receipts", CREDIT_NOTE: "Credit notes", STATEMENT: "Customer statements", PAYSLIP: "Payslips", VOUCHER: "Expense vouchers" };
+const TITLES: Record<DocType, string> = { QUOTE: "Quotations", INVOICE: "Invoices", RECEIPT: "Receipts", CREDIT_NOTE: "Credit notes", STATEMENT: "Customer statements", PAYSLIP: "Payslips", VOUCHER: "Expense vouchers" };
 const TOGGLES: [keyof DocConfig, string][] = [
   ["showRegisteredOffice", "Registered office"], ["showSalesCentre", "Sales centre"], ["showPhones", "Phone numbers (UANs)"], ["showEmail", "Company email"],
   ["showWebsite", "Website"], ["showRegistrationNo", "Registration number"], ["showTaxId", "Tax ID"], ["showBank", "Bank payment instructions"],

@@ -2,6 +2,16 @@
 
 Phases follow section 35 of [spec.md](spec.md).
 
+## Quotations, subscriptions and contracts (done)
+
+20 new automated tests plus a browser run (quote created, PDF downloaded, sent, acceptance recorded, converted to a draft invoice with matching figures).
+- Quotations: numbered QT-, draft, sent, accepted, declined, expired, invoiced or cancelled; line items with tax; valid-until date that expires open quotes; PDF with its own template settings; staff can record a decision received by email or phone; clients accept or decline in the portal (never see drafts or other clients' quotes); each transition is a single guarded update so a double click or two people cannot both win; converting creates exactly one draft invoice with the same figures
+- Subscriptions: monthly, quarterly or annual, with optional end date; "Create due invoices" makes one draft invoice per due period (never issued or posted automatically), is safe to run repeatedly and concurrently, keeps the day of month steady across short months, and catches up missed periods; pause skips missed periods on resume; cancel stops billing
+- Contracts: title, client, term, value, renewal reminder; draft, active, expired, terminated; active contracts expire after their end date; the signed document and attachments are stored privately with the same access rules as other files
+- Dashboard flags: contracts ending within 30 days and subscriptions due for billing
+- New permissions: quotes.view/manage, contracts.view/manage, subscriptions.manage (Sales roles, Finance Manager, CEO, Accountant as appropriate); run `npm run roles:sync` after upgrading
+Limits: quotes cannot be edited after saving (cancel and recreate); not built from catalog plans yet; no e-signature; no emailing of quotes or reminders; subscriptions are one fixed amount per period (no usage billing or price changes mid-term).
+
 ## Exchange rates and consolidated reports (done)
 
 - Base currency per organization (USD by default; changeable only before any rate exists) and an append-only rate history (a correction is a newer entry for the same date), with who entered it

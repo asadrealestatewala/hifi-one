@@ -232,6 +232,32 @@ export async function invoicePdf(d: InvoiceDoc, b: Build = {}) {
   return done();
 }
 
+// ---- Quotation ----
+export type QuoteDoc = {
+  number: string; status: string; currency: string; date: Date; validUntil?: string | null; notes?: string | null; terms?: string | null;
+  client: { name: string; billingAddress?: string | null };
+  lines: { description: string; quantity: string; unitPrice: string; amount: string }[];
+  subtotal: string; taxRate: string; taxAmount: string; total: string; company: Company; config: DocConfig;
+};
+export async function quotePdf(d: QuoteDoc, b: Build = {}) {
+  const { ctx, done } = start({ ...b, title: `Quotation ${d.number}`, cfg: d.config });
+  const { doc } = ctx;
+  header(ctx, d.company, "QUOTATION", d.number, d.status === "DRAFT" ? "DRAFT" : undefined);
+  const y = doc.y;
+  kv(ctx, [["Prepared for", d.client.name], ["Address", d.client.billingAddress]], 48, 250);
+  const yAfter = doc.y;
+  doc.y = y;
+  kv(ctx, [["Date", fmtDate(d.date)], ["Valid until", d.validUntil || "-"], ["Currency", d.currency]], 340, 200);
+  doc.y = Math.max(doc.y, yAfter) + 8;
+  table(ctx, [{ label: "Description", width: 239 }, { label: "Qty", width: 50, align: "right" }, { label: "Unit price", width: 105, align: "right" }, { label: "Amount", width: 105, align: "right" }],
+    d.lines.map((l) => [l.description, l.quantity, pdfMoney(l.unitPrice, d.currency), pdfMoney(l.amount, d.currency)]));
+  totals(ctx, [["Subtotal", pdfMoney(d.subtotal, d.currency)], [`Tax (${d.taxRate}%)`, pdfMoney(d.taxAmount, d.currency)], ["Total", pdfMoney(d.total, d.currency), true]]);
+  if (d.notes) { doc.moveDown(0.5); doc.font("Helvetica").fontSize(9).fillColor("#555").text(t(ctx, d.notes), 48, doc.y, { width: 499 }); }
+  if (d.terms) { doc.moveDown(0.5); doc.font("Helvetica-Bold").fontSize(9).fillColor("#333").text("Terms", 48, doc.y); doc.font("Helvetica").fillColor("#555").text(t(ctx, d.terms), 48, doc.y, { width: 499 }); }
+  footer(ctx, d.company, "This quotation is not an invoice. Prices are valid until the date shown.");
+  return done();
+}
+
 // ---- Credit note ----
 export type CreditNoteDoc = {
   number: string; date: Date; currency: string; amount: string; taxPortion: string; reason: string; invoiceNumber: string | null;

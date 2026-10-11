@@ -2,12 +2,12 @@
 // and returns null when the record does not exist or is not theirs. Free of Next.js imports.
 import type { PrismaClient } from "@prisma/client";
 import { clientStatement } from "./accounting";
-import { DEFAULT_DOC_CONFIG, mergeConfig, type Bank, type Company, type CreditNoteDoc, type DocConfig, type InvoiceDoc, type PayslipDoc, type ReceiptDoc, type StatementDoc, type VoucherDoc } from "./pdf";
+import { DEFAULT_DOC_CONFIG, mergeConfig, type Bank, type Company, type CreditNoteDoc, type DocConfig, type InvoiceDoc, type PayslipDoc, type ReceiptDoc, type QuoteDoc, type StatementDoc, type VoucherDoc } from "./pdf";
 
 type Json = Record<string, unknown> | null | undefined;
 
-export type DocType = "INVOICE" | "RECEIPT" | "CREDIT_NOTE" | "STATEMENT" | "PAYSLIP" | "VOUCHER";
-export const DOC_TYPES: DocType[] = ["INVOICE", "RECEIPT", "CREDIT_NOTE", "STATEMENT", "PAYSLIP", "VOUCHER"];
+export type DocType = "QUOTE" | "INVOICE" | "RECEIPT" | "CREDIT_NOTE" | "STATEMENT" | "PAYSLIP" | "VOUCHER";
+export const DOC_TYPES: DocType[] = ["QUOTE", "INVOICE", "RECEIPT", "CREDIT_NOTE", "STATEMENT", "PAYSLIP", "VOUCHER"];
 
 export async function getDocConfig(db: PrismaClient, organizationId: string, docType: DocType): Promise<{ config: DocConfig; version: number }> {
   const row = await db.documentSetting.findUnique({ where: { organizationId_docType: { organizationId, docType } } });
@@ -43,6 +43,22 @@ export async function loadInvoiceDoc(db: PrismaClient, p: { organizationId: stri
     subtotal: inv.subtotal.toString(), taxRate: inv.taxRate.toString(), taxAmount: inv.taxAmount.toString(), total: inv.total.toString(),
     amountPaid: inv.amountPaid.toString(), creditedAmount: inv.creditedAmount.toString(),
     company, bank: (inv.bankSnapshot as Bank | null) ?? null, config: tpl ? mergeConfig(tpl.config) : live!.config, templateVersion: tpl?.version ?? live?.version ?? null,
+  };
+}
+
+// Clients only ever get quotes that were actually sent to them, never drafts.
+export async function loadQuoteDoc(db: PrismaClient, p: { organizationId: string; quoteId: string; clientId?: string }): Promise<QuoteDoc | null> {
+  const q = await db.quote.findFirst({
+    where: { id: p.quoteId, organizationId: p.organizationId, ...(p.clientId ? { clientId: p.clientId, status: { notIn: ["DRAFT", "CANCELLED"] } } : {}) },
+    include: { client: true, lines: true },
+  });
+  if (!q) return null;
+  return {
+    number: q.number, status: q.status, currency: q.currency, date: q.sentAt ?? q.createdAt, validUntil: q.validUntil, notes: q.notes, terms: q.terms,
+    client: { name: q.client.name, billingAddress: q.client.billingAddress },
+    lines: q.lines.map((l) => ({ description: l.description, quantity: l.quantity.toString(), unitPrice: l.unitPrice.toString(), amount: l.amount.toString() })),
+    subtotal: q.subtotal.toString(), taxRate: q.taxRate.toString(), taxAmount: q.taxAmount.toString(), total: q.total.toString(),
+    company: await liveCompany(db, p.organizationId), config: (await getDocConfig(db, p.organizationId, "QUOTE")).config,
   };
 }
 

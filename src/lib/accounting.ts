@@ -10,7 +10,7 @@ import {
 type Tx = Prisma.TransactionClient;
 export { LedgerError };
 
-async function nextNumber(tx: Tx, organizationId: string, key: string, prefix: string) {
+export async function nextNumber(tx: Tx, organizationId: string, key: string, prefix: string) {
   const seq = await tx.numberSequence.upsert({
     where: { organizationId_key: { organizationId, key } },
     create: { organizationId, key, next: 2 },

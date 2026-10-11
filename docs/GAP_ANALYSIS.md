@@ -49,7 +49,7 @@ The spec ([spec.md](spec.md)) describes a very large platform. The accounting, H
 
 ### 9: Service catalog and pricing
 - Done: 20 categories, plan cards with a Most Popular highlight, independent price per currency (nothing converted), plan version bump on price changes.
-- Not built: screens to create categories, plans, features and add-ons; setup fees, overage, discounts, tax rules, contract terms, internal cost and margin; public pricing page and quotations; price books and regional pricing beyond a price per currency.
+- Not built: screens to create categories, plans, features and add-ons; setup fees, overage, discounts, tax rules, contract terms, internal cost and margin; public pricing page and quotations; price books and regional pricing beyond a price per currency. (Quotations now exist but are typed in by hand, not yet built from catalog plans.)
 
 ### 10 and 11: Client portal and content
 - Done: invitation by one-time link, own invoices (issued only), statement, projects with client-visible tasks, content approval with named, timestamped decisions and reasons, pending-approval count.
@@ -112,10 +112,10 @@ The spec ([spec.md](spec.md)) describes a very large platform. The accounting, H
 
 1. ~~Manual journal entries, chart of accounts editing, period locking, credit notes and refunds~~ (done). Still needed for accountants: year-end closing, bank reconciliation, tax rates and tax reports, accounts payable aging, write-offs.
 2. ~~First-run setup, user and role administration, password reset, multi-factor authentication~~ (done). Still needed: branches and departments screens, enforce two-step verification for sensitive roles.
-3. ~~File storage~~ (done for receipts, bill documents, employee documents and content media). Still needed: contracts, a virus scanner, other attachment points (quotes, projects, assets).
-4. ~~Server-side PDF and document templates~~ (done for six document types). Still needed: right-to-left languages such as Urdu and Arabic, quotations and contracts, emailing documents, letterheads.
+3. ~~File storage~~ (done for receipts, bill documents, employee documents and content media). Contract files are now supported too. Still needed: a virus scanner, other attachment points (quotes, projects, assets).
+4. ~~Server-side PDF and document templates~~ (done for six document types). Quotations are done. Still needed: right-to-left languages such as Urdu and Arabic, contract documents generated from templates, emailing documents, letterheads.
 5. ~~Exchange rates and consolidated reports~~ (done as presentation conversion). Still needed: foreign-exchange gain/loss accounting, revaluation, a rate feed, consolidated figures on the executive dashboard.
-6. **Service catalog editing, quotations, contracts, subscriptions and renewals**, completing the sales-to-cash flow.
+6. **Service catalog editing**, then quotes built from catalog plans. (Quotations, subscriptions and contract tracking are done; still needed: quote revisions and approval rules, usage-based billing, automatic renewal reminders by email, e-signature, contract templates.)
 7. **Project depth**: milestones, deliverables, costs, profitability, timeline and calendar views.
 8. **Integrations** one at a time (email first, then WhatsApp, then ads), each needing your provider accounts.
 9. **Commissions and incentives**, then the AI assistant.
