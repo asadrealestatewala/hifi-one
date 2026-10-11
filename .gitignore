@@ -34,3 +34,5 @@ desktop.ini
 # Local dev data
 .data/
 .data-db.log
+
+!.env.production.example

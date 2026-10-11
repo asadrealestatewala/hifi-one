@@ -2,6 +2,14 @@
 
 Phases follow section 35 of [spec.md](spec.md).
 
+## Deployment package and rehearsal (done, Docker untested)
+
+- `scripts/preflight.mjs`: refuses development passwords, short or placeholder secrets, non-production mode, non-https address, unwritable file storage; never prints secrets (9 tests)
+- `scripts/smoke-prod.mjs`: checks a running instance's health check, security headers, signed-out redirects, file and calendar privacy, and bad-sign-in resilience
+- `Dockerfile`, `docker-compose.yml` (database not published to the network), `.env.production.example`, `.dockerignore`
+- Rehearsed on this machine: all migrations from an empty database, production build and start, every smoke check, first-run setup with the setup token, and forced two-step enrolment for the new administrator
+Limits: the Docker image and compose file are written but have not been built or run; no HTTPS proxy, real mail server or restore drill was possible here.
+
 ## Everyday tools (done)
 
 - Search box in the header and a Search page across clients, leads, invoices, quotations, contracts, projects, vendors and people. Each group appears only if you may view it, with the same record-level scope as the lists (agents find only their own leads, project members only their projects); typed % and _ are taken literally. 12 tests with the calendar and organization tests

@@ -55,6 +55,21 @@ Terminate HTTPS at a reverse proxy or the platform and forward to the Node proce
 
 Never run `prisma migrate reset` or `prisma db push --force-reset` against a database that holds real data.
 
+## Going live: the rehearsal checklist
+
+Do this on the real server (or an identical staging one) before anyone relies on the system.
+
+1. **Prepare the environment** from `.env.production.example`: strong database password, `SESSION_SECRET` (48+ random characters), `APP_URL` (https), `SETUP_TOKEN` (first run only), `STORAGE_DIR` on persistent storage.
+2. **Run `node scripts/preflight.mjs`** with that environment. Fix every FAIL; read every WARN. It never prints secret values.
+3. **Start it** either with Docker (`docker compose up -d --build`, which uses the `Dockerfile` and `docker-compose.yml`) or directly (`npm ci && npx prisma migrate deploy && npm run build && npm start`). Put an HTTPS reverse proxy in front; do not expose port 3000 or the database to the internet.
+4. **Run `node scripts/smoke-prod.mjs https://your-address`.** It confirms the health check, the security headers (CSP, HSTS, framing, sniffing), that protected pages send a signed-out visitor to the login page, that files and the calendar feed give nothing away, and that repeated bad sign-ins never crash the server.
+5. **Run first-run setup** at `/setup` with the setup token, sign in, and complete two-step enrolment (the first administrator's role requires it). Then delete `SETUP_TOKEN` from the environment and restart.
+6. **Create a second Super Admin**, turn on two-step verification for the sensitive roles, and read Settings > Security Checklist until nothing says Fix.
+7. **Prove backup and restore**: take a backup, restore it into a scratch database, sign in against it, then run `npm run backup:check` from your scheduler.
+8. Optional: connect email (Settings > Email) and the assistant (`ANTHROPIC_API_KEY`) and test each from its page.
+
+**What was rehearsed so far (on a development machine, not a server):** all migrations applied cleanly to an empty database; a production build started in production mode; `smoke-prod` passed every check; first-run setup with the token worked; the new administrator was sent to two-step enrolment on sign-in. **Not yet rehearsed:** the Docker image and compose file (Docker was not installed where they were written), the HTTPS proxy, a real mail server, and a real restore.
+
 ## Email
 
 Outgoing email uses SMTP and is off until you set `SMTP_HOST` and `MAIL_FROM` (plus `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` if your provider needs them) in the server environment. With these set, invoices, quotations and customer statements can be emailed as PDFs from their pages. Use Settings > Email to test the connection and send yourself a test message; every attempt is logged there as sent, failed (with the provider's reason) or not sent. Invitation and password-reset links are still copied by hand. Use an app password or API key for the mail account, not a personal password, and add SPF/DKIM records for your sending domain or messages will land in spam.

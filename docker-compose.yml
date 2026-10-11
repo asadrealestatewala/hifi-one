@@ -1,0 +1,39 @@
+# Hifi One with its own PostgreSQL. NOT YET TESTED (Docker was not available where this was written).
+# 1. Copy .env.production.example to .env.production and fill it in.  2. docker compose up -d --build
+# 3. Put a reverse proxy with HTTPS (Caddy, nginx, Traefik or your host's load balancer) in front of port 3000.
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hifi
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env.production}
+      POSTGRES_DB: hifi_one
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hifi -d hifi_one"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # No ports are published: only the app can reach the database.
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env.production
+    environment:
+      DATABASE_URL: postgresql://hifi:${DB_PASSWORD}@db:5432/hifi_one
+      STORAGE_DIR: /data/files
+    volumes:
+      - files:/data/files
+    ports:
+      - "127.0.0.1:3000:3000" # reachable only from this machine; the reverse proxy forwards to it
+
+volumes:
+  pgdata:
+  files:
