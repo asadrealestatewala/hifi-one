@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import { clientStatement } from "@/lib/accounting";
+import EmailDocForm from "@/components/EmailDocForm";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import InviteForm from "./InviteForm";
@@ -9,10 +10,11 @@ import RefundForm from "./RefundForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
+export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; mailOk?: string; mailError?: string }> }) {
   const user = await requirePermission("clients.view");
   const { id } = await params;
-  const { error } = await searchParams;
+  const sp = await searchParams;
+  const { error } = sp;
   const client = await db.client.findFirst({ where: { id, organizationId: user.organizationId } });
   if (!client) notFound();
   const canSeeFinance = user.permissions.has("finance.view");
@@ -41,6 +43,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       {statement && (
         <section className="card overflow-x-auto space-y-3">
           <div className="flex items-center justify-between gap-2"><h2 className="font-semibold">Account statement</h2><a className="btn-ghost" href={`/clients/${client.id}/statement/pdf`} target="_blank" rel="noopener">Statement PDF</a></div>
+          {user.permissions.has("finance.post") && <EmailDocForm kind="STATEMENT" id={client.id} defaultTo={client.email} returnTo={`/clients/${client.id}`} flash={{ mailOk: sp.mailOk, mailError: sp.mailError }} label="Email the statement" />}
           {statement.advances.map((a) => (
             <p key={a.currency} className="text-sm">Advance held on account: <strong>{formatMoney(a.amount, a.currency)}</strong></p>
           ))}

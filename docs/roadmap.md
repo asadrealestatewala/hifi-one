@@ -2,6 +2,13 @@
 
 Phases follow section 35 of [spec.md](spec.md).
 
+## Email (done, needs a mail account to go live)
+
+- SMTP sending (Google Workspace, Microsoft 365, SendGrid, Mailgun, Amazon SES, any SMTP); settings from environment variables; Settings > Email shows status honestly ("Not connected" until configured), tests the connection, sends a test message to yourself, and lists a delivery log
+- Email an issued invoice, a sent quotation or a client statement as a PDF from its page, recipient prefilled from the client record
+- 9 automated tests (configuration, address injection refused, NOT_CONFIGURED vs SENT vs FAILED, hourly limit, PDF attached and correct, drafts refused, organization separation) plus a browser run showing a test send records "Not sent" when no account is connected
+Limits: not verified against a real mail server (no account was available); no inbox or reply tracking; no automatic reminders or receipts by email; invitation and reset links still copied by hand.
+
 ## Tax, payables, write-offs and security pass (done)
 
 - Named tax rates (suggested when writing invoices, quotations and subscriptions; invoices still keep their issued percentage); sales tax report by rate and currency from issued invoices, net of tax reversed by credit notes

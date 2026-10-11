@@ -26,6 +26,13 @@ What is in place, how it is checked, and what is not done yet.
 - New installations created through first-run setup require it for Super Admin, CEO, Finance Manager, Accountant and HR Manager. Existing installations and the development seed are left optional so an upgrade never locks people out; turn it on per role, then run the checklist.
 - Settings > Security Checklist shows live findings: session secret strength, roles without the requirement, users still to enrol, number of Super Admins, production mode, file storage location, virus scanning and starting passwords.
 
+## Email
+
+- Mail credentials live only in the server environment; no screen shows or edits them. The Email page shows the server name and sender, never the password.
+- Recipients must be exactly one valid address (control characters, commas and brackets are refused so a value can never add headers or recipients), subjects are flattened to one line, and an organization can send at most 60 emails an hour.
+- Documents are generated server-side from the same loaders as downloads; drafts and cancelled documents cannot be emailed, and another organization's records are never found.
+- Every attempt is logged (who, to whom, which document, result). The log says SENT only when the mail server accepted the message.
+
 ## Files and documents
 
 - Uploads are checked on the server by looking inside the file: the extension must match the contents, programs, scripts, HTML and SVG are refused, Office files with macros are refused, and the size limit is 15 MB. The server decides the content type; the uploader cannot.

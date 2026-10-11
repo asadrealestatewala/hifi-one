@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
+import EmailDocForm from "@/components/EmailDocForm";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { SalesError, cancelQuote, convertQuoteToInvoice, decideQuote, expireQuotes, sendQuote } from "@/lib/sales";
@@ -35,10 +36,11 @@ async function act(formData: FormData) {
   back("");
 }
 
-export default async function QuoteDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
+export default async function QuoteDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; mailOk?: string; mailError?: string }> }) {
   const user = await requirePermission("quotes.view");
   const { id } = await params;
-  const { error } = await searchParams;
+  const sp = await searchParams;
+  const { error } = sp;
   await expireQuotes(db, user.organizationId, new Date().toISOString().slice(0, 10));
   const q = await db.quote.findFirst({ where: { id, organizationId: user.organizationId }, include: { client: true, lines: true } });
   if (!q) notFound();
@@ -88,6 +90,7 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
           )}
         </div>
       )}
+      {canManage && !(["DRAFT", "CANCELLED"].includes(q.status)) && <EmailDocForm kind="QUOTE" id={q.id} defaultTo={q.client.email} returnTo={`/quotes/${q.id}`} flash={{ mailOk: sp.mailOk, mailError: sp.mailError }} />}
       {q.status === "SENT" && <p className="text-xs text-muted">The client can also accept or decline from the client portal.</p>}
     </div>
   );

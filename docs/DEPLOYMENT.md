@@ -55,6 +55,10 @@ Terminate HTTPS at a reverse proxy or the platform and forward to the Node proce
 
 Never run `prisma migrate reset` or `prisma db push --force-reset` against a database that holds real data.
 
+## Email
+
+Outgoing email uses SMTP and is off until you set `SMTP_HOST` and `MAIL_FROM` (plus `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` if your provider needs them) in the server environment. With these set, invoices, quotations and customer statements can be emailed as PDFs from their pages. Use Settings > Email to test the connection and send yourself a test message; every attempt is logged there as sent, failed (with the provider's reason) or not sent. Invitation and password-reset links are still copied by hand. Use an app password or API key for the mail account, not a personal password, and add SPF/DKIM records for your sending domain or messages will land in spam.
+
 ## Backup verification
 
 A backup nobody has checked is a hope. Schedule this after your backup job and alert on a non-zero exit:

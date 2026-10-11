@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { randomUUID } from "node:crypto";
 import { cancelInvoice, issueInvoice, LedgerError } from "@/lib/accounting";
+import EmailDocForm from "@/components/EmailDocForm";
 import { issueCreditNote, writeOffInvoice } from "@/lib/bookkeeping";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
@@ -71,10 +72,11 @@ type Snap = Record<string, string | null>;
 export default async function InvoicePage({
   params,
   searchParams,
-}: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
+}: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; mailOk?: string; mailError?: string }> }) {
   const user = await requirePermission("finance.view");
   const { id } = await params;
-  const { error } = await searchParams;
+  const sp = await searchParams;
+  const { error } = sp;
   const inv = await db.invoice.findFirst({
     where: { id, organizationId: user.organizationId },
     include: { client: true, lines: true, allocations: { include: { payment: true } }, creditNotes: { orderBy: { createdAt: "asc" } } },
@@ -168,6 +170,7 @@ export default async function InvoicePage({
           </section>
         )}
       </article>
+      {canPost && inv.number && ["ISSUED", "PARTIALLY_PAID", "PAID"].includes(inv.status) && <EmailDocForm kind="INVOICE" id={inv.id} defaultTo={inv.client.email} returnTo={`/finance/invoices/${inv.id}`} flash={{ mailOk: sp.mailOk, mailError: sp.mailError }} />}
       {canPost && (inv.status === "ISSUED" || inv.status === "PARTIALLY_PAID") && (
         <form action={creditNote} className="card flex flex-wrap items-end gap-3 max-w-3xl print:hidden">
           <input type="hidden" name="id" value={inv.id} />

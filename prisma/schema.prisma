@@ -1473,3 +1473,25 @@ model TaxRate {
 
   @@unique([organizationId, name])
 }
+
+// Every email the system tries to send. The status is only SENT when the mail server accepted the message;
+// with no mail account configured the status is NOT_CONFIGURED and nothing is claimed as delivered.
+model EmailMessage {
+  id                String   @id @default(cuid())
+  organizationId    String
+  toEmail           String
+  subject           String
+  body              String
+  attachmentName    String?
+  relatedType       String?  // INVOICE | QUOTE | STATEMENT | TEST
+  relatedId         String?
+  status            String   // SENT | FAILED | NOT_CONFIGURED
+  error             String?
+  providerMessageId String?
+  createdById       String?
+  createdAt         DateTime @default(now())
+  sentAt            DateTime?
+
+  @@index([organizationId, createdAt])
+  @@index([relatedType, relatedId])
+}
