@@ -28,6 +28,20 @@ const NAV: NavGroup[] = [
     ],
   },
   {
+    title: "My Work",
+    items: [
+      { href: "/me/attendance", label: "My Attendance", permission: "self.attendance" },
+      { href: "/me/leave", label: "My Leave", permission: "self.leave" },
+    ],
+  },
+  {
+    title: "People & HR",
+    items: [
+      { href: "/hr/employees", label: "Employees", permission: "hr.view" },
+      { href: "/hr/attendance", label: "Attendance (all)", permission: "attendance.view_all" },
+    ],
+  },
+  {
     title: "Project Operations",
     items: [{ href: "/projects", label: "Projects & Tasks", permission: "projects.view" }],
   },
@@ -89,6 +103,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               <p className="text-sm font-semibold leading-tight">{user.name}</p>
               <p className="text-xs text-muted">{user.roles.join(", ")}</p>
             </div>
+            <Link href="/account/password" className="text-xs text-muted hover:underline">Password</Link>
             <form action={signOut}>
               <button className="btn-ghost">Sign out</button>
             </form>

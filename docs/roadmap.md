@@ -39,6 +39,15 @@ Done and verified on localhost:
 
 Still to do: Gantt/timeline, calendar, subtasks and dependencies, task comments, files, budget and cost tracking, project creation from a won deal, content calendar and approvals, success reviews, meetings.
 
+## Phase 4: HR (first slice done: employees, attendance, leave)
+
+Done, verified in the browser plus 16 automated tests (10 rules, 6 against the database):
+- Employee records with sequential numbers; restricted identity and bank fields only for hr.view_sensitive (audit logs record that they changed, never the values); starting password generated once and shown once; change-password page that signs out all devices
+- Attendance: clock in/out, breaks, office or remote, times in the company timezone. Being signed in never counts as working. A forgotten clock-out blocks the next clock-in until HR corrects it with a reason, recorded against the HR user
+- Leave: types with yearly allowances (unpaid has no limit), working-day counting (weekends skipped; public holidays not configured yet), overlap and balance checks, approval only by the employee's manager or HR (never self), double approval prevented, cancellation rules
+
+Still to do: payroll and payslips, shifts and grace rules, overtime, timesheets linked to projects, holidays calendar, documents with expiry, recruitment, performance, onboarding/offboarding, assets assignment.
+
 ## Client portal (first slice done)
 
 Done and verified in the browser plus 4 isolation tests:

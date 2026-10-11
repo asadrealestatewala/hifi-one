@@ -21,6 +21,13 @@ export const PERMISSIONS = {
   "projects.view_all": "View all projects",
   "projects.manage": "Create projects, assign teams and tasks",
   "tasks.edit": "Update status of tasks in your projects",
+  "self.attendance": "Clock in and out, take breaks",
+  "self.leave": "Request and view own leave",
+  "leave.approve": "Approve leave for your reports (or everyone, for HR)",
+  "hr.view": "View the employee directory",
+  "hr.manage": "Create and edit employee records",
+  "hr.view_sensitive": "View identity and bank details of employees",
+  "attendance.view_all": "View and correct everyone's attendance",
   "clients.view": "View client accounts",
   "clients.edit": "Create and edit client accounts",
   "finance.view": "View ledgers, invoices, payments and reports",
@@ -60,3 +67,18 @@ export const ROLE_DEFS: RoleDef[] = [
   { key: "BUSINESS_PARTNER", name: "Business Partner", permissions: [] },
   { key: "INVESTOR", name: "Investor", permissions: [] },
 ];
+
+// Every internal role can use self-service; managers can approve their reports' leave; HR gets the HR tools.
+const EXTERNAL_ROLES = new Set(["CLIENT", "VENDOR", "BUSINESS_PARTNER", "INVESTOR"]);
+const EXTRA: Record<string, PermissionKey[]> = {
+  HR_MANAGER: ["hr.view", "hr.manage", "hr.view_sensitive", "leave.approve", "attendance.view_all"],
+  BRANCH_MANAGER: ["leave.approve", "hr.view"],
+  SALES_MANAGER: ["leave.approve"],
+  PROJECT_MANAGER: ["leave.approve"],
+  CEO: ["hr.view", "leave.approve"],
+  PAYROLL_OFFICER: ["hr.view"],
+};
+for (const r of ROLE_DEFS) {
+  if (r.permissions === "ALL" || EXTERNAL_ROLES.has(r.key)) continue;
+  r.permissions = [...new Set<PermissionKey>([...r.permissions, "self.attendance", "self.leave", ...(EXTRA[r.key] ?? [])])];
+}

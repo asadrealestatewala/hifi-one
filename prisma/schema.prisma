@@ -614,3 +614,90 @@ model ClientInvite {
 
   @@index([clientId])
 }
+
+// ---------- Phase 4: HR ----------
+
+model EmployeeProfile {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String   @unique
+  employeeNo     String
+  designation    String?
+  departmentId   String?
+  employmentType String   @default("FULL_TIME") // FULL_TIME | PART_TIME | CONTRACT | INTERN
+  workLocation   String   @default("OFFICE") // OFFICE | REMOTE | HYBRID | FIELD
+  joinDate       DateTime?
+  probationEnd   DateTime?
+  phone          String?
+  personalEmail  String?
+  address        String?
+  emergencyContact String?
+  // Sensitive: only users with hr.view_sensitive may read these
+  identityNumber String?
+  bankDetails    String?
+  status         String   @default("ACTIVE") // ACTIVE | EXITED
+  exitDate       DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, employeeNo])
+}
+
+model AttendanceRecord {
+  id        String    @id @default(cuid())
+  userId    String
+  workDate  String // YYYY-MM-DD in the company timezone
+  clockIn   DateTime
+  clockOut  DateTime?
+  workMode  String    @default("OFFICE") // OFFICE | REMOTE
+  note      String?
+  correctedById String?
+
+  breaks BreakRecord[]
+
+  @@unique([userId, workDate])
+  @@index([workDate])
+}
+
+model BreakRecord {
+  id           String   @id @default(cuid())
+  attendanceId String
+  startAt      DateTime
+  endAt        DateTime?
+
+  attendance AttendanceRecord @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+
+  @@index([attendanceId])
+}
+
+model LeaveType {
+  id             String  @id @default(cuid())
+  organizationId String
+  name           String
+  daysPerYear    Decimal @db.Decimal(5, 1)
+  paid           Boolean @default(true)
+  active         Boolean @default(true)
+
+  requests LeaveRequest[]
+
+  @@unique([organizationId, name])
+}
+
+model LeaveRequest {
+  id          String    @id @default(cuid())
+  userId      String
+  leaveTypeId String
+  startDate   String // YYYY-MM-DD
+  endDate     String // YYYY-MM-DD
+  days        Decimal   @db.Decimal(5, 1) // working days, weekends excluded
+  reason      String?
+  status      String    @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
+  approverId  String?
+  decidedAt   DateTime?
+  decisionNote String?
+  createdAt   DateTime  @default(now())
+
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  @@index([userId, status])
+}

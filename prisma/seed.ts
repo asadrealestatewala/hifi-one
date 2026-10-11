@@ -160,6 +160,12 @@ async function main() {
 
   await seedCatalog(org.id);
   await seedChart(org.id);
+  for (const [name, days, paid] of [["Annual", 14, true], ["Casual", 8, true], ["Sick", 8, true], ["Unpaid", 0, false]] as const) {
+    await db.leaveType.upsert({
+      where: { organizationId_name: { organizationId: org.id, name } },
+      update: {}, create: { organizationId: org.id, name, daysPerYear: days, paid },
+    });
+  }
 
   const demo = [
     { email: "admin@hifi.local", name: "Demo Super Admin", role: "SUPER_ADMIN" },
