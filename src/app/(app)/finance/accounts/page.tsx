@@ -47,12 +47,12 @@ export default async function Accounts({ searchParams }: { searchParams: Promise
   const balances = new Map(await Promise.all(accounts.map(async (a) => [a.id, (await accountBalances(db, a.id)).filter((b) => !dec(b.balance).isZero())] as const)));
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Chart of Accounts</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Chart of Accounts</h1>
       <p className="text-sm text-muted">Codes and types never change once an account exists, because history would stop meaning what it said. Accounts used by automatic postings, or holding a balance, cannot be deactivated.</p>
       {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="text-left text-xs text-muted"><tr><th className="py-2 pr-4">Code</th><th className="pr-4">Name</th><th className="pr-4">Type</th><th className="pr-4">Balance (debit positive)</th><th>Status</th>{canManage && <th></th>}</tr></thead>
+          <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">Code</th><th className="pr-4">Name</th><th className="pr-4">Type</th><th className="pr-4">Balance (debit positive)</th><th>Status</th>{canManage && <th></th>}</tr></thead>
           <tbody>
             {accounts.map((a) => (
               <tr key={a.id} className={`border-t border-border ${a.active ? "" : "text-muted"}`}>

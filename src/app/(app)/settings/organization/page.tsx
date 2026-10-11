@@ -40,7 +40,7 @@ export default async function Organization({ searchParams }: { searchParams: Pro
   const hid = (op: string, id?: string) => (<><input type="hidden" name="op" value={op} />{id && <input type="hidden" name="id" value={id} />}</>);
   return (
     <div className="space-y-6 max-w-4xl">
-      <h1 className="text-2xl font-bold">Offices and departments</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Offices and departments</h1>
       {sp.msg && <p className="text-sm bg-green-600/10 text-green-700 rounded-lg px-3 py-2">{sp.msg}</p>}
       {sp.error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{sp.error}</p>}
 

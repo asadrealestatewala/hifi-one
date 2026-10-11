@@ -27,7 +27,7 @@ export default async function Notifications() {
   return (
     <div className="space-y-4 max-w-3xl">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Notifications</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Notifications</h1>
         {unread > 0 && <form action={readAll}><button className="btn-ghost">Mark all as read</button></form>}
       </div>
       <p className="text-xs text-muted">In-app only for now. Email, WhatsApp and browser push need provider setup, and per-type preferences are not built yet.</p>

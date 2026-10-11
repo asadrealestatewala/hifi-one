@@ -2,6 +2,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { PageHeader, Stat } from "@/components/ui";
 import { HrError, correctClockOut } from "@/lib/hr";
 import { fmtMinutes, workedMinutes } from "@/lib/hr-rules";
 
@@ -37,7 +38,12 @@ export default async function HrAttendance({ searchParams }: { searchParams: Pro
   ]);
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Attendance (all staff)</h1>
+      <PageHeader title="Attendance" subtitle="Everyone's clock-ins, breaks and open sessions." />
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Stat label="Clocked in now" value={openRecs.length} hint="sessions still open" />
+        <Stat label="Records shown" value={recent.length} hint="most recent 60" />
+        <Stat label="People" value={people.length} />
+      </div>
       {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
       <section className="card space-y-2">
         <h2 className="font-semibold">Open sessions</h2>
@@ -56,12 +62,12 @@ export default async function HrAttendance({ searchParams }: { searchParams: Pro
       <section className="card overflow-x-auto">
         <h2 className="font-semibold mb-2">Recent records</h2>
         <table className="w-full text-sm">
-          <thead className="text-left text-xs text-muted"><tr><th className="py-2 pr-4">Date</th><th className="pr-4">Employee</th><th className="pr-4">Mode</th><th className="pr-4">Attendance</th><th className="pr-4">Breaks</th><th>Worked</th></tr></thead>
+          <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">Date</th><th className="pr-4">Employee</th><th className="pr-4">Mode</th><th className="pr-4">Attendance</th><th className="pr-4">Breaks</th><th>Worked</th></tr></thead>
           <tbody>
             {recent.map((r) => {
               const m = workedMinutes(r, r.breaks);
               return (
-                <tr key={r.id} className="border-t border-border">
+                <tr key={r.id} className="border-t border-border transition hover:bg-hover/50">
                   <td className="py-2 pr-4">{r.workDate}</td><td className="pr-4">{name.get(r.userId)}</td><td className="pr-4">{r.workMode.toLowerCase()}</td>
                   <td className="pr-4">{fmtMinutes(m.attendance)}{!r.clockOut && " (open)"}</td><td className="pr-4">{fmtMinutes(m.breaks)}</td><td>{fmtMinutes(m.worked)}</td>
                 </tr>

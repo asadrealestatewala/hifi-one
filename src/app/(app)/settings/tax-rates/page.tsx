@@ -40,7 +40,7 @@ export default async function TaxRates({ searchParams }: { searchParams: Promise
   const rates = await db.taxRate.findMany({ where: { organizationId: user.organizationId }, orderBy: [{ active: "desc" }, { name: "asc" }] });
   return (
     <div className="space-y-5 max-w-2xl">
-      <h1 className="text-2xl font-bold">Tax rates</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Tax rates</h1>
       <p className="text-sm text-muted">Named rates are offered as suggestions when you write an invoice, quotation or subscription. An invoice always keeps the percentage it was issued with, so changing this list never alters existing documents.</p>
       {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
       <div className="card">

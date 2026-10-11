@@ -18,7 +18,7 @@ export default async function Ledger() {
   const currencies = [...new Set(tb.map((r) => r.currency))];
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">General Ledger</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">General Ledger</h1>
       <p className="text-sm text-muted">
         Balances are shown per currency. Cross-currency consolidation arrives with exchange rates, so no totals are mixed across currencies here.
       </p>
@@ -31,10 +31,10 @@ export default async function Ledger() {
           <section key={cur} className="card overflow-x-auto">
             <h2 className="font-semibold mb-2">Trial balance, {cur}</h2>
             <table className="w-full text-sm">
-              <thead className="text-left text-xs text-muted"><tr><th className="py-2 pr-4">Code</th><th className="pr-4">Account</th><th className="pr-4 text-right">Debit</th><th className="text-right">Credit</th></tr></thead>
+              <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">Code</th><th className="pr-4">Account</th><th className="pr-4 text-right">Debit</th><th className="text-right">Credit</th></tr></thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={r.code} className="border-t border-border">
+                  <tr key={r.code} className="border-t border-border transition hover:bg-hover/50">
                     <td className="py-1.5 pr-4 text-muted">{r.code}</td><td className="pr-4">{r.name}</td>
                     <td className="pr-4 text-right">{formatMoney(r.debit, cur)}</td><td className="text-right">{formatMoney(r.credit, cur)}</td>
                   </tr>

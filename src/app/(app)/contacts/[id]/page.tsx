@@ -11,6 +11,8 @@ import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { templates } from "@/lib/whatsapp";
 import ContactForm from "../ContactForm";
+import ContactMain from "./ContactMain";
+import FilesPanel from "@/components/FilesPanel";
 import Drawer from "@/components/ui/Drawer";
 import { logContactAction, mergeContactsAction, openOpportunityAction, sendContactEmailAction } from "../actions";
 
@@ -31,7 +33,7 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
   const c = await db.contact.findFirst({ where: { AND: [contactScope(who), { id }] } });
   if (!c) notFound();
   const canEdit = user.permissions.has("crm.edit"), manager = user.permissions.has("crm.view_all"), finance = user.permissions.has("finance.view");
-  const tab = ["activity", "deals", "billing", "people", "email"].includes(sp.tab ?? "") ? sp.tab! : "overview";
+  const tab = ["deals", "billing", "people", "email", "projects", "tasks", "documents", "events", "calls"].includes(sp.tab ?? "") ? sp.tab! : "overview";
   const [parent, people, , client, activities, staff] = await Promise.all([
     c.parentId ? db.contact.findUnique({ where: { id: c.parentId }, select: { id: true, name: true } }) : null,
     c.kind === "ORGANIZATION" ? db.contact.findMany({ where: { AND: [contactScope(who), { parentId: c.id, archived: false }] }, orderBy: { name: "asc" }, take: 100 }) : [],
@@ -40,6 +42,7 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
     db.contactActivity.findMany({ where: { contactId: c.id }, orderBy: { createdAt: "desc" }, take: 150 }),
     db.user.findMany({ where: { organizationId: org, userType: "EMPLOYEE", active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
+  const parentFull = c.parentId ? await db.contact.findUnique({ where: { id: c.parentId }, select: { primaryEmail: true, primaryPhone: true } }) : null;
   const leads = await db.lead.findMany({ where: { organizationId: org, contactId: { in: [c.id, ...people.map((p) => p.id)] } }, include: { stage: true }, orderBy: { createdAt: "desc" } });
   const name = new Map(staff.map((s) => [s.id, s.name]));
   const phones = c.phones as unknown as Entry[], emails = c.emails as unknown as Entry[];
@@ -60,9 +63,16 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
       : [],
     manager && sp.merge && sp.with ? previewMerge(db, { organizationId: org, intoId: c.id, fromId: sp.with }).catch(() => null) : null,
   ]);
+  const orgNames = canEdit && tab === "overview" && c.kind === "PERSON" ? await db.contact.findMany({ where: { organizationId: org, kind: "ORGANIZATION", archived: false }, select: { name: true }, orderBy: { name: "asc" }, take: 500 }) : [];
+  const [projects, tasks, events] = await Promise.all([
+    (tab === "projects" || tab === "tasks") && client && user.permissions.has("projects.view") ? db.project.findMany({ where: { organizationId: org, clientId: client.id }, orderBy: { createdAt: "desc" }, include: { tasks: { select: { id: true, title: true, status: true, dueDate: true, assigneeId: true, priority: true } } }, take: 50 }) : [],
+    Promise.resolve([] as never[]),
+    tab === "events" ? db.meeting.findMany({ where: { organizationId: org, OR: [{ contactId: c.id }, ...(client ? [{ clientId: client.id }] : [])] }, orderBy: { scheduledAt: "desc" }, take: 50 }) : [],
+  ]);
+  void tasks;
   const openLead = leads.find((l) => !l.clientId && !l.stage.isWon && !l.stage.isLost);
   const outstanding = invoices.filter((i) => ["ISSUED", "PARTIALLY_PAID"].includes(i.status)).reduce((a, i) => a + Number(i.total) - Number(i.amountPaid) - Number(i.creditedAmount), 0);
-  const tabLinks: [string, string][] = [["overview", "Overview"], ["activity", `Activity (${activities.filter((a) => a.kind !== "SYSTEM").length})`], ["deals", `Deals (${leads.length})`], ...(c.kind === "ORGANIZATION" ? [["people", `People (${people.length})`] as [string, string]] : []), ...(emails.length > 0 ? [["email", "Email"] as [string, string]] : []), ...(finance ? [["billing", "Billing"] as [string, string]] : [])];
+  const tabLinks: [string, string][] = [["overview", "Main"], ["deals", `Opportunities (${leads.length})`], ...(c.kind === "ORGANIZATION" ? [["people", `People (${people.length})`] as [string, string]] : []), ["projects", "Projects"], ["tasks", "Tasks"], ["documents", "Documents"], ...(finance ? [["billing", "Payments"] as [string, string]] : []), ["events", "Events"], ...(emails.length > 0 ? [["email", "Email"] as [string, string]] : []), ["calls", "Calls"]];
   const wa = phones.find((p) => p.type === "WHATSAPP") ?? phones[0];
 
   return (
@@ -109,32 +119,10 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
       </nav>
 
       {tab === "overview" && (
-        <div className="grid gap-6 lg:grid-cols-[1fr_1.3fr]">
-          <div className="space-y-6">
-            <section className="card space-y-4">
-              <h2 className="font-semibold">Contact details</h2>
-              <dl className="space-y-3 text-sm">
-                {phones.length > 0 && <div><dt className="label">Phone</dt>{phones.map((p) => <dd key={p.value} className="flex items-center justify-between py-0.5"><span>{p.value} <span className="text-xs text-muted">{p.type.toLowerCase()}</span></span><a className="text-xs font-medium text-primary" href={`tel:${p.value.replace(/[^\d+]/g, "")}`}>Call</a></dd>)}</div>}
-                {emails.length > 0 && <div><dt className="label">Email</dt>{emails.map((e) => <dd key={e.value} className="flex items-center justify-between py-0.5"><span className="truncate">{e.value} <span className="text-xs text-muted">{e.type.toLowerCase()}</span></span><a className="text-xs font-medium text-primary" href={`mailto:${e.value}`}>Write</a></dd>)}</div>}
-                {c.website && <div><dt className="label">Website</dt><dd>{/^https?:\/\//.test(c.website) ? <a className="text-primary underline" href={c.website} target="_blank" rel="noopener noreferrer">{c.website}</a> : c.website}</dd></div>}
-                {(c.addressLine || c.city || c.country) && <div><dt className="label">Address</dt><dd>{[c.addressLine, c.city, c.state, c.postalCode, c.country].filter(Boolean).join(", ")}</dd></div>}
-                {c.industry && <div><dt className="label">Industry</dt><dd>{c.industry}</dd></div>}
-                {c.source && <div><dt className="label">Source</dt><dd>{c.source}</dd></div>}
-                {c.preferredContact && <div><dt className="label">Prefers</dt><dd>{c.preferredContact.toLowerCase()}{c.timezone && ` · ${c.timezone}`}</dd></div>}
-                {c.tags.length > 0 && <div><dt className="label">Tags</dt><dd className="flex flex-wrap gap-1">{c.tags.map((t) => <Link key={t} href={`/contacts?tag=${encodeURIComponent(t)}`}><Badge tone="primary">{t}</Badge></Link>)}</dd></div>}
-                {c.followers.length > 0 && <div><dt className="label">Followers</dt><dd>{c.followers.map((f) => name.get(f) ?? "Former staff").join(", ")}</dd></div>}
-                {Object.entries(c.customFields as Record<string, string>).map(([k, v]) => <div key={k}><dt className="label">{k}</dt><dd>{v}</dd></div>)}
-                {c.notes && <div><dt className="label">Notes</dt><dd className="whitespace-pre-line">{c.notes}</dd></div>}
-              </dl>
-              {phones.length + emails.length === 0 && !c.website && !c.city && <p className="text-sm text-muted">No contact details yet. Use Edit to add phone numbers and emails.</p>}
-            </section>
-            {meetings.length > 0 && <section className="card space-y-2"><h2 className="font-semibold">Upcoming meetings</h2><ul className="text-sm">{meetings.map((m) => <li key={m.id} className="flex justify-between border-t border-border py-1.5 first:border-0"><Link className="hover:underline" href={`/meetings/${m.id}`}>{m.title}</Link><span className="text-muted">{m.scheduledAt?.toLocaleString() ?? "now"}</span></li>)}</ul></section>}
-          </div>
-          <Timeline c={c} canEdit={canEdit} activities={activities.slice(0, 12)} names={name} showAll />
-        </div>
+        <ContactMain c={c} parent={parent ? { ...parent, primaryEmail: parentFull?.primaryEmail ?? null, primaryPhone: parentFull?.primaryPhone ?? null } : null} people={people.length} staff={staff} owners={name}
+          followerNames={c.followers.map((f) => name.get(f) ?? "Former staff")} orgs={orgNames.map((o) => o.name)} canEdit={canEdit} manager={manager}
+          right={<div className="space-y-6"><Timeline c={c} canEdit={canEdit} activities={activities.slice(0, 30)} names={name} showAll />{meetings.length > 0 && <section className="card space-y-2"><h2 className="font-semibold">Upcoming meetings</h2><ul className="text-sm">{meetings.map((m) => <li key={m.id} className="flex justify-between border-t border-border py-1.5 first:border-0"><Link className="hover:underline" href={`/meetings/${m.id}`}>{m.title}</Link><span className="text-muted">{m.scheduledAt?.toLocaleString() ?? "now"}</span></li>)}</ul></section>}</div>} />
       )}
-
-      {tab === "activity" && <Timeline c={c} canEdit={canEdit} activities={activities} names={name} />}
 
       {tab === "deals" && (
         <div className="space-y-4">
@@ -162,8 +150,32 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
 
       {tab === "people" && (people.length === 0 ? <Empty title="No people linked">Add a contact and choose this organization as their company.</Empty> : (
         <div className="card overflow-x-auto !p-0"><table className="w-full text-sm"><thead className="text-left"><tr><th className="px-4 py-3">Name</th><th className="pr-4">Job title</th><th className="pr-4">Email</th><th className="pr-4">Category</th></tr></thead>
-          <tbody>{people.map((p) => <tr key={p.id} className="border-t border-border"><td className="px-4 py-3"><Link className="font-medium hover:underline" href={`/contacts/${p.id}`}>{p.name}</Link></td><td className="pr-4">{p.jobTitle}</td><td className="pr-4">{p.primaryEmail}</td><td className="pr-4"><Badge tone={TONE[p.category] ?? "neutral"}>{p.category.toLowerCase()}</Badge></td></tr>)}</tbody></table></div>
+          <tbody>{people.map((p) => <tr key={p.id} className="border-t border-border transition hover:bg-hover/50"><td className="px-4 py-3"><Link className="font-medium hover:underline" href={`/contacts/${p.id}`}>{p.name}</Link></td><td className="pr-4">{p.jobTitle}</td><td className="pr-4">{p.primaryEmail}</td><td className="pr-4"><Badge tone={TONE[p.category] ?? "neutral"}>{p.category.toLowerCase()}</Badge></td></tr>)}</tbody></table></div>
       ))}
+
+      {tab === "projects" && (!client ? <Empty title="No client account yet">Projects appear here once this contact has a client account.</Empty> : !user.permissions.has("projects.view") ? <Empty title="Restricted">You do not have access to projects.</Empty> : projects.length === 0 ? <Empty title="No projects">Projects created for {client.name} will show up here.</Empty> : (
+        <div className="card overflow-x-auto !p-0"><table className="w-full text-sm"><thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="px-4 py-2.5">Project</th><th className="pr-4">Status</th><th className="pr-4">Deadline</th><th className="pr-4">Tasks done</th></tr></thead>
+          <tbody>{projects.map((pr) => { const done = pr.tasks.filter((t) => t.status === "DONE").length; return <tr key={pr.id} className="border-t border-border transition hover:bg-hover/50"><td className="px-4 py-3"><Link className="font-medium hover:underline" href={`/projects/${pr.id}`}>{pr.name}</Link><span className="block text-xs text-muted">{pr.number}</span></td><td className="pr-4"><StatusBadge status={pr.status} /></td><td className="pr-4 text-muted">{pr.deadline?.toLocaleDateString() ?? ""}</td><td className="pr-4">{done} / {pr.tasks.length}</td></tr>; })}</tbody></table></div>
+      ))}
+
+      {tab === "tasks" && (!client ? <Empty title="No client account yet">Tasks appear here once this contact has a client account.</Empty> : !user.permissions.has("projects.view") ? <Empty title="Restricted">You do not have access to projects.</Empty> : projects.flatMap((pr) => pr.tasks.map((t) => ({ ...t, project: pr }))).length === 0 ? <Empty title="No tasks">Tasks on this client&apos;s projects will show up here.</Empty> : (
+        <div className="card overflow-x-auto !p-0"><table className="w-full text-sm"><thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="px-4 py-2.5">Task</th><th className="pr-4">Project</th><th className="pr-4">Status</th><th className="pr-4">Due</th><th className="pr-4">Assignee</th></tr></thead>
+          <tbody>{projects.flatMap((pr) => pr.tasks.map((t) => ({ ...t, project: pr }))).sort((a, b) => (a.dueDate?.getTime() ?? Infinity) - (b.dueDate?.getTime() ?? Infinity)).map((t) => <tr key={t.id} className="border-t border-border transition hover:bg-hover/50"><td className="px-4 py-2.5 font-medium">{t.title}</td><td className="pr-4"><Link className="hover:underline" href={`/projects/${t.project.id}`}>{t.project.name}</Link></td><td className="pr-4"><StatusBadge status={t.status} /></td><td className={`pr-4 ${t.status !== "DONE" && t.dueDate && t.dueDate < new Date() ? "text-brand" : "text-muted"}`}>{t.dueDate?.toLocaleDateString() ?? ""}</td><td className="pr-4 text-muted">{t.assigneeId ? name.get(t.assigneeId) ?? "" : ""}</td></tr>)}</tbody></table></div>
+      ))}
+
+      {tab === "documents" && <FilesPanel user={user} ownerType="CONTACT" ownerId={c.id} returnTo={`/contacts/${c.id}?tab=documents`} title="Documents and attachments" withCategory flash={{ fileError: sp.fileError, fileOk: sp.fileOk }} />}
+
+      {tab === "events" && (events.length === 0 ? <Empty title="No meetings or events">Meetings you schedule with this contact, or their client, appear here.</Empty> : (
+        <ul className="card divide-y divide-border text-sm">{events.map((m) => <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 first:pt-0 last:pb-0"><span><Link className="font-medium hover:underline" href={`/meetings/${m.id}`}>{m.title}</Link><span className="block text-xs text-muted">{m.kind.toLowerCase()} · {m.scheduledAt ? m.scheduledAt.toLocaleString() : "unscheduled"}</span></span><StatusBadge status={m.status} /></li>)}</ul>
+      ))}
+
+      {tab === "calls" && (() => {
+        const calls = activities.filter((a) => a.kind === "CALL");
+        return calls.length === 0 ? <Empty title="No calls logged">Log a call from the Main tab and it is listed here with its outcome.</Empty> : (
+          <div className="card overflow-x-auto !p-0"><table className="w-full text-sm"><thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="px-4 py-2.5">When</th><th className="pr-4">Outcome</th><th className="pr-4">By</th><th className="pr-4">Notes</th></tr></thead>
+            <tbody>{calls.map((a) => <tr key={a.id} className="border-t border-border transition hover:bg-hover/50"><td className="px-4 py-2.5 whitespace-nowrap">{a.createdAt.toLocaleString()}</td><td className="pr-4">{a.outcome ? <StatusBadge status={a.outcome === "CONNECTED" ? "ACTIVE" : a.outcome === "NOT_INTERESTED" || a.outcome === "WRONG_NUMBER" ? "REJECTED" : "PENDING"} /> : null} <span className="text-xs text-muted">{a.outcome?.toLowerCase().replace("_", " ")}</span></td><td className="pr-4 text-muted">{a.actorId ? name.get(a.actorId) ?? "" : ""}</td><td className="pr-4">{a.body}</td></tr>)}</tbody></table></div>
+        );
+      })()}
 
       {tab === "email" && (
         <section className="card space-y-4">
@@ -241,7 +253,8 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
           <ContactForm mode="edit" staff={staff} orgs={orgs.map((o) => o.name)} campaigns={campaigns} stages={stages} me={user.id} canAssign={manager}
             initial={{ id: c.id, kind: c.kind as "PERSON" | "ORGANIZATION", title: c.title, firstName: c.firstName, lastName: c.lastName, name: c.kind === "ORGANIZATION" ? c.name : null, parentName: parent?.name ?? null, category: c.category, industry: c.industry, jobTitle: c.jobTitle,
               ownerId: c.ownerId, followers: c.followers, website: c.website, phones, emails, addressLine: c.addressLine, city: c.city, state: c.state, country: c.country, postalCode: c.postalCode, timezone: c.timezone, preferredContact: c.preferredContact,
-              source: c.source, campaignId: c.campaignId, tags: c.tags, notes: c.notes, customFields: c.customFields as Record<string, string> }} />
+              source: c.source, campaignId: c.campaignId, tags: c.tags, notes: c.notes, customFields: c.customFields as Record<string, string>,
+              birthday: c.birthday, taxId: c.taxId, shipAddressLine: c.shipAddressLine, shipCity: c.shipCity, shipState: c.shipState, shipCountry: c.shipCountry, shipPostalCode: c.shipPostalCode, social: c.social as Record<string, string>, utm: c.utm as Record<string, string> }} />
         </Drawer>
       )}
     </div>

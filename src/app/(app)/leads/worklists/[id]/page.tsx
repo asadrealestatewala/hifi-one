@@ -41,7 +41,7 @@ export default async function WorklistPage({ params, searchParams }: { params: P
   return (
     <div className="space-y-6">
       <Link href="/leads/worklists" className="text-sm text-muted hover:underline">← All worklists</Link>
-      <h1 className="text-2xl font-bold">{wl.name} <span className="text-base font-normal text-muted">{wl.source}</span></h1>
+      <h1 className="text-2xl font-semibold tracking-tight">{wl.name} <span className="text-base font-normal text-muted">{wl.source}</span></h1>
       {summary && <p className="text-sm bg-green-600/10 text-green-700 rounded-lg px-3 py-2">{summary}</p>}
       {skipped && <pre className="card text-xs whitespace-pre-wrap">Skipped rows (not imported):{"\n"}{skipped}</pre>}
       {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
@@ -57,7 +57,7 @@ export default async function WorklistPage({ params, searchParams }: { params: P
       </nav>
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="text-left text-xs text-muted"><tr><th className="py-2 pr-3">Row</th><th className="pr-3">Name</th><th className="pr-3">Email</th><th className="pr-3">Phone</th><th className="pr-3">Status</th><th></th></tr></thead>
+          <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-3">Row</th><th className="pr-3">Name</th><th className="pr-3">Email</th><th className="pr-3">Phone</th><th className="pr-3">Status</th><th></th></tr></thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="border-t border-border align-top">

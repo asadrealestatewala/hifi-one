@@ -72,7 +72,7 @@ export default async function CompanySettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Company Settings</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Company Settings</h1>
         <p className="text-sm text-muted">
           Version {p.version}, last updated {p.updatedAt.toLocaleString()}. New documents use these details; documents
           already issued keep their own snapshot.

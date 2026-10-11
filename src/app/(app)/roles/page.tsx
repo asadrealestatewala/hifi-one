@@ -36,7 +36,7 @@ export default async function Roles() {
   const external = ["CLIENT", "VENDOR", "BUSINESS_PARTNER", "INVESTOR"];
   return (
     <div className="space-y-6 max-w-4xl">
-      <h1 className="text-2xl font-bold">Roles and permissions</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Roles and permissions</h1>
       <p className="text-sm text-muted">
         Changes apply to everyone holding the role from their next sign-in; they are signed out now so nobody keeps old access. You can only grant or remove permissions you hold yourself.
         Every change is recorded in the audit log. The complete matrix is also in docs/ROLES.md.

@@ -10,6 +10,8 @@ export type Initial = {
   id?: string; kind: "PERSON" | "ORGANIZATION"; title?: string | null; firstName?: string | null; lastName?: string | null; name?: string | null; parentName?: string | null; category?: string; industry?: string | null; jobTitle?: string | null;
   ownerId?: string | null; followers?: string[]; website?: string | null; phones?: Entry[]; emails?: Entry[]; addressLine?: string | null; city?: string | null; state?: string | null; country?: string | null; postalCode?: string | null;
   timezone?: string | null; preferredContact?: string | null; source?: string | null; campaignId?: string | null; tags?: string[]; notes?: string | null; customFields?: Record<string, string>;
+  birthday?: string | null; taxId?: string | null; shipAddressLine?: string | null; shipCity?: string | null; shipState?: string | null; shipCountry?: string | null; shipPostalCode?: string | null;
+  social?: Record<string, string>; utm?: Record<string, string>;
 };
 type Opt = { id: string; name: string };
 
@@ -193,6 +195,21 @@ export default function ContactForm({ mode, initial, staff, orgs, campaigns, sta
             </>)}
           </Section>
         )}
+
+        <Section title="More details" hint="birthday, tax ID, shipping address, social, campaign tracking" open={false}>
+          <F label="Birthday" id="f-bd"><input id="f-bd" name="birthday" type="date" defaultValue={initial.birthday ?? ""} className="input" /></F>
+          <F label="Tax ID" id="f-tax"><input id="f-tax" name="taxId" defaultValue={initial.taxId ?? ""} maxLength={40} className="input" /></F>
+          <p className="label sm:col-span-2">Shipping address <span className="font-normal text-muted">(leave empty if the same as the address above)</span></p>
+          <F label="Street address" id="f-sa" wide><input id="f-sa" name="shipAddressLine" defaultValue={initial.shipAddressLine ?? ""} className="input" /></F>
+          <F label="City" id="f-sc"><input id="f-sc" name="shipCity" defaultValue={initial.shipCity ?? ""} className="input" /></F>
+          <F label="State / region" id="f-ss"><input id="f-ss" name="shipState" defaultValue={initial.shipState ?? ""} className="input" /></F>
+          <F label="Country" id="f-sco"><input id="f-sco" name="shipCountry" defaultValue={initial.shipCountry ?? ""} className="input" /></F>
+          <F label="Postal code" id="f-sz"><input id="f-sz" name="shipPostalCode" defaultValue={initial.shipPostalCode ?? ""} className="input" /></F>
+          <p className="label sm:col-span-2">Social profiles</p>
+          {["facebook", "linkedin", "telegram", "x", "skype", "instagram"].map((k) => <F key={k} label={k === "x" ? "X" : k.charAt(0).toUpperCase() + k.slice(1)} id={`f-so-${k}`}><input id={`f-so-${k}`} name={`social_${k}`} defaultValue={initial.social?.[k] ?? ""} maxLength={200} className="input" /></F>)}
+          <p className="label sm:col-span-2">Campaign tracking (UTM)</p>
+          {["source", "medium", "campaign", "term", "content"].map((k) => <F key={k} label={`UTM ${k}`} id={`f-utm-${k}`}><input id={`f-utm-${k}`} name={`utm_${k}`} defaultValue={initial.utm?.[k] ?? ""} maxLength={100} className="input" /></F>)}
+        </Section>
 
         <Section title="Notes & custom fields" open={Boolean(initial.notes || fields.length)}>
           <F label="Notes" id="f-notes" wide><textarea id="f-notes" name="notes" rows={3} maxLength={4000} value={vals.notes} onChange={(e) => setVals({ ...vals, notes: e.target.value })} className="input" /></F>

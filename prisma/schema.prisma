@@ -1875,6 +1875,15 @@ model Contact {
   tags            String[] @default([])
   notes           String?
   customFields    Json     @default("{}")
+  birthday        String?  // YYYY-MM-DD
+  taxId           String?
+  shipAddressLine String?
+  shipCity        String?
+  shipState       String?
+  shipCountry     String?
+  shipPostalCode  String?
+  social          Json     @default("{}") // facebook, linkedin, telegram, x, skype, instagram
+  utm             Json     @default("{}") // source, medium, campaign, term, content
   archived        Boolean  @default(false)
   lastActivityAt  DateTime?
   createdById     String?

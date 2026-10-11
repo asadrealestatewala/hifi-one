@@ -59,7 +59,7 @@ export default async function AssetPage({ params, searchParams }: { params: Prom
   return (
     <div className="space-y-6">
       <Link href="/assets" className="text-sm text-muted hover:underline">← All assets</Link>
-      <h1 className="text-2xl font-bold">{a.name} <span className="text-base font-normal text-muted">{a.number} · {a.status.toLowerCase()}</span></h1>
+      <h1 className="text-2xl font-semibold tracking-tight">{a.name} <span className="text-base font-normal text-muted">{a.number} · {a.status.toLowerCase()}</span></h1>
       {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
       <section className="card grid grid-cols-3 gap-y-1 text-sm max-w-2xl">
         {([["Category", a.category], ["Serial number", a.serialNumber], ["Supplier", a.supplier], ["Purchased", a.purchaseDate], ["Cost", formatMoney(a.cost, a.currency)],

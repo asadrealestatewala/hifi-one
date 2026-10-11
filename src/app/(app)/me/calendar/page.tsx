@@ -24,7 +24,7 @@ export default async function MyCalendar() {
   const url = row.calendarToken ? `${base}/api/calendar/${row.calendarToken}.ics` : null;
   return (
     <div className="space-y-4 max-w-2xl">
-      <h1 className="text-2xl font-bold">My calendar</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">My calendar</h1>
       <p className="text-sm text-muted">Subscribe in Google Calendar, Outlook or Apple Calendar to see your task deadlines, leave, lead follow-ups, projects you manage and (if your role can view them) contract end dates and planned content posts, next to your other events. It is read-only and updates itself.</p>
       {url ? (
         <section className="card space-y-3">

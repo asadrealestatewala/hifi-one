@@ -80,7 +80,7 @@ export default async function Commissions({ searchParams }: { searchParams: Prom
   return (
     <div className="space-y-6 max-w-4xl">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold">Commissions and bonuses</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Commissions and bonuses</h1>
         <form action={manage}><input type="hidden" name="op" value="accrue" /><button className="btn">Work out new commissions</button></form>
       </div>
       <p className="text-sm text-muted">A salesperson earns a percentage of the revenue (before tax) on money actually received from clients they converted, one commission per payment. Approval books the cost; paying it settles the liability. Nobody can approve their own payout.</p>
@@ -91,7 +91,7 @@ export default async function Commissions({ searchParams }: { searchParams: Prom
         <h2 className="font-semibold mb-2">Waiting for approval or payment</h2>
         {entries.length === 0 ? <p className="text-sm text-muted">Nothing waiting.</p> : (
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted"><tr><th className="py-1 pr-3">Who</th><th className="pr-3">What</th><th className="pr-3 text-right">Amount</th><th className="pr-3">Status</th><th></th></tr></thead>
+            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-1 pr-3">Who</th><th className="pr-3">What</th><th className="pr-3 text-right">Amount</th><th className="pr-3">Status</th><th></th></tr></thead>
             <tbody>
               {entries.map((e) => (
                 <tr key={e.id} className="border-t border-border align-top">

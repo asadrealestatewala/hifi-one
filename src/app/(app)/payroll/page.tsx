@@ -31,17 +31,17 @@ export default async function Payroll({ searchParams }: { searchParams: Promise<
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap justify-between gap-2">
-        <h1 className="text-2xl font-bold">Payroll</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Payroll</h1>
         <Link href="/payroll/structures" className="btn-ghost">Salary structures</Link>
       </div>
       <p className="text-sm text-muted">Tax is a flat percentage per employee for now. Replace it with your jurisdiction&apos;s rules before relying on it for filings.</p>
       <div className="card overflow-x-auto">
         {runs.length === 0 ? <p className="text-sm text-muted">No payroll runs yet.</p> : (
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted"><tr><th className="py-2 pr-4">Period</th><th className="pr-4">Currency</th><th className="pr-4">Employees</th><th className="pr-4 text-right">Net pay</th><th>Status</th></tr></thead>
+            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">Period</th><th className="pr-4">Currency</th><th className="pr-4">Employees</th><th className="pr-4 text-right">Net pay</th><th>Status</th></tr></thead>
             <tbody>
               {runs.map((r) => (
-                <tr key={r.id} className="border-t border-border">
+                <tr key={r.id} className="border-t border-border transition hover:bg-hover/50">
                   <td className="py-2 pr-4"><Link className="underline font-medium" href={`/payroll/${r.id}`}>{r.period}</Link></td>
                   <td className="pr-4">{r.currency}</td><td className="pr-4">{r.items.length}</td>
                   <td className="pr-4 text-right">{formatMoney(r.items.reduce((a, i) => a + Number(i.net), 0), r.currency)}</td><td>{r.status}</td>

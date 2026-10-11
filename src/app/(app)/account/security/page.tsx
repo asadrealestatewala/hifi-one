@@ -23,7 +23,7 @@ export default async function Security({ searchParams }: { searchParams: Promise
   const remaining = ((row.recoveryCodes as string[] | null) ?? []).length;
   return (
     <div className="max-w-xl space-y-4">
-      <h1 className="text-2xl font-bold">Account security</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Account security</h1>
       {(required || (user.mfaRequired && !user.totpEnabled)) && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">Your role requires two-step verification. Turn it on below to continue; nothing else in the system opens until you do.</p>}
       <SecurityPanel enabled={row.totpEnabled} pending={pending} remaining={remaining} />
     </div>

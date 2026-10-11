@@ -39,7 +39,7 @@ export default async function SalesActivity({ searchParams }: { searchParams: Pr
           <table className="w-full text-sm">
             <thead className="text-left"><tr><th className="py-2 pr-4">#</th><th className="pr-4">Person</th>{(["CALLS", "CONNECTED_CALLS", "EMAILS", "MEETINGS"] as Metric[]).map((m) => <th key={m} className="pr-4">{LABEL[m]} today</th>)}<th className="pr-4">Conversions (month)</th><th className="pr-4">Overdue</th><th className="pr-4">Open pipeline</th><th>30-day conversion</th></tr></thead>
             <tbody>{active.map((r, i) => (
-              <tr key={r.userId} className="border-t border-border">
+              <tr key={r.userId} className="border-t border-border transition hover:bg-hover/50">
                 <td className="py-2 pr-4 text-muted">{i + 1}</td><td className="pr-4 font-medium">{r.name}</td>
                 {(["CALLS", "CONNECTED_CALLS", "EMAILS", "MEETINGS"] as Metric[]).map((m) => <td key={m} className="pr-4"><Progress value={r.today[m]} max={r.targets[m].daily} /></td>)}
                 <td className="pr-4"><Progress value={r.month.CONVERSIONS} max={r.targets.CONVERSIONS.monthly} /></td>

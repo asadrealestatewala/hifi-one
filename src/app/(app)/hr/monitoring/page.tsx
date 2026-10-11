@@ -74,7 +74,7 @@ export default async function Monitoring({ searchParams }: { searchParams: Promi
             <tbody>{people.map((p) => {
               const r = by.get(p.id);
               return (
-                <tr key={p.id} className="border-t border-border">
+                <tr key={p.id} className="border-t border-border transition hover:bg-hover/50">
                   <td className="px-4 py-3"><span className="font-medium">{p.name}</span><span className="block text-xs text-muted">{p.department?.name}</span></td>
                   <td className="pr-4">{fmt(r?.attendanceMinutes ?? 0)}</td><td className="pr-4">{fmt(r?.activeMinutes ?? 0)}</td><td className="pr-4">{fmt(r?.idleMinutes ?? 0)}</td><td className="pr-4">{fmt(r?.breakMinutes ?? 0)}</td>
                   <td className="pr-4 text-muted">{r?.keys ?? 0} · {r?.clicks ?? 0}</td>

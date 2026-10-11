@@ -57,17 +57,17 @@ export default async function Assets({ searchParams }: { searchParams: Promise<{
   const month = new Date().toISOString().slice(0, 7);
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Fixed Assets</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Fixed Assets</h1>
       <p className="text-sm text-muted">Purchases here are capitalised, not expensed. Straight-line depreciation starts in the month of purchase. Items below your capitalisation threshold belong in expense vouchers; a threshold setting is not built yet.</p>
       {done && <p className="text-sm bg-green-600/10 text-green-700 rounded-lg px-3 py-2">Depreciation posted ({done} asset-months). Running it again only adds missing months.</p>}
       {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
       <div className="card overflow-x-auto">
         {assets.length === 0 ? <p className="text-sm text-muted">No assets yet.</p> : (
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted"><tr><th className="py-2 pr-4">No.</th><th className="pr-4">Asset</th><th className="pr-4">Purchased</th><th className="pr-4 text-right">Cost</th><th className="pr-4 text-right">Net book value</th><th>Status</th></tr></thead>
+            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">No.</th><th className="pr-4">Asset</th><th className="pr-4">Purchased</th><th className="pr-4 text-right">Cost</th><th className="pr-4 text-right">Net book value</th><th>Status</th></tr></thead>
             <tbody>
               {assets.map((a) => (
-                <tr key={a.id} className="border-t border-border">
+                <tr key={a.id} className="border-t border-border transition hover:bg-hover/50">
                   <td className="py-2 pr-4 text-muted">{a.number}</td>
                   <td className="pr-4 font-medium"><Link className="hover:underline" href={`/assets/${a.id}`}>{a.name}</Link></td>
                   <td className="pr-4">{a.purchaseDate}</td><td className="pr-4 text-right">{formatMoney(a.cost, a.currency)}</td>

@@ -37,16 +37,16 @@ export default async function Structures({ searchParams }: { searchParams: Promi
   return (
     <div className="space-y-6">
       <Link href="/payroll" className="text-sm text-muted hover:underline">← Payroll</Link>
-      <h1 className="text-2xl font-bold">Salary structures</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Salary structures</h1>
       {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="text-left text-xs text-muted"><tr><th className="py-2 pr-4">Employee</th><th className="pr-4">Effective</th><th className="pr-4 text-right">Basic</th><th className="pr-4 text-right">Allowance</th><th className="text-right">Tax %</th></tr></thead>
+          <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">Employee</th><th className="pr-4">Effective</th><th className="pr-4 text-right">Basic</th><th className="pr-4 text-right">Allowance</th><th className="text-right">Tax %</th></tr></thead>
           <tbody>
             {profiles.map((p) => {
               const s = structs.find((x) => x.userId === p.userId);
               return (
-                <tr key={p.id} className="border-t border-border">
+                <tr key={p.id} className="border-t border-border transition hover:bg-hover/50">
                   <td className="py-2 pr-4 font-medium">{users.get(p.userId)} <span className="text-xs text-muted">{p.employeeNo}</span></td>
                   <td className="pr-4">{s ? s.effectiveFrom : <em className="text-muted">not set</em>}</td>
                   <td className="pr-4 text-right">{s ? formatMoney(s.basic, s.currency) : ""}</td><td className="pr-4 text-right">{s ? formatMoney(s.allowance, s.currency) : ""}</td><td className="text-right">{s ? s.taxPercent.toString() : ""}</td>

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { PageHeader, Stat } from "@/components/ui";
 import { ExpenseError, budgetStatus, createBudget, decideTransfer, requestTransfer } from "@/lib/expenses";
 import { formatMoney } from "@/lib/money";
 import { notifyPermission } from "@/lib/notifications";
@@ -67,8 +68,12 @@ export default async function Budgets({ searchParams }: { searchParams: Promise<
   const canApprove = user.permissions.has("budget.approve");
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Budgets</h1>
-      <p className="text-sm text-muted">Each budget keeps its original amount. Approved transfers adjust what is available. Warnings show at 75%, 90% and 100%. Committed means approved but not yet posted; incurred means posted or paid.</p>
+      <PageHeader title="Budgets" subtitle="Each budget keeps its original amount. Approved transfers adjust what is available. Warnings show at 75%, 90% and 100%. Committed means approved but not yet posted; incurred means posted or paid." />
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Stat label="Budgets" value={statuses.length} />
+        <Stat label="Nearing the limit" value={statuses.filter((x) => x.level >= 75 && !x.over).length} hint="75% or more used" />
+        <Stat label="Over budget" value={statuses.filter((x) => x.over).length} />
+      </div>
       {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
       <div className="grid gap-4 md:grid-cols-2">
         {statuses.length === 0 && <div className="card text-sm text-muted">No budgets yet.</div>}

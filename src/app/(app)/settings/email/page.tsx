@@ -16,7 +16,7 @@ export default async function EmailSettings({ searchParams }: { searchParams: Pr
   const log = await db.emailMessage.findMany({ where: { organizationId: user.organizationId }, orderBy: { createdAt: "desc" }, take: 40 });
   return (
     <div className="space-y-5 max-w-3xl">
-      <h1 className="text-2xl font-bold">Email</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Email</h1>
       <p className="text-sm text-muted">Outgoing email uses any SMTP mail account (Google Workspace, Microsoft 365, SendGrid, Mailgun, Amazon SES and others). The login is set by the person who runs the server, in environment settings, not on this screen, so it can never be read from here.</p>
       {sp.ok && <p className="text-sm bg-green-600/10 text-green-700 rounded-lg px-3 py-2">{sp.ok}</p>}
       {sp.error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{sp.error}</p>}
@@ -39,7 +39,7 @@ export default async function EmailSettings({ searchParams }: { searchParams: Pr
         <h2 className="font-semibold mb-2">Recent messages</h2>
         {log.length === 0 ? <p className="text-sm text-muted">Nothing sent yet.</p> : (
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted"><tr><th className="py-1 pr-3">When</th><th className="pr-3">To</th><th className="pr-3">Subject</th><th>Result</th></tr></thead>
+            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-1 pr-3">When</th><th className="pr-3">To</th><th className="pr-3">Subject</th><th>Result</th></tr></thead>
             <tbody>{log.map((m) => (
               <tr key={m.id} className="border-t border-border align-top">
                 <td className="py-1 pr-3 whitespace-nowrap">{m.createdAt.toLocaleString()}</td><td className="pr-3">{m.toEmail}</td><td className="pr-3">{m.subject}{m.attachmentName && <span className="block text-xs text-muted">{m.attachmentName}</span>}</td>

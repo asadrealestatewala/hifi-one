@@ -59,7 +59,7 @@ export default async function MeetingDetail({ params, searchParams }: { params: 
         <section className="card overflow-x-auto">
           <h2 className="mb-2 font-semibold">Attendance</h2>
           <table className="w-full text-sm"><thead className="text-left"><tr><th className="py-2 pr-4">Name</th><th className="pr-4">Joined</th><th className="pr-4">Left</th><th className="pr-4 text-right">Minutes</th></tr></thead>
-            <tbody>{att.map((a, i) => <tr key={i} className="border-t border-border"><td className="py-2 pr-4">{a.name}{a.host && <span className="ml-1"><Badge tone="primary">host</Badge></span>}{!a.staff && <span className="ml-1"><Badge>guest</Badge></span>}</td><td className="pr-4">{a.from.toLocaleTimeString()}</td><td className="pr-4">{a.to ? a.to.toLocaleTimeString() : "still in"}</td><td className="pr-4 text-right">{a.minutes}</td></tr>)}</tbody></table>
+            <tbody>{att.map((a, i) => <tr key={i} className="border-t border-border transition hover:bg-hover/50"><td className="py-2 pr-4">{a.name}{a.host && <span className="ml-1"><Badge tone="primary">host</Badge></span>}{!a.staff && <span className="ml-1"><Badge>guest</Badge></span>}</td><td className="pr-4">{a.from.toLocaleTimeString()}</td><td className="pr-4">{a.to ? a.to.toLocaleTimeString() : "still in"}</td><td className="pr-4 text-right">{a.minutes}</td></tr>)}</tbody></table>
         </section>
       )}
       {chat.length > 0 && (

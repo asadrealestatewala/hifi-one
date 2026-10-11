@@ -58,7 +58,7 @@ export default async function Investments({ searchParams }: { searchParams: Prom
   const today = new Date().toISOString().slice(0, 10);
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Investments</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Investments</h1>
       <p className="text-sm text-muted">Income recognised and cash actually received are recorded separately. The gap is shown as outstanding. Partnerships and joint ventures are not built yet.</p>
       {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
       {investments.length === 0 && <div className="card text-sm text-muted">No investments yet.</div>}

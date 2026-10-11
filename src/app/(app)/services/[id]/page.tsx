@@ -52,7 +52,7 @@ export default async function PlanEditor({ params, searchParams }: { params: Pro
   return (
     <div className="space-y-5 max-w-3xl">
       <Link href={`/services?cat=${plan.categoryId}`} className="text-sm text-muted hover:underline">← {plan.category.name}</Link>
-      <h1 className="text-2xl font-bold">{plan.name} <span className="text-base font-normal text-muted">version {plan.version}{!plan.active && ", archived"}</span></h1>
+      <h1 className="text-2xl font-semibold tracking-tight">{plan.name} <span className="text-base font-normal text-muted">version {plan.version}{!plan.active && ", archived"}</span></h1>
       {sp.saved && <p className="text-sm bg-green-600/10 text-green-700 rounded-lg px-3 py-2">Saved.</p>}
       {sp.error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{sp.error}</p>}
 

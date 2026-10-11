@@ -47,7 +47,7 @@ export default async function Expenses({ searchParams }: { searchParams: Promise
   const today = new Date().toISOString().slice(0, 10);
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Expense Vouchers</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Expense Vouchers</h1>
       <p className="text-sm text-muted">{all ? "All vouchers in the organization." : "Your vouchers."} Approved spending is committed against its budget; posting records the expense; only payment moves cash.</p>
       {all && (
         <nav aria-label="Status filter" className="flex flex-wrap gap-1">
@@ -59,10 +59,10 @@ export default async function Expenses({ searchParams }: { searchParams: Promise
       <div className="card overflow-x-auto">
         {vouchers.length === 0 ? <p className="text-sm text-muted">No vouchers.</p> : (
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted"><tr><th className="py-2 pr-4">Number</th><th className="pr-4">Date</th><th className="pr-4">Payee</th><th className="pr-4">By</th><th className="pr-4 text-right">Amount</th><th>Status</th></tr></thead>
+            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">Number</th><th className="pr-4">Date</th><th className="pr-4">Payee</th><th className="pr-4">By</th><th className="pr-4 text-right">Amount</th><th>Status</th></tr></thead>
             <tbody>
               {vouchers.map((v) => (
-                <tr key={v.id} className="border-t border-border">
+                <tr key={v.id} className="border-t border-border transition hover:bg-hover/50">
                   <td className="py-2 pr-4"><Link className="underline font-medium" href={`/expenses/${v.id}`}>{v.number}</Link></td>
                   <td className="pr-4">{v.date}</td><td className="pr-4">{v.payee}</td><td className="pr-4">{name.get(v.submittedById)}</td>
                   <td className="pr-4 text-right">{formatMoney(v.amount, v.currency)}</td><td>{v.status.replace("_", " ")}</td>

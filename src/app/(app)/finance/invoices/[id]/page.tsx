@@ -125,7 +125,7 @@ export default async function InvoicePage({
       <article className="card max-w-3xl space-y-6">
         <header className="flex justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">INVOICE</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">INVOICE</h1>
             <p className="text-sm text-muted">{inv.number ?? "Draft (not issued)"} · {inv.status.replace("_", " ")}</p>
           </div>
           <div className="text-right text-sm">
@@ -146,10 +146,10 @@ export default async function InvoicePage({
           </div>
         </section>
         <table className="w-full text-sm">
-          <thead className="text-left text-xs text-muted"><tr><th className="py-2">Description</th><th className="text-right">Qty</th><th className="text-right">Unit price</th><th className="text-right">Amount</th></tr></thead>
+          <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2">Description</th><th className="text-right">Qty</th><th className="text-right">Unit price</th><th className="text-right">Amount</th></tr></thead>
           <tbody>
             {inv.lines.map((l) => (
-              <tr key={l.id} className="border-t border-border">
+              <tr key={l.id} className="border-t border-border transition hover:bg-hover/50">
                 <td className="py-2">{l.description}</td>
                 <td className="text-right">{l.quantity.toString()}</td>
                 <td className="text-right">{formatMoney(l.unitPrice, inv.currency)}</td>

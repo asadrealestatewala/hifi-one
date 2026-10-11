@@ -26,7 +26,7 @@ export default async function Password({ searchParams }: { searchParams: Promise
   const { error, force } = await searchParams;
   return (
     <div className="max-w-md space-y-4">
-      <h1 className="text-2xl font-bold">Change password</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Change password</h1>
       {force && <p className="text-sm bg-brand/10 text-brand rounded-lg px-3 py-2">You are using a starting password. Choose your own before continuing.</p>}
       <form action={change} className="card space-y-4">
         {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}

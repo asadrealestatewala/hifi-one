@@ -64,16 +64,16 @@ export default async function RunPage({ params, searchParams }: { params: Promis
   return (
     <div className="space-y-6">
       <Link href="/payroll" className="text-sm text-muted hover:underline">← All payroll runs</Link>
-      <h1 className="text-2xl font-bold">Payroll {run.period} <span className="text-base font-normal text-muted">{run.currency} · {run.status}</span></h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Payroll {run.period} <span className="text-base font-normal text-muted">{run.currency} · {run.status}</span></h1>
       {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="text-left text-xs text-muted"><tr>
+          <thead className="bg-hover/60 text-left text-xs text-muted"><tr>
             <th className="py-2 pr-3">Employee</th><th className="pr-3 text-right">Basic</th><th className="pr-3 text-right">Allowance</th><th className="pr-3 text-right">Bonus</th>
             <th className="pr-3 text-right">Unpaid leave</th><th className="pr-3 text-right">Gross</th><th className="pr-3 text-right">Tax</th><th className="text-right">Net</th></tr></thead>
           <tbody>
             {run.items.map((i) => (
-              <tr key={i.id} className="border-t border-border">
+              <tr key={i.id} className="border-t border-border transition hover:bg-hover/50">
                 <td className="py-2 pr-3 font-medium"><Link className="hover:underline" href={`/payslips/${i.id}`}>{name.get(i.userId)}</Link></td>
                 <td className="pr-3 text-right">{m(Number(i.basic))}</td><td className="pr-3 text-right">{m(Number(i.allowance))}</td>
                 <td className="pr-3 text-right">

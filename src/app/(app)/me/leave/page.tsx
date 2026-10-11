@@ -84,7 +84,7 @@ export default async function MyLeave({ searchParams }: { searchParams: Promise<
   const approvable = toDecide.filter((r) => user.permissions.has("attendance.view_all") || people.get(r.userId)?.managerId === user.id);
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">My Leave</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">My Leave</h1>
       {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
       <div className="grid gap-4 sm:grid-cols-4">
         {balances.map((b) => (
@@ -110,10 +110,10 @@ export default async function MyLeave({ searchParams }: { searchParams: Promise<
         <h2 className="font-semibold mb-2">My requests</h2>
         {mine.length === 0 ? <p className="text-sm text-muted">No requests yet.</p> : (
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted"><tr><th className="py-2 pr-4">Type</th><th className="pr-4">Dates</th><th className="pr-4">Days</th><th className="pr-4">Status</th><th></th></tr></thead>
+            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">Type</th><th className="pr-4">Dates</th><th className="pr-4">Days</th><th className="pr-4">Status</th><th></th></tr></thead>
             <tbody>
               {mine.map((r) => (
-                <tr key={r.id} className="border-t border-border">
+                <tr key={r.id} className="border-t border-border transition hover:bg-hover/50">
                   <td className="py-2 pr-4">{r.leaveType.name}</td><td className="pr-4">{r.startDate} to {r.endDate}</td><td className="pr-4">{r.days.toString()}</td>
                   <td className="pr-4">{r.status}{r.decisionNote && <span className="text-xs text-muted"> · {r.decisionNote}</span>}</td>
                   <td>{(r.status === "PENDING" || r.status === "APPROVED") && <form action={cancel}><input type="hidden" name="id" value={r.id} /><button className="btn-ghost">Cancel</button></form>}</td>

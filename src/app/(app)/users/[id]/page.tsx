@@ -16,7 +16,7 @@ export default async function UserPage({ params }: { params: Promise<{ id: strin
   return (
     <div className="space-y-6 max-w-3xl">
       <Link href="/users" className="text-sm text-muted hover:underline">← All users</Link>
-      <h1 className="text-2xl font-bold">{u.name} <span className="text-base font-normal text-muted">{u.email}</span></h1>
+      <h1 className="text-2xl font-semibold tracking-tight">{u.name} <span className="text-base font-normal text-muted">{u.email}</span></h1>
       <p className="text-sm text-muted">{u.userType.toLowerCase()} · {u.active ? "active" : "inactive"} · two-step {u.totpEnabled ? "on" : "off"}{u.lastLoginAt && ` · last sign-in ${u.lastLoginAt.toLocaleString()}`}</p>
       <UserActions
         userId={u.id} active={u.active} isStaff={u.userType === "EMPLOYEE"} mfaOn={u.totpEnabled}

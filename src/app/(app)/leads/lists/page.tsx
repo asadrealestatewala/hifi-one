@@ -101,7 +101,7 @@ export default async function SmartLists({ searchParams }: { searchParams: Promi
                   <tbody>{leads.map((l) => {
                     const sc = leadScore(l);
                     return (
-                      <tr key={l.id} className="border-t border-border">
+                      <tr key={l.id} className="border-t border-border transition hover:bg-hover/50">
                         <td className="py-2 pr-4"><Link className="font-medium hover:underline" href={`/leads/${l.id}`}>{l.name}</Link><span className="block text-xs text-muted">{l.company}</span></td>
                         <td className="pr-4">{l.stage.name}</td>
                         <td className="pr-4"><Badge tone={sc.score >= 60 ? "success" : sc.score >= 30 ? "warning" : "neutral"}>{sc.score}</Badge></td>

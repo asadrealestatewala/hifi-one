@@ -55,12 +55,12 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
             <p className="text-sm text-muted">No transactions yet.</p>
           ) : (
             <table className="w-full text-sm">
-              <thead className="text-left text-xs text-muted">
+              <thead className="bg-hover/60 text-left text-xs text-muted">
                 <tr><th className="py-2 pr-4">Date</th><th className="pr-4">Document</th><th className="pr-4">Description</th><th className="pr-4 text-right">Debit</th><th className="pr-4 text-right">Credit</th><th className="text-right">Balance</th></tr>
               </thead>
               <tbody>
                 {statement.rows.map((r, i) => (
-                  <tr key={i} className="border-t border-border">
+                  <tr key={i} className="border-t border-border transition hover:bg-hover/50">
                     <td className="py-2 pr-4 whitespace-nowrap">{r.date.toLocaleDateString()}</td>
                     <td className="pr-4">{r.number}</td>
                     <td className="pr-4">{r.description}</td>

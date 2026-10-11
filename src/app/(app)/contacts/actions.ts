@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
-import { ContactError, bulkUpdate, contactScope, createContact, findDuplicates, logContactActivity, mergeContacts, openOpportunityFor, updateContact, type BulkAction, type ContactInput, type Entry } from "@/lib/crm-contacts";
+import { ContactError, bulkUpdate, contactScope, createContact, findDuplicates, logContactActivity, mergeContacts, openOpportunityFor, setContactParent, updateContact, type BulkAction, type ContactInput, type Entry } from "@/lib/crm-contacts";
 import { db } from "@/lib/db";
 import { MailError, sendEmail } from "@/lib/mailer";
 
@@ -22,6 +22,17 @@ function customFields(f: FormData): Record<string, string> {
   return out;
 }
 
+// Birthday, tax id, shipping address, social profiles and UTM tags: only present when the form carried them
+function extras(f: FormData): Partial<ContactInput> {
+  const out: Partial<ContactInput> = {};
+  for (const k of ["birthday", "taxId", "shipAddressLine", "shipCity", "shipState", "shipCountry", "shipPostalCode"] as const) if (f.has(k)) out[k] = s(f, k);
+  const group = (prefix: string) => { const o: Record<string, string> = {}; for (const [k, v] of f.entries()) if (k.startsWith(prefix)) o[k.slice(prefix.length)] = String(v); return Object.keys(o).length ? o : undefined; };
+  const social = group("social_"), utm = group("utm_");
+  if (social) out.social = social;
+  if (utm) out.utm = utm;
+  return out;
+}
+
 function parse(f: FormData): ContactInput {
   const kind = s(f, "kind") === "ORGANIZATION" ? "ORGANIZATION" : "PERSON";
   return {
@@ -29,6 +40,7 @@ function parse(f: FormData): ContactInput {
     ownerId: s(f, "ownerId") || undefined, followers: f.getAll("followers").map(String), website: s(f, "website"), phones: entries(f, "phone"), emails: entries(f, "email"), addressLine: s(f, "addressLine"), city: s(f, "city"),
     state: s(f, "state"), country: s(f, "country"), postalCode: s(f, "postalCode"), timezone: s(f, "timezone"), preferredContact: s(f, "preferredContact"), source: s(f, "source"), campaignId: s(f, "campaignId"),
     tags: s(f, "tags").split(",").map((x) => x.trim()).filter(Boolean), notes: s(f, "notes"), customFields: customFields(f),
+    ...extras(f),
   };
 }
 
@@ -179,4 +191,38 @@ export async function sendContactEmailAction(formData: FormData) {
     throw e;
   }
   redirect(`${back}&sent=1`);
+}
+
+export type SectionName = "summary" | "contacts" | "organization" | "followers" | "tags" | "description" | "billing" | "shipping" | "details" | "more" | "custom";
+
+// One section of the contact page saved on its own. Only the fields of that section are sent to the library; everything else is left as it was.
+export async function updateContactSectionAction(contactId: string, section: SectionName, formData: FormData): Promise<QuickResult> {
+  const user = await requirePermission("crm.edit");
+  const who = { id: user.id, organizationId: user.organizationId, permissions: user.permissions };
+  const cur = await db.contact.findFirst({ where: { AND: [contactScope(who), { id: contactId }] } });
+  if (!cur) return { ok: false, error: "Contact not found." };
+  const f = parse(formData);
+  const patches: Record<SectionName, ContactInput | null> = {
+    summary: { website: f.website, industry: f.industry, category: f.category, birthday: f.birthday, ...(user.permissions.has("crm.view_all") && f.ownerId ? { ownerId: f.ownerId } : {}) },
+    contacts: { phones: f.phones, emails: f.emails, preferredContact: f.preferredContact, timezone: f.timezone },
+    organization: null,
+    followers: { followers: f.followers },
+    tags: { tags: f.tags },
+    description: { notes: f.notes },
+    billing: { addressLine: f.addressLine, city: f.city, state: f.state, country: f.country, postalCode: f.postalCode },
+    shipping: { shipAddressLine: f.shipAddressLine, shipCity: f.shipCity, shipState: f.shipState, shipCountry: f.shipCountry, shipPostalCode: f.shipPostalCode },
+    details: cur.kind === "ORGANIZATION" ? { name: f.name, taxId: f.taxId } : { title: f.title, firstName: f.firstName, lastName: f.lastName, taxId: f.taxId, jobTitle: f.jobTitle },
+    more: { social: f.social, utm: f.utm, source: f.source },
+    custom: { customFields: f.customFields },
+  };
+  if (!(section in patches)) return { ok: false, error: "Unknown section." };
+  try {
+    if (section === "organization") await setContactParent(db, { organizationId: user.organizationId, contactId, actorId: user.id, parentName: s(formData, "parentName") });
+    else await updateContact(db, { organizationId: user.organizationId, id: contactId, actorId: user.id, patch: patches[section]! });
+    await audit(user, { action: "contact.update_section", entity: "Contact", entityId: contactId, after: { section } });
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof ContactError) return { ok: false, error: e.message };
+    throw e;
+  }
 }

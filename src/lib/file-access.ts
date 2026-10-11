@@ -11,7 +11,7 @@ export type FileActor = {
   permissions: ReadonlySet<string>;
 };
 
-export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT"] as const;
+export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT"] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 export type Mode = "read" | "upload" | "delete";
 
@@ -48,6 +48,15 @@ export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: 
       return a.userType === "CLIENT" && a.clientId !== null && a.clientId === c.clientId && CLIENT_VISIBLE.includes(c.status); // never drafts
     }
     return has("content.manage") && CONTENT_EDITABLE.includes(c.status);
+  }
+
+  if (ownerType === "CONTACT") {
+    // Same visibility as the contact itself: managers see all, others see what they own, follow or created
+    const k = await db.contact.findFirst({ where: { id: ownerId, organizationId: a.organizationId } });
+    if (!k) return false;
+    const mine = a.permissions.has("crm.view_all") || k.ownerId === a.id || k.createdById === a.id || k.followers.includes(a.id);
+    if (!staff || !mine) return false;
+    return mode === "read" ? has("crm.view") : has("crm.edit");
   }
 
   if (ownerType === "CONTRACT") {

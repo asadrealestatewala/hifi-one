@@ -31,7 +31,7 @@ export default async function PortalContent({ searchParams }: { searchParams: Pr
   const rest = items.filter((i) => i.status !== "CLIENT_REVIEW");
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Content for your approval</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Content for your approval</h1>
       {ok && <p className="text-sm bg-green-600/10 text-green-700 rounded-lg px-3 py-2">Thank you. Your decision has been recorded.</p>}
       {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
       {waiting.length === 0 && <div className="card text-sm text-muted">Nothing is waiting for your approval.</div>}

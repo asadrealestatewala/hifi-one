@@ -59,7 +59,7 @@ export default async function ContentPage({ params, searchParams }: { params: Pr
   return (
     <div className="space-y-6 max-w-3xl">
       <Link href="/content" className="text-sm text-muted hover:underline">← Content calendar</Link>
-      <h1 className="text-2xl font-bold">{item.title} <span className="text-base font-normal text-muted">{LABEL(item.status)} · version {item.version}</span></h1>
+      <h1 className="text-2xl font-semibold tracking-tight">{item.title} <span className="text-base font-normal text-muted">{LABEL(item.status)} · version {item.version}</span></h1>
       <p className="text-sm text-muted">{client?.name} · {LABEL(item.platform)}{item.plannedDate && ` · planned ${item.plannedDate}`}</p>
       {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
 

@@ -72,7 +72,7 @@ export default async function Reconciliation({ searchParams }: { searchParams: P
     const last = await db.bankReconciliation.findMany({ where: { organizationId: org }, orderBy: { statementDate: "desc" } });
     return (
       <div className="space-y-4 max-w-3xl">
-        <h1 className="text-2xl font-bold">Bank Reconciliation</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Bank Reconciliation</h1>
         <p className="text-sm text-muted">Compare the bank statement with the books. Import the statement, match each line to a ledger entry, post anything missing (like bank charges), then confirm the closing balance.</p>
         {flash}
         <div className="card">
@@ -106,7 +106,7 @@ export default async function Reconciliation({ searchParams }: { searchParams: P
   return (
     <div className="space-y-5">
       <Link href="/finance/reconciliation" className="text-sm text-muted hover:underline">← Bank accounts</Link>
-      <h1 className="text-2xl font-bold">Reconcile {selected.internalName} <span className="text-base font-normal text-muted">({cur}) · books show {formatMoney(v.ledgerBalance.toString(), cur)}</span></h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Reconcile {selected.internalName} <span className="text-base font-normal text-muted">({cur}) · books show {formatMoney(v.ledgerBalance.toString(), cur)}</span></h1>
       {flash}
 
       <section className="card space-y-3">

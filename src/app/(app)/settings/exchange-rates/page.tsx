@@ -50,7 +50,7 @@ export default async function ExchangeRates({ searchParams }: { searchParams: Pr
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <h1 className="text-2xl font-bold">Exchange rates</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Exchange rates</h1>
       <p className="text-sm text-muted">
         Rates convert other currencies into the base currency for consolidated reports. Each entry says how many {base} one unit of the currency is worth from a given date.
         Entries are never edited: to correct a rate, add a new entry for the same date. Invoices, payments and the ledger always stay in their own currency.
@@ -95,10 +95,10 @@ export default async function ExchangeRates({ searchParams }: { searchParams: Pr
         <h2 className="font-semibold mb-2">History</h2>
         {history.length === 0 ? <p className="text-sm text-muted">No rates recorded yet.</p> : (
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted"><tr><th className="py-2 pr-4">Effective</th><th className="pr-4">Currency</th><th className="pr-4 text-right">Rate</th><th className="pr-4">Entered by</th><th>Note</th></tr></thead>
+            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">Effective</th><th className="pr-4">Currency</th><th className="pr-4 text-right">Rate</th><th className="pr-4">Entered by</th><th>Note</th></tr></thead>
             <tbody>
               {history.map((h) => (
-                <tr key={h.id} className="border-t border-border"><td className="py-2 pr-4">{h.effectiveDate}</td><td className="pr-4">{h.currency}</td><td className="pr-4 text-right">{h.rate.toString()}</td><td className="pr-4">{(h.createdById && who.get(h.createdById)) || ""}</td><td>{h.note}</td></tr>
+                <tr key={h.id} className="border-t border-border transition hover:bg-hover/50"><td className="py-2 pr-4">{h.effectiveDate}</td><td className="pr-4">{h.currency}</td><td className="pr-4 text-right">{h.rate.toString()}</td><td className="pr-4">{(h.createdById && who.get(h.createdById)) || ""}</td><td>{h.note}</td></tr>
               ))}
             </tbody>
           </table>

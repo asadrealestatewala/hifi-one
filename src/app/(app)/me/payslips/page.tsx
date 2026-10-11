@@ -15,7 +15,7 @@ export default async function MyPayslips() {
   });
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">My Payslips</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">My Payslips</h1>
       <div className="card">
         {items.length === 0 ? <p className="text-sm text-muted">No payslips yet.</p> : (
           <ul className="text-sm">

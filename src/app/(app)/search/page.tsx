@@ -11,7 +11,7 @@ export default async function Search({ searchParams }: { searchParams: Promise<{
   const groups = await searchAll(db, { id: user.id, organizationId: user.organizationId, permissions: user.permissions }, q);
   return (
     <div className="space-y-5 max-w-3xl">
-      <h1 className="text-2xl font-bold">Search</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Search</h1>
       <form className="flex gap-2" role="search">
         <input name="q" defaultValue={q} aria-label="Search" placeholder="Client, lead, invoice number, project…" className="input" autoFocus />
         <button className="btn">Search</button>

@@ -40,7 +40,7 @@ export default async function ContentCalendar({ searchParams }: { searchParams: 
   const canManage = user.permissions.has("content.manage");
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Content Calendar</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Content Calendar</h1>
       <p className="text-sm text-muted">Draft, internal review, client review, approved, scheduled, published. Content is marked published only when an authorized person confirms it; there is no direct posting to social platforms yet.</p>
       <nav aria-label="Client filter" className="flex flex-wrap gap-1">
         <Link href="/content" className={`btn-ghost ${!client ? "!bg-navy !text-white" : ""}`}>All clients</Link>

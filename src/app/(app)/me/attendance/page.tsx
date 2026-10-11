@@ -42,7 +42,7 @@ export default async function MyAttendance({ searchParams }: { searchParams: Pro
   const live = open ? workedMinutes(open, open.breaks) : null;
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">My Attendance</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">My Attendance</h1>
       <p className="text-sm text-muted">
         Attendance time is the time between clock in and clock out, minus breaks. Being signed in to this system does not count as working time.
         Today in {zone}: {dateInZone(new Date(), zone)}.
@@ -69,12 +69,12 @@ export default async function MyAttendance({ searchParams }: { searchParams: Pro
         <h2 className="font-semibold mb-2">Last 14 days</h2>
         {recent.length === 0 ? <p className="text-sm text-muted">No records yet.</p> : (
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted"><tr><th className="py-2 pr-4">Date</th><th className="pr-4">In</th><th className="pr-4">Out</th><th className="pr-4">Breaks</th><th className="pr-4">Worked</th><th>Note</th></tr></thead>
+            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">Date</th><th className="pr-4">In</th><th className="pr-4">Out</th><th className="pr-4">Breaks</th><th className="pr-4">Worked</th><th>Note</th></tr></thead>
             <tbody>
               {recent.map((r) => {
                 const m = workedMinutes(r, r.breaks);
                 return (
-                  <tr key={r.id} className="border-t border-border">
+                  <tr key={r.id} className="border-t border-border transition hover:bg-hover/50">
                     <td className="py-2 pr-4">{r.workDate}</td><td className="pr-4">{fmt(r.clockIn)}</td>
                     <td className="pr-4">{r.clockOut ? fmt(r.clockOut) : <em className="text-muted">open</em>}</td>
                     <td className="pr-4">{fmtMinutes(m.breaks)}</td><td className="pr-4">{fmtMinutes(m.worked)}</td>

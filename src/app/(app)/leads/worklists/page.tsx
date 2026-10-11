@@ -54,16 +54,16 @@ export default async function Worklists({ searchParams }: { searchParams: Promis
   const suppressed = await db.suppressedContact.count({ where: { organizationId: user.organizationId } });
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Prospecting Worklists</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Prospecting Worklists</h1>
       <p className="text-sm text-muted">Raw outreach lists live here, apart from the CRM, so unqualified records never inflate lead numbers. A row becomes a lead only when you convert it. Only legally sourced contacts belong in a worklist; respect local outreach and privacy rules.</p>
       {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
       <div className="card overflow-x-auto">
         {lists.length === 0 ? <p className="text-sm text-muted">No worklists yet.</p> : (
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted"><tr><th className="py-2 pr-4">Worklist</th><th className="pr-4">Source</th><th className="pr-4 text-right">Records</th><th className="pr-4 text-right">Processed</th><th className="text-right">CRM leads generated</th></tr></thead>
+            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">Worklist</th><th className="pr-4">Source</th><th className="pr-4 text-right">Records</th><th className="pr-4 text-right">Processed</th><th className="text-right">CRM leads generated</th></tr></thead>
             <tbody>
               {lists.map((l, i) => (
-                <tr key={l.id} className="border-t border-border">
+                <tr key={l.id} className="border-t border-border transition hover:bg-hover/50">
                   <td className="py-2 pr-4 font-medium"><Link className="hover:underline" href={`/leads/worklists/${l.id}`}>{l.name}</Link></td><td className="pr-4">{l.source}</td>
                   <td className="pr-4 text-right">{metrics[i].total}</td><td className="pr-4 text-right">{metrics[i].processed}</td><td className="text-right font-semibold">{metrics[i].leadsGenerated}</td>
                 </tr>

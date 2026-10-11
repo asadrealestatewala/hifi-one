@@ -270,6 +270,16 @@ Known limits: nav numbers can lag up to 20 seconds; the older layout remains on 
 
 Invoice (balance due card with settled bar, tidy actions, credit note and write-off folded under one button), lead (pipeline stage stepper, quick call, email and contact links), contract (term progress bar), client (avatar header, link to its contact), quotation and project (status badges, progress colours), and Financial reports (report chips and quick periods: this month, last month, this quarter, year to date). The contract page had no contract in the demo data, so it was type-checked and built but not opened with real data.
 
+## Contact page like Flowlu, edited section by section (done)
+
+- The contact page now has the tabs Main, Opportunities, People (organizations), Projects, Tasks, Documents, Payments, Events, Email and Calls. Projects and tasks come from the contact's client account; Documents are files stored on the contact with the same visibility as the contact; Events lists meetings; Calls lists logged calls with their outcome.
+- Main shows a summary strip (website, birthday, industry, category, owner) and a column of blocks: Contacts (emails and phones with type, WhatsApp link), Organization (card with email and call buttons), Followers, Description, Tags, Addresses (billing and shipping, with Copy billing address), Details (name parts, initials, full name, job title, tax ID), More (social profiles, source, UTM tags) and Custom fields. Next to it is the activity composer and timeline.
+- Every block has its own pencil: it turns into a small form that saves on its own, so a customer's details are added or amended in place. New fields: birthday, tax ID, shipping address, social profiles, UTM tags. The Add contact and full Edit panels carry them too. Merge now carries them over.
+- Tests: 5 new (profile fields kept across edits, birthday validation, organization link by name, file access for contacts).
+- Also: consistent headings, tinted table headers and row highlight on every list and report page (70 files), KPI cards on Attendance and Budgets.
+
+Known limits: documents are not virus-scanned (as elsewhere); the Payments tab shows the client's invoices, quotations and subscriptions, not a separate payment list; Projects and Tasks need a client account on the contact.
+
 ## Decisions
 
 - Brand colour follows the supplied red H logo; the spec's blue/purple can be added as a theme if wanted.

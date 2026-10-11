@@ -58,7 +58,7 @@ export default async function EmployeePage({ params, searchParams }: { params: P
   return (
     <div className="space-y-4">
       <Link href="/hr/employees" className="text-sm text-muted hover:underline">← All employees</Link>
-      <h1 className="text-2xl font-bold">{u?.name} <span className="text-muted text-base font-normal">{p.employeeNo}</span></h1>
+      <h1 className="text-2xl font-semibold tracking-tight">{u?.name} <span className="text-muted text-base font-normal">{p.employeeNo}</span></h1>
       <p className="text-sm text-muted">{u?.email} · {u?.roles.map((r) => r.role.name).join(", ")}{p.joinDate && ` · Joined ${p.joinDate.toLocaleDateString()}`}</p>
       <form action={save} className="card grid gap-4 sm:grid-cols-2">
         <input type="hidden" name="id" value={p.id} />

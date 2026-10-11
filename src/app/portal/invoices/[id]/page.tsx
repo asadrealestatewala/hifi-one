@@ -26,15 +26,15 @@ export default async function PortalInvoice({ params }: { params: Promise<{ id: 
       </div>
       <article className="card space-y-6">
         <header className="flex justify-between gap-4">
-          <div><h1 className="text-2xl font-bold">INVOICE</h1><p className="text-sm text-muted">{inv.number} · {inv.status.replace("_", " ")}</p></div>
+          <div><h1 className="text-2xl font-semibold tracking-tight">INVOICE</h1><p className="text-sm text-muted">{inv.number} · {inv.status.replace("_", " ")}</p></div>
           <div className="text-right text-sm"><p className="font-semibold">{co?.legalName}</p><p className="text-muted max-w-xs">{co?.registeredOffice}</p></div>
         </header>
         <p className="text-sm">Issued {inv.issueDate?.toLocaleDateString()} · Due {inv.dueDate?.toLocaleDateString()}</p>
         <table className="w-full text-sm">
-          <thead className="text-left text-xs text-muted"><tr><th className="py-2">Description</th><th className="text-right">Qty</th><th className="text-right">Unit price</th><th className="text-right">Amount</th></tr></thead>
+          <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2">Description</th><th className="text-right">Qty</th><th className="text-right">Unit price</th><th className="text-right">Amount</th></tr></thead>
           <tbody>
             {inv.lines.map((l) => (
-              <tr key={l.id} className="border-t border-border"><td className="py-2">{l.description}</td><td className="text-right">{l.quantity.toString()}</td>
+              <tr key={l.id} className="border-t border-border transition hover:bg-hover/50"><td className="py-2">{l.description}</td><td className="text-right">{l.quantity.toString()}</td>
                 <td className="text-right">{formatMoney(l.unitPrice, inv.currency)}</td><td className="text-right">{formatMoney(l.amount, inv.currency)}</td></tr>
             ))}
           </tbody>

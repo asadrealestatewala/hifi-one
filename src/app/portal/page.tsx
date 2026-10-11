@@ -15,7 +15,7 @@ export default async function PortalHome() {
   for (const i of invoices) owed.set(i.currency, (owed.get(i.currency) ?? 0) + Number(i.total.sub(i.amountPaid).sub(i.creditedAmount)));
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Your account</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Your account</h1>
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="card"><p className="text-xs font-semibold text-muted">Outstanding</p>
           {owed.size === 0 ? <p className="text-2xl font-bold">Nothing due</p> : [...owed].map(([c, v]) => <p key={c} className="text-2xl font-bold">{formatMoney(v, c)}</p>)}
@@ -28,10 +28,10 @@ export default async function PortalHome() {
         <h2 className="font-semibold mb-2">Invoices</h2>
         {invoices.length === 0 ? <p className="text-sm text-muted">No invoices yet.</p> : (
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted"><tr><th className="py-2 pr-4">Number</th><th className="pr-4">Due</th><th className="pr-4">Status</th><th className="pr-4 text-right">Total</th><th className="text-right">Balance</th></tr></thead>
+            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">Number</th><th className="pr-4">Due</th><th className="pr-4">Status</th><th className="pr-4 text-right">Total</th><th className="text-right">Balance</th></tr></thead>
             <tbody>
               {invoices.map((i) => (
-                <tr key={i.id} className="border-t border-border">
+                <tr key={i.id} className="border-t border-border transition hover:bg-hover/50">
                   <td className="py-2 pr-4"><Link className="underline" href={`/portal/invoices/${i.id}`}>{i.number}</Link></td>
                   <td className="pr-4">{i.dueDate?.toLocaleDateString()}</td>
                   <td className="pr-4">{i.status.replace("_", " ")}</td>

@@ -81,7 +81,7 @@ export default async function MonitoringSettings({ searchParams }: { searchParam
           <table className="w-full text-sm">
             <thead className="text-left"><tr><th className="py-2 pr-4">Device</th><th className="pr-4">Person</th><th className="pr-4">Last seen</th><th className="pr-4">Status</th><th></th></tr></thead>
             <tbody>{devices.map((d) => (
-              <tr key={d.id} className="border-t border-border">
+              <tr key={d.id} className="border-t border-border transition hover:bg-hover/50">
                 <td className="py-2 pr-4">{d.name}<span className="block text-xs text-muted">{d.os} {d.agentVersion && `· v${d.agentVersion}`}</span></td><td className="pr-4">{name.get(d.userId) ?? "Former staff"}</td>
                 <td className="pr-4">{d.lastSeenAt ? d.lastSeenAt.toLocaleString() : "never"}</td><td className="pr-4">{d.revokedAt ? <Badge tone="danger">revoked</Badge> : <Badge tone="success">active</Badge>}</td>
                 <td>{!d.revokedAt && <form action={revokeAction}><input type="hidden" name="id" value={d.id} /><button className="underline text-xs">Revoke</button></form>}</td>

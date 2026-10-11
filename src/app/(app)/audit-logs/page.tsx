@@ -13,11 +13,11 @@ export default async function AuditLogs() {
   });
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Audit Logs</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Audit Logs</h1>
       <p className="text-sm text-muted">Latest 100 events.</p>
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="text-left text-xs text-muted">
+          <thead className="bg-hover/60 text-left text-xs text-muted">
             <tr>
               <th className="py-2 pr-4">When</th>
               <th className="pr-4">Who</th>
@@ -27,7 +27,7 @@ export default async function AuditLogs() {
           </thead>
           <tbody>
             {logs.map((l) => (
-              <tr key={l.id} className="border-t border-border">
+              <tr key={l.id} className="border-t border-border transition hover:bg-hover/50">
                 <td className="py-2 pr-4 whitespace-nowrap">{l.createdAt.toLocaleString()}</td>
                 <td className="pr-4">{l.actor?.name ?? "System"}</td>
                 <td className="pr-4 font-mono text-xs">{l.action}</td>

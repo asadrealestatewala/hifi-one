@@ -122,8 +122,8 @@ export default async function Reports({ searchParams }: { searchParams: Promise<
           <section key={r.currency} className="card overflow-x-auto">
             <h2 className="font-semibold mb-2">Sales tax, {r.currency}, {from} to {to}</h2>
             <table className="w-full text-sm">
-              <thead className="text-left text-xs text-muted"><tr><th className="py-2 pr-4">Rate</th><th className="pr-4 text-right">Invoices</th><th className="pr-4 text-right">Taxable sales</th><th className="text-right">Tax charged</th></tr></thead>
-              <tbody>{r.lines.map((l) => <tr key={l.rate} className="border-t border-border"><td className="py-2 pr-4">{l.rate}%</td><td className="pr-4 text-right">{l.count}</td><td className="pr-4 text-right">{formatMoney(l.taxable.toString(), r.currency)}</td><td className="text-right">{formatMoney(l.tax.toString(), r.currency)}</td></tr>)}</tbody>
+              <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">Rate</th><th className="pr-4 text-right">Invoices</th><th className="pr-4 text-right">Taxable sales</th><th className="text-right">Tax charged</th></tr></thead>
+              <tbody>{r.lines.map((l) => <tr key={l.rate} className="border-t border-border transition hover:bg-hover/50"><td className="py-2 pr-4">{l.rate}%</td><td className="pr-4 text-right">{l.count}</td><td className="pr-4 text-right">{formatMoney(l.taxable.toString(), r.currency)}</td><td className="text-right">{formatMoney(l.tax.toString(), r.currency)}</td></tr>)}</tbody>
             </table>
             <dl className="text-sm mt-3 ml-auto w-72 space-y-1">
               <div className="flex justify-between"><dt>Tax charged</dt><dd>{formatMoney(r.collected.toString(), r.currency)}</dd></div>
@@ -143,8 +143,8 @@ export default async function Reports({ searchParams }: { searchParams: Promise<
           <section key={cur} className="card overflow-x-auto">
             <h2 className="font-semibold mb-2">Payables aging, {cur}</h2>
             <table className="w-full text-sm">
-              <thead className="text-left text-xs text-muted"><tr>{AGING_BUCKETS.map((b) => <th key={b} className="py-2 pr-4 text-right">{b}</th>)}<th className="text-right">Total</th></tr></thead>
-              <tbody><tr className="border-t border-border">
+              <thead className="bg-hover/60 text-left text-xs text-muted"><tr>{AGING_BUCKETS.map((b) => <th key={b} className="py-2 pr-4 text-right">{b}</th>)}<th className="text-right">Total</th></tr></thead>
+              <tbody><tr className="border-t border-border transition hover:bg-hover/50">
                 {AGING_BUCKETS.map((b) => <td key={b} className="py-2 pr-4 text-right">{formatMoney((m.get(b) ?? 0).toString(), cur)}</td>)}
                 <td className="text-right font-semibold">{formatMoney([...m.values()].reduce((a, v) => a + Number(v), 0), cur)}</td>
               </tr></tbody>
@@ -162,10 +162,10 @@ export default async function Reports({ searchParams }: { searchParams: Promise<
         <h2 className="font-semibold mb-2">Cash and bank movement, {from} to {to}</h2>
         {moves.length === 0 ? <p className="text-sm text-muted">No bank accounts linked to the ledger.</p> : (
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted"><tr><th className="py-2 pr-4">Account</th><th className="pr-4 text-right">Opening</th><th className="pr-4 text-right">Money in</th><th className="pr-4 text-right">Money out</th><th className="text-right">Closing</th></tr></thead>
+            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">Account</th><th className="pr-4 text-right">Opening</th><th className="pr-4 text-right">Money in</th><th className="pr-4 text-right">Money out</th><th className="text-right">Closing</th></tr></thead>
             <tbody>
               {moves.map((m, i) => (
-                <tr key={i} className="border-t border-border"><td className="py-2 pr-4">{m.name} ({m.currency})</td>
+                <tr key={i} className="border-t border-border transition hover:bg-hover/50"><td className="py-2 pr-4">{m.name} ({m.currency})</td>
                   <td className="pr-4 text-right">{formatMoney(m.opening.toString(), m.currency)}</td><td className="pr-4 text-right">{formatMoney(m.inflow.toString(), m.currency)}</td>
                   <td className="pr-4 text-right">{formatMoney(m.outflow.toString(), m.currency)}</td><td className="text-right font-semibold">{formatMoney(m.closing.toString(), m.currency)}</td></tr>
               ))}
@@ -183,8 +183,8 @@ export default async function Reports({ searchParams }: { searchParams: Promise<
           <section key={cur} className="card overflow-x-auto">
             <h2 className="font-semibold mb-2">Receivables aging, {cur}</h2>
             <table className="w-full text-sm">
-              <thead className="text-left text-xs text-muted"><tr>{AGING_BUCKETS.map((b) => <th key={b} className="py-2 pr-4 text-right">{b}</th>)}<th className="text-right">Total</th></tr></thead>
-              <tbody><tr className="border-t border-border">
+              <thead className="bg-hover/60 text-left text-xs text-muted"><tr>{AGING_BUCKETS.map((b) => <th key={b} className="py-2 pr-4 text-right">{b}</th>)}<th className="text-right">Total</th></tr></thead>
+              <tbody><tr className="border-t border-border transition hover:bg-hover/50">
                 {AGING_BUCKETS.map((b) => <td key={b} className="py-2 pr-4 text-right">{formatMoney((m.get(b) ?? 0).toString(), cur)}</td>)}
                 <td className="text-right font-semibold">{formatMoney([...m.values()].reduce((a, v) => a + Number(v), 0), cur)}</td>
               </tr></tbody>

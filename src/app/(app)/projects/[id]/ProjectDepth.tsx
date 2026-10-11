@@ -167,10 +167,10 @@ export default async function ProjectDepth({ user, projectId, closed }: { user: 
         )}
         {myEntries.length === 0 ? <p className="text-sm text-muted">No time logged{canManage ? "" : " by you"} yet.</p> : (
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted"><tr><th className="py-1 pr-3">Date</th><th className="pr-3">Who</th><th className="pr-3 text-right">Hours</th><th>Note</th><th></th></tr></thead>
+            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-1 pr-3">Date</th><th className="pr-3">Who</th><th className="pr-3 text-right">Hours</th><th>Note</th><th></th></tr></thead>
             <tbody>
               {myEntries.map((e) => (
-                <tr key={e.id} className="border-t border-border">
+                <tr key={e.id} className="border-t border-border transition hover:bg-hover/50">
                   <td className="py-1 pr-3">{e.workDate}</td><td className="pr-3">{nameOf.get(e.userId) ?? "Unknown"}</td><td className="pr-3 text-right">{e.hours.toString()}</td><td>{e.note}</td>
                   <td className="text-right">{(e.userId === user.id || canManage) && !closed && <form action={timeAction}><input type="hidden" name="projectId" value={projectId} /><input type="hidden" name="op" value="delete" /><input type="hidden" name="entryId" value={e.id} /><button className="underline text-xs">Remove</button></form>}</td>
                 </tr>

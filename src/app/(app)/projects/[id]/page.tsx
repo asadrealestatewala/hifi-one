@@ -41,7 +41,7 @@ export default async function ProjectPage({
       {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">{project.name} <span className="text-muted text-base font-normal">{project.number}</span></h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{project.name} <span className="text-muted text-base font-normal">{project.number}</span></h1>
           <p className="text-sm text-muted">
             {client ? client.name : "Internal project"} · {project.status.replace("_", " ")} · Manager: {nameOf.get(project.managerId) ?? "Unknown"}
             {project.deadline && ` · Due ${project.deadline.toLocaleDateString()}`}

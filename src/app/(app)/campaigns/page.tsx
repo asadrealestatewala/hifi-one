@@ -24,7 +24,7 @@ export default async function Campaigns({ searchParams }: { searchParams: Promis
           <table className="w-full text-sm">
             <thead className="text-left"><tr><th className="py-2 pr-4">Campaign</th><th className="pr-4">Status</th><th className="pr-4 text-right">Leads</th><th className="pr-4 text-right">Won</th><th className="pr-4 text-right">Win rate</th><th className="pr-4 text-right">Budget</th><th className="pr-4 text-right">Cost per lead</th><th className="pr-4 text-right">Won value</th><th></th></tr></thead>
             <tbody>{stats.map((s) => (
-              <tr key={s.campaign.id} className="border-t border-border">
+              <tr key={s.campaign.id} className="border-t border-border transition hover:bg-hover/50">
                 <td className="py-2 pr-4"><span className="font-medium">{s.campaign.name}</span><span className="block text-xs text-muted">{s.campaign.channel.toLowerCase().replace("_", " ")}{s.campaign.startDate && ` · ${s.campaign.startDate}${s.campaign.endDate ? ` to ${s.campaign.endDate}` : ""}`}</span></td>
                 <td className="pr-4"><Badge tone={TONE[s.campaign.status as keyof typeof TONE] ?? "neutral"}>{s.campaign.status.toLowerCase()}</Badge></td>
                 <td className="pr-4 text-right">{s.leads}</td><td className="pr-4 text-right">{s.won}</td><td className="pr-4 text-right">{s.winRate === null ? "" : `${s.winRate}%`}</td>

@@ -106,7 +106,7 @@ export default async function BankAccounts() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Bank Accounts</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Bank Accounts</h1>
         <p className="text-sm text-muted">
           Account numbers are masked unless your role allows full access. Entering details here does not verify the
           account. Issued invoices keep the bank details they were issued with.
@@ -117,7 +117,7 @@ export default async function BankAccounts() {
           <p className="text-sm text-muted">No bank accounts yet.</p>
         ) : (
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted">
+            <thead className="bg-hover/60 text-left text-xs text-muted">
               <tr>
                 <th className="py-2 pr-4">Account</th>
                 <th className="pr-4">Bank</th>
@@ -129,7 +129,7 @@ export default async function BankAccounts() {
             </thead>
             <tbody>
               {accounts.map((a) => (
-                <tr key={a.id} className="border-t border-border">
+                <tr key={a.id} className="border-t border-border transition hover:bg-hover/50">
                   <td className="py-2 pr-4 font-medium">{a.internalName}</td>
                   <td className="pr-4">{a.bankName}</td>
                   <td className="pr-4 font-mono">{full ? a.accountNumber : maskAccount(a.accountNumber)}</td>

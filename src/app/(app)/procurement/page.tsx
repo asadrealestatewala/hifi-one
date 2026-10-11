@@ -91,7 +91,7 @@ export default async function Procurement({ searchParams }: { searchParams: Prom
   ]);
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-bold">Procurement</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Procurement</h1>
       <p className="text-sm text-muted">Applying never awards work. Each step needs a person: approve the application, issue the work order, accept the delivery, approve the bill, post it, then pay.</p>
       {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
 
@@ -141,10 +141,10 @@ export default async function Procurement({ searchParams }: { searchParams: Prom
         <div className="card overflow-x-auto">
           {orders.length === 0 ? <p className="text-sm text-muted">No work orders yet.</p> : (
             <table className="w-full text-sm">
-              <thead className="text-left text-xs text-muted"><tr><th className="py-2 pr-4">Number</th><th className="pr-4">Vendor</th><th className="pr-4">Title</th><th className="pr-4 text-right">Amount</th><th className="pr-4">Status</th><th></th></tr></thead>
+              <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">Number</th><th className="pr-4">Vendor</th><th className="pr-4">Title</th><th className="pr-4 text-right">Amount</th><th className="pr-4">Status</th><th></th></tr></thead>
               <tbody>
                 {orders.map((w) => (
-                  <tr key={w.id} className="border-t border-border">
+                  <tr key={w.id} className="border-t border-border transition hover:bg-hover/50">
                     <td className="py-2 pr-4 font-medium">{w.number}</td><td className="pr-4">{w.vendor.name}</td><td className="pr-4">{w.title}</td>
                     <td className="pr-4 text-right">{formatMoney(w.amount, w.currency)}</td><td className="pr-4">{w.status.toLowerCase()}</td>
                     <td className="flex gap-1 py-1">

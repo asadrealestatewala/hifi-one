@@ -10,7 +10,7 @@ export default async function MyDocuments({ searchParams }: { searchParams: Prom
   const hasProfile = await db.employeeProfile.findUnique({ where: { userId: user.id } });
   return (
     <div className="space-y-4 max-w-3xl">
-      <h1 className="text-2xl font-bold">My Documents</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">My Documents</h1>
       <p className="text-sm text-muted">Your own employment documents (identity, certificates, contracts). Only you and authorized HR staff can see them.</p>
       {hasProfile ? (
         <FilesPanel user={user} ownerType="EMPLOYEE" ownerId={user.id} returnTo="/me/documents" title="My files" withCategory withExpiry flash={{ fileError, fileOk }} />

@@ -86,7 +86,7 @@ export default async function Services({ searchParams }: { searchParams: Promise
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Service Catalog & Pricing</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Service Catalog & Pricing</h1>
           <p className="text-sm text-muted">
             Each currency has its own price. A plan shows &quot;Price not set&quot; until one is entered; nothing is auto-converted.
             Seed prices are examples, not final.

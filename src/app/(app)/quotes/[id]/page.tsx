@@ -64,8 +64,8 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
       <section className="card space-y-3">
         <p className="text-sm">For <strong>{q.client.name}</strong>{q.validUntil && <> · valid until {q.validUntil}</>}</p>
         <table className="w-full text-sm">
-          <thead className="text-left text-xs text-muted"><tr><th className="py-2 pr-4">Description</th><th className="pr-4 text-right">Qty</th><th className="pr-4 text-right">Unit price</th><th className="text-right">Amount</th></tr></thead>
-          <tbody>{q.lines.map((l) => <tr key={l.id} className="border-t border-border"><td className="py-2 pr-4">{l.description}</td><td className="pr-4 text-right">{l.quantity.toString()}</td><td className="pr-4 text-right">{formatMoney(l.unitPrice, q.currency)}</td><td className="text-right">{formatMoney(l.amount, q.currency)}</td></tr>)}</tbody>
+          <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">Description</th><th className="pr-4 text-right">Qty</th><th className="pr-4 text-right">Unit price</th><th className="text-right">Amount</th></tr></thead>
+          <tbody>{q.lines.map((l) => <tr key={l.id} className="border-t border-border transition hover:bg-hover/50"><td className="py-2 pr-4">{l.description}</td><td className="pr-4 text-right">{l.quantity.toString()}</td><td className="pr-4 text-right">{formatMoney(l.unitPrice, q.currency)}</td><td className="text-right">{formatMoney(l.amount, q.currency)}</td></tr>)}</tbody>
         </table>
         <dl className="text-sm ml-auto w-64 space-y-1">
           <div className="flex justify-between"><dt>Subtotal</dt><dd>{formatMoney(q.subtotal, q.currency)}</dd></div>

@@ -30,7 +30,7 @@ export default async function Close({ searchParams }: { searchParams: Promise<{ 
   const history = await db.settingChange.findMany({ where: { organizationId: user.organizationId, section: "period_lock" }, orderBy: { createdAt: "desc" }, take: 10 });
   return (
     <div className="space-y-6 max-w-2xl">
-      <h1 className="text-2xl font-bold">Close Accounting Periods</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Close Accounting Periods</h1>
       <p className="text-sm text-muted">Closing a period stops anyone, from any module, from posting an entry dated on or before the closing date. Corrections after that go in the open period or need the period reopened with a written reason. This is not a year-end close: profit is not yet moved into retained earnings.</p>
       {ok && <p className="text-sm bg-green-600/10 text-green-700 rounded-lg px-3 py-2">Saved.</p>}
       {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}

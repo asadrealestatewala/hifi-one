@@ -15,15 +15,15 @@ export default async function Users() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold">Users</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
         {user.permissions.has("roles.manage") && <Link href="/roles" className="btn-ghost">Manage roles</Link>}
       </div>
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="text-left text-xs text-muted"><tr><th className="py-2 pr-4">Name</th><th className="pr-4">Email</th><th className="pr-4">Type</th><th className="pr-4">Roles</th><th className="pr-4">2-step</th><th>Status</th></tr></thead>
+          <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">Name</th><th className="pr-4">Email</th><th className="pr-4">Type</th><th className="pr-4">Roles</th><th className="pr-4">2-step</th><th>Status</th></tr></thead>
           <tbody>
             {users.map((u) => (
-              <tr key={u.id} className="border-t border-border">
+              <tr key={u.id} className="border-t border-border transition hover:bg-hover/50">
                 <td className="py-2 pr-4 font-medium">{canManage ? <Link className="hover:underline" href={`/users/${u.id}`}>{u.name}</Link> : u.name}</td>
                 <td className="pr-4">{u.email}</td><td className="pr-4">{u.userType.toLowerCase()}</td>
                 <td className="pr-4">{u.roles.map((r) => r.role.name).join(", ")}</td>

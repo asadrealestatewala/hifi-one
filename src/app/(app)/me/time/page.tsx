@@ -102,7 +102,7 @@ export default async function MyTime({ searchParams }: { searchParams: Promise<{
         <h2 className="mb-2 font-semibold">This week</h2>
         <table className="w-full text-sm">
           <thead className="text-left"><tr><th className="py-2 pr-4">Day</th><th className="pr-4">Attendance</th><th className="pr-4">Active</th><th className="pr-4">Idle</th><th className="pr-4">Breaks</th><th>Approved correction</th></tr></thead>
-          <tbody>{perDay.map(([d, r]) => <tr key={d} className="border-t border-border"><td className="py-2 pr-4">{d}</td><td className="pr-4">{fmt(r?.attendanceMinutes ?? 0)}</td><td className="pr-4">{fmt(r?.activeMinutes ?? 0)}</td><td className="pr-4">{fmt(r?.idleMinutes ?? 0)}</td><td className="pr-4">{fmt(r?.breakMinutes ?? 0)}</td><td>{r?.correctedMinutes ? fmt(r.correctedMinutes) : ""}</td></tr>)}</tbody>
+          <tbody>{perDay.map(([d, r]) => <tr key={d} className="border-t border-border transition hover:bg-hover/50"><td className="py-2 pr-4">{d}</td><td className="pr-4">{fmt(r?.attendanceMinutes ?? 0)}</td><td className="pr-4">{fmt(r?.activeMinutes ?? 0)}</td><td className="pr-4">{fmt(r?.idleMinutes ?? 0)}</td><td className="pr-4">{fmt(r?.breakMinutes ?? 0)}</td><td>{r?.correctedMinutes ? fmt(r.correctedMinutes) : ""}</td></tr>)}</tbody>
         </table>
       </section>
 

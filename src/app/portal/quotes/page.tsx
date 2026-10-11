@@ -29,7 +29,7 @@ export default async function PortalQuotes({ searchParams }: { searchParams: Pro
   const quotes = await db.quote.findMany({ where: { organizationId: user.organizationId, clientId: user.clientId, status: { notIn: ["DRAFT", "CANCELLED"] } }, orderBy: { createdAt: "desc" }, include: { lines: true } });
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Quotations</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Quotations</h1>
       {sp.done && <p className="text-sm bg-green-600/10 text-green-700 rounded-lg px-3 py-2">Thank you. Your response has been recorded.</p>}
       {sp.error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{sp.error}</p>}
       {quotes.length === 0 && <div className="card text-sm text-muted">No quotations yet.</div>}

@@ -28,7 +28,11 @@ export type ContactInput = {
   category?: string; industry?: string | null; jobTitle?: string | null; ownerId?: string | null; followers?: string[]; website?: string | null;
   phones?: Entry[]; emails?: Entry[]; addressLine?: string | null; city?: string | null; state?: string | null; country?: string | null; postalCode?: string | null;
   timezone?: string | null; preferredContact?: string | null; source?: string | null; campaignId?: string | null; tags?: string[]; notes?: string | null; customFields?: Record<string, string>;
+  birthday?: string | null; taxId?: string | null; shipAddressLine?: string | null; shipCity?: string | null; shipState?: string | null; shipCountry?: string | null; shipPostalCode?: string | null;
+  social?: Record<string, string>; utm?: Record<string, string>;
 };
+export const SOCIAL_KEYS = ["facebook", "linkedin", "telegram", "x", "skype", "instagram"] as const;
+export const UTM_KEYS = ["source", "medium", "campaign", "term", "content"] as const;
 
 // ---------- cleaning ----------
 export const phoneKey = (p: string) => { const d = p.replace(/[^\d+]/g, ""); return d.length >= 6 ? d.replace(/^00/, "+") : null; };
@@ -107,7 +111,12 @@ function build(i: ContactInput, kind: string) {
   if (i.timezone?.trim()) { try { new Intl.DateTimeFormat("en", { timeZone: i.timezone.trim() }); } catch { throw new ContactError("That time zone is not recognised (for example Asia/Karachi)."); } }
   const custom: Record<string, string> = {};
   for (const [k, v] of Object.entries(i.customFields ?? {}).slice(0, 20)) { const kk = k.trim().slice(0, 40), vv = String(v).trim().slice(0, 200); if (kk && vv) custom[kk] = vv; }
+  const birthday = txt(i.birthday, 10);
+  if (birthday && (!/^\d{4}-\d{2}-\d{2}$/.test(birthday) || Number.isNaN(Date.parse(birthday)) || birthday > new Date().toISOString().slice(0, 10))) throw new ContactError("Enter a valid birthday (a past date).");
+  const pickMap = (src: Record<string, string> | undefined, keys: readonly string[], max: number) => { const o: Record<string, string> = {}; for (const k of keys) { const v = (src?.[k] ?? "").trim().slice(0, max); if (v) o[k] = v; } return o; };
   return {
+    birthday, taxId: txt(i.taxId, 40), shipAddressLine: txt(i.shipAddressLine, 200), shipCity: txt(i.shipCity, 80), shipState: txt(i.shipState, 80), shipCountry: txt(i.shipCountry, 80), shipPostalCode: txt(i.shipPostalCode, 20),
+    social: pickMap(i.social, SOCIAL_KEYS, 200) as Prisma.InputJsonValue, utm: pickMap(i.utm, UTM_KEYS, 100) as Prisma.InputJsonValue,
     kind, title: txt(i.title, 20), firstName: kind === "PERSON" ? first : null, lastName: kind === "PERSON" ? last : null, name, category: i.category ?? "LEAD", industry: txt(i.industry, 80), jobTitle: txt(i.jobTitle, 80),
     website, phones: phones as unknown as Prisma.InputJsonValue, emails: emails as unknown as Prisma.InputJsonValue, ...derived(phones, emails), addressLine: txt(i.addressLine, 200), city: txt(i.city, 80), state: txt(i.state, 80),
     country: txt(i.country, 80), postalCode: txt(i.postalCode, 20), timezone: txt(i.timezone, 60), preferredContact: i.preferredContact && ["CALL", "WHATSAPP", "EMAIL", "SMS"].includes(i.preferredContact) ? i.preferredContact : null,
@@ -171,7 +180,9 @@ export async function updateContact(db: Db, p: { organizationId: string; id: str
   const merged: ContactInput = {
     kind: cur.kind, title: cur.title, firstName: cur.firstName, lastName: cur.lastName, name: cur.kind === "ORGANIZATION" ? cur.name : null, category: cur.category, industry: cur.industry, jobTitle: cur.jobTitle,
     website: cur.website, phones: cur.phones as unknown as Entry[], emails: cur.emails as unknown as Entry[], addressLine: cur.addressLine, city: cur.city, state: cur.state, country: cur.country, postalCode: cur.postalCode,
-    timezone: cur.timezone, preferredContact: cur.preferredContact, source: cur.source, campaignId: cur.campaignId, tags: cur.tags, notes: cur.notes, customFields: cur.customFields as Record<string, string>, ...p.patch,
+    timezone: cur.timezone, preferredContact: cur.preferredContact, source: cur.source, campaignId: cur.campaignId, tags: cur.tags, notes: cur.notes, customFields: cur.customFields as Record<string, string>,
+    birthday: cur.birthday, taxId: cur.taxId, shipAddressLine: cur.shipAddressLine, shipCity: cur.shipCity, shipState: cur.shipState, shipCountry: cur.shipCountry, shipPostalCode: cur.shipPostalCode,
+    social: cur.social as Record<string, string>, utm: cur.utm as Record<string, string>, ...p.patch,
   };
   const data = build(merged, cur.kind);
   const extra: Prisma.ContactUncheckedUpdateInput = {};
@@ -475,6 +486,9 @@ export async function mergeContacts(db: Db, p: { organizationId: string; actorId
         industry: pick(into.industry, from.industry), jobTitle: pick(into.jobTitle, from.jobTitle), website: pick(into.website, from.website), addressLine: pick(into.addressLine, from.addressLine),
         city: pick(into.city, from.city), state: pick(into.state, from.state), country: pick(into.country, from.country), postalCode: pick(into.postalCode, from.postalCode),
         timezone: pick(into.timezone, from.timezone), preferredContact: pick(into.preferredContact, from.preferredContact), source: pick(into.source, from.source), parentId: pick(into.parentId, from.parentId),
+        birthday: pick(into.birthday, from.birthday), taxId: pick(into.taxId, from.taxId), shipAddressLine: pick(into.shipAddressLine, from.shipAddressLine), shipCity: pick(into.shipCity, from.shipCity),
+        shipState: pick(into.shipState, from.shipState), shipCountry: pick(into.shipCountry, from.shipCountry), shipPostalCode: pick(into.shipPostalCode, from.shipPostalCode),
+        social: { ...(from.social as object), ...(into.social as object) }, utm: { ...(from.utm as object), ...(into.utm as object) },
         lastActivityAt: new Date(),
       },
     });
@@ -497,4 +511,18 @@ export async function contactEmailHistory(db: Db, organizationId: string, contac
   // Mail sent to the same address from invoices and statements can carry amounts, so only people with finance access see it here
   const where: Prisma.EmailMessageWhereInput = includeAll && emails.length ? { OR: [own, { toEmail: { in: emails.map((e) => e.toLowerCase()) } }] } : own;
   return db.emailMessage.findMany({ where: { organizationId, ...where }, orderBy: { createdAt: "desc" }, take: 20 });
+}
+
+// ---------- organization link ----------
+// Point a person at an organization (found by name or created on the fly), or clear the link with an empty name.
+export async function setContactParent(db: Db, p: { organizationId: string; contactId: string; actorId: string; parentName: string }) {
+  const c = await db.contact.findFirst({ where: { id: p.contactId, organizationId: p.organizationId } });
+  if (!c) throw new ContactError("Contact not found.");
+  if (c.kind !== "PERSON") throw new ContactError("Only a person can belong to an organization.");
+  return db.$transaction(async (tx) => {
+    const parent = txt(p.parentName, 160) ? await resolveParent(tx, p.organizationId, p.actorId, { parentName: p.parentName }) : null;
+    const u = await tx.contact.update({ where: { id: c.id }, data: { parentId: parent?.id ?? null, lastActivityAt: new Date() } });
+    await pushToBoards(tx, u);
+    return u;
+  });
 }

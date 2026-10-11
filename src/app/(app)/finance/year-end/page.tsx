@@ -30,7 +30,7 @@ export default async function YearEnd({ searchParams }: { searchParams: Promise<
   const ended = `${year}-12-31` < new Date().toISOString().slice(0, 10);
   return (
     <div className="space-y-5 max-w-3xl">
-      <h1 className="text-2xl font-bold">Year-End Close</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Year-End Close</h1>
       <p className="text-sm text-muted">Closing a year brings every revenue, cost and expense account back to zero and moves the profit or loss into Retained Earnings, one entry per currency, dated 31 December. Profit and loss reports for that year still show its results. Years must be closed in order, and a year can only be closed once it has ended.</p>
       {sp.done && <p className="text-sm bg-green-600/10 text-green-700 rounded-lg px-3 py-2">Year {year} is closed.</p>}
       {sp.error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{sp.error}</p>}
