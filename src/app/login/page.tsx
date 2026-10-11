@@ -12,12 +12,12 @@ async function signIn(formData: FormData) {
   const result = await login(email, password);
   if (!result.ok) redirect(`/login?error=${encodeURIComponent(result.error)}`);
   const u = await db.user.findUnique({ where: { email: email.trim().toLowerCase() }, select: { userType: true } });
-  redirect(u?.userType === "CLIENT" ? "/portal" : "/dashboard");
+  redirect(u?.userType === "CLIENT" ? "/portal" : u?.userType === "VENDOR" ? "/vendor" : "/dashboard");
 }
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const current = await getSessionUser();
-  if (current) redirect(current.userType === "CLIENT" ? "/portal" : "/dashboard");
+  if (current) redirect(current.userType === "CLIENT" ? "/portal" : current.userType === "VENDOR" ? "/vendor" : "/dashboard");
   const { error, notice } = await searchParams;
   return (
     <main className="min-h-screen grid place-items-center p-4">

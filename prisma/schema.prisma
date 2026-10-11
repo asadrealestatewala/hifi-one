@@ -63,6 +63,7 @@ model User {
   active         Boolean   @default(true)
   userType       String    @default("EMPLOYEE") // EMPLOYEE | CLIENT | VENDOR | PARTNER | INVESTOR
   clientId       String?   // set for client portal users: the only client they can ever see
+  vendorId       String?   // set for vendor portal users: the only vendor they can ever see
   branchId       String?
   departmentId   String?
   managerId      String?
@@ -436,6 +437,7 @@ model JournalLine {
   entryId   String
   accountId String
   clientId  String?
+  vendorId  String?
   debit     Decimal @default(0) @db.Decimal(14, 2)
   credit    Decimal @default(0) @db.Decimal(14, 2)
   memo      String?
@@ -602,7 +604,8 @@ model TaskComment {
 
 model ClientInvite {
   id        String    @id @default(cuid())
-  clientId  String
+  clientId  String?
+  vendorId  String?
   email     String
   tokenHash String    @unique // only the hash is stored; the link is shown once
   expiresAt DateTime
@@ -610,7 +613,8 @@ model ClientInvite {
   createdById String?
   createdAt DateTime  @default(now())
 
-  client Client @relation(fields: [clientId], references: [id])
+  client Client? @relation(fields: [clientId], references: [id])
+  vendor Vendor? @relation(fields: [vendorId], references: [id])
 
   @@index([clientId])
 }
@@ -828,4 +832,110 @@ model ExpenseVoucher {
   @@unique([organizationId, number])
   @@index([organizationId, status])
   @@index([submittedById])
+}
+
+// ---------- Phase 5: vendors and procurement ----------
+
+model Vendor {
+  id             String   @id @default(cuid())
+  organizationId String
+  code           String
+  name           String
+  email          String?
+  phone          String?
+  country        String?
+  currency       String   @default("USD")
+  categories     String? // comma separated service categories
+  paymentTermsDays Int    @default(30)
+  status         String   @default("PENDING") // PENDING | APPROVED | SUSPENDED
+  bankDetails    String? // restricted
+  internalNotes  String?
+  createdAt      DateTime @default(now())
+
+  applications VendorApplication[]
+  workOrders   WorkOrder[]
+  bills        VendorBill[]
+  invites      ClientInvite[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, name])
+}
+
+model VendorOpportunity {
+  id             String   @id @default(cuid())
+  organizationId String
+  title          String
+  scope          String
+  skills         String?
+  budgetMin      Decimal? @db.Decimal(14, 2)
+  budgetMax      Decimal? @db.Decimal(14, 2)
+  currency       String   @default("USD")
+  deadline       String? // YYYY-MM-DD application deadline
+  status         String   @default("OPEN") // OPEN | CLOSED | AWARDED
+  createdById    String?
+  createdAt      DateTime @default(now())
+
+  applications VendorApplication[]
+}
+
+model VendorApplication {
+  id            String   @id @default(cuid())
+  opportunityId String
+  vendorId      String
+  quoteAmount   Decimal  @db.Decimal(14, 2)
+  proposal      String?
+  status        String   @default("SUBMITTED") // SUBMITTED | SHORTLISTED | APPROVED | REJECTED
+  decidedById   String?
+  createdAt     DateTime @default(now())
+
+  opportunity VendorOpportunity @relation(fields: [opportunityId], references: [id])
+  vendor      Vendor            @relation(fields: [vendorId], references: [id])
+
+  @@unique([opportunityId, vendorId])
+}
+
+model WorkOrder {
+  id             String   @id @default(cuid())
+  organizationId String
+  number         String
+  vendorId       String
+  applicationId  String?  @unique
+  projectId      String?
+  title          String
+  scope          String?
+  amount         Decimal  @db.Decimal(14, 2)
+  currency       String
+  status         String   @default("ISSUED") // ISSUED | DELIVERED | ACCEPTED | CANCELLED
+  issuedById     String?
+  acceptedById   String?
+  createdAt      DateTime @default(now())
+
+  vendor Vendor       @relation(fields: [vendorId], references: [id])
+  bills  VendorBill[]
+
+  @@unique([organizationId, number])
+}
+
+model VendorBill {
+  id               String   @id @default(cuid())
+  organizationId   String
+  number           String
+  vendorId         String
+  workOrderId      String
+  vendorReference  String?
+  amount           Decimal  @db.Decimal(14, 2)
+  currency         String
+  expenseAccountId String?
+  status           String   @default("SUBMITTED") // SUBMITTED | APPROVED | POSTED | PAID | REJECTED
+  approvedById     String?
+  decisionNote     String?
+  journalEntryId   String?
+  paymentEntryId   String?
+  createdAt        DateTime @default(now())
+
+  vendor    Vendor    @relation(fields: [vendorId], references: [id])
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id])
+
+  @@unique([organizationId, number])
+  @@index([vendorId])
 }

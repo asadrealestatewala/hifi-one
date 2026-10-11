@@ -39,6 +39,14 @@ Done and verified on localhost:
 
 Still to do: Gantt/timeline, calendar, subtasks and dependencies, task comments, files, budget and cost tracking, project creation from a won deal, content calendar and approvals, success reviews, meetings.
 
+## Vendors and procurement (first slice done)
+
+Done, 8 database tests plus a browser run (vendor invited, signed in, applied; all internal pages bounce a vendor back to /vendor):
+- Vendor directory with codes, pending/approved/suspended status, one-time invitation link to the vendor portal
+- Formal flow, each step a human decision: opportunity, application (one per vendor, deadline enforced, only approved vendors), application approval, work order (idempotent when issued twice), delivery marked by vendor, accepted by staff, bill (only after acceptance, capped at the work order amount even under concurrent submissions), bill approval with an expense account, posting (expense and a payable tagged to the vendor), payment (separate step, bank in the same currency)
+- Vendor ledger and vendor portal statement; vendors see only open opportunities and their own applications, orders, bills and statement (other vendors' quotes are never queried)
+Limits: no contracts or compliance documents (needs file storage); no purchase orders separate from work orders; no retentions, advances or partial-payment allocation (a bill is paid in full); no vendor ratings; eligibility by category is not enforced (any approved vendor can apply); the person who approves a bill can also post and pay it (a separate payer rule is not enforced).
+
 ## Expenses and budgets (first slice done)
 
 Done, verified in the browser plus 16 automated tests:

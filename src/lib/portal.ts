@@ -59,26 +59,42 @@ export async function createInvite(db: PrismaClient, p: { organizationId: string
   return token; // returned once; only its hash is stored
 }
 
+export async function createVendorInvite(db: PrismaClient, p: { organizationId: string; vendorId: string; email: string; createdById: string }) {
+  const vendor = await db.vendor.findFirst({ where: { id: p.vendorId, organizationId: p.organizationId } });
+  if (!vendor) throw new LedgerError("Unknown vendor.");
+  if (vendor.status === "SUSPENDED") throw new LedgerError("This vendor is suspended.");
+  const email = p.email.trim().toLowerCase();
+  if (await db.user.findUnique({ where: { email } })) throw new LedgerError("A user with this email already exists.");
+  const token = crypto.randomBytes(32).toString("base64url");
+  await db.clientInvite.create({
+    data: { vendorId: vendor.id, email, tokenHash: hash(token), expiresAt: new Date(Date.now() + 7 * 86400000), createdById: p.createdById },
+  });
+  return token;
+}
+
 export async function inviteInfo(db: PrismaClient, token: string) {
-  const inv = await db.clientInvite.findUnique({ where: { tokenHash: hash(token) }, include: { client: true } });
+  const inv = await db.clientInvite.findUnique({ where: { tokenHash: hash(token) }, include: { client: true, vendor: true } });
   if (!inv || inv.usedAt || inv.expiresAt < new Date()) return null;
-  return { email: inv.email, clientName: inv.client.name };
+  return { email: inv.email, clientName: inv.client?.name ?? inv.vendor?.name ?? "" };
 }
 
 export async function acceptInvite(db: PrismaClient, p: { token: string; name: string; password: string }) {
   if (p.password.length < 10) throw new LedgerError("Use a password of at least 10 characters.");
   const passwordHash = await bcrypt.hash(p.password, 12);
   return db.$transaction(async (tx) => {
-    const found = await tx.clientInvite.findUnique({ where: { tokenHash: hash(p.token) }, include: { client: true } });
+    const found = await tx.clientInvite.findUnique({ where: { tokenHash: hash(p.token) }, include: { client: true, vendor: true } });
     if (!found) throw new LedgerError("This invitation link is not valid.");
     await tx.$queryRaw`SELECT id FROM "ClientInvite" WHERE id = ${found.id} FOR UPDATE`;
     const inv = await tx.clientInvite.findUniqueOrThrow({ where: { id: found.id } });
     if (inv.usedAt || inv.expiresAt < new Date()) throw new LedgerError("This invitation was already used or has expired.");
-    const role = await tx.role.findFirst({ where: { organizationId: found.client.organizationId, key: "CLIENT" } });
+    const owner = found.client ?? found.vendor;
+    if (!owner) throw new LedgerError("This invitation link is not valid.");
+    const isVendor = Boolean(found.vendor);
+    const role = await tx.role.findFirst({ where: { organizationId: owner.organizationId, key: isVendor ? "VENDOR" : "CLIENT" } });
     const user = await tx.user.create({
       data: {
-        organizationId: found.client.organizationId, email: inv.email, name: p.name.trim(), passwordHash,
-        userType: "CLIENT", clientId: inv.clientId,
+        organizationId: owner.organizationId, email: inv.email, name: p.name.trim(), passwordHash,
+        userType: isVendor ? "VENDOR" : "CLIENT", clientId: isVendor ? null : inv.clientId, vendorId: isVendor ? inv.vendorId : null,
         roles: role ? { create: { roleId: role.id } } : undefined,
       },
     });

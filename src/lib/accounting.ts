@@ -53,7 +53,7 @@ export async function postJournal(
       postedById: p.postedById, reversalOfId: p.reversalOfId,
       lines: {
         create: p.lines.map((l) => ({
-          accountId: l.accountId, clientId: l.clientId ?? null, memo: l.memo,
+          accountId: l.accountId, clientId: l.clientId ?? null, vendorId: l.vendorId ?? null, memo: l.memo,
           debit: round2(l.debit ?? 0), credit: round2(l.credit ?? 0),
         })),
       },

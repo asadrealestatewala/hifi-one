@@ -24,6 +24,7 @@ export type SessionUser = {
   organizationId: string;
   userType: string;
   clientId: string | null;
+  vendorId: string | null;
   permissions: Set<PermissionKey>;
   roles: string[];
 };
@@ -123,6 +124,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     organizationId: session.user.organizationId,
     userType: session.user.userType,
     clientId: session.user.clientId,
+    vendorId: session.user.vendorId,
     permissions,
     roles: activeRoles.map((r) => r.role.name),
   };
@@ -132,8 +134,18 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 export async function requireUser(): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  if (user.userType !== "EMPLOYEE") redirect("/portal");
+  if (user.userType === "CLIENT") redirect("/portal");
+  if (user.userType === "VENDOR") redirect("/vendor");
+  if (user.userType !== "EMPLOYEE") redirect("/forbidden");
   return user;
+}
+
+// Vendor portal pages: only a vendor user bound to exactly one vendor record.
+export async function requireVendorUser(): Promise<SessionUser & { vendorId: string }> {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+  if (user.userType !== "VENDOR" || !user.vendorId) redirect("/forbidden");
+  return user as SessionUser & { vendorId: string };
 }
 
 // Client portal pages: only a client user bound to exactly one client record.

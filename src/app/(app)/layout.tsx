@@ -49,6 +49,13 @@ const NAV: NavGroup[] = [
     items: [{ href: "/projects", label: "Projects & Tasks", permission: "projects.view" }],
   },
   {
+    title: "Procurement & Vendors",
+    items: [
+      { href: "/vendors", label: "Vendor Directory", permission: "vendors.view" },
+      { href: "/procurement", label: "Opportunities, Orders & Bills", permission: "vendors.view" },
+    ],
+  },
+  {
     title: "Finance & Accounting",
     items: [
       { href: "/finance/ledger", label: "General Ledger", permission: "finance.view" },

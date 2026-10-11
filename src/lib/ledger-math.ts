@@ -20,7 +20,7 @@ export function computeInvoiceTotals(
   return { amounts, subtotal, taxAmount, total: subtotal.add(taxAmount) };
 }
 
-export type DraftLine = { accountId: string; debit?: Prisma.Decimal.Value; credit?: Prisma.Decimal.Value; clientId?: string | null; memo?: string };
+export type DraftLine = { accountId: string; debit?: Prisma.Decimal.Value; credit?: Prisma.Decimal.Value; clientId?: string | null; vendorId?: string | null; memo?: string };
 
 // Every posted entry must balance: total debits equal total credits.
 export function assertBalanced(lines: DraftLine[]) {
