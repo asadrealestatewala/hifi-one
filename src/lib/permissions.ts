@@ -68,6 +68,10 @@ export const PERMISSIONS = {
   "commissions.manage": "Set commission rates, work out commissions, add bonuses and void entries",
   "commissions.approve": "Approve commission and bonus payouts and record their payment",
   "assistant.use": "Ask the business assistant questions about information you can already see",
+  "monitoring.own": "Use the work time tracker and see everything recorded about you",
+  "monitoring.view_team": "See workforce time and activity reports (no screenshots)",
+  "monitoring.screenshots": "Open other people's screenshots (every view is logged and visible to them)",
+  "monitoring.configure": "Set the monitoring policy, enrol and revoke devices",
   "quotes.view": "View quotations",
   "quotes.manage": "Create, send and record decisions on quotations",
   "contracts.view": "View client contracts",
@@ -117,7 +121,7 @@ export const ROLE_DEFS: RoleDef[] = [
 // Every internal role can use self-service; managers can approve their reports' leave; HR gets the HR tools.
 const EXTERNAL_ROLES = new Set(["CLIENT", "VENDOR", "BUSINESS_PARTNER", "INVESTOR"]);
 const EXTRA: Record<string, PermissionKey[]> = {
-  HR_MANAGER: ["hr.view", "hr.manage", "hr.view_sensitive", "leave.approve", "attendance.view_all", "payroll.view", "payroll.manage"],
+  HR_MANAGER: ["hr.view", "hr.manage", "hr.view_sensitive", "leave.approve", "attendance.view_all", "payroll.view", "payroll.manage", "monitoring.view_team", "monitoring.screenshots", "monitoring.configure"],
   BRANCH_MANAGER: ["leave.approve", "hr.view"],
   SALES_MANAGER: ["leave.approve", "quotes.view", "quotes.manage", "contracts.view", "contracts.manage", "commissions.own"],
   SALES_AGENT: ["quotes.view", "quotes.manage", "commissions.own"],
@@ -134,5 +138,5 @@ const EXTRA: Record<string, PermissionKey[]> = {
 };
 for (const r of ROLE_DEFS) {
   if (r.permissions === "ALL" || EXTERNAL_ROLES.has(r.key)) continue;
-  r.permissions = [...new Set<PermissionKey>([...r.permissions, "self.attendance", "self.leave", "self.payslip", "self.expense", "assistant.use", ...(EXTRA[r.key] ?? [])])];
+  r.permissions = [...new Set<PermissionKey>([...r.permissions, "self.attendance", "self.leave", "self.payslip", "self.expense", "assistant.use", "monitoring.own", ...(EXTRA[r.key] ?? [])])];
 }

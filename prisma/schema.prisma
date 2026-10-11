@@ -1609,3 +1609,173 @@ model SalesTarget {
 
   @@unique([organizationId, userId, metric])
 }
+
+// ---------- Work activity monitoring (transparent, consent-based; see docs/MONITORING.md) ----------
+
+// Off until an administrator turns it on. Changing what is collected raises the version, and everyone must read and accept the new version before anything is recorded about them.
+model MonitoringPolicy {
+  organizationId       String   @id
+  version              Int      @default(1)
+  enabled              Boolean  @default(false)
+  policyText           String   @default("")
+  trackActivity        Boolean  @default(true)  // aggregate active/idle time and key and click COUNTS (never what was typed)
+  trackApps            Boolean  @default(false) // names of applications used, as durations
+  screenshots          Boolean  @default(false)
+  screenshotIntervalMin Int     @default(10)
+  idleThresholdMin     Int      @default(5)
+  timezone             String   @default("Asia/Karachi") // working hours below are in this time zone
+  workStart            String   @default("09:00")
+  workEnd              String   @default("18:00")
+  workDays             String   @default("1,2,3,4,5") // 0 = Sunday
+  retentionDays        Int      @default(30)
+  updatedById          String?
+  updatedAt            DateTime @updatedAt
+}
+
+model PolicyAck {
+  id        String   @id @default(cuid())
+  userId    String
+  version   Int
+  createdAt DateTime @default(now())
+
+  @@unique([userId, version])
+}
+
+model WorkSession {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String
+  startedAt      DateTime  @default(now())
+  endedAt        DateTime?
+  lastBeatAt     DateTime  @default(now())
+  source         String    @default("WEB") // WEB | AGENT
+  projectId      String?
+  taskId         String?
+  note           String?
+
+  breaks WorkBreak[]
+
+  @@index([userId, startedAt])
+  @@index([organizationId, startedAt])
+}
+
+model WorkBreak {
+  id        String    @id @default(cuid())
+  sessionId String
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+
+  session WorkSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+}
+
+// Totals for a five-minute window. Counts only: no content, no key names, no pointer positions.
+model ActivityBucket {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  bucketStart    DateTime
+  activeSeconds  Int      @default(0)
+  idleSeconds    Int      @default(0)
+  keyCount       Int      @default(0)
+  clickCount     Int      @default(0)
+  source         String   @default("WEB")
+
+  @@unique([userId, bucketStart, source])
+  @@index([organizationId, bucketStart])
+}
+
+model AppUsage {
+  id             String @id @default(cuid())
+  organizationId String
+  userId         String
+  day            String // YYYY-MM-DD
+  name           String // application name only, never window titles or addresses
+  seconds        Int    @default(0)
+
+  @@unique([userId, day, name])
+  @@index([organizationId, day])
+}
+
+model AppCategory {
+  id             String @id @default(cuid())
+  organizationId String
+  pattern        String // matched against the application name, case-insensitive
+  category       String // PRODUCTIVE | NEUTRAL | UNPRODUCTIVE
+
+  @@unique([organizationId, pattern])
+}
+
+model MonitorDevice {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String
+  name           String
+  os             String?
+  agentVersion   String?
+  tokenHash      String    @unique
+  enrolledAt     DateTime  @default(now())
+  lastSeenAt     DateTime?
+  revokedAt      DateTime?
+
+  @@index([userId])
+}
+
+model EnrollmentCode {
+  id          String    @id @default(cuid())
+  userId      String
+  codeHash    String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+}
+
+model Screenshot {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String
+  deviceId       String?
+  capturedAt     DateTime
+  storageKey     String    @unique
+  contentType    String
+  size           Int
+  sha256         String
+  disputed       Boolean   @default(false)
+  disputeNote    String?
+  deletedAt      DateTime?
+
+  @@index([userId, capturedAt])
+  @@index([organizationId, capturedAt])
+}
+
+// Every time someone other than the employee opens a screenshot or a detailed report, so employees can see who looked.
+model MonitoringAccess {
+  id             String   @id @default(cuid())
+  organizationId String
+  viewerId       String
+  subjectId      String
+  what           String   // SCREENSHOT | REPORT
+  targetId       String?
+  createdAt      DateTime @default(now())
+
+  @@index([subjectId, createdAt])
+}
+
+model TimesheetCorrection {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String
+  day            String    // YYYY-MM-DD
+  requestedMinutes Int     // tracked minutes the employee says the day should show
+  reason         String
+  status         String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  decidedById    String?
+  decidedAt      DateTime?
+  decisionNote   String?
+  createdAt      DateTime  @default(now())
+
+  @@index([organizationId, status])
+  @@index([userId, day])
+}

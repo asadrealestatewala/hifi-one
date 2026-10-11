@@ -99,7 +99,8 @@ describe("every route handler checks the caller", () => {
   // Public by design: the health check returns nothing but "ok"
   // The calendar feed is opened by calendar apps that cannot sign in; it is protected by a long secret address instead
   // and must resolve that secret through eventsForToken (which refuses unknown, switched-off and inactive-user tokens).
-  const PUBLIC_ROUTES = new Set(["api/health/route.ts", "api/calendar/[token]/route.ts"]);
+  // The desktop agent endpoints sign in with a device token instead of a browser session (see the agent test below).
+  const PUBLIC_ROUTES = new Set(["api/health/route.ts", "api/calendar/[token]/route.ts", "api/agent/enroll/route.ts", "api/agent/policy/route.ts", "api/agent/ingest/route.ts", "api/agent/screenshot/route.ts"]);
   for (const f of files.filter((x) => x.endsWith("/route.ts"))) {
     const r = rel(f);
     if (PUBLIC_ROUTES.has(r)) continue;
@@ -115,6 +116,18 @@ describe("the secret-address calendar feed", () => {
     expect(src).toContain("eventsForToken(");
     expect(src).toMatch(/status:\s*404/);
     expect(src).toContain("no-store");
+  });
+});
+
+describe("the desktop agent endpoints", () => {
+  it("authenticate the device (or redeem a one-time code) before doing anything", () => {
+    for (const r of ["policy", "ingest", "screenshot"]) {
+      const src = read(path.resolve(__dirname, `../app/api/agent/${r}/route.ts`));
+      expect(src, r).toContain("deviceFrom(req)");
+      expect(src, r).toMatch(/401/);
+    }
+    expect(read(path.resolve(__dirname, "../app/api/agent/enroll/route.ts"))).toContain("enrollDevice(");
+    expect(read(path.resolve(__dirname, "../lib/agent-http.ts"))).toContain("authenticateDevice(");
   });
 });
 

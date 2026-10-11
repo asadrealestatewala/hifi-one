@@ -48,6 +48,7 @@ export const NAV: NavGroup[] = [
     { href: "/hr/employees", label: "Employees", permission: "hr.view" },
     { href: "/hr/attendance", label: "Attendance (all)", permission: "attendance.view_all" },
     { href: "/payroll", label: "Payroll", permission: "payroll.view" },
+    { href: "/hr/monitoring", label: "Workforce Activity", permission: "monitoring.view_team" },
   ] },
   { id: "vendors", title: "Procurement & Vendors", icon: "truck", items: [
     { href: "/vendors", label: "Vendor Directory", permission: "vendors.view" },
@@ -55,6 +56,7 @@ export const NAV: NavGroup[] = [
   ] },
   { id: "me", title: "My Workspace", icon: "user", items: [
     { href: "/me/attendance", label: "My Attendance", permission: "self.attendance" },
+    { href: "/me/time", label: "My Time & Activity", permission: "monitoring.own" },
     { href: "/me/leave", label: "My Leave", permission: "self.leave" },
     { href: "/me/payslips", label: "My Payslips", permission: "self.payslip" },
     { href: "/expenses", label: "Expense Vouchers", permission: "self.expense" },
@@ -73,6 +75,7 @@ export const NAV: NavGroup[] = [
     { href: "/settings/exchange-rates", label: "Exchange Rates", permission: "reports.view" },
     { href: "/settings/tax-rates", label: "Tax Rates", permission: "settings.company.view" },
     { href: "/settings/email", label: "Email", permission: "settings.company.view" },
+    { href: "/settings/monitoring", label: "Monitoring Policy", permission: "monitoring.configure" },
     { href: "/audit-logs", label: "Audit Logs", permission: "audit.view" },
     { href: "/settings/security", label: "Security Checklist", permission: "audit.view" },
   ] },

@@ -2,11 +2,19 @@
 
 Phases follow section 35 of [spec.md](spec.md).
 
+## Redesign, speed, CRM depth and activity monitoring (done)
+
+- **Speed:** the slowness came from running the development server, which compiles every page when first opened. In production mode pages answer in about 35 to 140 ms on this machine. Use `npm run serve` (build then start). Also added: loading skeletons so screens respond instantly, and a per-request session cache (one database lookup instead of two per page).
+- **New look:** a modern minimal shell. Grouped dropdown sidebar (each module opens to its screens, the current one opens itself, collapses to icons, remembers its state), top bar with search (Ctrl+K), a Create menu, light/dark theme, notifications and profile menu, mobile drawer; refreshed colours, buttons, forms, tables, cards; new login screen.
+- **CRM:** Smart Lists (eight built-in lists plus saved, shareable custom filters), Campaigns with leads, wins and cost per lead, Sales Activity with daily and monthly targets, verified connected calls and a team ranking, lead scoring with visible reasons, extra lead fields (city, time zone, preferred contact, expected closing date, campaign, tags, owner), activity logging (calls with outcomes, emails, meetings, follow-ups, proposals), a timeline, and richer opportunity cards (avatar, probability, campaign, follow-up, score, column totals). 13 tests.
+- **Monitoring:** see docs/MONITORING.md. Policy and consent per version, browser time tracker with idle detection and breaks, timesheets and correction requests, HR workforce report, logged screenshot access with employee dispute, device enrolment and revocation, desktop agent for Windows, retention purge. 18 tests plus a browser run and an end-to-end agent run.
+Limits: the desktop agent is a console program, not a signed installer; no key or click counts from the desktop; contacts and companies are not separate screens; scheduled smart-list exports and AI qualification are not built.
+
 ## WhatsApp click-to-chat (done); other integrations decided, not built
 
 - "Message on WhatsApp" buttons on leads (follow-up), sent quotations (follow-up) and issued invoices with a balance (payment reminder). They open the person's own WhatsApp with the message ready; the person presses send. Numbers are cleaned to international form (a leading 0 uses +92 by default). 6 tests. Hifi One cannot tell whether the message was sent.
 - **Not built, and why:** the WhatsApp Business API (needs a Meta business account, a verified number and approved message templates), ad platforms such as Meta Ads and Google Ads (need developer tokens and approved app access), telephony and video meetings (need provider accounts). Each should be built against a real account so it can be tested, not guessed. 
-- **Employee monitoring is deliberately not built.** Screenshots, keystrokes or activity tracking of staff need a written policy, staff notice and consent under the laws of the countries involved (Pakistan, the UAE, the UK and the US differ), a clear business purpose, and a limit on who can see the data. Attendance, task time and project time logging already exist and are visible to the person being recorded. If you want more, start with the policy and I will build to it.
+- **Employee monitoring** was first held back and has now been built to the brief's own rules (consent, minimal collection, visibility to the employee, logged access). See the section above and docs/MONITORING.md.
 
 ## Deployment package and rehearsal (done, Docker untested)
 

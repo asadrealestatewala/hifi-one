@@ -33,6 +33,14 @@ What is in place, how it is checked, and what is not done yet.
 - Documents are generated server-side from the same loaders as downloads; drafts and cancelled documents cannot be emailed, and another organization's records are never found.
 - Every attempt is logged (who, to whom, which document, result). The log says SENT only when the mail server accepted the message.
 
+## Work monitoring
+
+- Off by default; nothing is recorded for a person until they accept the current policy version, and a new version needs fresh acceptance.
+- Only counts, durations and application names are stored; there is no column for typed content, window titles or addresses.
+- Screenshots: owner always; anyone else needs `monitoring.screenshots`, and each view is logged and shown to the owner. A user without it gets the same 404 as for a missing file. Images are validated by content, size-limited, rate-limited to the policy interval and held outside any public folder.
+- Desktop agent devices authenticate with a long random token that is stored only as a hash, enrolled with a single-use code that expires in an hour, rate limited, and revocable at once. The agent routes are the only other place besides the calendar feed that do not use a browser session, and the authorization test requires them to authenticate the device.
+- See docs/MONITORING.md for the full list of rules.
+
 ## Calendar feed
 
 The calendar address is a bearer secret (48 random hex characters, unique, rotatable, switchable off). It is the one place the system serves data without a sign-in, because calendar apps cannot sign in; the route is explicitly allowed in the authorization test and must resolve its token through one function that refuses unknown, disabled and inactive-user tokens. It is rate limited, never cached, and contains only the person's own items plus dates their role can already view. Do not paste the address into chat or email.
