@@ -1,86 +1,139 @@
 @import "tailwindcss";
 
+/* Design tokens. Light is the default; dark applies from the saved choice or the system setting (see the script in layout.tsx). */
 :root {
-  --background: #f5f6f9;
-  --foreground: #14172b;
+  --background: #f6f7fb;
+  --foreground: #161a33;
   --surface: #ffffff;
-  --border: #e3e5ee;
-  --muted: #6b7087;
+  --hover: #f0f1f8;
+  --border: #e5e7f0;
+  --muted: #6b7189;
+  --primary: #5648e8;
+  --primary-dark: #4437c9;
+  --accent: #a89cff;
+  --sidebar: #0f1230;
+  --sidebar-fg: #aeb4da;
   --navy: #12163a;
-  --brand: #e11d1d;
+  --brand: #e11d1d; /* the logo red: also used for errors and alerts */
   --brand-dark: #b81414;
+  --success: #15803d;
+  --warning: #b45309;
+  --shadow: 0 1px 2px rgb(16 20 50 / 0.05), 0 1px 3px rgb(16 20 50 / 0.04);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0c0f24;
-    --foreground: #eceef8;
-    --surface: #151a3a;
-    --border: #262c55;
-    --muted: #9aa0c3;
-    --navy: #080a1c;
-  }
+:root[data-theme="dark"] {
+  --background: #0b0e24;
+  --foreground: #e9ebf8;
+  --surface: #141939;
+  --hover: #1c2250;
+  --border: #262d5c;
+  --muted: #9aa1c9;
+  --primary: #7b70ff;
+  --primary-dark: #6a5ef0;
+  --accent: #b9b0ff;
+  --sidebar: #080a1d;
+  --sidebar-fg: #9ba2cd;
+  --navy: #080a1c;
+  --brand: #ff5b5b;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.35);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
+  --color-hover: var(--hover);
   --color-border: var(--border);
   --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --color-accent: var(--accent);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-fg: var(--sidebar-fg);
   --color-navy: var(--navy);
   --color-brand: var(--brand);
   --color-brand-dark: var(--brand-dark);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
+html { scroll-behavior: smooth; }
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
 }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
+::selection { background: color-mix(in srgb, var(--primary) 25%, transparent); }
 
+/* Forms */
 .input {
   width: 100%;
   border: 1px solid var(--border);
   background: var(--surface);
-  border-radius: 0.5rem;
+  color: var(--foreground);
+  border-radius: 0.625rem;
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-.input:focus {
-  outline: 2px solid var(--brand);
-  outline-offset: -1px;
-}
+.input::placeholder { color: color-mix(in srgb, var(--muted) 70%, transparent); }
+.input:hover:not(:disabled) { border-color: color-mix(in srgb, var(--primary) 35%, var(--border)); }
+.input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent); }
+.input:disabled { opacity: 0.6; cursor: not-allowed; }
+select.input { appearance: none; padding-right: 2rem; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7189' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.6rem center; background-size: 1rem; }
+.label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--muted); margin-bottom: 0.3rem; }
+
+/* Buttons */
 .btn {
-  background: var(--brand);
-  color: #fff;
-  border-radius: 0.5rem;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  background: var(--primary); color: #fff; border-radius: 0.625rem; padding: 0.5rem 1rem;
+  font-size: 0.875rem; font-weight: 600; box-shadow: var(--shadow); transition: background 0.15s, transform 0.05s;
 }
-.btn:hover {
-  background: var(--brand-dark);
-}
+.btn:hover:not(:disabled) { background: var(--primary-dark); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn-ghost {
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  padding: 0.4rem 0.8rem;
-  font-size: 0.8125rem;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  border: 1px solid var(--border); background: var(--surface); border-radius: 0.625rem; padding: 0.4rem 0.8rem;
+  font-size: 0.8125rem; font-weight: 500; transition: background 0.15s, border-color 0.15s;
 }
+.btn-ghost:hover:not(:disabled) { background: var(--hover); border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); }
+
+/* Surfaces */
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  border-radius: 0.875rem;
   padding: 1.25rem;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+  box-shadow: var(--shadow);
 }
-.label {
-  display: block;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--muted);
-  margin-bottom: 0.25rem;
+
+/* Tables: quiet headers, comfortable rows, row highlight. Applies to every table inside a card. */
+.card table { border-collapse: collapse; }
+.card thead th { font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.card tbody tr { transition: background 0.1s; }
+.card tbody tr:hover { background: var(--hover); }
+.card tbody td { vertical-align: middle; }
+
+/* Headings inside pages */
+main h1 { letter-spacing: -0.02em; }
+
+/* Loading skeletons */
+.skeleton { background: linear-gradient(90deg, var(--hover) 25%, color-mix(in srgb, var(--hover) 55%, var(--surface)) 50%, var(--hover) 75%); background-size: 200% 100%; animation: shimmer 1.3s infinite; border-radius: 0.5rem; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+@media print {
+  aside, header { display: none !important; }
+  main { padding: 0 !important; max-width: none !important; }
+  .card { box-shadow: none; }
 }

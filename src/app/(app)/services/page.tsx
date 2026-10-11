@@ -94,7 +94,7 @@ export default async function Services({ searchParams }: { searchParams: Promise
         </div>
         <nav aria-label="Currency" className="flex gap-1">
           {CURRENCIES.map((k) => (
-            <Link key={k} href={q(selected?.id ?? "", k)} className={`btn-ghost ${k === currency ? "!bg-brand !text-white !border-brand" : ""}`}>{k}</Link>
+            <Link key={k} href={q(selected?.id ?? "", k)} className={`btn-ghost ${k === currency ? "!bg-primary !text-white !border-primary" : ""}`}>{k}</Link>
           ))}
         </nav>
       </div>

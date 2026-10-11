@@ -1,3 +1,4 @@
+import { cache } from "react";
 import "server-only";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -126,7 +127,7 @@ export async function logout() {
   jar.delete(COOKIE);
 }
 
-export async function getSessionUser(): Promise<SessionUser | null> {
+async function loadSessionUser(): Promise<SessionUser | null> {
   const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
   let sid: string;
@@ -168,6 +169,9 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     mfaRequired: activeRoles.some((r) => r.role.requireMfa),
   };
 }
+
+// One lookup per request: the layout and the page both ask, but the database is only asked once.
+export const getSessionUser = cache(loadSessionUser);
 
 // Internal pages: employees only. Portal users are sent to their own portal.
 export async function requireUser(opts: { allowMustChange?: boolean; allowMfaSetup?: boolean } = {}): Promise<SessionUser> {
