@@ -6,6 +6,8 @@ import { z } from "zod";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { leadScope, normalizePhone } from "@/lib/leads";
+import { convertLead } from "@/lib/conversion";
+import { LedgerError } from "@/lib/ledger-math";
 
 const opt = z.string().trim().max(500).optional().transform((v) => (v ? v : null));
 
@@ -68,7 +70,21 @@ export async function moveLead(leadId: string, stageId: string): Promise<MoveRes
   if (!stage) return { ok: false, error: "Unknown stage." };
   if (stage.id === lead.stageId) return { ok: true };
   if (stage.isWon) {
-    return { ok: false, error: "Closed Won needs the client conversion workflow (invoice, contract, project), which is built in a later phase. Not changed." };
+    // Closed Won is a controlled conversion, never just a label change, and needs manager approval.
+    if (!user.permissions.has("crm.convert")) {
+      return { ok: false, error: "Closed Won needs manager approval. Ask a sales manager to convert this lead." };
+    }
+    try {
+      const r = await convertLead(db, { organizationId: user.organizationId, leadId: lead.id, actorId: user.id, wonStageId: stage.id });
+      await audit(user, { action: "lead.convert", entity: "Lead", entityId: lead.id, after: { clientId: r.clientId, invoiceId: r.invoiceId, alreadyConverted: r.alreadyConverted } });
+    } catch (e) {
+      if (e instanceof LedgerError) return { ok: false, error: e.message };
+      throw e;
+    }
+    revalidatePath("/pipeline");
+    revalidatePath("/leads");
+    revalidatePath(`/leads/${lead.id}`);
+    return { ok: true };
   }
   await db.$transaction([
     db.lead.update({ where: { id: lead.id }, data: { stageId: stage.id, stageChangedAt: new Date() } }),

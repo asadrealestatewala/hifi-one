@@ -329,9 +329,12 @@ model Lead {
   nextFollowUp   DateTime?
   notes          String?
   createdById    String?
+  clientId       String?
+  convertedAt    DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  client     Client?       @relation(fields: [clientId], references: [id])
   stage      PipelineStage @relation(fields: [stageId], references: [id])
   plan       ServicePlan?  @relation(fields: [planId], references: [id])
   activities LeadActivity[]
@@ -383,6 +386,7 @@ model Client {
   invoices Invoice[]
   payments Payment[]
   journalLines JournalLine[]
+  leads    Lead[]
 
   @@unique([organizationId, name])
 }

@@ -36,6 +36,11 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="card">
           <h2 className="font-semibold mb-3">Details</h2>
+          {lead.clientId && (
+            <p className="text-sm mb-3 rounded-lg bg-green-600/10 text-green-700 px-3 py-2">
+              Converted to a client. <Link className="underline" href={`/clients/${lead.clientId}`}>Open client account</Link>
+            </p>
+          )}
           <dl className="grid grid-cols-3 gap-y-2 text-sm">
             <dt className="text-muted">Stage</dt><dd className="col-span-2">{lead.stage.name}</dd>
             {rows.map(([k, v]) => (

@@ -175,3 +175,53 @@ describe("integrity", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("lead conversion", () => {
+  async function wonLead(name: string, email: string, dealValue: string) {
+    const stage = await db.pipelineStage.upsert({
+      where: { organizationId_name: { organizationId: org, name: "Closed Won" } },
+      update: {}, create: { organizationId: org, name: "Closed Won", sortOrder: 9, isWon: true },
+    });
+    const first = await db.pipelineStage.upsert({
+      where: { organizationId_name: { organizationId: org, name: "New" } },
+      update: {}, create: { organizationId: org, name: "New", sortOrder: 0 },
+    });
+    const lead = await db.lead.create({
+      data: { organizationId: org, name, email, dealValue, currency: "USD", stageId: first.id },
+    });
+    return { lead, stage };
+  }
+
+  it("concurrent conversions create one client and one draft invoice", async () => {
+    const { convertLead } = await import("./conversion");
+    const { lead, stage } = await wonLead("Dana Lead", "dana@newco.example", "900");
+    const results = await Promise.all(
+      [1, 2, 3].map(() => convertLead(db, { organizationId: org, leadId: lead.id, actorId: actor, wonStageId: stage.id })),
+    );
+    expect(new Set(results.map((r) => r.clientId)).size).toBe(1);
+    expect(results.filter((r) => !r.alreadyConverted)).toHaveLength(1);
+    expect(await db.invoice.count({ where: { clientId: results[0].clientId } })).toBe(1);
+    const inv = await db.invoice.findFirstOrThrow({ where: { clientId: results[0].clientId } });
+    expect(inv.status).toBe("DRAFT"); // never issued automatically
+    expect(inv.number).toBeNull();
+    const after = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
+    expect(after.stageId).toBe(stage.id);
+  });
+
+  it("links an existing client instead of duplicating it", async () => {
+    const { convertLead } = await import("./conversion");
+    const { lead, stage } = await wonLead("Someone", "someone@acme.example", "100");
+    await db.lead.update({ where: { id: lead.id }, data: { company: "Acme" } }); // existing client is named Acme
+    const before = await db.client.count();
+    const r = await convertLead(db, { organizationId: org, leadId: lead.id, actorId: actor, wonStageId: stage.id });
+    expect(await db.client.count()).toBe(before);
+    expect(r.clientId).toBe(client);
+  });
+
+  it("creates no invoice when there is no deal value", async () => {
+    const { convertLead } = await import("./conversion");
+    const { lead, stage } = await wonLead("No Value", "novalue@x.example", "0");
+    const r = await convertLead(db, { organizationId: org, leadId: lead.id, actorId: actor, wonStageId: stage.id });
+    expect(r.invoiceId).toBeNull();
+  });
+});

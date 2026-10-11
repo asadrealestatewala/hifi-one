@@ -25,7 +25,7 @@ Done and verified on localhost:
 - Service catalog: 20 categories, public-style pricing page with plan cards, Most Popular highlight, per-currency price (PKR/USD/AED/GBP), edit price with audit and plan version bump. Only AED example prices are seeded; other currencies show "Price not set".
 - Leads: create with duplicate detection (email/phone), search, detail page with notes and activity timeline, record-level access (agents see own leads, managers see all).
 - Pipeline board: configurable stages (seeded), drag and drop plus a stage menu for touch/keyboard, persisted, optimistic with rollback.
-- Closed Won is deliberately blocked until the client conversion workflow exists.
+- Closed Won runs a controlled, repeatable conversion (needs the crm.convert permission): links or creates the client without duplicating, creates a DRAFT invoice from the deal value, keeps the lead history. Portal invitation and contract generation come with the client portal phase.
 
 Still to do in Phase 1: contacts and companies, Smart Lists, prospecting worklists with CSV import, quotes, contracts, client conversion (needs accounting), commissions setup.
 
