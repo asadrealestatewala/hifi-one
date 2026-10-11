@@ -11,6 +11,7 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "roles:sync": "tsx scripts/sync-roles.mts",
+    "backup:check": "node scripts/check-backup.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run --exclude \"**/*.integration.test.ts\"",

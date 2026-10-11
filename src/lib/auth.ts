@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { limiter } from "./rate-limit";
 import { checkSecondFactor } from "./mfa";
+import { needsMfaSetup } from "./mfa-policy";
 import type { PermissionKey } from "./permissions";
 
 const COOKIE = "hifi_session";
@@ -31,6 +32,8 @@ export type SessionUser = {
   permissions: Set<PermissionKey>;
   roles: string[];
   roleKeys: string[];
+  totpEnabled: boolean;
+  mfaRequired: boolean;
 };
 
 const MFA_COOKIE = "hifi_mfa_pending";
@@ -161,15 +164,19 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     permissions,
     roles: activeRoles.map((r) => r.role.name),
     roleKeys: activeRoles.map((r) => r.role.key),
+    totpEnabled: session.user.totpEnabled,
+    mfaRequired: activeRoles.some((r) => r.role.requireMfa),
   };
 }
 
 // Internal pages: employees only. Portal users are sent to their own portal.
-export async function requireUser(opts: { allowMustChange?: boolean } = {}): Promise<SessionUser> {
+export async function requireUser(opts: { allowMustChange?: boolean; allowMfaSetup?: boolean } = {}): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) redirect("/login");
   // A starting or reset password must be replaced before anything else is usable
   if (user.mustChangePassword && !opts.allowMustChange && user.userType === "EMPLOYEE") redirect("/account/password?force=1");
+  // A role that requires two-step verification blocks everything except setting it up
+  if (needsMfaSetup(user) && !opts.allowMfaSetup) redirect("/account/security?required=1");
   if (user.userType === "CLIENT") redirect("/portal");
   if (user.userType === "VENDOR") redirect("/vendor");
   if (user.userType !== "EMPLOYEE") redirect("/forbidden");
@@ -223,6 +230,7 @@ export const toActor = (u: SessionUser) => ({ id: u.id, isSuperAdmin: u.roleKeys
 export async function requireSession(): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  if (needsMfaSetup(user)) redirect("/account/security?required=1");
   return user;
 }
 

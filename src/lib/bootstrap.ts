@@ -6,6 +6,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 import { ALL_PERMISSIONS, PERMISSIONS, ROLE_DEFS } from "./permissions";
+import { SENSITIVE_ROLE_KEYS } from "./mfa-policy";
 
 export class SetupError extends Error {}
 
@@ -44,14 +45,14 @@ export const LEAVE_TYPES: [string, number, boolean][] = [["Annual", 14, true], [
 
 // Permissions are global. Roles are per organization; with overwrite the system roles are reset to the
 // definitions in code (used by the development seed). A real installation keeps edits made in the Roles screen.
-export async function syncPermissionsAndRoles(db: Db, organizationId: string, opts: { overwrite: boolean }) {
+export async function syncPermissionsAndRoles(db: Db, organizationId: string, opts: { overwrite: boolean; requireMfaForSensitive?: boolean }) {
   for (const [key, description] of Object.entries(PERMISSIONS)) {
     await db.permission.upsert({ where: { key }, update: { description }, create: { key, description } });
   }
   const permId = new Map((await db.permission.findMany()).map((p) => [p.key, p.id]));
   for (const def of ROLE_DEFS) {
     const existing = await db.role.findUnique({ where: { organizationId_key: { organizationId, key: def.key } } });
-    const role = existing ?? (await db.role.create({ data: { organizationId, key: def.key, name: def.name, isSystem: true } }));
+    const role = existing ?? (await db.role.create({ data: { organizationId, key: def.key, name: def.name, isSystem: true, requireMfa: Boolean(opts.requireMfaForSensitive) && (SENSITIVE_ROLE_KEYS as readonly string[]).includes(def.key) } }));
     if (existing && !opts.overwrite) {
       // New permissions that Super Admin should always hold are added even without overwrite
       if (def.permissions !== "ALL") continue;
@@ -115,7 +116,7 @@ export async function firstSetup(
       await tx.companyProfile.create({
         data: { organizationId: org.id, isDefault: true, legalName: p.companyName.trim(), defaultCurrency: p.currency ?? "USD", timezone: p.timezone ?? "UTC" },
       });
-      await syncPermissionsAndRoles(tx, org.id, { overwrite: true });
+      await syncPermissionsAndRoles(tx, org.id, { overwrite: true, requireMfaForSensitive: true });
       await seedBaseline(tx, org.id);
       const role = await tx.role.findUniqueOrThrow({ where: { organizationId_key: { organizationId: org.id, key: "SUPER_ADMIN" } } });
       const user = await tx.user.create({ data: { organizationId: org.id, email, name: p.adminName.trim(), passwordHash, roles: { create: { roleId: role.id } } } });

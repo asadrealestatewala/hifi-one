@@ -6,8 +6,9 @@ import SecurityPanel from "./SecurityPanel";
 
 export const dynamic = "force-dynamic";
 
-export default async function Security() {
-  const user = await requireUser();
+export default async function Security({ searchParams }: { searchParams: Promise<{ required?: string }> }) {
+  const user = await requireUser({ allowMfaSetup: true });
+  const { required } = await searchParams;
   const row = await db.user.findUniqueOrThrow({ where: { id: user.id } });
   let pending: { secret: string; qr: string } | null = null;
   if (!row.totpEnabled && row.totpSecretEnc) {
@@ -23,6 +24,7 @@ export default async function Security() {
   return (
     <div className="max-w-xl space-y-4">
       <h1 className="text-2xl font-bold">Account security</h1>
+      {(required || (user.mfaRequired && !user.totpEnabled)) && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">Your role requires two-step verification. Turn it on below to continue; nothing else in the system opens until you do.</p>}
       <SecurityPanel enabled={row.totpEnabled} pending={pending} remaining={remaining} />
     </div>
   );

@@ -97,6 +97,7 @@ model Role {
   key            String // e.g. SUPER_ADMIN
   name           String
   isSystem       Boolean @default(false)
+  requireMfa     Boolean @default(false) // everyone holding this role must use two-step verification
 
   organization Organization    @relation(fields: [organizationId], references: [id])
   permissions  RolePermission[]

@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 async function change(formData: FormData) {
   "use server";
-  const user = await requireUser({ allowMustChange: true });
+  const user = await requireUser({ allowMustChange: true, allowMfaSetup: true });
   const current = String(formData.get("current") ?? "");
   const next = String(formData.get("next") ?? "");
   const back = (m: string, ok = false) => redirect(`/account/password?${ok ? "ok" : "error"}=${encodeURIComponent(m)}`);
@@ -22,7 +22,7 @@ async function change(formData: FormData) {
 }
 
 export default async function Password({ searchParams }: { searchParams: Promise<{ error?: string; force?: string }> }) {
-  await requireUser({ allowMustChange: true });
+  await requireUser({ allowMustChange: true, allowMfaSetup: true });
   const { error, force } = await searchParams;
   return (
     <div className="max-w-md space-y-4">

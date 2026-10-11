@@ -91,6 +91,7 @@ const NAV: NavGroup[] = [
       { href: "/users", label: "Users", permission: "users.view" },
       { href: "/roles", label: "Roles & Permissions", permission: "roles.manage" },
       { href: "/audit-logs", label: "Audit Logs", permission: "audit.view" },
+      { href: "/settings/security", label: "Security Checklist", permission: "audit.view" },
     ],
   },
 ];
@@ -103,7 +104,7 @@ async function signOut() {
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   // The layout must not redirect (it would loop back to the password page); every page redirects on its own
-  const user = await requireUser({ allowMustChange: true });
+  const user = await requireUser({ allowMustChange: true, allowMfaSetup: true });
   const unread = await unreadCount(db, user.id);
   const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => user.permissions.has(i.permission)) })).filter(
     (g) => g.items.length > 0,

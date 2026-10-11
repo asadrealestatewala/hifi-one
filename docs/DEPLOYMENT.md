@@ -55,6 +55,16 @@ Terminate HTTPS at a reverse proxy or the platform and forward to the Node proce
 
 Never run `prisma migrate reset` or `prisma db push --force-reset` against a database that holds real data.
 
+## Backup verification
+
+A backup nobody has checked is a hope. Schedule this after your backup job and alert on a non-zero exit:
+
+```
+npm run backup:check -- /path/to/db-backups --max-hours 26 --files /path/to/upload-backups
+```
+
+It confirms the newest backup exists, is recent, is not empty and starts like a real PostgreSQL dump. It cannot prove a restore works: do a restore drill into a scratch database at least once a quarter and record the date.
+
 ## Backups and restore
 
 Production (PostgreSQL tools):

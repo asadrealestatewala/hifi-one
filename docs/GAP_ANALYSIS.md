@@ -71,8 +71,8 @@ The spec ([spec.md](spec.md)) describes a very large platform. The accounting, H
 ### 18 to 20: Accounting and expenses
 - Done: chart of accounts (view), double-entry journal with immutable posted lines, invoices, payments with allocation, advances, customer statements, trial balance, profit and loss, balance sheet, cash movement, receivables aging, expense vouchers with approval chain, budgets with controls and transfers.
 - Done since the first version: manual journal entries with approval and reversal, chart of accounts editing, period locking, credit notes, refunds of money held on account.
-- Done since: year-end close, bank reconciliation with CSV statement import, project profitability.
-- Not built: write-offs, discounts, multiple tax rates and tax reports, direct bank feeds, accounts payable aging, departmental expense reports, commission and payroll liability reports, general ledger by account with drill-down, receipt documents, expense voucher printing, document template manager.
+- Done since: year-end close, bank reconciliation with CSV statement import, project profitability, write-offs, tax rate list and sales tax report, payables aging.
+- Not built: discounts, input tax on purchases, direct bank feeds, vendor bill due dates, departmental expense reports, commission and payroll liability reports, general ledger by account with drill-down, receipt documents, expense voucher printing, document template manager.
 
 ### 21 and 22: Vendors, partners
 - Done: vendor directory, portal, opportunity to payment workflow, vendor ledger.

@@ -1,6 +1,7 @@
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ALL_PERMISSIONS, PERMISSIONS } from "@/lib/permissions";
+import { setRoleMfa } from "./actions";
 import { NewRole, RoleCard, type Group } from "./RoleEditor";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export default async function Roles() {
   const user = await requirePermission("roles.manage");
   const roles = await db.role.findMany({
     where: { organizationId: user.organizationId }, orderBy: [{ isSystem: "desc" }, { name: "asc" }],
-    include: { permissions: { include: { permission: true } }, _count: { select: { users: true } } },
+    include: { permissions: { include: { permission: true } }, _count: { select: { users: true } }, users: { select: { user: { select: { totpEnabled: true, active: true } } } } },
   });
   const groups = groupPermissions();
   const isSuper = user.roleKeys.includes("SUPER_ADMIN");
@@ -43,8 +44,18 @@ export default async function Roles() {
       <div className="space-y-3">
         {roles.map((r) => {
           const lockedReason = r.key === "SUPER_ADMIN" ? "Super Admin always holds every permission and cannot be edited." : external.includes(r.key) ? "Clients, vendors, partners and investors use their own portals and hold no staff permissions." : undefined;
+          const without = r.users.filter((u) => u.user.active && !u.user.totpEnabled).length;
           return (
-            <RoleCard key={r.id} id={r.id} name={r.name} isSystem={r.isSystem} users={r._count.users} held={r.permissions.map((p) => p.permission.key)} groups={groups} grantable={grantable} locked={Boolean(lockedReason)} lockedReason={lockedReason} />
+            <div key={r.id} className="space-y-1">
+            <RoleCard id={r.id} name={r.name} isSystem={r.isSystem} users={r._count.users} held={r.permissions.map((p) => p.permission.key)} groups={groups} grantable={grantable} locked={Boolean(lockedReason)} lockedReason={lockedReason} />
+            {!external.includes(r.key) && (
+              <form action={setRoleMfa} className="flex flex-wrap items-center gap-3 px-1 text-xs text-muted">
+                <input type="hidden" name="roleId" value={r.id} /><input type="hidden" name="on" value={String(!r.requireMfa)} />
+                <span>Two-step verification: <strong className={r.requireMfa ? "text-green-700" : ""}>{r.requireMfa ? "required" : "optional"}</strong>{r.requireMfa && without > 0 && `, ${without} user${without === 1 ? " has" : "s have"} not set it up yet`}</span>
+                <button className="underline">{r.requireMfa ? "Make optional" : "Require for this role"}</button>
+              </form>
+            )}
+            </div>
           );
         })}
       </div>

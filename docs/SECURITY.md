@@ -20,6 +20,12 @@ What is in place, how it is checked, and what is not done yet.
 - **User and role administration is guarded by rules in the service layer:** the system always keeps an active Super Admin (even when two admins change each other at once), only a Super Admin can grant, remove or reset a Super Admin, nobody can grant or remove a permission they do not hold themselves, changing a role or deactivating a user signs the people affected out, and built-in roles cannot be deleted. All changes are audited.
 - Staff, client and vendor sessions are separate: each type is redirected away from the other areas.
 
+## Two-step verification and the security checklist
+
+- Each role has a "require two-step verification" switch (Roles & Permissions). Anyone holding such a role is taken to the setup page at their next page load and can open nothing else (pages, downloads, actions) until it is on; the setup, password and health pages stay reachable so nobody is locked out.
+- New installations created through first-run setup require it for Super Admin, CEO, Finance Manager, Accountant and HR Manager. Existing installations and the development seed are left optional so an upgrade never locks people out; turn it on per role, then run the checklist.
+- Settings > Security Checklist shows live findings: session secret strength, roles without the requirement, users still to enrol, number of Super Admins, production mode, file storage location, virus scanning and starting passwords.
+
 ## Files and documents
 
 - Uploads are checked on the server by looking inside the file: the extension must match the contents, programs, scripts, HTML and SVG are refused, Office files with macros are refused, and the size limit is 15 MB. The server decides the content type; the uploader cannot.

@@ -37,6 +37,19 @@ export async function addRole(_prev: RoleState, formData: FormData): Promise<Rol
   }
 }
 
+export async function setRoleMfa(formData: FormData) {
+  const user = await requirePermission("roles.manage");
+  const roleId = String(formData.get("roleId"));
+  const on = formData.get("on") === "true";
+  const role = await db.role.findFirst({ where: { id: roleId, organizationId: user.organizationId } });
+  if (!role) return;
+  if (["CLIENT", "VENDOR", "BUSINESS_PARTNER", "INVESTOR"].includes(role.key)) return; // portal users sign in differently
+  await db.role.update({ where: { id: role.id }, data: { requireMfa: on } });
+  await audit(user, { action: on ? "role.require_mfa" : "role.allow_no_mfa", entity: "Role", entityId: role.id, before: { requireMfa: role.requireMfa }, after: { requireMfa: on } });
+  await db.settingChange.create({ data: { organizationId: user.organizationId, section: `role:${role.name}`, actorId: user.id, before: { requireMfa: role.requireMfa }, after: { requireMfa: on } } });
+  revalidatePath("/roles");
+}
+
 export async function removeRole(_prev: RoleState, formData: FormData): Promise<RoleState> {
   const user = await requirePermission("roles.manage");
   const roleId = String(formData.get("roleId"));

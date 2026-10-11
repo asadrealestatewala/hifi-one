@@ -2,6 +2,14 @@
 
 Phases follow section 35 of [spec.md](spec.md).
 
+## Tax, payables, write-offs and security pass (done)
+
+- Named tax rates (suggested when writing invoices, quotations and subscriptions; invoices still keep their issued percentage); sales tax report by rate and currency from issued invoices, net of tax reversed by credit notes
+- Payables aging report for posted unpaid vendor bills (age from posting; vendor bills have no due date yet)
+- Write-offs of unpaid invoice balances as bad debt (new finance.writeoff permission, Finance Manager): balance falls like a credit note, cost goes to Bad Debt Expense, tax only reversed when the person ticks the relief box, repeatable by key, safe under simultaneous clicks, own numbering and PDF title
+- Two-step verification can be required per role and is enforced on every page, action and download; Security Checklist page; `npm run backup:check`; 14 new tests plus a browser run (a protected role was redirected to setup everywhere except setup, password and health)
+Limits: tax paid on purchases is not tracked, so the tax report is tax charged, not tax due; backups are verified for freshness and shape, not restorability.
+
 ## Catalog editing, project depth, bank reconciliation and year-end close (done)
 
 About 45 new automated tests plus browser runs (a bank statement imported, suggestions confirmed, a bank fee posted from the statement, a wrong closing balance refused with the exact difference, the right one accepted; a milestone and time entry added to a project).
