@@ -1495,3 +1495,46 @@ model EmailMessage {
   @@index([organizationId, createdAt])
   @@index([relatedType, relatedId])
 }
+
+// ---------- Commissions and incentives ----------
+
+// A salesperson earns this percentage of the revenue (before tax) from clients they converted, as payments arrive.
+model CommissionRule {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  ratePercent    Decimal  @db.Decimal(5, 2)
+  active         Boolean  @default(true)
+  updatedById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, userId])
+}
+
+model CommissionEntry {
+  id               String    @id @default(cuid())
+  organizationId   String
+  userId           String
+  kind             String    @default("COMMISSION") // COMMISSION | BONUS
+  allocationId     String?   @unique // the payment allocation that earned it, so one payment is never commissioned twice
+  invoiceId        String?
+  clientId         String?
+  currency         String
+  base             Decimal   @default(0) @db.Decimal(14, 2) // revenue the percentage was applied to
+  ratePercent      Decimal   @default(0) @db.Decimal(5, 2)
+  amount           Decimal   @db.Decimal(14, 2)
+  note             String?
+  status           String    @default("EARNED") // EARNED | APPROVED | PAID | VOID
+  createdById      String?
+  approvedById     String?
+  approvedAt       DateTime?
+  accrualEntryId   String?
+  paidById         String?
+  paidAt           DateTime?
+  paymentEntryId   String?
+  createdAt        DateTime  @default(now())
+
+  @@index([organizationId, status])
+  @@index([userId, createdAt])
+}
