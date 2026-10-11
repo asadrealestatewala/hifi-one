@@ -2,6 +2,14 @@
 
 Phases follow section 35 of [spec.md](spec.md).
 
+## Production readiness pass (done)
+
+- Security headers and strict CSP/HSTS in production; sign-in and invitation rate limiting (proved in the browser: blocked on the 9th attempt); dependency audit clean (two transitive packages pinned); demo seed refuses to run in production; `/api/health`
+- Authorization coverage test: fails if any internal page lacks a permission check or any server action lacks a caller check (proved to fail on an unguarded page)
+- Production build passes; `next start` smoke-tested (headers, health, redirects, sign-in and sign-out under the CSP, no console errors)
+- Docs: DEPLOYMENT, SECURITY, ROLES (generated), GAP_ANALYSIS; local backup and restore scripts (production uses pg_dump, documented)
+- Not done: first-run production setup command, MFA, password reset, third-party security review (see docs/SECURITY.md)
+
 ## Phase 0: Foundation (in progress, core done)
 
 Done and verified on localhost:

@@ -1,6 +1,8 @@
 import Image from "next/image";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { db } from "@/lib/db";
+import { limiter } from "@/lib/rate-limit";
 import { LedgerError } from "@/lib/ledger-math";
 import { acceptInvite, inviteInfo } from "@/lib/portal";
 
@@ -9,6 +11,8 @@ export const dynamic = "force-dynamic";
 async function accept(formData: FormData) {
   "use server";
   const token = String(formData.get("token"));
+  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0].trim() ?? "local";
+  if (!limiter("invite-accept", 10, 60 * 60_000).take(ip)) redirect(`/invite/${token}?error=${encodeURIComponent("Too many attempts. Please try again later.")}`);
   try {
     await acceptInvite(db, { token, name: String(formData.get("name") ?? ""), password: String(formData.get("password") ?? "") });
   } catch (e) {

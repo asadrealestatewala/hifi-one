@@ -1,0 +1,82 @@
+# Deployment and operations
+
+This is a Next.js 15 application with a PostgreSQL database. There are no background workers yet: everything runs inside the web process.
+
+## What you need
+
+- Node.js 20 or newer
+- PostgreSQL 15 or newer, **UTF-8 encoding** (required for Urdu and Arabic text). A managed database (for example AWS RDS, Google Cloud SQL, Azure, Supabase, Neon or DigitalOcean) is recommended over running your own.
+- A host that can run a Node server (a VM, a container platform, or a Node-capable PaaS) with HTTPS in front of it
+
+The local development database (`npm run db:start`) is for development only. Do not use it in production.
+
+## Environment variables
+
+| Name | Purpose |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string, for example `postgresql://user:password@host:5432/hifi_one?sslmode=require` |
+| `SESSION_SECRET` | 32+ random characters used to sign session cookies. Generate: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Changing it signs everyone out. |
+| `NODE_ENV` | `production` (set by `next start`). Turns on secure cookies, HSTS and the strict Content-Security-Policy. |
+
+Keep these in your host's secret store, never in git. Only `.env.example` (placeholders) is committed.
+
+## First deployment
+
+```bash
+npm ci --legacy-peer-deps
+npx prisma migrate deploy      # creates all tables; safe to re-run
+npm run build
+npm run start                  # serves on port 3000 (use -p to change)
+```
+
+**Do not run the demo seed in production.** It creates demo users and example prices, and refuses to run when `NODE_ENV=production` unless `ALLOW_DEMO_SEED=1` is set.
+
+The first Super Admin must be created deliberately. There is no sign-up page. Until a setup command exists (see "Known gaps"), run a one-off script that creates the organization, roles (the role list lives in `src/lib/permissions.ts`), the company profile and one Super Admin with a strong password. The demo seed in `prisma/seed.ts` shows the exact records needed; copy its logic into a production-only script that reads the password from an environment variable.
+
+## HTTPS and proxies
+
+Terminate HTTPS at a reverse proxy or the platform and forward to the Node process. Pass `X-Forwarded-For` and `X-Forwarded-Proto` (the sign-in rate limiter and invitation links use them). The application sends HSTS, so HTTPS must be working before you go live.
+
+## Updating
+
+1. Take a database backup (see below).
+2. Deploy the new code.
+3. `npx prisma migrate deploy` (migrations are additive and versioned in `prisma/migrations`).
+4. `npm run build` and restart.
+
+Never run `prisma migrate reset` or `prisma db push --force-reset` against a database that holds real data.
+
+## Backups and restore
+
+Production (PostgreSQL tools):
+
+```bash
+# Backup: compressed, restorable with pg_restore
+pg_dump --format=custom --file=hifi_one_$(date +%F).dump "$DATABASE_URL"
+
+# Restore into an EMPTY database
+pg_restore --no-owner --dbname="$TARGET_DATABASE_URL" hifi_one_2026-10-11.dump
+```
+
+- Schedule a backup at least daily and keep copies off the server. Most managed databases offer automated backups and point-in-time recovery; turn them on.
+- **Rehearse a restore** into a scratch database before you need it, and confirm that you can sign in and that the trial balance balances.
+- Uploaded files: none are stored yet (there is no file storage). When it is added, back it up with the database.
+
+Local development database: stop it, then `npm run db:backup`. Restore with `npm run db:restore -- <folder-name> --yes` (the current data is moved aside, not deleted).
+
+## Monitoring
+
+- Health check: `GET /api/health` returns `{"status":"ok"}` (HTTP 200) or 503 when the database is unreachable. Point your uptime monitor at it.
+- Logs go to the process output. Ship them to your log service. Application errors appear there; user-facing pages show a generic message.
+- The in-app **Audit Logs** page records sign-ins, approvals, setting changes and financial postings.
+- Alert on: health check failing, repeated 5xx responses, database disk space, backup job failures.
+
+## Scaling notes
+
+- Sessions are stored in the database, so you can run several web instances behind a load balancer.
+- The sign-in rate limiter (`src/lib/rate-limit.ts`) is in memory per instance. With several instances the effective limit multiplies; move it to a shared store (Redis) or enforce limits at the proxy as well.
+- Notification, report and PDF work runs inside requests today. If reports get slow, move them to a job queue (planned, not built).
+
+## Known gaps before real production use
+
+Read `docs/GAP_ANALYSIS.md` and `docs/SECURITY.md`. The most important: no file storage, no email delivery (invitations and starting passwords are copied by hand), no multi-factor authentication or password reset, no exchange rates, no year-end closing, and tax handling is a flat percentage.

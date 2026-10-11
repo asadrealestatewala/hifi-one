@@ -9,6 +9,12 @@ import { PERMISSIONS, ROLE_DEFS, ALL_PERMISSIONS } from "../src/lib/permissions"
 
 const db = new PrismaClient();
 
+// The seed creates demo users and example prices. It must never run against production by accident.
+if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEMO_SEED !== "1") {
+  console.error("Refusing to seed in production. Set ALLOW_DEMO_SEED=1 only for a demo or staging environment.");
+  process.exit(1);
+}
+
 const CATEGORIES = [
   "Digital Marketing", "Social Media Management", "Video Editing and Production", "Graphic Design and Creative",
   "Website Design and Development", "Software Development", "AI Bots, Agents and Solutions", "SaaS Products and Subscriptions",

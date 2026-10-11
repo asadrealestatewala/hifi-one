@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
+import { limiter } from "./rate-limit";
 import type { PermissionKey } from "./permissions";
 
 const COOKIE = "hifi_session";
@@ -34,6 +35,11 @@ export async function login(
   password: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const generic = { ok: false as const, error: "Invalid email or password." };
+  // Slow down guessing from one address, on top of the per-account lockout below
+  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0].trim() ?? "local";
+  if (!limiter("login-ip", 20, 10 * 60_000).take(ip) || !limiter("login-email", 8, 10 * 60_000).take(email.trim().toLowerCase())) {
+    return { ok: false, error: "Too many sign-in attempts. Please wait a few minutes and try again." };
+  }
   const user = await db.user.findUnique({ where: { email: email.trim().toLowerCase() } });
   if (!user || !user.active) return generic;
   if (user.lockedUntil && user.lockedUntil > new Date()) {
