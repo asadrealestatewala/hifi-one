@@ -67,6 +67,11 @@ model User {
   branchId       String?
   departmentId   String?
   managerId      String?
+  mustChangePassword Boolean @default(false)
+  totpSecretEnc  String? // encrypted at rest
+  totpEnabled    Boolean   @default(false)
+  totpLastStep   Int? // last accepted 30-second step, so a code cannot be used twice
+  recoveryCodes  Json? // array of sha256 hashes of unused one-time codes
   failedLogins   Int       @default(0)
   lockedUntil    DateTime?
   lastLoginAt    DateTime?
@@ -1189,4 +1194,16 @@ model CreditNote {
   invoice Invoice @relation(fields: [invoiceId], references: [id])
 
   @@unique([organizationId, number])
+}
+
+model PasswordResetToken {
+  id          String    @id @default(cuid())
+  userId      String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
 }

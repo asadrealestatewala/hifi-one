@@ -16,6 +16,7 @@ The local development database (`npm run db:start`) is for development only. Do 
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string, for example `postgresql://user:password@host:5432/hifi_one?sslmode=require` |
 | `SESSION_SECRET` | 32+ random characters used to sign session cookies. Generate: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Changing it signs everyone out. |
+| `SETUP_TOKEN` | Production only. 16+ random characters. Required to run first-run setup (see below). The setup page closes by itself once a user exists. |
 | `NODE_ENV` | `production` (set by `next start`). Turns on secure cookies, HSTS and the strict Content-Security-Policy. |
 
 Keep these in your host's secret store, never in git. Only `.env.example` (placeholders) is committed.
@@ -31,7 +32,13 @@ npm run start                  # serves on port 3000 (use -p to change)
 
 **Do not run the demo seed in production.** It creates demo users and example prices, and refuses to run when `NODE_ENV=production` unless `ALLOW_DEMO_SEED=1` is set.
 
-The first Super Admin must be created deliberately. There is no sign-up page. Until a setup command exists (see "Known gaps"), run a one-off script that creates the organization, roles (the role list lives in `src/lib/permissions.ts`), the company profile and one Super Admin with a strong password. The demo seed in `prisma/seed.ts` shows the exact records needed; copy its logic into a production-only script that reads the password from an environment variable.
+### First-run setup
+
+On an empty database, open the site. It sends you to **/setup**, where you enter the company name, main currency, time zone and the first administrator (12+ character password with upper case, lower case and a digit). In production the page also asks for the `SETUP_TOKEN` from the server environment, so a stranger who finds the URL first cannot take over. Setup creates the roles, permissions, a starter chart of accounts, pipeline stages and leave types in one all-or-nothing step, and **the page closes permanently as soon as any user exists**.
+
+After that: sign in, turn on two-step verification (Account security), then fill in Company Settings and bank accounts, create staff under Users, and tune roles under Roles & Permissions.
+
+Users receive a one-time link to set their own password (email is not connected, so you copy and send it). If the only Super Admin is locked out, recovery needs a database-level step (a one-off script that creates a reset token) or a restore from backup. Keep at least two Super Admins.
 
 ## HTTPS and proxies
 
@@ -79,4 +86,4 @@ Local development database: stop it, then `npm run db:backup`. Restore with `npm
 
 ## Known gaps before real production use
 
-Read `docs/GAP_ANALYSIS.md` and `docs/SECURITY.md`. The most important: no file storage, no email delivery (invitations and starting passwords are copied by hand), no multi-factor authentication or password reset, no exchange rates, no year-end closing, and tax handling is a flat percentage.
+Read `docs/GAP_ANALYSIS.md` and `docs/SECURITY.md`. The most important: no file storage, no email delivery (invitations and starting passwords are copied by hand), no email delivery (links are copied by hand), no exchange rates, no year-end closing, and tax handling is a flat percentage.

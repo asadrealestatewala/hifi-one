@@ -163,7 +163,7 @@ export async function createEmployee(
       data: {
         organizationId: p.organizationId, email, name: p.name.trim(), passwordHash, userType: "EMPLOYEE",
         managerId: p.managerId ?? null, departmentId: p.departmentId ?? null, branchId: p.branchId ?? null,
-        roles: { create: { roleId: role.id } },
+        mustChangePassword: true, roles: { create: { roleId: role.id } },
       },
     });
     await tx.employeeProfile.create({

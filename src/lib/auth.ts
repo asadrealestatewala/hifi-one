@@ -5,6 +5,7 @@ import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { limiter } from "./rate-limit";
+import { checkSecondFactor } from "./mfa";
 import type { PermissionKey } from "./permissions";
 
 const COOKIE = "hifi_session";
@@ -24,16 +25,33 @@ export type SessionUser = {
   email: string;
   organizationId: string;
   userType: string;
+  mustChangePassword: boolean;
   clientId: string | null;
   vendorId: string | null;
   permissions: Set<PermissionKey>;
   roles: string[];
+  roleKeys: string[];
 };
 
-export async function login(
-  email: string,
-  password: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+const MFA_COOKIE = "hifi_mfa_pending";
+
+type LoginResult = { ok: true; mfa?: boolean } | { ok: false; error: string };
+
+async function startSession(user: { id: string; organizationId: string }) {
+  const h = await headers();
+  const expiresAt = new Date(Date.now() + SESSION_HOURS * 3600_000);
+  const session = await db.session.create({
+    data: { userId: user.id, expiresAt, userAgent: h.get("user-agent"), ip: h.get("x-forwarded-for") },
+  });
+  await db.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() } });
+  await db.auditLog.create({
+    data: { organizationId: user.organizationId, actorId: user.id, action: "auth.login", entity: "Session", entityId: session.id },
+  });
+  const token = await new SignJWT({ sid: session.id }).setProtectedHeader({ alg: "HS256" }).setExpirationTime(expiresAt).sign(secret());
+  (await cookies()).set(COOKIE, token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", expires: expiresAt });
+}
+
+export async function login(email: string, password: string): Promise<LoginResult> {
   const generic = { ok: false as const, error: "Invalid email or password." };
   // Slow down guessing from one address, on top of the per-account lockout below
   const ip = (await headers()).get("x-forwarded-for")?.split(",")[0].trim() ?? "local";
@@ -50,36 +68,44 @@ export async function login(
     const failed = user.failedLogins + 1;
     await db.user.update({
       where: { id: user.id },
-      data:
-        failed >= MAX_FAILED
-          ? { failedLogins: 0, lockedUntil: new Date(Date.now() + LOCK_MINUTES * 60_000) }
-          : { failedLogins: failed },
+      data: failed >= MAX_FAILED ? { failedLogins: 0, lockedUntil: new Date(Date.now() + LOCK_MINUTES * 60_000) } : { failedLogins: failed },
     });
-    await db.auditLog.create({
-      data: { organizationId: user.organizationId, actorId: user.id, action: "auth.login_failed", entity: "User", entityId: user.id },
-    });
+    await db.auditLog.create({ data: { organizationId: user.organizationId, actorId: user.id, action: "auth.login_failed", entity: "User", entityId: user.id } });
     return generic;
   }
-  const h = await headers();
-  const expiresAt = new Date(Date.now() + SESSION_HOURS * 3600_000);
-  const session = await db.session.create({
-    data: { userId: user.id, expiresAt, userAgent: h.get("user-agent"), ip: h.get("x-forwarded-for") },
-  });
-  await db.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() } });
-  await db.auditLog.create({
-    data: { organizationId: user.organizationId, actorId: user.id, action: "auth.login", entity: "Session", entityId: session.id },
-  });
-  const token = await new SignJWT({ sid: session.id })
-    .setProtectedHeader({ alg: "HS256" })
-    .setExpirationTime(expiresAt)
-    .sign(secret());
-  (await cookies()).set(COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    expires: expiresAt,
-  });
+  if (user.totpEnabled) {
+    // Password is right, but no session exists until the second factor is proven. The pending cookie only proves step one.
+    const token = await new SignJWT({ uid: user.id, purpose: "mfa" }).setProtectedHeader({ alg: "HS256" }).setExpirationTime("5m").sign(secret());
+    (await cookies()).set(MFA_COOKIE, token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 300 });
+    return { ok: true, mfa: true };
+  }
+  await startSession(user);
+  return { ok: true };
+}
+
+// Step two of sign-in for accounts with an authenticator app. Accepts a 6-digit code or one recovery code.
+export async function completeMfaLogin(code: string): Promise<{ ok: true } | { ok: false; error: string; restart?: boolean }> {
+  const jar = await cookies();
+  const pending = jar.get(MFA_COOKIE)?.value;
+  let uid: string;
+  try {
+    const { payload } = await jwtVerify(pending ?? "", secret());
+    if (payload.purpose !== "mfa") throw new Error("wrong purpose");
+    uid = String(payload.uid);
+  } catch {
+    return { ok: false, error: "Your sign-in timed out. Please start again.", restart: true };
+  }
+  if (!limiter("mfa-user", 6, 10 * 60_000).take(uid)) return { ok: false, error: "Too many attempts. Please wait a few minutes and try again." };
+  const user = await db.user.findUnique({ where: { id: uid } });
+  if (!user || !user.active || !user.totpEnabled) return { ok: false, error: "Your sign-in timed out. Please start again.", restart: true };
+  const result = await checkSecondFactor(db, user, code, process.env.SESSION_SECRET ?? "");
+  if (!result.ok) {
+    await db.auditLog.create({ data: { organizationId: user.organizationId, actorId: user.id, action: "auth.mfa_failed", entity: "User", entityId: user.id } });
+    return { ok: false, error: "That code is not correct." };
+  }
+  jar.delete(MFA_COOKIE);
+  if (result.usedRecoveryCode) await db.auditLog.create({ data: { organizationId: user.organizationId, actorId: user.id, action: "auth.recovery_code_used", entity: "User", entityId: user.id } });
+  await startSession(user);
   return { ok: true };
 }
 
@@ -129,17 +155,21 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     email: session.user.email,
     organizationId: session.user.organizationId,
     userType: session.user.userType,
+    mustChangePassword: session.user.mustChangePassword,
     clientId: session.user.clientId,
     vendorId: session.user.vendorId,
     permissions,
     roles: activeRoles.map((r) => r.role.name),
+    roleKeys: activeRoles.map((r) => r.role.key),
   };
 }
 
 // Internal pages: employees only. Portal users are sent to their own portal.
-export async function requireUser(): Promise<SessionUser> {
+export async function requireUser(opts: { allowMustChange?: boolean } = {}): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  // A starting or reset password must be replaced before anything else is usable
+  if (user.mustChangePassword && !opts.allowMustChange && user.userType === "EMPLOYEE") redirect("/account/password?force=1");
   if (user.userType === "CLIENT") redirect("/portal");
   if (user.userType === "VENDOR") redirect("/vendor");
   if (user.userType !== "EMPLOYEE") redirect("/forbidden");
@@ -185,3 +215,6 @@ export async function audit(
     },
   });
 }
+
+// The identity used by user and role administration rules (see accounts.ts)
+export const toActor = (u: SessionUser) => ({ id: u.id, isSuperAdmin: u.roleKeys.includes("SUPER_ADMIN"), permissions: u.permissions as ReadonlySet<string> });

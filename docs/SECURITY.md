@@ -7,6 +7,8 @@ What is in place, how it is checked, and what is not done yet.
 - Passwords are hashed with bcrypt (cost 12). Minimum length is 10 characters.
 - Sessions are stored in the database and carried in a signed, `HttpOnly`, `SameSite=Lax` cookie (`Secure` in production). They last 12 hours, can be revoked, and changing a password signs the user out everywhere.
 - Sign-in is limited per account (5 failures lock the account for 15 minutes), and per address and per email (20 and 8 attempts per 10 minutes). Error messages do not reveal whether an email exists.
+- **Two-step verification** with any authenticator app (RFC 6238 codes). Secrets are encrypted at rest, a code works once (replay is blocked, even with simultaneous attempts), eight single-use recovery codes are stored as hashes, and turning it off or making new recovery codes needs the password. A correct password without a code gives no session. Administrators can reset it for a user (that signs them out).
+- **Password reset** uses one-hour, single-use links created by an administrator (nothing is emailed yet). Using one signs the person out everywhere and cancels any other outstanding link. New staff get a 24-hour link to set their own password, so no temporary password is ever typed or shown.
 - Invitation links are single-use, expire after 7 days, and only a hash of the token is stored.
 
 ## Authorization
@@ -15,6 +17,7 @@ What is in place, how it is checked, and what is not done yet.
 - **An automated test (`src/lib/guards.test.ts`) fails the build if any internal page lacks a permission check, or any server action lacks a caller check.** It was verified to fail when a page is left unguarded.
 - Record-level rules sit on top: agents see their own leads, project members see their projects, clients see only their own client's data, vendors only their own vendor's data. Portal queries take the client or vendor id from the signed-in user's own record, never from the URL or form.
 - Separation of duties is enforced in the services: the person who prepares payroll cannot approve it, submitters cannot review or approve their own vouchers, and so on.
+- **User and role administration is guarded by rules in the service layer:** the system always keeps an active Super Admin (even when two admins change each other at once), only a Super Admin can grant, remove or reset a Super Admin, nobody can grant or remove a permission they do not hold themselves, changing a role or deactivating a user signs the people affected out, and built-in roles cannot be deleted. All changes are audited.
 - Staff, client and vendor sessions are separate: each type is redirected away from the other areas.
 
 ## Data integrity
@@ -35,7 +38,7 @@ What is in place, how it is checked, and what is not done yet.
 
 ## Not done yet (be aware before going live)
 
-- **No multi-factor authentication and no self-service password reset.** An administrator must reset a lost password.
+- Two-step verification is available but **not enforced**: nothing forces administrators or finance users to turn it on yet. There is no self-service "forgot password" (it needs email); an administrator creates the reset link.
 - No email delivery: invitation links and starting passwords are shown once and handed over manually.
 - The rate limiter is per server process (see `docs/DEPLOYMENT.md`).
 - The Content-Security-Policy allows inline scripts and styles, which Next.js needs without per-request nonces.

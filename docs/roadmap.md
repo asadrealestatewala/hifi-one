@@ -2,6 +2,16 @@
 
 Phases follow section 35 of [spec.md](spec.md).
 
+## First-run setup, user and role administration, password reset, two-step verification (done)
+
+Done, 32 automated tests (9 against RFC 6238 vectors) plus a full browser run on a brand-new empty database: the home page redirected to /setup, setup created the installation and the page then closed; two-step verification was turned on with a real QR code and key, sign-in stopped at the code page, a wrong code and a recovery code behaved correctly, and the dashboard was unreachable without a code; a staff user set their own password from a one-time link, the old link died, and the new accountant could not open Users, Roles or Setup; a custom role was created.
+- /setup: only on a system with no users; production also needs SETUP_TOKEN; all-or-nothing transaction; two setups at once create exactly one installation; audited
+- Two-step verification (authenticator app): encrypted secret, replay-proof codes, 8 one-time recovery codes, password needed to disable, administrators can reset
+- Password reset links; forced change of starting passwords for staff created by HR
+- Users screen: create, roles, deactivate, reset link, reset two-step. Roles screen: custom roles and a permission editor grouped by module
+- Safety rules in services and tested: always one active Super Admin (even under simultaneous changes), only Super Admins touch Super Admins, no granting or removing permissions you do not hold, sessions revoked on any access change
+Limits: no email delivery; two-step not enforced by role; no branches and departments screens; no self-service forgot-password; if the only Super Admin is locked out, recovery is by database script or backup.
+
 ## Accountant essentials (done)
 
 Done, 14 database tests plus a browser run (entry prepared by one person and posted by another; credit note reduced a balance from 3,410.93 less 1,000 paid to 2,000 due; closing the books blocked a backdated entry and a future close):

@@ -79,7 +79,8 @@ const NAV: NavGroup[] = [
     items: [
       { href: "/settings/company", label: "Company Settings", permission: "settings.company.view" },
       { href: "/settings/bank-accounts", label: "Bank Accounts", permission: "bank.view" },
-      { href: "/users", label: "Users & Roles", permission: "users.view" },
+      { href: "/users", label: "Users", permission: "users.view" },
+      { href: "/roles", label: "Roles & Permissions", permission: "roles.manage" },
       { href: "/audit-logs", label: "Audit Logs", permission: "audit.view" },
     ],
   },
@@ -92,7 +93,8 @@ async function signOut() {
 }
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireUser();
+  // The layout must not redirect (it would loop back to the password page); every page redirects on its own
+  const user = await requireUser({ allowMustChange: true });
   const unread = await unreadCount(db, user.id);
   const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => user.permissions.has(i.permission)) })).filter(
     (g) => g.items.length > 0,
@@ -132,6 +134,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <Link href="/notifications" className="text-sm relative" aria-label={`Notifications, ${unread} unread`}>
               <span aria-hidden>🔔</span>{unread > 0 && <span className="ml-1 rounded-full bg-brand px-1.5 py-0.5 text-[11px] font-semibold text-white">{unread}</span>}
             </Link>
+            <Link href="/account/security" className="text-xs text-muted hover:underline">Security</Link>
             <Link href="/account/password" className="text-xs text-muted hover:underline">Password</Link>
             <form action={signOut}>
               <button className="btn-ghost">Sign out</button>

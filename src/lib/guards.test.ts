@@ -24,11 +24,11 @@ const AREAS: { prefix: string; guard: RegExp; label: string }[] = [
 ];
 
 // Pages that are intentionally public or only redirect
-const PUBLIC = new Set(["page.tsx", "login/page.tsx", "forbidden/page.tsx", "invite/[token]/page.tsx"]);
+const PUBLIC = new Set(["page.tsx", "login/page.tsx", "login/verify/page.tsx", "forbidden/page.tsx", "invite/[token]/page.tsx", "setup/page.tsx", "reset/[token]/page.tsx"]);
 
 // Pages that only need a signed-in employee because they show the caller's own data and check
 // record ownership or permissions themselves. Everything else in (app) must call requirePermission.
-const OWN_DATA_PAGES = new Set(["(app)/account/password/page.tsx", "(app)/notifications/page.tsx", "(app)/payslips/[id]/page.tsx", "(app)/expenses/[id]/page.tsx"]);
+const OWN_DATA_PAGES = new Set(["(app)/account/password/page.tsx", "(app)/account/security/page.tsx", "(app)/notifications/page.tsx", "(app)/payslips/[id]/page.tsx", "(app)/expenses/[id]/page.tsx"]);
 
 describe("every protected page checks the caller", () => {
   const pages = files.filter((f) => f.endsWith("/page.tsx"));
@@ -73,6 +73,9 @@ function actionBodies(src: string): { name: string; body: string }[] {
   return out;
 }
 
+// Pre-sign-in screens. Each is protected by something else: a password, a code, an emailed or handed-over secret token, or the one-time empty-system check.
+const PUBLIC_ACTIONS = new Set(["login/page.tsx", "login/verify/page.tsx", "invite/[token]/page.tsx", "setup/page.tsx", "reset/[token]/page.tsx"]);
+
 describe("every server action checks the caller", () => {
   for (const f of files.filter((x) => /\.(tsx?|ts)$/.test(x) && !x.endsWith(".test.ts"))) {
     const src = read(f);
@@ -80,7 +83,7 @@ describe("every server action checks the caller", () => {
     const r = rel(f);
     for (const a of actionBodies(src)) {
       // Public by design: sign-in, and accepting an emailed invitation (protected by a secret token)
-      if (r === "login/page.tsx" || r === "invite/[token]/page.tsx") continue;
+      if (PUBLIC_ACTIONS.has(r)) continue;
       it(`${r} › ${a.name}`, () => {
         expect(/require(Permission|User|ClientUser|VendorUser)\(|\blogout\(/.test(a.body), `${r} ${a.name} must call a require* guard`).toBe(true);
       });

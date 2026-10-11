@@ -39,7 +39,8 @@ The spec ([spec.md](spec.md)) describes a very large platform. The accounting, H
 ### 4: Access control
 - Done: permission checks on every page and action (enforced by a test), record-level scoping, reporting hierarchy, separation of duties.
 - Partial: temporary access delegation exists in the data model but has no screen.
-- Not built: screens to create custom roles or edit permissions, departments and branches management screens, logging of Super Admin read access.
+- Done since the first version: user administration, role and permission editor (custom roles, escalation guards), first-run setup, password reset links, two-step verification.
+- Not built: departments and branches management screens, enforcing two-step verification by role, logging of Super Admin read access, self-service password reset by email.
 
 ### 6 to 8: CRM and sales
 - Done: leads with duplicate detection, notes, activity timeline; configurable stages (seeded; edit in the database); drag-and-drop pipeline; Closed Won conversion that links or creates the client and creates a draft invoice, once; prospecting worklists with CSV import, do-not-contact list, per-row reporting, separate metrics.
@@ -110,7 +111,7 @@ The spec ([spec.md](spec.md)) describes a very large platform. The accounting, H
 ## Suggested order for the next work
 
 1. ~~Manual journal entries, chart of accounts editing, period locking, credit notes and refunds~~ (done). Still needed for accountants: year-end closing, bank reconciliation, tax rates and tax reports, accounts payable aging, write-offs.
-2. **First-run setup and user administration screens** (create the first Super Admin, roles, branches, departments), plus password reset and multi-factor authentication.
+2. ~~First-run setup, user and role administration, password reset, multi-factor authentication~~ (done). Still needed: branches and departments screens, enforce two-step verification for sensitive roles.
 3. **File storage** (private, signed downloads) unlocking receipts, contracts, expense attachments, employee and vendor documents, content media.
 4. **Server-side PDF and document templates** for invoices, receipts, statements, payslips and vouchers.
 5. **Exchange rates** and consolidated reports.
