@@ -4,14 +4,15 @@ import WhatsAppButton from "@/components/WhatsAppButton";
 import Icon from "@/components/shell/Icon";
 import { Badge, Empty, Notice } from "@/components/ui";
 import { requirePermission } from "@/lib/auth";
-import { contactScope, type Entry } from "@/lib/crm-contacts";
+import { contactEmailHistory, contactScope, previewMerge, type Entry } from "@/lib/crm-contacts";
+import { StatusBadge } from "@/components/ui";
 import { leadScore } from "@/lib/crm";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { templates } from "@/lib/whatsapp";
 import ContactForm from "../ContactForm";
-import Drawer from "../Drawer";
-import { logContactAction, openOpportunityAction } from "../actions";
+import Drawer from "@/components/ui/Drawer";
+import { logContactAction, mergeContactsAction, openOpportunityAction, sendContactEmailAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 type SP = Record<string, string | undefined>;
@@ -30,7 +31,7 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
   const c = await db.contact.findFirst({ where: { AND: [contactScope(who), { id }] } });
   if (!c) notFound();
   const canEdit = user.permissions.has("crm.edit"), manager = user.permissions.has("crm.view_all"), finance = user.permissions.has("finance.view");
-  const tab = ["activity", "deals", "billing", "people"].includes(sp.tab ?? "") ? sp.tab! : "overview";
+  const tab = ["activity", "deals", "billing", "people", "email"].includes(sp.tab ?? "") ? sp.tab! : "overview";
   const [parent, people, , client, activities, staff] = await Promise.all([
     c.parentId ? db.contact.findUnique({ where: { id: c.parentId }, select: { id: true, name: true } }) : null,
     c.kind === "ORGANIZATION" ? db.contact.findMany({ where: { AND: [contactScope(who), { parentId: c.id, archived: false }] }, orderBy: { name: "asc" }, take: 100 }) : [],
@@ -52,9 +53,16 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
     canEdit && sp.edit ? db.contact.findMany({ where: { organizationId: org, kind: "ORGANIZATION", archived: false }, select: { name: true }, orderBy: { name: "asc" }, take: 500 }) : [],
     canEdit && sp.edit ? db.campaign.findMany({ where: { organizationId: org }, select: { id: true, name: true }, orderBy: { name: "asc" } }) : [],
   ]);
+  const [mailLog, mergeCandidates, mergePrev] = await Promise.all([
+    tab === "email" ? contactEmailHistory(db, org, c.id, emails.map((e) => e.value), finance) : [],
+    manager && sp.merge && sp.mq?.trim()
+      ? db.contact.findMany({ where: { AND: [contactScope(who), { kind: c.kind, archived: false, id: { not: c.id }, OR: [{ name: { contains: sp.mq.trim(), mode: "insensitive" } }, { primaryEmail: { contains: sp.mq.trim(), mode: "insensitive" } }] }] }, orderBy: { name: "asc" }, take: 8, select: { id: true, name: true, primaryEmail: true, primaryPhone: true } })
+      : [],
+    manager && sp.merge && sp.with ? previewMerge(db, { organizationId: org, intoId: c.id, fromId: sp.with }).catch(() => null) : null,
+  ]);
   const openLead = leads.find((l) => !l.clientId && !l.stage.isWon && !l.stage.isLost);
   const outstanding = invoices.filter((i) => ["ISSUED", "PARTIALLY_PAID"].includes(i.status)).reduce((a, i) => a + Number(i.total) - Number(i.amountPaid) - Number(i.creditedAmount), 0);
-  const tabLinks: [string, string][] = [["overview", "Overview"], ["activity", `Activity (${activities.filter((a) => a.kind !== "SYSTEM").length})`], ["deals", `Deals (${leads.length})`], ...(c.kind === "ORGANIZATION" ? [["people", `People (${people.length})`] as [string, string]] : []), ...(finance ? [["billing", "Billing"] as [string, string]] : [])];
+  const tabLinks: [string, string][] = [["overview", "Overview"], ["activity", `Activity (${activities.filter((a) => a.kind !== "SYSTEM").length})`], ["deals", `Deals (${leads.length})`], ...(c.kind === "ORGANIZATION" ? [["people", `People (${people.length})`] as [string, string]] : []), ...(emails.length > 0 ? [["email", "Email"] as [string, string]] : []), ...(finance ? [["billing", "Billing"] as [string, string]] : [])];
   const wa = phones.find((p) => p.type === "WHATSAPP") ?? phones[0];
 
   return (
@@ -64,6 +72,8 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
       {sp.saved && <Notice kind="ok">Saved. Linked leads and the client account were updated too.</Notice>}
       {sp.logged && <Notice kind="ok">Logged. It also appears on the linked lead. +5 XP</Notice>}
       {sp.opened && <Notice kind="ok">Opportunity opened. You can move it on the Opportunities board.</Notice>}
+      {sp.merged && <Notice kind="ok">Merged. Leads, activity, tags and details from the duplicate are now on this contact, and the duplicate is archived.</Notice>}
+      {sp.sent && <Notice kind="ok">Email sent and logged on the timeline.</Notice>}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
 
       <header className="card flex flex-wrap items-start justify-between gap-4">
@@ -80,6 +90,7 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
           {emails[0] && <a href={`mailto:${emails[0].value}`} className="btn-ghost"><Icon name="mail" className="h-4 w-4" />Email</a>}
           {wa && canEdit && <WhatsAppButton phone={wa.value} text={templates.leadFollowUp(c.name, user.name, "Hifi Marketing and Technologies")} label="WhatsApp" />}
           {user.permissions.has("meetings.use") && <Link href="/meetings" className="btn-ghost"><Icon name="video" className="h-4 w-4" />Meeting</Link>}
+          {manager && !c.archived && <Link href={`/contacts/${c.id}?merge=1`} className="btn-ghost">Merge duplicate</Link>}
           {canEdit && <Link href={`/contacts/${c.id}?edit=1`} className="btn">Edit</Link>}
         </div>
       </header>
@@ -154,6 +165,34 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
           <tbody>{people.map((p) => <tr key={p.id} className="border-t border-border"><td className="px-4 py-3"><Link className="font-medium hover:underline" href={`/contacts/${p.id}`}>{p.name}</Link></td><td className="pr-4">{p.jobTitle}</td><td className="pr-4">{p.primaryEmail}</td><td className="pr-4"><Badge tone={TONE[p.category] ?? "neutral"}>{p.category.toLowerCase()}</Badge></td></tr>)}</tbody></table></div>
       ))}
 
+      {tab === "email" && (
+        <section className="card space-y-4">
+          <h2 className="font-semibold">Email</h2>
+          {canEdit ? (
+            <form action={sendContactEmailAction} className="grid gap-3 rounded-2xl bg-hover p-4">
+              <input type="hidden" name="contactId" value={c.id} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div><label className="label" htmlFor="mto">To</label><select id="mto" name="to" className="input">{emails.map((e) => <option key={e.value} value={e.value}>{e.value}</option>)}</select></div>
+                <div><label className="label" htmlFor="msub">Subject</label><input id="msub" name="subject" required maxLength={200} className="input" /></div>
+              </div>
+              <div><label className="label" htmlFor="mbody">Message</label><textarea id="mbody" name="body" required rows={6} maxLength={20000} className="input" /></div>
+              <div className="flex items-center justify-between gap-3"><p className="text-xs text-muted">Sent from the company mail account. If none is connected, nothing is sent and the attempt is recorded below.</p><button className="btn">Send</button></div>
+            </form>
+          ) : null}
+          {mailLog.length === 0 ? <p className="text-sm text-muted">No emails sent to this contact from here yet.</p> : (
+            <ul className="divide-y divide-border text-sm">
+              {mailLog.map((m) => (
+                <li key={m.id} className="py-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-medium">{m.subject}</span><StatusBadge status={m.status === "NOT_CONFIGURED" ? "PENDING" : m.status === "FAILED" ? "REJECTED" : "SENT"} /></div>
+                  <p className="text-xs text-muted">To {m.toEmail} · {m.createdAt.toLocaleString()}{m.status === "NOT_CONFIGURED" && " · not sent, no mail account connected"}{m.status === "FAILED" && ` · failed: ${m.error ?? ""}`}</p>
+                  <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-muted">{m.body}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
       {tab === "billing" && (!finance ? <Empty title="Billing is restricted">You do not have access to financial records.</Empty> : !client ? <Empty title="No client account yet">When an opportunity is won, the client account, invoices and statements show up here.</Empty> : (
         <div className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-3">
@@ -166,6 +205,36 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
           {subs.length > 0 && <section className="card"><h2 className="mb-2 font-semibold">Subscriptions</h2><ul className="text-sm">{subs.map((s) => <li key={s.id} className="flex justify-between border-t border-border py-1.5 first:border-0"><span>{s.name}</span><span>{s.status.toLowerCase()} · {formatMoney(s.amount, s.currency)} {s.interval.toLowerCase()}</span></li>)}</ul></section>}
         </div>
       ))}
+
+      {manager && sp.merge && (
+        <Drawer title={`Merge into ${c.name}`} closeTo={`/contacts/${c.id}`}>
+          <div className="h-full space-y-4 overflow-y-auto p-5 text-sm">
+            <p className="text-muted">Keep this contact and fold a duplicate into it. Leads, the client link, activity, people, tags, phones and emails move over; the duplicate is archived, not deleted.</p>
+            <form className="flex gap-2" role="search"><input type="hidden" name="merge" value="1" /><input name="mq" defaultValue={sp.mq} placeholder="Find the duplicate by name or email" aria-label="Find the duplicate" className="input flex-1" /><button className="btn-ghost">Search</button></form>
+            {sp.mq && mergeCandidates.length === 0 && <p className="text-muted">No other {c.kind === "ORGANIZATION" ? "organizations" : "people"} match.</p>}
+            <ul className="divide-y divide-border">
+              {mergeCandidates.map((m) => (
+                <li key={m.id} className="flex items-center justify-between gap-3 py-2"><span><span className="font-medium">{m.name}</span><span className="block text-xs text-muted">{m.primaryEmail ?? m.primaryPhone ?? "no email or phone"}</span></span><Link className="btn-ghost" href={`/contacts/${c.id}?merge=1&mq=${encodeURIComponent(sp.mq ?? "")}&with=${m.id}`}>Preview</Link></li>
+              ))}
+            </ul>
+            {mergePrev && (
+              <form action={mergeContactsAction} className="space-y-3 rounded-2xl border border-border bg-hover p-4">
+                <input type="hidden" name="intoId" value={c.id} /><input type="hidden" name="fromId" value={mergePrev.from.id} />
+                <p><strong>{mergePrev.from.name}</strong> will be merged into <strong>{mergePrev.into.name}</strong>:</p>
+                <ul className="list-disc pl-5 text-muted">
+                  <li>{mergePrev.moves.leads} lead{mergePrev.moves.leads === 1 ? "" : "s"} and {mergePrev.moves.activities} timeline entr{mergePrev.moves.activities === 1 ? "y" : "ies"} move over</li>
+                  {mergePrev.moves.people > 0 && <li>{mergePrev.moves.people} linked {mergePrev.moves.people === 1 ? "person" : "people"} move over</li>}
+                  {mergePrev.moves.client && <li>its client account is re-linked to this contact</li>}
+                  <li>{mergePrev.moves.phones} new phone, {mergePrev.moves.emails} new email, {mergePrev.moves.tags} new tag</li>
+                  <li>blank fields here are filled from it; fields you already have are kept</li>
+                </ul>
+                <div className="flex justify-end gap-2"><Link href={`/contacts/${c.id}?merge=1&mq=${encodeURIComponent(sp.mq ?? "")}`} className="btn-ghost">Back</Link><button className="btn">Merge and archive duplicate</button></div>
+              </form>
+            )}
+            {sp.with && !mergePrev && <Notice kind="error">That pair cannot be merged. They must be the same kind, and only one of them may have a client account.</Notice>}
+          </div>
+        </Drawer>
+      )}
 
       {canEdit && sp.edit && (
         <Drawer title={`Edit ${c.name}`} closeTo={`/contacts/${c.id}`}>

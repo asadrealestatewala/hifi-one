@@ -6,7 +6,7 @@ import { backfillContacts, listContacts, questFor, type ListQuery } from "@/lib/
 import { db } from "@/lib/db";
 import ContactForm from "./ContactForm";
 import ContactsTable from "./ContactsTable";
-import Drawer from "./Drawer";
+import Drawer from "@/components/ui/Drawer";
 import QuestCard from "./QuestCard";
 
 export const dynamic = "force-dynamic";

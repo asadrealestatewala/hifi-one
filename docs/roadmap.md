@@ -11,7 +11,7 @@ A GoHighLevel/Flowlu-style Contacts screen. One record per person or organizatio
 - **Sync rules (tested):** creating a lead creates or links its contact; editing a contact updates its leads (name, email, phone, place, tags, company) and its client (email, phone); editing a lead updates the contact; renaming an organization updates the company on its people's leads; converting a lead makes the contact and its organization Customers and links the client; activities logged on either side appear on both, once; existing leads and clients are given contacts automatically the first time the screen opens (`npm run contacts:backfill` does it on demand).
 - **Gamified goals:** daily rings (contacts added, activities logged, overdue follow-ups cleared), XP, five levels, a streak counter, eight badges and a small celebration when all three goals are done.
 - 16 new automated tests plus a browser run (list, panel, live meter and duplicate warning, save with redirect and celebration).
-Limits: no email or WhatsApp inbox inside the contact yet (links open your own apps); tags and custom fields are free text; merge of two duplicate contacts is not built; contact-level files are not built.
+Limits: email can be sent and logged from the contact, but there is no inbound inbox and WhatsApp still opens your own app; tags and custom fields are free text; contact-level files are not built. (Merge was added later.)
 
 ## Module tabs and video meetings (done)
 
@@ -246,6 +246,17 @@ Done, covered by 21 automated tests including real-database concurrency tests:
 - Revenue is recognised on invoice issue (accrual); a payment never counts as revenue
 
 Known limits: no exchange rates yet (balances are per currency, never mixed); invoice PDF is browser Print/Save as PDF (server PDF engine later); credit notes, refunds, write-offs, expense vouchers, budgets, vendor bills, bank reconciliation, fiscal period locking and financial statements are not built yet.
+
+## Interactive screens, contact merge and personal dashboard (done)
+
+Done, with browser checks and new tests (merge: 4, dashboard layout: 3):
+- Invoices, Clients, Projects, Quotations, Vendors and Employees share one pattern: KPI strip, status chips with counts, search, a richer table, and a slide-over "New ..." panel that reopens with the message if a save is refused. Filters live in the address, so a view can be bookmarked or shared.
+- Invoices and quotations: a line editor with live subtotal, tax and total, tax presets, and the client's currency filled in on choosing a client. The server still does the real arithmetic (a 2 x 150.50 line at 5% tax matched exactly: 316.05). Up to 20 lines per document (was 6); quotations keep the catalog-plan picker per line.
+- Contact merge (managers only): search for the duplicate, preview what moves, confirm. Leads, the client link, timeline, people of an organization, tags, followers, phones and emails move over; blanks are filled; the duplicate is archived with a note, not deleted. Refused when each record has its own client account, when kinds differ, or across organizations.
+- Email from a contact: send to an address already on the record, logged on the timeline only when the mail server accepted it. With no mail account the attempt is listed as "not sent". The contact's email history shows mail sent from here; mail about invoices and statements to the same address is shown only to people with finance access.
+- Dashboard: widgets (goals, follow-ups, my tasks, meetings, recent contacts, money, pipeline and operations, needs attention, organisation) that each person can drag or move with arrows, hide and restore, and reset. Saved per user; a widget a person has no permission for is never shown or stored.
+
+Known limits: no inbound email (a true inbox needs IMAP or a provider webhook); WhatsApp opens are not logged as activity because a click cannot show a message was sent; drag and drop was not scripted in the browser test (arrows, hide, save, reload and reset were); the other list screens (leads, payments, contracts, subscriptions, procurement and HR sub-pages) still use the older layout.
 
 ## Decisions
 

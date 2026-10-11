@@ -19,7 +19,7 @@ The spec ([spec.md](spec.md)) describes a very large platform. The accounting, H
 | Expenses and budgets | Done for the core flow |
 | Vendors, procurement, vendor portal | Partial |
 | Fixed assets, investments | Partial |
-| Financial statements, executive dashboard | Partial |
+| Financial statements, executive dashboard | Partial (dashboard is now a personal widget board: show, hide and reorder, saved per user) |
 | Notifications | Partial (in-app only) |
 | Partnerships and joint ventures | Not built |
 | Email | Partial (SMTP sending of invoices, quotations, statements with a delivery log; no inbox, no sequences or reminders) |

@@ -2,8 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
-import { ContactError, bulkUpdate, contactScope, createContact, findDuplicates, logContactActivity, openOpportunityFor, updateContact, type BulkAction, type ContactInput, type Entry } from "@/lib/crm-contacts";
+import { ContactError, bulkUpdate, contactScope, createContact, findDuplicates, logContactActivity, mergeContacts, openOpportunityFor, updateContact, type BulkAction, type ContactInput, type Entry } from "@/lib/crm-contacts";
 import { db } from "@/lib/db";
+import { MailError, sendEmail } from "@/lib/mailer";
 
 export type FormState = { error?: string; duplicates?: { id: string; name: string; email: string | null; phone: string | null }[]; fieldHint?: string };
 
@@ -141,4 +142,41 @@ export async function openOpportunityAction(formData: FormData) {
     throw e;
   }
   redirect(`/contacts/${id}?tab=deals&opened=1`);
+}
+
+export async function mergeContactsAction(formData: FormData) {
+  const user = await requirePermission("crm.edit");
+  const intoId = s(formData, "intoId"), fromId = s(formData, "fromId");
+  if (!user.permissions.has("crm.view_all")) redirect(`/contacts/${intoId}?error=${encodeURIComponent("Only managers can merge contacts.")}`);
+  const who = { id: user.id, organizationId: user.organizationId, permissions: user.permissions };
+  if ((await db.contact.count({ where: { AND: [contactScope(who), { id: { in: [intoId, fromId] } }] } })) !== 2) redirect("/contacts");
+  try {
+    const c = await mergeContacts(db, { organizationId: user.organizationId, actorId: user.id, intoId, fromId });
+    await audit(user, { action: "contact.merge", entity: "Contact", entityId: c.id, after: { mergedFrom: fromId } });
+  } catch (e) {
+    if (e instanceof ContactError) redirect(`/contacts/${intoId}?merge=1&error=${encodeURIComponent(e.message)}`);
+    throw e;
+  }
+  redirect(`/contacts/${intoId}?merged=1`);
+}
+
+export async function sendContactEmailAction(formData: FormData) {
+  const user = await requirePermission("crm.edit");
+  const id = s(formData, "contactId");
+  const back = `/contacts/${id}?tab=email`;
+  const c = await db.contact.findFirst({ where: { AND: [contactScope({ id: user.id, organizationId: user.organizationId, permissions: user.permissions }), { id }] } });
+  if (!c) redirect("/contacts");
+  const to = s(formData, "to").trim().toLowerCase();
+  // Only an address that is on this contact's record, never a free-typed one
+  if (!(c.emails as unknown as Entry[]).some((e) => e.value === to)) redirect(`${back}&error=${encodeURIComponent("Choose one of this contact's email addresses.")}`);
+  try {
+    const m = await sendEmail(db, { organizationId: user.organizationId, to, subject: s(formData, "subject"), text: s(formData, "body"), relatedType: "CONTACT", relatedId: c.id, actorId: user.id });
+    if (m.status === "SENT") await logContactActivity(db, { organizationId: user.organizationId, contactId: c.id, actorId: user.id, kind: "EMAIL", body: `Emailed ${to}: ${m.subject}` });
+    await audit(user, { action: "contact.email", entity: "Contact", entityId: c.id, after: { status: m.status } });
+    if (m.status !== "SENT") redirect(`${back}&error=${encodeURIComponent(m.status === "NOT_CONFIGURED" ? "No mail account is connected, so nothing was sent. The attempt is listed below." : `The mail server refused it: ${m.error ?? "unknown error"}`)}`);
+  } catch (e) {
+    if (e instanceof MailError || e instanceof ContactError) redirect(`${back}&error=${encodeURIComponent(e.message)}`);
+    throw e;
+  }
+  redirect(`${back}&sent=1`);
 }

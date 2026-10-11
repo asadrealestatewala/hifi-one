@@ -6,8 +6,8 @@ import { createEmployeeAction, type CreateState } from "./actions";
 export default function CreateEmployeeForm({ roles, managers }: { roles: { key: string; name: string }[]; managers: { id: string; name: string }[] }) {
   const [state, action, pending] = useActionState<CreateState, FormData>(createEmployeeAction, {});
   return (
-    <form action={action} className="card grid gap-4 sm:grid-cols-2">
-      <h2 className="font-semibold sm:col-span-2">Add employee</h2>
+    <form action={action} className="grid h-full content-start gap-4 overflow-y-auto p-5 sm:grid-cols-2">
+      
       {state.error && <p role="alert" className="sm:col-span-2 text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{state.error}</p>}
       {state.created && (
         <div className="sm:col-span-2 text-sm rounded-lg bg-green-600/10 px-3 py-2 space-y-1">

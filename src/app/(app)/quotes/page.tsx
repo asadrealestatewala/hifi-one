@@ -5,15 +5,18 @@ import { CatalogError, resolvePlanLines } from "@/lib/catalog";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { SalesError, createQuote, expireQuotes } from "@/lib/sales";
+import { Chips, Empty, NewButton, Notice, PageHeader, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import Drawer from "@/components/ui/Drawer";
+import QuoteForm from "./QuoteForm";
 
 export const dynamic = "force-dynamic";
 
 async function create(formData: FormData) {
   "use server";
   const user = await requirePermission("quotes.manage");
-  const fail = (m: string) => redirect(`/quotes?error=${encodeURIComponent(m)}`);
+  const fail = (m: string) => redirect(`/quotes?new=1&error=${encodeURIComponent(m)}`);
   const raw: { planId?: string; description: string; quantity: string; unitPrice: string }[] = [];
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 20; i++) {
     const description = String(formData.get(`desc${i}`) ?? "").trim();
     const quantity = String(formData.get(`qty${i}`) ?? "").trim();
     const unitPrice = String(formData.get(`price${i}`) ?? "").trim();
@@ -37,60 +40,62 @@ async function create(formData: FormData) {
   redirect(`/quotes/${id}`);
 }
 
-export default async function Quotes({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+type SP = { error?: string; status?: string; q?: string; new?: string };
+
+export default async function Quotes({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requirePermission("quotes.view");
-  const { error } = await searchParams;
+  const sp = await searchParams;
   const org = user.organizationId;
   await expireQuotes(db, org, new Date().toISOString().slice(0, 10));
   const canManage = user.permissions.has("quotes.manage");
-  const [quotes, clients, plans, rates] = await Promise.all([
+  const [all, clients, plans, rates] = await Promise.all([
     db.quote.findMany({ where: { organizationId: org }, orderBy: { createdAt: "desc" }, take: 200, include: { client: true } }),
-    db.client.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" } }),
-    db.servicePlan.findMany({ where: { organizationId: org, active: true, category: { active: true } }, orderBy: [{ category: { sortOrder: "asc" } }, { sortOrder: "asc" }], include: { category: true } }),
-    db.taxRate.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" } }),
+    sp.new && canManage ? db.client.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true, currency: true } }) : Promise.resolve([]),
+    sp.new && canManage ? db.servicePlan.findMany({ where: { organizationId: org, active: true, category: { active: true } }, orderBy: [{ category: { sortOrder: "asc" } }, { sortOrder: "asc" }], include: { category: true } }) : Promise.resolve([]),
+    sp.new && canManage ? db.taxRate.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
   ]);
+  const statuses = [...new Set(all.map((x) => x.status))];
+  const status = statuses.includes(sp.status ?? "") ? sp.status! : "all";
+  const q = sp.q?.trim().toLowerCase();
+  const quotes = all.filter((x) => (status === "all" || x.status === status) && (!q || `${x.number} ${x.client.name}`.toLowerCase().includes(q)));
+  const count = (s: string) => all.filter((x) => x.status === s).length;
+  const pipeline = new Map<string, ReturnType<(typeof all)[number]["total"]["add"]>>();
+  for (const x of all.filter((y) => y.status === "SENT")) { const c = pipeline.get(x.currency); pipeline.set(x.currency, c ? c.add(x.total) : x.total); }
+  const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ status: status === "all" ? undefined : status, q: sp.q?.trim(), ...over })) if (v) p.set(k, v); const t = p.toString(); return `/quotes${t ? `?${t}` : ""}`; };
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Quotations</h1>
-      <div className="card overflow-x-auto">
-        {quotes.length === 0 ? <p className="text-sm text-muted">No quotations yet.</p> : (
+    <div className="space-y-5">
+      <PageHeader title="Quotations" subtitle="Price the work, send it, and turn accepted quotes into invoices." actions={canManage ? <NewButton href={href({ new: "1" })}>New quotation</NewButton> : undefined} />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="Drafts" value={count("DRAFT")} />
+        <Stat label="Sent, awaiting answer" value={count("SENT")} hint={pipeline.size ? [...pipeline].map(([c, v]) => formatMoney(v, c)).join(" · ") : undefined} />
+        <Stat label="Accepted" value={count("ACCEPTED")} />
+        <Stat label="Expired or declined" value={count("EXPIRED") + count("DECLINED")} />
+      </div>
+      {sp.error && !sp.new && <Notice kind="error">{sp.error}</Notice>}
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchBox q={sp.q?.trim()} placeholder="Search number or client" hidden={{ status: status === "all" ? undefined : status }} />
+        <Chips current={status} items={[{ key: "all", label: "All", count: all.length, href: href({ status: undefined }) }, ...statuses.map((s) => ({ key: s, label: s.toLowerCase().replace(/^./, (c) => c.toUpperCase()), count: count(s), href: href({ status: s }) }))]} />
+      </div>
+      {quotes.length === 0 ? <Empty title={q || status !== "all" ? "No quotations match" : "No quotations yet"}>{canManage ? "Create one with New quotation." : "Quotations will appear here."}</Empty> : (
+        <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted"><tr><th className="py-2 pr-4">Number</th><th className="pr-4">Client</th><th className="pr-4">Status</th><th className="pr-4">Valid until</th><th className="text-right">Total</th></tr></thead>
+            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="px-4 py-2.5">Number</th><th className="pr-4">Client</th><th className="pr-4">Status</th><th className="pr-4">Valid until</th><th className="pr-4 text-right">Total</th></tr></thead>
             <tbody>
-              {quotes.map((q) => (
-                <tr key={q.id} className="border-t border-border">
-                  <td className="py-2 pr-4"><Link className="hover:underline font-medium" href={`/quotes/${q.id}`}>{q.number}</Link></td>
-                  <td className="pr-4">{q.client.name}</td><td className="pr-4">{q.status.toLowerCase()}</td><td className="pr-4">{q.validUntil ?? ""}</td>
-                  <td className="text-right">{formatMoney(q.total, q.currency)}</td>
+              {quotes.map((x) => (
+                <tr key={x.id} className="border-t border-border transition hover:bg-hover/50">
+                  <td className="px-4 py-3"><Link className="font-medium hover:underline" href={`/quotes/${x.id}`}>{x.number}</Link></td>
+                  <td className="pr-4">{x.client.name}</td><td className="pr-4"><StatusBadge status={x.status} /></td><td className="pr-4 text-muted">{x.validUntil ?? ""}</td>
+                  <td className="pr-4 text-right tabular-nums">{formatMoney(x.total, x.currency)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </div>
-      {canManage && (
-        <form action={create} className="card grid gap-4 sm:grid-cols-4">
-          <h2 className="font-semibold sm:col-span-4">New quotation (saved as draft)</h2>
-          <p className="sm:col-span-4 text-xs text-muted">Pick a catalog plan to fill in its name and its price in the chosen currency (and any setup fee as its own line); leave the other boxes empty or overwrite them. A plan with no price in that currency is refused.</p>
-          {error && <p role="alert" className="sm:col-span-4 text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
-          <div><label className="label" htmlFor="clientId">Client</label>
-            <select id="clientId" name="clientId" required className="input"><option value="">Choose…</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.currency})</option>)}</select></div>
-          <div><label className="label" htmlFor="currency">Currency</label>
-            <select id="currency" name="currency" className="input" defaultValue="USD">{["PKR", "USD", "AED", "GBP"].map((c) => <option key={c}>{c}</option>)}</select></div>
-          <div><label className="label" htmlFor="taxRate">Tax rate (%)</label><input id="taxRate" name="taxRate" defaultValue="0" list="taxrates" className="input" /><datalist id="taxrates">{rates.map((r) => <option key={r.id} value={r.ratePercent.toString()}>{r.name}</option>)}</datalist></div>
-          <div><label className="label" htmlFor="validUntil">Valid until</label><input id="validUntil" name="validUntil" type="date" className="input" /></div>
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="sm:col-span-4 grid gap-2 sm:grid-cols-[12rem_1fr_5rem_8rem]">
-              <select name={`plan${i}`} aria-label={`Line ${i + 1} catalog plan`} className="input" defaultValue=""><option value="">{i === 0 ? "Custom line or catalog plan…" : "Custom or plan…"}</option>{plans.map((p) => <option key={p.id} value={p.id}>{p.category.name}: {p.name}</option>)}</select>
-              <input name={`desc${i}`} placeholder={i === 0 ? "Description" : "Description (optional)"} aria-label={`Line ${i + 1} description`} className="input" />
-              <input name={`qty${i}`} placeholder="Qty" aria-label={`Line ${i + 1} quantity`} className="input" />
-              <input name={`price${i}`} placeholder="Unit price" aria-label={`Line ${i + 1} unit price`} className="input" />
-            </div>
-          ))}
-          <div className="sm:col-span-2"><label className="label" htmlFor="notes">Notes</label><textarea id="notes" name="notes" rows={2} className="input" /></div>
-          <div className="sm:col-span-2"><label className="label" htmlFor="terms">Terms</label><textarea id="terms" name="terms" rows={2} className="input" placeholder="e.g. 50% upfront, balance on delivery" /></div>
-          <div className="sm:col-span-4"><button className="btn">Save draft</button></div>
-        </form>
+        </div>
+      )}
+      {canManage && sp.new && (
+        <Drawer title="New quotation" closeTo={href({ new: undefined })}>
+          <QuoteForm action={create} clients={clients} plans={plans.map((p) => ({ id: p.id, label: `${p.category.name}: ${p.name}` }))} taxPresets={rates.map((r) => ({ name: r.name, rate: r.ratePercent.toString() }))} closeTo={href({ new: undefined })} error={sp.error} />
+        </Drawer>
       )}
     </div>
   );

@@ -25,13 +25,13 @@ const projectSchema = z.object({
 export async function createProject(formData: FormData) {
   const user = await requirePermission("projects.manage");
   const parsed = projectSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) redirect(`/projects?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
+  if (!parsed.success) redirect(`/projects?new=1&error=${encodeURIComponent(parsed.error.issues[0].message)}`);
   const d = parsed.data;
   if (d.budgetAmount !== null && !/^\d{1,12}(\.\d{1,2})?$/.test(d.budgetAmount)) {
-    redirect(`/projects?error=${encodeURIComponent("Budget must be a positive number")}`);
+    redirect(`/projects?new=1&error=${encodeURIComponent("Budget must be a positive number")}`);
   }
   if (d.clientId && !(await db.client.findFirst({ where: { id: d.clientId, organizationId: user.organizationId } }))) {
-    redirect(`/projects?error=${encodeURIComponent("Unknown client")}`);
+    redirect(`/projects?new=1&error=${encodeURIComponent("Unknown client")}`);
   }
   const project = await db.$transaction(async (tx) => {
     const seq = await tx.numberSequence.upsert({

@@ -1905,3 +1905,16 @@ model ContactActivity {
   @@index([contactId, createdAt])
   @@index([actorId, createdAt])
 }
+
+// ---------- Personal preferences ----------
+
+// Small per-user settings such as the dashboard layout. One row per user and key.
+model UserPreference {
+  id        String   @id @default(cuid())
+  userId    String
+  key       String
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, key])
+}

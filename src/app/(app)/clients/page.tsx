@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { Avatar, Chips, Empty, NewButton, PageHeader, PanelForm, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import Drawer from "@/components/ui/Drawer";
 
 export const dynamic = "force-dynamic";
 
@@ -22,11 +24,11 @@ async function createClient(formData: FormData) {
   "use server";
   const user = await requirePermission("clients.edit");
   const parsed = schema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) redirect(`/clients?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
+  if (!parsed.success) redirect(`/clients?new=1&error=${encodeURIComponent(parsed.error.issues[0].message)}`);
   const dup = await db.client.findFirst({
     where: { organizationId: user.organizationId, name: { equals: parsed.data.name, mode: "insensitive" } },
   });
-  if (dup) redirect(`/clients?error=${encodeURIComponent("A client with this name already exists.")}`);
+  if (dup) redirect(`/clients?new=1&error=${encodeURIComponent("A client with this name already exists.")}`);
   const seq = await db.numberSequence.upsert({
     where: { organizationId_key: { organizationId: user.organizationId, key: "CLIENT" } },
     create: { organizationId: user.organizationId, key: "CLIENT", next: 2 },
@@ -39,62 +41,80 @@ async function createClient(formData: FormData) {
   redirect(`/clients/${client.id}`);
 }
 
-export default async function Clients({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+type SP = { error?: string; q?: string; show?: string; new?: string };
+
+export default async function Clients({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requirePermission("clients.view");
-  const { error } = await searchParams;
-  const clients = await db.client.findMany({ where: { organizationId: user.organizationId }, orderBy: { name: "asc" } });
+  const sp = await searchParams;
+  const org = user.organizationId;
   const canEdit = user.permissions.has("clients.edit");
+  const show = sp.show === "inactive" ? "inactive" : sp.show === "all" ? "all" : "active";
+  const q = sp.q?.trim();
+  const [clients, active, inactive] = await Promise.all([
+    db.client.findMany({
+      where: { organizationId: org, ...(show === "all" ? {} : { active: show === "active" }), ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { email: { contains: q, mode: "insensitive" } }, { code: { contains: q, mode: "insensitive" } }] } : {}) },
+      orderBy: { name: "asc" }, take: 300,
+    }),
+    db.client.count({ where: { organizationId: org, active: true } }),
+    db.client.count({ where: { organizationId: org, active: false } }),
+  ]);
+  const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ show: show === "active" ? undefined : show, q, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/clients${t ? `?${t}` : ""}`; };
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Client Accounts</h1>
-      <div className="card overflow-x-auto">
-        {clients.length === 0 ? (
-          <p className="text-sm text-muted">No clients yet.</p>
-        ) : (
+    <div className="space-y-5">
+      <PageHeader title="Client accounts" subtitle="Who you bill, in which currency and on what terms." actions={canEdit ? <NewButton href={href({ new: "1" })}>Add client</NewButton> : undefined} />
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Stat label="Active clients" value={active} />
+        <Stat label="Inactive" value={inactive} />
+        <Stat label="Billing currencies" value={[...new Set(clients.map((c) => c.currency))].join(" · ") || "None"} />
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchBox q={q} placeholder="Search name, email or code" hidden={{ show: show === "active" ? undefined : show }} />
+        <Chips current={show} items={[{ key: "active", label: "Active", count: active, href: href({ show: undefined }) }, { key: "inactive", label: "Inactive", count: inactive, href: href({ show: "inactive" }) }, { key: "all", label: "All", count: active + inactive, href: href({ show: "all" }) }]} />
+      </div>
+      {clients.length === 0 ? <Empty title={q ? "No clients match" : "No clients yet"}>{canEdit ? "Add your first client, or convert a won lead." : "Clients will appear here."}</Empty> : (
+        <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted">
-              <tr><th className="py-2 pr-4">Code</th><th className="pr-4">Name</th><th className="pr-4">Email</th><th className="pr-4">Currency</th><th>Terms</th></tr>
-            </thead>
+            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="px-4 py-2.5">Client</th><th className="pr-4">Email</th><th className="pr-4">Country</th><th className="pr-4">Currency</th><th className="pr-4">Terms</th><th className="pr-4">Status</th></tr></thead>
             <tbody>
               {clients.map((c) => (
-                <tr key={c.id} className="border-t border-border">
-                  <td className="py-2 pr-4 text-muted">{c.code}</td>
-                  <td className="pr-4 font-medium"><Link className="hover:underline" href={`/clients/${c.id}`}>{c.name}</Link></td>
-                  <td className="pr-4">{c.email}</td>
+                <tr key={c.id} className="border-t border-border transition hover:bg-hover/50">
+                  <td className="px-4 py-2.5"><Link href={`/clients/${c.id}`} className="flex items-center gap-3"><Avatar name={c.name} /><span><span className="block font-medium hover:underline">{c.name}</span><span className="text-xs text-muted">{c.code}</span></span></Link></td>
+                  <td className="pr-4 text-muted">{c.email}</td>
+                  <td className="pr-4 text-muted">{c.country}</td>
                   <td className="pr-4">{c.currency}</td>
-                  <td>{c.paymentTermsDays} days</td>
+                  <td className="pr-4 text-muted">{c.paymentTermsDays} days</td>
+                  <td className="pr-4"><StatusBadge status={c.active ? "ACTIVE" : "ENDED"} /></td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </div>
-      {canEdit && (
-        <form action={createClient} className="card grid gap-4 sm:grid-cols-2">
-          <h2 className="font-semibold sm:col-span-2">Add client</h2>
-          {error && <p role="alert" className="sm:col-span-2 text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
-          {[["name", "Client name", true], ["email", "Email", false], ["phone", "Phone", false], ["country", "Country", false], ["taxId", "Tax ID", false]].map(([n, l, r]) => (
-            <div key={String(n)}>
-              <label className="label" htmlFor={String(n)}>{String(l)}</label>
-              <input id={String(n)} name={String(n)} required={Boolean(r)} className="input" />
+        </div>
+      )}
+      {canEdit && sp.new && (
+        <Drawer title="Add client" closeTo={href({ new: undefined })}>
+          <PanelForm action={createClient} closeTo={href({ new: undefined })} submit="Add client" error={sp.error} hint="You can add contacts and a portal login afterwards.">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[["name", "Client name", true], ["email", "Email", false], ["phone", "Phone", false], ["country", "Country", false], ["taxId", "Tax ID", false]].map(([n, l, r]) => (
+                <div key={String(n)} className={n === "name" ? "sm:col-span-2" : ""}>
+                  <label className="label" htmlFor={String(n)}>{String(l)}</label>
+                  <input id={String(n)} name={String(n)} required={Boolean(r)} className="input" />
+                </div>
+              ))}
+              <div>
+                <label className="label" htmlFor="currency">Billing currency</label>
+                <select id="currency" name="currency" className="input" defaultValue="USD">{["PKR", "USD", "AED", "GBP"].map((c) => <option key={c}>{c}</option>)}</select>
+              </div>
+              <div>
+                <label className="label" htmlFor="paymentTermsDays">Payment terms (days)</label>
+                <input id="paymentTermsDays" name="paymentTermsDays" type="number" defaultValue={14} min={0} max={365} className="input" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="label" htmlFor="billingAddress">Billing address</label>
+                <textarea id="billingAddress" name="billingAddress" rows={2} className="input" />
+              </div>
             </div>
-          ))}
-          <div>
-            <label className="label" htmlFor="currency">Billing currency</label>
-            <select id="currency" name="currency" className="input" defaultValue="USD">
-              {["PKR", "USD", "AED", "GBP"].map((c) => <option key={c}>{c}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="label" htmlFor="paymentTermsDays">Payment terms (days)</label>
-            <input id="paymentTermsDays" name="paymentTermsDays" type="number" defaultValue={14} min={0} max={365} className="input" />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="label" htmlFor="billingAddress">Billing address</label>
-            <textarea id="billingAddress" name="billingAddress" rows={2} className="input" />
-          </div>
-          <div className="sm:col-span-2"><button className="btn">Add client</button></div>
-        </form>
+          </PanelForm>
+        </Drawer>
       )}
     </div>
   );

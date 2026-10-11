@@ -417,3 +417,84 @@ export async function questFor(db: Db, p: { organizationId: string; userId: stri
 }
 
 export const money = (v: string | null | undefined) => (v && dec(v).gt(0) ? v : null);
+
+// ---------- merge ----------
+// Fold a duplicate ("from") into the record you keep ("into"). Leads, the client link, the timeline, the people of an organization,
+// tags, followers, phones and emails all move over; blanks on the kept record are filled from the duplicate. The duplicate is archived,
+// never deleted, with a note saying where it went. Two records that each have a client account cannot be merged (that would merge books).
+export type MergePreview = {
+  into: { id: string; name: string; kind: string }; from: { id: string; name: string; kind: string };
+  moves: { leads: number; activities: number; people: number; client: boolean; phones: number; emails: number; tags: number };
+};
+
+async function loadPair(db: Db | Tx, organizationId: string, intoId: string, fromId: string) {
+  if (intoId === fromId) throw new ContactError("Choose a different contact to merge.");
+  const [into, from] = await Promise.all([db.contact.findFirst({ where: { id: intoId, organizationId } }), db.contact.findFirst({ where: { id: fromId, organizationId } })]);
+  if (!into || !from) throw new ContactError("Contact not found.");
+  if (into.kind !== from.kind) throw new ContactError("A person can only be merged with a person, and an organization with an organization.");
+  if (from.archived) throw new ContactError("That contact is already archived.");
+  const [ci, cf] = await Promise.all([db.client.findFirst({ where: { organizationId, contactId: into.id }, select: { id: true } }), db.client.findFirst({ where: { organizationId, contactId: from.id }, select: { id: true } })]);
+  if (ci && cf) throw new ContactError("Both contacts have a client account. Client accounts hold invoices and payments and cannot be merged here.");
+  return { into, from, clientToMove: cf?.id ?? null };
+}
+
+const mergeEntries = (a: Entry[], b: Entry[], kind: "phone" | "email") => {
+  const key = (e: Entry) => (kind === "phone" ? phoneKey(e.value) ?? e.value : e.value.toLowerCase());
+  const seen = new Set(a.map(key));
+  return [...a, ...b.filter((e) => !seen.has(key(e)))].slice(0, 10);
+};
+
+export async function previewMerge(db: Db, p: { organizationId: string; intoId: string; fromId: string }): Promise<MergePreview> {
+  const { into, from, clientToMove } = await loadPair(db, p.organizationId, p.intoId, p.fromId);
+  const [leads, activities, people] = await Promise.all([db.lead.count({ where: { contactId: from.id } }), db.contactActivity.count({ where: { contactId: from.id } }), db.contact.count({ where: { parentId: from.id } })]);
+  const ph = mergeEntries(into.phones as unknown as Entry[], from.phones as unknown as Entry[], "phone").length - (into.phones as unknown as Entry[]).length;
+  const em = mergeEntries(into.emails as unknown as Entry[], from.emails as unknown as Entry[], "email").length - (into.emails as unknown as Entry[]).length;
+  return {
+    into: { id: into.id, name: into.name, kind: into.kind }, from: { id: from.id, name: from.name, kind: from.kind },
+    moves: { leads, activities, people, client: !!clientToMove, phones: ph, emails: em, tags: from.tags.filter((t) => !into.tags.includes(t)).length },
+  };
+}
+
+export async function mergeContacts(db: Db, p: { organizationId: string; actorId: string; intoId: string; fromId: string }) {
+  return db.$transaction(async (tx) => {
+    // Lock both rows so two people merging at once cannot interleave
+    await tx.$queryRaw`SELECT id FROM "Contact" WHERE id IN (${p.intoId}, ${p.fromId}) ORDER BY id FOR UPDATE`;
+    const { into, from, clientToMove } = await loadPair(tx, p.organizationId, p.intoId, p.fromId);
+    const phones = mergeEntries(into.phones as unknown as Entry[], from.phones as unknown as Entry[], "phone");
+    const emails = mergeEntries(into.emails as unknown as Entry[], from.emails as unknown as Entry[], "email");
+    const pick = <T,>(a: T | null, b: T | null) => (a === null || a === undefined || a === "" ? b : a);
+    const customFields = { ...(from.customFields as Record<string, string>), ...(into.customFields as Record<string, string>) };
+    const notes = [into.notes, from.notes && from.notes !== into.notes ? `From ${from.name}: ${from.notes}` : null].filter(Boolean).join("\n\n").slice(0, 4000) || null;
+    const category = into.category === "LEAD" && from.category !== "LEAD" ? from.category : into.category;
+    const updated = await tx.contact.update({
+      where: { id: into.id },
+      data: {
+        phones: phones as unknown as Prisma.InputJsonValue, emails: emails as unknown as Prisma.InputJsonValue, ...derived(phones, emails),
+        tags: [...new Set([...into.tags, ...from.tags])].slice(0, 12), followers: [...new Set([...into.followers, ...from.followers])].filter((f) => f !== (into.ownerId ?? from.ownerId)).slice(0, 20),
+        ownerId: pick(into.ownerId, from.ownerId), category, customFields: customFields as Prisma.InputJsonValue, notes,
+        industry: pick(into.industry, from.industry), jobTitle: pick(into.jobTitle, from.jobTitle), website: pick(into.website, from.website), addressLine: pick(into.addressLine, from.addressLine),
+        city: pick(into.city, from.city), state: pick(into.state, from.state), country: pick(into.country, from.country), postalCode: pick(into.postalCode, from.postalCode),
+        timezone: pick(into.timezone, from.timezone), preferredContact: pick(into.preferredContact, from.preferredContact), source: pick(into.source, from.source), parentId: pick(into.parentId, from.parentId),
+        lastActivityAt: new Date(),
+      },
+    });
+    await tx.lead.updateMany({ where: { contactId: from.id }, data: { contactId: into.id } });
+    if (clientToMove) await tx.client.update({ where: { id: clientToMove }, data: { contactId: into.id } });
+    await tx.contactActivity.updateMany({ where: { contactId: from.id }, data: { contactId: into.id } });
+    await tx.contact.updateMany({ where: { parentId: from.id }, data: { parentId: into.id } });
+    // The duplicate stays for the record, but no longer matches anyone's email or phone
+    await tx.contact.update({ where: { id: from.id }, data: { archived: true, matchKeys: [], primaryEmail: null, primaryPhone: null, parentId: null } });
+    await tx.contactActivity.create({ data: { contactId: into.id, actorId: p.actorId, kind: "SYSTEM", body: `Merged "${from.name}" into this contact.` } });
+    await tx.contactActivity.create({ data: { contactId: from.id, actorId: p.actorId, kind: "SYSTEM", body: `Merged into "${into.name}" and archived.` } });
+    await pushToBoards(tx, updated);
+    return updated;
+  });
+}
+
+// ---------- email from a contact ----------
+export async function contactEmailHistory(db: Db, organizationId: string, contactId: string, emails: string[], includeAll: boolean) {
+  const own: Prisma.EmailMessageWhereInput = { relatedType: "CONTACT", relatedId: contactId };
+  // Mail sent to the same address from invoices and statements can carry amounts, so only people with finance access see it here
+  const where: Prisma.EmailMessageWhereInput = includeAll && emails.length ? { OR: [own, { toEmail: { in: emails.map((e) => e.toLowerCase()) } }] } : own;
+  return db.emailMessage.findMany({ where: { organizationId, ...where }, orderBy: { createdAt: "desc" }, take: 20 });
+}
