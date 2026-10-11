@@ -1410,3 +1410,52 @@ model TimeEntry {
   @@index([projectId, workDate])
   @@index([userId, workDate])
 }
+
+// ---------- Bank reconciliation and year-end close ----------
+
+model BankStatementLine {
+  id             String   @id @default(cuid())
+  organizationId String
+  bankAccountId  String
+  date           String   // YYYY-MM-DD
+  description    String
+  reference      String?
+  amount         Decimal  @db.Decimal(14, 2) // positive = money in, negative = money out
+  dedupKey       String   // the same line imported twice is recognised and skipped
+  importedById   String?
+  createdAt      DateTime @default(now())
+
+  @@unique([bankAccountId, dedupKey])
+  @@index([organizationId, bankAccountId, date])
+}
+
+// Links one bank statement line to one ledger line (or clears a ledger line as part of the opening position).
+model BankMatch {
+  id              String   @id @default(cuid())
+  organizationId  String
+  bankAccountId   String
+  statementLineId String?  @unique
+  journalLineId   String   @unique
+  kind            String   @default("STATEMENT") // STATEMENT | OPENING
+  matchedById     String?
+  reconciliationId String?
+  createdAt       DateTime @default(now())
+
+  @@index([bankAccountId])
+}
+
+model BankReconciliation {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  bankAccountId      String
+  statementDate      String
+  statementBalance   Decimal  @db.Decimal(14, 2)
+  ledgerBalance      Decimal  @db.Decimal(14, 2)
+  outstandingLedger  Decimal  @db.Decimal(14, 2) // ledger lines not on the statement (signed)
+  unmatchedStatement Decimal  @db.Decimal(14, 2) // statement lines not in the ledger (signed)
+  difference         Decimal  @db.Decimal(14, 2)
+  completedById      String?
+  createdAt          DateTime @default(now())
+
+  @@index([organizationId, bankAccountId, statementDate])
+}

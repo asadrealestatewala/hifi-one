@@ -53,6 +53,9 @@ const endOf = (d: string) => `${d} 23:59:59.999`;
 export async function loadBalances(db: PrismaClient, organizationId: string, p: { from?: string; to?: string }): Promise<BalanceRow[]> {
   const from = p.from ? startOf(p.from) : "1970-01-01 00:00:00";
   const to = p.to ? endOf(p.to) : "2999-12-31 23:59:59";
+  // Year-end closing entries move profit into retained earnings. They belong in balances (the balance sheet) but must not
+  // wipe out a period's profit and loss, so they are left out whenever a start date is given.
+  const withClosing = !p.from;
   return db.$queryRaw<BalanceRow[]>`
     SELECT a.code, a.name, a.type, e.currency,
            COALESCE(SUM(l.debit), 0)::text AS debit, COALESCE(SUM(l.credit), 0)::text AS credit
@@ -60,6 +63,7 @@ export async function loadBalances(db: PrismaClient, organizationId: string, p: 
     JOIN "JournalEntry" e ON e.id = l."entryId"
     JOIN "Account" a ON a.id = l."accountId"
     WHERE e."organizationId" = ${organizationId} AND e.date >= ${from}::timestamp AND e.date <= ${to}::timestamp
+      AND (${withClosing}::boolean OR COALESCE(e."sourceType", '') <> 'YEAR_END_CLOSE')
     GROUP BY a.code, a.name, a.type, e.currency
     ORDER BY e.currency, a.code`;
 }

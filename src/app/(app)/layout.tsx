@@ -69,6 +69,8 @@ const NAV: NavGroup[] = [
       { href: "/finance/journals", label: "Manual Journals", permission: "finance.view" },
       { href: "/finance/accounts", label: "Chart of Accounts", permission: "finance.view" },
       { href: "/finance/close", label: "Close Periods", permission: "finance.view" },
+      { href: "/finance/reconciliation", label: "Bank Reconciliation", permission: "bank.reconcile" },
+      { href: "/finance/year-end", label: "Year-End Close", permission: "finance.view" },
       { href: "/quotes", label: "Quotations", permission: "quotes.view" },
       { href: "/contracts", label: "Contracts", permission: "contracts.view" },
       { href: "/finance/subscriptions", label: "Subscriptions", permission: "finance.view" },

@@ -57,7 +57,7 @@ The spec ([spec.md](spec.md)) describes a very large platform. The accounting, H
 
 ### 12: Projects
 - Done: projects, team members, task board, progress derived from tasks, completion blocked while tasks are open, client-visible tasks.
-- Not built: Gantt and calendar views, workload view, subtasks, dependencies, milestones and deliverables, comments and files, risks, budget and cost per project, profitability, project creation from a won deal, team templates, resource reallocation tied to a project.
+- Not built: Gantt and calendar views, workload view, subtasks, dependencies, comments and files on tasks, risks, project creation from a won deal, team templates, resource reallocation tied to a project.
 
 ### 13 and 14: Chat and meetings
 - Done: in-app notifications.
@@ -71,7 +71,8 @@ The spec ([spec.md](spec.md)) describes a very large platform. The accounting, H
 ### 18 to 20: Accounting and expenses
 - Done: chart of accounts (view), double-entry journal with immutable posted lines, invoices, payments with allocation, advances, customer statements, trial balance, profit and loss, balance sheet, cash movement, receivables aging, expense vouchers with approval chain, budgets with controls and transfers.
 - Done since the first version: manual journal entries with approval and reversal, chart of accounts editing, period locking, credit notes, refunds of money held on account.
-- Not built: year-end closing (profit is not moved to retained earnings), write-offs, discounts, multiple tax rates and tax reports, bank reconciliation and statement import, accounts payable aging, project profitability, departmental expense reports, commission and payroll liability reports, general ledger by account with drill-down, receipt documents, expense voucher printing, document template manager.
+- Done since: year-end close, bank reconciliation with CSV statement import, project profitability.
+- Not built: write-offs, discounts, multiple tax rates and tax reports, direct bank feeds, accounts payable aging, departmental expense reports, commission and payroll liability reports, general ledger by account with drill-down, receipt documents, expense voucher printing, document template manager.
 
 ### 21 and 22: Vendors, partners
 - Done: vendor directory, portal, opportunity to payment workflow, vendor ledger.
@@ -110,13 +111,13 @@ The spec ([spec.md](spec.md)) describes a very large platform. The accounting, H
 
 ## Suggested order for the next work
 
-1. ~~Manual journal entries, chart of accounts editing, period locking, credit notes and refunds~~ (done). Still needed for accountants: year-end closing, bank reconciliation, tax rates and tax reports, accounts payable aging, write-offs.
+1. ~~Manual journal entries, chart of accounts editing, period locking, credit notes and refunds~~ (done). Year-end closing and bank reconciliation are now done. Still needed for accountants: tax rates and tax reports, accounts payable aging, write-offs, reversing a year-end close.
 2. ~~First-run setup, user and role administration, password reset, multi-factor authentication~~ (done). Still needed: branches and departments screens, enforce two-step verification for sensitive roles.
 3. ~~File storage~~ (done for receipts, bill documents, employee documents and content media). Contract files are now supported too. Still needed: a virus scanner, other attachment points (quotes, projects, assets).
 4. ~~Server-side PDF and document templates~~ (done for six document types). Quotations are done. Still needed: right-to-left languages such as Urdu and Arabic, contract documents generated from templates, emailing documents, letterheads.
 5. ~~Exchange rates and consolidated reports~~ (done as presentation conversion). Still needed: foreign-exchange gain/loss accounting, revaluation, a rate feed, consolidated figures on the executive dashboard.
 6. **Service catalog editing**, then quotes built from catalog plans. (Quotations, subscriptions and contract tracking are done; still needed: quote revisions and approval rules, usage-based billing, automatic renewal reminders by email, e-signature, contract templates.)
-7. **Project depth**: milestones, deliverables, costs, profitability, timeline and calendar views.
+7. ~~Project depth~~ (milestones with billing, time logging, cost rates, profitability done). Still needed: timeline and calendar views, dependencies, subtasks, resource planning, approval of timesheets.
 8. **Integrations** one at a time (email first, then WhatsApp, then ads), each needing your provider accounts.
 9. **Commissions and incentives**, then the AI assistant.
 10. A third-party security review before real client data goes in.

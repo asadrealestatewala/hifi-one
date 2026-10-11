@@ -2,6 +2,15 @@
 
 Phases follow section 35 of [spec.md](spec.md).
 
+## Catalog editing, project depth, bank reconciliation and year-end close (done)
+
+About 45 new automated tests plus browser runs (a bank statement imported, suggestions confirmed, a bank fee posted from the statement, a wrong closing balance refused with the exact difference, the right one accepted; a milestone and time entry added to a project).
+- Service catalog editing: new categories and plans, edit details, per-currency prices with optional setup fee, features, archive; every change bumps the plan version. Quotations can pick catalog plans per line (price in the quote currency, setup fee as its own line, refused if no price in that currency); each line remembers the plan and version used
+- Projects: milestones with due dates and an optional billing amount (cannot be finished with open tasks; a finished milestone creates exactly one draft invoice linked to the project); time logging (no future dates, max 24 hours a day per person even under simultaneous entries); per-member hourly cost rates, frozen onto each time entry; profitability = issued invoices (before tax) minus labour, posted expenses and posted vendor bills, with open vendor orders shown as commitments and budget used; other-currency items listed as excluded. Money figures need the new projects.costs permission
+- Bank reconciliation: CSV import (day-first dates, brackets and trailing minus, separate in/out columns), duplicates skipped, unambiguous suggestions only, one-to-one matching with database uniqueness, post bank charges or unrecorded deposits straight from a statement line, opening position for history, reconciliation passes only when the statement balance equals the books after named differences; completed matches cannot be undone. New bank.reconcile permission
+- Year-end close: one entry per currency moving the year's profit or loss to Retained Earnings dated 31 December, optional book lock, repeatable without duplicates, refuses an unfinished year, pending manual journals or closing out of order, and flags a year whose profit changed after closing. Balance sheets include closing entries; profit and loss reports leave them out so a closed year still reports its profit
+Limits: statements are CSV only (no bank feeds, PDF or OFX); a year-end close cannot be undone from the screen; no timesheet approval, Gantt or calendar; quotes still cannot be edited.
+
 ## Quotations, subscriptions and contracts (done)
 
 20 new automated tests plus a browser run (quote created, PDF downloaded, sent, acceptance recorded, converted to a draft invoice with matching figures).
