@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
+import { CatalogError, resolvePlanLines } from "@/lib/catalog";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { SalesError, createQuote, expireQuotes } from "@/lib/sales";
@@ -11,15 +12,17 @@ async function create(formData: FormData) {
   "use server";
   const user = await requirePermission("quotes.manage");
   const fail = (m: string) => redirect(`/quotes?error=${encodeURIComponent(m)}`);
-  const lines: { description: string; quantity: string; unitPrice: string }[] = [];
+  const raw: { planId?: string; description: string; quantity: string; unitPrice: string }[] = [];
   for (let i = 0; i < 6; i++) {
     const description = String(formData.get(`desc${i}`) ?? "").trim();
     const quantity = String(formData.get(`qty${i}`) ?? "").trim();
     const unitPrice = String(formData.get(`price${i}`) ?? "").trim();
-    if (description || quantity || unitPrice) lines.push({ description, quantity, unitPrice });
+    const planId = String(formData.get(`plan${i}`) ?? "") || undefined;
+    if (description || quantity || unitPrice || planId) raw.push({ planId, description, quantity, unitPrice });
   }
   let id: string;
   try {
+    const lines = await resolvePlanLines(db, { organizationId: user.organizationId, currency: String(formData.get("currency") ?? ""), lines: raw });
     const q = await createQuote(db, {
       organizationId: user.organizationId, clientId: String(formData.get("clientId") ?? ""), currency: String(formData.get("currency") ?? ""),
       taxRate: String(formData.get("taxRate") || "0"), validUntil: String(formData.get("validUntil") ?? "") || null,
@@ -28,7 +31,7 @@ async function create(formData: FormData) {
     id = q.id;
     await audit(user, { action: "quote.create", entity: "Quote", entityId: q.id, after: { number: q.number, total: q.total.toString(), currency: q.currency } });
   } catch (e) {
-    if (e instanceof SalesError) return fail(e.message);
+    if (e instanceof SalesError || e instanceof CatalogError) return fail(e.message);
     throw e;
   }
   redirect(`/quotes/${id}`);
@@ -40,9 +43,10 @@ export default async function Quotes({ searchParams }: { searchParams: Promise<{
   const org = user.organizationId;
   await expireQuotes(db, org, new Date().toISOString().slice(0, 10));
   const canManage = user.permissions.has("quotes.manage");
-  const [quotes, clients] = await Promise.all([
+  const [quotes, clients, plans] = await Promise.all([
     db.quote.findMany({ where: { organizationId: org }, orderBy: { createdAt: "desc" }, take: 200, include: { client: true } }),
     db.client.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" } }),
+    db.servicePlan.findMany({ where: { organizationId: org, active: true, category: { active: true } }, orderBy: [{ category: { sortOrder: "asc" } }, { sortOrder: "asc" }], include: { category: true } }),
   ]);
   return (
     <div className="space-y-6">
@@ -66,6 +70,7 @@ export default async function Quotes({ searchParams }: { searchParams: Promise<{
       {canManage && (
         <form action={create} className="card grid gap-4 sm:grid-cols-4">
           <h2 className="font-semibold sm:col-span-4">New quotation (saved as draft)</h2>
+          <p className="sm:col-span-4 text-xs text-muted">Pick a catalog plan to fill in its name and its price in the chosen currency (and any setup fee as its own line); leave the other boxes empty or overwrite them. A plan with no price in that currency is refused.</p>
           {error && <p role="alert" className="sm:col-span-4 text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
           <div><label className="label" htmlFor="clientId">Client</label>
             <select id="clientId" name="clientId" required className="input"><option value="">Choose…</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.currency})</option>)}</select></div>
@@ -74,7 +79,8 @@ export default async function Quotes({ searchParams }: { searchParams: Promise<{
           <div><label className="label" htmlFor="taxRate">Tax rate (%)</label><input id="taxRate" name="taxRate" defaultValue="0" className="input" /></div>
           <div><label className="label" htmlFor="validUntil">Valid until</label><input id="validUntil" name="validUntil" type="date" className="input" /></div>
           {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="sm:col-span-4 grid gap-2 grid-cols-[1fr_5rem_8rem]">
+            <div key={i} className="sm:col-span-4 grid gap-2 sm:grid-cols-[12rem_1fr_5rem_8rem]">
+              <select name={`plan${i}`} aria-label={`Line ${i + 1} catalog plan`} className="input" defaultValue=""><option value="">{i === 0 ? "Custom line or catalog plan…" : "Custom or plan…"}</option>{plans.map((p) => <option key={p.id} value={p.id}>{p.category.name}: {p.name}</option>)}</select>
               <input name={`desc${i}`} placeholder={i === 0 ? "Description" : "Description (optional)"} aria-label={`Line ${i + 1} description`} className="input" />
               <input name={`qty${i}`} placeholder="Qty" aria-label={`Line ${i + 1} quantity`} className="input" />
               <input name={`price${i}`} placeholder="Unit price" aria-label={`Line ${i + 1} unit price`} className="input" />

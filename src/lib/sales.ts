@@ -30,7 +30,7 @@ export const periodStart = (start: string, interval: string, n: number) => addMo
 const dayBefore = (d: string) => new Date(Date.parse(d) - 86400000).toISOString().slice(0, 10);
 
 // ---------- quotes ----------
-type LineIn = { description: string; quantity: string; unitPrice: string };
+type LineIn = { description: string; quantity: string; unitPrice: string; planId?: string; planVersion?: number };
 
 function checkLines(lines: LineIn[]) {
   if (lines.length === 0) throw new SalesError("Add at least one line.");
@@ -57,7 +57,7 @@ export async function createQuote(db: Db, p: {
       data: {
         organizationId: p.organizationId, number, clientId: p.clientId, currency: p.currency, taxRate: p.taxRate, validUntil: p.validUntil || null,
         notes: p.notes || null, terms: p.terms || null, subtotal: t.subtotal, taxAmount: t.taxAmount, total: t.total, createdById: p.createdById,
-        lines: { create: p.lines.map((l, i) => ({ description: l.description.trim(), quantity: l.quantity, unitPrice: l.unitPrice, amount: t.amounts[i] })) },
+        lines: { create: p.lines.map((l, i) => ({ description: l.description.trim(), quantity: l.quantity, unitPrice: l.unitPrice, amount: t.amounts[i], planId: l.planId ?? null, planVersion: l.planVersion ?? null })) },
       },
     });
   });

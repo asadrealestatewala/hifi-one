@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { audit, requirePermission } from "@/lib/auth";
+import { CatalogError, INTERVALS, createCategory, createPlan } from "@/lib/catalog";
 import { db } from "@/lib/db";
 import { CURRENCIES, formatMoney } from "@/lib/money";
 
@@ -31,12 +32,40 @@ async function setPrice(formData: FormData) {
     action: "plan_price.set", entity: "ServicePlan", entityId: planId,
     before: before ? { currency, amount: before.amount.toString() } : null, after: { currency, amount },
   });
-  revalidatePath("/services");
+  redirect(`/services?cat=${plan.categoryId}&cur=${currency}`);
 }
 
-export default async function Services({ searchParams }: { searchParams: Promise<{ cat?: string; cur?: string }> }) {
+async function addCategory(formData: FormData) {
+  "use server";
+  const user = await requirePermission("catalog.edit");
+  try {
+    const c = await createCategory(db, { organizationId: user.organizationId, name: String(formData.get("name") ?? "") });
+    await audit(user, { action: "catalog.category_create", entity: "ServiceCategory", entityId: c.id, after: { name: c.name } });
+    redirect(`/services?cat=${c.id}`);
+  } catch (e) {
+    if (e instanceof CatalogError) redirect(`/services?error=${encodeURIComponent(e.message)}`);
+    throw e;
+  }
+}
+
+async function addPlan(formData: FormData) {
+  "use server";
+  const user = await requirePermission("catalog.edit");
+  let id: string;
+  try {
+    const p = await createPlan(db, { organizationId: user.organizationId, categoryId: String(formData.get("categoryId") ?? ""), name: String(formData.get("name") ?? ""), tagline: String(formData.get("tagline") ?? ""), billingInterval: String(formData.get("billingInterval") ?? "") });
+    id = p.id;
+    await audit(user, { action: "catalog.plan_create", entity: "ServicePlan", entityId: p.id, after: { name: p.name } });
+  } catch (e) {
+    if (e instanceof CatalogError) redirect(`/services?error=${encodeURIComponent(e.message)}`);
+    throw e;
+  }
+  redirect(`/services/${id}`);
+}
+
+export default async function Services({ searchParams }: { searchParams: Promise<{ cat?: string; cur?: string; error?: string }> }) {
   const user = await requirePermission("catalog.view");
-  const { cat, cur } = await searchParams;
+  const { cat, cur, error } = await searchParams;
   const currency = (CURRENCIES as readonly string[]).includes(cur ?? "") ? (cur as string) : "AED";
   const canEdit = user.permissions.has("catalog.edit");
   const categories = await db.serviceCategory.findMany({
@@ -69,6 +98,7 @@ export default async function Services({ searchParams }: { searchParams: Promise
           ))}
         </nav>
       </div>
+      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
       <nav aria-label="Categories" className="flex flex-wrap gap-2">
         {categories.map((c) => (
           <Link key={c.id} href={q(c.id, currency)} className={`btn-ghost ${c.id === selected?.id ? "!bg-navy !text-white" : ""}`}>
@@ -95,6 +125,7 @@ export default async function Services({ searchParams }: { searchParams: Promise
                     <li key={f.id} className="flex gap-2"><span aria-hidden className="text-brand">✓</span>{f.text}</li>
                   ))}
                 </ul>
+                {canEdit && <Link className="text-sm underline" href={`/services/${p.id}`}>Edit plan, features and prices</Link>}
                 {canEdit && (
                   <form action={setPrice} className="flex gap-2 border-t border-border pt-3">
                     <input type="hidden" name="planId" value={p.id} />
@@ -106,6 +137,25 @@ export default async function Services({ searchParams }: { searchParams: Promise
               </article>
             );
           })}
+        </div>
+      )}
+      {canEdit && (
+        <div className="grid gap-5 md:grid-cols-2">
+          <form action={addCategory} className="card space-y-3">
+            <h2 className="font-semibold">New category</h2>
+            <input name="name" required maxLength={80} aria-label="Category name" placeholder="e.g. Video Production" className="input" />
+            <button className="btn">Add category</button>
+          </form>
+          {selected && (
+            <form action={addPlan} className="card space-y-3">
+              <h2 className="font-semibold">New plan in {selected.name}</h2>
+              <input type="hidden" name="categoryId" value={selected.id} />
+              <input name="name" required maxLength={100} aria-label="Plan name" placeholder="Plan name" className="input" />
+              <input name="tagline" aria-label="Tagline" placeholder="Tagline (optional)" className="input" />
+              <select name="billingInterval" aria-label="Billing" defaultValue="MONTHLY" className="input">{INTERVALS.map((i) => <option key={i} value={i}>{i.toLowerCase().replace("_", " ")}</option>)}</select>
+              <button className="btn">Add plan, then set prices</button>
+            </form>
+          )}
         </div>
       )}
     </div>
