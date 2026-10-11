@@ -10,7 +10,7 @@ const good = {
   APP_URL: "https://erp.example.com", SETUP_TOKEN: "a-long-random-setup-token", STORAGE_DIR: path.join(os.tmpdir(), `hifi-pre-${process.pid}`),
 };
 const run = (env: Record<string, string>) =>
-  spawnSync("node", [script], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", SystemRoot: process.env.SystemRoot ?? "", ...env } as NodeJS.ProcessEnv });
+  spawnSync("node", [script], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", SystemRoot: process.env.SystemRoot ?? "", ...env } as unknown as NodeJS.ProcessEnv });
 
 describe("preflight check", () => {
   it("passes a sound production configuration and never prints secret values", () => {
