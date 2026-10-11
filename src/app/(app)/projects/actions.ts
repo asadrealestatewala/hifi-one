@@ -1,0 +1,131 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { z } from "zod";
+import { audit, requirePermission, requireUser } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { projectScope } from "@/lib/projects";
+import { TASK_STATUSES, canCompleteProject } from "@/lib/project-rules";
+
+const optDate = z.string().optional().transform((v) => (v ? new Date(v) : null));
+
+const projectSchema = z.object({
+  name: z.string().trim().min(2, "Project name is required").max(200),
+  clientId: z.string().optional().transform((v) => (v ? v : null)),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH"]).default("MEDIUM"),
+  startDate: optDate,
+  deadline: optDate,
+  budgetAmount: z.string().trim().optional().transform((v) => (v ? v : null)),
+  currency: z.enum(["PKR", "USD", "AED", "GBP"]).default("USD"),
+  scope: z.string().trim().max(2000).optional().transform((v) => (v ? v : null)),
+});
+
+export async function createProject(formData: FormData) {
+  const user = await requirePermission("projects.manage");
+  const parsed = projectSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) redirect(`/projects?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
+  const d = parsed.data;
+  if (d.budgetAmount !== null && !/^\d{1,12}(\.\d{1,2})?$/.test(d.budgetAmount)) {
+    redirect(`/projects?error=${encodeURIComponent("Budget must be a positive number")}`);
+  }
+  if (d.clientId && !(await db.client.findFirst({ where: { id: d.clientId, organizationId: user.organizationId } }))) {
+    redirect(`/projects?error=${encodeURIComponent("Unknown client")}`);
+  }
+  const project = await db.$transaction(async (tx) => {
+    const seq = await tx.numberSequence.upsert({
+      where: { organizationId_key: { organizationId: user.organizationId, key: "PRJ" } },
+      create: { organizationId: user.organizationId, key: "PRJ", next: 2 },
+      update: { next: { increment: 1 } },
+    });
+    return tx.project.create({
+      data: {
+        ...d, organizationId: user.organizationId, managerId: user.id,
+        number: `PRJ-${String(seq.next - 1).padStart(4, "0")}`,
+        members: { create: { userId: user.id, role: "Project Manager" } },
+      },
+    });
+  });
+  await audit(user, { action: "project.create", entity: "Project", entityId: project.id, after: { number: project.number, name: project.name } });
+  redirect(`/projects/${project.id}`);
+}
+
+async function loadProject(projectId: string, user: Awaited<ReturnType<typeof requireUser>>) {
+  return db.project.findFirst({ where: { id: projectId, ...projectScope(user) } });
+}
+
+export async function addMember(formData: FormData) {
+  const user = await requirePermission("projects.manage");
+  const projectId = String(formData.get("projectId"));
+  const userId = String(formData.get("userId"));
+  const role = String(formData.get("role") ?? "").trim().slice(0, 80) || null;
+  const project = await loadProject(projectId, user);
+  const member = await db.user.findFirst({ where: { id: userId, organizationId: user.organizationId, active: true } });
+  if (!project || !member) return;
+  await db.projectMember.upsert({
+    where: { projectId_userId: { projectId, userId } }, update: { role }, create: { projectId, userId, role },
+  });
+  await audit(user, { action: "project.add_member", entity: "Project", entityId: projectId, after: { userId, role } });
+  revalidatePath(`/projects/${projectId}`);
+}
+
+export async function createTask(formData: FormData) {
+  const user = await requirePermission("projects.manage");
+  const projectId = String(formData.get("projectId"));
+  const title = String(formData.get("title") ?? "").trim().slice(0, 200);
+  const assigneeId = String(formData.get("assigneeId") ?? "") || null;
+  const dueRaw = String(formData.get("dueDate") ?? "");
+  const project = await loadProject(projectId, user);
+  if (!project || title.length < 2) return;
+  if (assigneeId && !(await db.projectMember.findUnique({ where: { projectId_userId: { projectId, userId: assigneeId } } }))) return;
+  const task = await db.task.create({
+    data: {
+      projectId, title, assigneeId, createdById: user.id,
+      priority: z.enum(["LOW", "MEDIUM", "HIGH"]).catch("MEDIUM").parse(formData.get("priority")),
+      dueDate: dueRaw ? new Date(dueRaw) : null,
+      clientVisible: formData.get("clientVisible") === "on",
+    },
+  });
+  await audit(user, { action: "task.create", entity: "Task", entityId: task.id, after: { title, projectId, assigneeId } });
+  revalidatePath(`/projects/${projectId}`);
+}
+
+export type MoveResult = { ok: true } | { ok: false; error: string };
+
+// Persisted by the board (drag and drop) and the status menu. Managers can move any task;
+// other members can move only tasks assigned to them.
+export async function moveTask(taskId: string, status: string): Promise<MoveResult> {
+  const user = await requirePermission("tasks.edit");
+  if (!(TASK_STATUSES as readonly string[]).includes(status)) return { ok: false, error: "Unknown status." };
+  const task = await db.task.findUnique({ where: { id: taskId }, include: { project: true } });
+  if (!task) return { ok: false, error: "Task not found." };
+  const project = await loadProject(task.projectId, user);
+  if (!project) return { ok: false, error: "Task not found." };
+  const isManager = user.permissions.has("projects.manage") || project.managerId === user.id;
+  if (!isManager && task.assigneeId !== user.id) return { ok: false, error: "You can only move tasks assigned to you." };
+  if (project.status === "COMPLETED" || project.status === "CANCELLED") return { ok: false, error: "This project is closed." };
+  if (task.status === status) return { ok: true };
+  await db.task.update({
+    where: { id: taskId },
+    data: { status, completedAt: status === "DONE" ? new Date() : null },
+  });
+  await audit(user, { action: "task.move", entity: "Task", entityId: taskId, before: { status: task.status }, after: { status } });
+  revalidatePath(`/projects/${task.projectId}`);
+  return { ok: true };
+}
+
+export async function setProjectStatus(formData: FormData) {
+  const user = await requirePermission("projects.manage");
+  const projectId = String(formData.get("projectId"));
+  const status = z.enum(["ACTIVE", "ON_HOLD", "COMPLETED", "CANCELLED"]).safeParse(formData.get("status"));
+  const project = await loadProject(projectId, user);
+  if (!status.success || !project) return;
+  if (status.data === "COMPLETED") {
+    const tasks = await db.task.findMany({ where: { projectId }, select: { status: true } });
+    const check = canCompleteProject(tasks);
+    if (!check.ok) redirect(`/projects/${projectId}?error=${encodeURIComponent(check.reason)}`);
+  }
+  await db.project.update({ where: { id: projectId }, data: { status: status.data } });
+  await audit(user, { action: "project.status", entity: "Project", entityId: projectId, before: { status: project.status }, after: { status: status.data } });
+  revalidatePath(`/projects/${projectId}`);
+}

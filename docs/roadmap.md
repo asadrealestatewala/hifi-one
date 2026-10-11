@@ -29,6 +29,16 @@ Done and verified on localhost:
 
 Still to do in Phase 1: contacts and companies, Smart Lists, prospecting worklists with CSV import, quotes, contracts, client conversion (needs accounting), commissions setup.
 
+## Phase 2: projects and tasks (first slice done)
+
+Done and verified on localhost:
+- Projects with numbering, optional client, manager, deadline, budget, scope, team members with roles; record-level access (see all, or only projects you manage or belong to)
+- Task board with drag and drop plus status menu, persisted; managers move any task, other members only their own
+- Progress is derived from tasks (share Done); a project cannot be completed while tasks are open
+- Tasks can be marked client-visible (used by the client portal later)
+
+Still to do: Gantt/timeline, calendar, subtasks and dependencies, task comments, files, budget and cost tracking, project creation from a won deal, content calendar and approvals, success reviews, meetings.
+
 ## Phase 3 (started early): accounting core, first slice done
 
 Done, covered by 21 automated tests including real-database concurrency tests:

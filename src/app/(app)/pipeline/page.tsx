@@ -20,6 +20,7 @@ export default async function Pipeline() {
         <p className="text-sm text-muted">Drag a card to another column, or use the stage menu on the card. Changes save immediately.</p>
       </div>
       <Board
+        key={leads.map((l) => `${l.id}:${l.stageId}`).join(",")}
         canEdit={user.permissions.has("crm.edit")}
         stages={stages.map((s) => ({ id: s.id, name: s.name, isWon: s.isWon }))}
         cards={leads.map((l) => ({

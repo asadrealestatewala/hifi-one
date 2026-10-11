@@ -28,6 +28,10 @@ const NAV: NavGroup[] = [
     ],
   },
   {
+    title: "Project Operations",
+    items: [{ href: "/projects", label: "Projects & Tasks", permission: "projects.view" }],
+  },
+  {
     title: "Finance & Accounting",
     items: [{ href: "/finance/ledger", label: "General Ledger", permission: "finance.view" }],
   },
