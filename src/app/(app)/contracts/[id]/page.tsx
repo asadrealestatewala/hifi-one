@@ -4,6 +4,7 @@ import { audit, requirePermission } from "@/lib/auth";
 import FilesPanel from "@/components/FilesPanel";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
+import { Notice, StatusBadge } from "@/components/ui";
 import { SalesError, daysUntil, expireContracts, setContractStatus } from "@/lib/sales";
 
 export const dynamic = "force-dynamic";
@@ -43,8 +44,13 @@ export default async function ContractDetail({ params, searchParams }: { params:
   return (
     <div className="space-y-4 max-w-3xl">
       <Link href="/contracts" className="text-sm text-muted hover:underline">← Contracts</Link>
-      <h1 className="text-2xl font-bold">{c.title} <span className="text-base font-normal text-muted">{c.status.toLowerCase()}</span></h1>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">{c.title}<StatusBadge status={c.status} /></h1>
+      {error && <Notice kind="error">{error}</Notice>}
+      {c.startDate && c.endDate && c.status === "ACTIVE" && (() => {
+        const total = Math.max(1, daysUntil(c.endDate, c.startDate)), used = Math.min(total, Math.max(0, total - (left ?? 0)));
+        const pct = Math.round((used / total) * 100);
+        return <div className="card space-y-1.5"><div className="flex justify-between text-xs text-muted"><span>{c.startDate}</span><span>{pct}% of the term used</span><span>{c.endDate}</span></div><div className="h-2 overflow-hidden rounded-full bg-hover" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}><div className={`h-full rounded-full ${left !== null && left <= c.renewalNoticeDays ? "bg-brand" : "bg-primary"}`} style={{ width: `${pct}%` }} /></div></div>;
+      })()}
       <section className="card space-y-1 text-sm">
         <p>Client: <Link className="underline" href={`/clients/${c.clientId}`}>{c.client.name}</Link></p>
         <p>Term: {c.startDate ?? "not set"} to {c.endDate ?? "open ended"}</p>

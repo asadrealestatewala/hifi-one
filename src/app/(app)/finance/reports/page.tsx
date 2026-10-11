@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Chips, PageHeader } from "@/components/ui";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
@@ -204,13 +205,19 @@ export default async function Reports({ searchParams }: { searchParams: Promise<
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3 print:hidden">
-        <h1 className="text-2xl font-bold">Financial Reports</h1>
-        <PrintButton />
-      </div>
-      <nav aria-label="Report" className="flex flex-wrap gap-2 print:hidden">
-        {TABS.map(([k, label]) => <Link key={k} href={q(k)} className={`btn-ghost ${k === type ? "!bg-navy !text-white" : ""}`}>{label}</Link>)}
-      </nav>
+      <div className="print:hidden"><PageHeader title="Financial reports" subtitle="Every figure comes from the ledger, per currency." actions={<PrintButton />} /></div>
+      <div className="print:hidden"><Chips current={type} items={TABS.map(([k, label]) => ({ key: k, label, href: q(k) }))} /></div>
+      {type !== "aging" && type !== "ap" && type !== "bs" && type !== "cbs" && (() => {
+        const now = new Date(), y = now.getUTCFullYear(), m = now.getUTCMonth();
+        const iso = (d: Date) => d.toISOString().slice(0, 10);
+        const presets: [string, string, string][] = [
+          ["This month", iso(new Date(Date.UTC(y, m, 1))), iso(new Date(Date.UTC(y, m + 1, 0)))],
+          ["Last month", iso(new Date(Date.UTC(y, m - 1, 1))), iso(new Date(Date.UTC(y, m, 0)))],
+          ["This quarter", iso(new Date(Date.UTC(y, Math.floor(m / 3) * 3, 1))), iso(new Date(Date.UTC(y, Math.floor(m / 3) * 3 + 3, 0)))],
+          ["Year to date", iso(new Date(Date.UTC(y, 0, 1))), iso(now)],
+        ];
+        return <div className="flex flex-wrap items-center gap-2 text-sm print:hidden"><span className="text-muted">Quick period:</span>{presets.map(([label, f, t]) => <Link key={label} href={`/finance/reports?type=${type}&from=${f}&to=${t}`} className={`rounded-full border px-3 py-1 transition ${from === f && to === t ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-primary/40"}`}>{label}</Link>)}</div>;
+      })()}
       {type !== "aging" && type !== "ap" && (
         <form className="flex flex-wrap items-end gap-3 print:hidden">
           <input type="hidden" name="type" value={type} />

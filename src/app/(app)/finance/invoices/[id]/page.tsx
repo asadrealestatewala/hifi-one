@@ -10,6 +10,7 @@ import { issueCreditNote, writeOffInvoice } from "@/lib/bookkeeping";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import PrintButton from "@/components/PrintButton";
+import { Notice, StatusBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -92,17 +93,35 @@ export default async function InvoicePage({
   return (
     <div className="space-y-4">
       <Link href="/finance/invoices" className="text-sm text-muted hover:underline print:hidden">← All invoices</Link>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
-      <div className="flex gap-2 print:hidden">
-        {inv.status === "DRAFT" && canPost && (
-          <form action={issue}><input type="hidden" name="id" value={inv.id} /><button className="btn">Issue invoice</button></form>
-        )}
-        {(inv.status === "ISSUED" || inv.status === "DRAFT") && canPost && (
-          <form action={cancel}><input type="hidden" name="id" value={inv.id} /><button className="btn-ghost">Cancel invoice</button></form>
-        )}
-        <a className="btn" href={`/finance/invoices/${inv.id}/pdf`} target="_blank" rel="noopener">Download PDF</a>
-        <PrintButton />
-      </div>
+      {error && <Notice kind="error">{error}</Notice>}
+      {(() => {
+        const due = inv.total.sub(inv.amountPaid).sub(inv.creditedAmount);
+        const settled = inv.total.gt(0) ? Math.min(100, Math.round(Number(inv.total.sub(due)) / Number(inv.total) * 100)) : 0;
+        const live = !["DRAFT", "CANCELLED"].includes(inv.status);
+        return (
+          <section className="card flex max-w-3xl flex-wrap items-center justify-between gap-4 print:hidden">
+            <div className="min-w-0 space-y-1">
+              <p className="flex items-center gap-2 text-sm text-muted"><span className="font-medium text-foreground">{inv.number ?? "Draft"}</span><StatusBadge status={inv.status} /></p>
+              {live ? (
+                <>
+                  <p className="text-2xl font-semibold tracking-tight tabular-nums">{formatMoney(due, inv.currency)} <span className="text-sm font-normal text-muted">balance due</span></p>
+                  <div className="flex items-center gap-2"><div className="h-1.5 w-48 overflow-hidden rounded-full bg-hover" role="progressbar" aria-valuenow={settled} aria-valuemin={0} aria-valuemax={100}><div className={`h-full rounded-full ${settled >= 100 ? "bg-success" : "bg-primary"}`} style={{ width: `${settled}%` }} /></div><span className="text-xs text-muted">{settled}% settled</span></div>
+                </>
+              ) : <p className="text-2xl font-semibold tracking-tight tabular-nums">{formatMoney(inv.total, inv.currency)}</p>}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {inv.status === "DRAFT" && canPost && (
+                <form action={issue}><input type="hidden" name="id" value={inv.id} /><button className="btn">Issue invoice</button></form>
+              )}
+              {(inv.status === "ISSUED" || inv.status === "DRAFT") && canPost && (
+                <form action={cancel}><input type="hidden" name="id" value={inv.id} /><button className="btn-ghost">Cancel invoice</button></form>
+              )}
+              <a className="btn-ghost" href={`/finance/invoices/${inv.id}/pdf`} target="_blank" rel="noopener">Download PDF</a>
+              <PrintButton />
+            </div>
+          </section>
+        );
+      })()}
       <article className="card max-w-3xl space-y-6">
         <header className="flex justify-between gap-4">
           <div>
@@ -174,6 +193,10 @@ export default async function InvoicePage({
       </article>
       {canPost && inv.number && ["ISSUED", "PARTIALLY_PAID"].includes(inv.status) && <WhatsAppButton phone={inv.client.phone} text={templates.paymentReminder(inv.client.name, inv.number, formatMoney(inv.total.sub(inv.amountPaid).sub(inv.creditedAmount), inv.currency), inv.dueDate ? inv.dueDate.toISOString().slice(0, 10) : null, "Hifi Marketing and Technologies")} label="Payment reminder on WhatsApp" />}
       {canPost && inv.number && ["ISSUED", "PARTIALLY_PAID", "PAID"].includes(inv.status) && <EmailDocForm kind="INVOICE" id={inv.id} defaultTo={inv.client.email} returnTo={`/finance/invoices/${inv.id}`} flash={{ mailOk: sp.mailOk, mailError: sp.mailError }} />}
+      {(canPost || user.permissions.has("finance.writeoff")) && (inv.status === "ISSUED" || inv.status === "PARTIALLY_PAID") && (
+        <details className="max-w-3xl space-y-3 print:hidden">
+          <summary className="btn-ghost inline-flex cursor-pointer list-none">Credit note or write-off</summary>
+          <div className="mt-3 space-y-3">
       {canPost && (inv.status === "ISSUED" || inv.status === "PARTIALLY_PAID") && (
         <form action={creditNote} className="card flex flex-wrap items-end gap-3 max-w-3xl print:hidden">
           <input type="hidden" name="id" value={inv.id} />
@@ -194,6 +217,9 @@ export default async function InvoicePage({
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="reverseTax" /> Also reverse the tax</label>
           <button className="btn-ghost">Write off</button>
         </form>
+      )}
+          </div>
+        </details>
       )}
     </div>
   );

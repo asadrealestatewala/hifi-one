@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Avatar, Notice, StatusBadge } from "@/components/ui";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import { clientStatement } from "@/lib/accounting";
@@ -28,14 +29,17 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   return (
     <div className="space-y-6">
       <Link href="/clients" className="text-sm text-muted hover:underline">← All clients</Link>
-      <h1 className="text-2xl font-bold">{client.name} <span className="text-muted text-base font-normal">{client.code}</span></h1>
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-4"><Avatar name={client.name} size={56} /><div><h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">{client.name}<StatusBadge status={client.active ? "ACTIVE" : "ENDED"} /></h1><p className="text-sm text-muted">{client.code} · bills in {client.currency}, {client.paymentTermsDays}-day terms</p></div></div>
+        {client.contactId && user.permissions.has("crm.view") && <Link href={`/contacts/${client.contactId}`} className="btn-ghost">Open contact</Link>}
+      </header>
       <section className="card text-sm grid grid-cols-3 gap-y-2 max-w-2xl">
         {([["Email", client.email], ["Phone", client.phone], ["Country", client.country], ["Tax ID", client.taxId],
           ["Billing currency", client.currency], ["Payment terms", `${client.paymentTermsDays} days`], ["Address", client.billingAddress]] as [string, string | null][]).map(([k, v]) => (
           <div key={k} className="contents"><span className="text-muted">{k}</span><span className="col-span-2">{v ?? ""}</span></div>
         ))}
       </section>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      {error && <Notice kind="error">{error}</Notice>}
       {user.permissions.has("clients.edit") && <InviteForm clientId={client.id} />}
       {user.permissions.has("finance.refund") && statement?.advances.map((a) => (
         <RefundForm key={a.currency} clientId={client.id} currency={a.currency} held={a.amount.toString()} banks={banks.filter((b) => b.currency === a.currency).map((b) => ({ id: b.id, name: b.internalName }))} />

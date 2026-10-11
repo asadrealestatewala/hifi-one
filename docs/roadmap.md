@@ -266,6 +266,10 @@ Known limits: no inbound email (a true inbox needs IMAP or a provider webhook); 
 
 Known limits: nav numbers can lag up to 20 seconds; the older layout remains on the detail pages, HR sub-pages, procurement and finance reports.
 
+## Detail pages and reports (done)
+
+Invoice (balance due card with settled bar, tidy actions, credit note and write-off folded under one button), lead (pipeline stage stepper, quick call, email and contact links), contract (term progress bar), client (avatar header, link to its contact), quotation and project (status badges, progress colours), and Financial reports (report chips and quick periods: this month, last month, this quarter, year to date). The contract page had no contract in the demo data, so it was type-checked and built but not opened with real data.
+
 ## Decisions
 
 - Brand colour follows the supplied red H logo; the spec's blue/purple can be added as a theme if wanted.

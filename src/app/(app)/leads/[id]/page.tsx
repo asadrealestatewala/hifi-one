@@ -55,6 +55,20 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
           {canEdit && <StageSelect leadId={lead.id} current={lead.stageId} stages={stages.map((s) => ({ id: s.id, name: s.name }))} />}
         </div>
       </div>
+      <ol className="flex gap-1 overflow-x-auto rounded-2xl border border-border bg-surface p-1.5 text-xs" aria-label="Pipeline stage">
+        {stages.filter((st) => !st.isLost || st.id === lead.stageId).map((st) => {
+          const idx = stages.findIndex((x) => x.id === st.id), cur = stages.findIndex((x) => x.id === lead.stageId);
+          const state = st.id === lead.stageId ? "now" : idx < cur ? "done" : "todo";
+          return <li key={st.id} aria-current={state === "now" ? "step" : undefined} className={`flex-1 whitespace-nowrap rounded-xl px-3 py-1.5 text-center font-medium transition ${state === "now" ? (st.isLost ? "bg-brand text-white shadow" : "bg-primary text-white shadow") : state === "done" ? "bg-primary/10 text-primary" : "text-muted"}`}>{state === "done" ? "✓ " : ""}{st.name}</li>;
+        })}
+      </ol>
+      {(lead.phone || lead.email || lead.contactId) && (
+        <div className="flex flex-wrap gap-2">
+          {lead.phone && <a href={`tel:${lead.phone.replace(/[^\d+]/g, "")}`} className="btn-ghost">Call</a>}
+          {lead.email && <a href={`mailto:${lead.email}`} className="btn-ghost">Email</a>}
+          {lead.contactId && <Link href={`/contacts/${lead.contactId}`} className="btn-ghost">Open contact</Link>}
+        </div>
+      )}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {sp.saved && <Notice kind="ok">Saved.</Notice>}
       {lead.clientId && <Notice kind="ok">Converted to a client. <Link className="underline" href={`/clients/${lead.clientId}`}>Open the client account</Link></Notice>}

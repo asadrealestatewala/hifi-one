@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Notice, StatusBadge } from "@/components/ui";
 import { notFound, redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import EmailDocForm from "@/components/EmailDocForm";
@@ -56,10 +57,10 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
     <div className="space-y-4 max-w-3xl">
       <Link href="/quotes" className="text-sm text-muted hover:underline">← Quotations</Link>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold">{q.number} <span className="text-base font-normal text-muted">{q.status.toLowerCase()}</span></h1>
+        <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">{q.number}<StatusBadge status={q.status} /></h1>
         <a className="btn-ghost" href={`/quotes/${q.id}/pdf`} target="_blank" rel="noopener">Download PDF</a>
       </div>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      {error && <Notice kind="error">{error}</Notice>}
       <section className="card space-y-3">
         <p className="text-sm">For <strong>{q.client.name}</strong>{q.validUntil && <> · valid until {q.validUntil}</>}</p>
         <table className="w-full text-sm">

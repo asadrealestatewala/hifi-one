@@ -63,7 +63,7 @@ export default async function ProjectPage({
       </div>
       <div>
         <div className="flex justify-between text-xs text-muted mb-1"><span>Progress (tasks done)</span><span>{progress}%</span></div>
-        <div className="h-2 rounded-full bg-border overflow-hidden"><div className="h-full bg-brand" style={{ width: `${progress}%` }} /></div>
+        <div className="h-2 rounded-full bg-border overflow-hidden"><div className={`h-full transition-all duration-700 ${progress >= 100 ? "bg-success" : "bg-primary"}`} style={{ width: `${progress}%` }} /></div>
       </div>
       {project.scope && <section className="card text-sm whitespace-pre-line">{project.scope}</section>}
 
