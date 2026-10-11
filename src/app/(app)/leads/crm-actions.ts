@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { CrmError, cleanFilters, deleteSmartList, logActivity, saveCampaign, saveSmartList, setTarget, verifyActivity } from "@/lib/crm";
+import { ensureContactForLead, mirrorLeadActivity } from "@/lib/crm-contacts";
 import { db } from "@/lib/db";
 import { leadScope } from "@/lib/leads";
 
@@ -17,6 +18,7 @@ export async function logActivityAction(formData: FormData) {
   if (!(await db.lead.findFirst({ where: { id: leadId, ...leadScope(user) }, select: { id: true } }))) redirect("/leads");
   try {
     const a = await logActivity(db, { organizationId: user.organizationId, leadId, actorId: user.id, kind: s(formData, "kind"), outcome: s(formData, "outcome") || undefined, body: s(formData, "body"), nextFollowUp: s(formData, "nextFollowUp") || null });
+    await mirrorLeadActivity(db, a.id);
     await audit(user, { action: "lead.activity", entity: "Lead", entityId: leadId, after: { kind: a.kind, outcome: a.outcome } });
   } catch (e) {
     if (e instanceof CrmError) return flash(back, "error", e.message);
@@ -56,6 +58,7 @@ export async function updateLeadDetails(formData: FormData) {
       priority: ["LOW", "MEDIUM", "HIGH"].includes(s(formData, "priority")) ? s(formData, "priority") : lead.priority,
     },
   });
+  await ensureContactForLead(db, id);
   await audit(user, { action: "lead.update", entity: "Lead", entityId: id, before, after: { city: t("city"), campaignId, assignedToId: reassign, tags } });
   redirect(`${back}?saved=1`);
 }

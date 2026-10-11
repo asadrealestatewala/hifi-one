@@ -11,6 +11,7 @@ export const NAV: NavGroup[] = [
     { href: "/search", label: "Search", permission: "dashboard.view" },
   ] },
   { id: "crm", title: "CRM & Sales", icon: "target", items: [
+    { href: "/contacts", label: "Contacts", permission: "crm.view" },
     { href: "/leads", label: "Leads", permission: "crm.view" },
     { href: "/pipeline", label: "Opportunities", permission: "crm.view" },
     { href: "/leads/lists", label: "Smart Lists", permission: "crm.view" },

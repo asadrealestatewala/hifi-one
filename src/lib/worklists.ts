@@ -2,6 +2,7 @@
 // inflate lead and conversion metrics. A row becomes a real lead only when someone converts it.
 import type { PrismaClient } from "@prisma/client";
 import { mapHeaders, normalizeEmail, normalizePhone, parseCsv } from "./contacts";
+import { ensureContactForLead } from "./crm-contacts";
 
 export class WorklistError extends Error {}
 export const MAX_ROWS = 5000;
@@ -107,6 +108,7 @@ export async function convertRow(db: PrismaClient, p: { organizationId: string; 
         activities: { create: { kind: "CREATED", actorId: p.actorId, body: `Converted from prospecting worklist "${row.worklist.name}", row ${row.rowNumber}` } },
       },
     });
+    await ensureContactForLead(tx, lead.id);
     await tx.worklistRow.update({ where: { id: row.id }, data: { status: "CONVERTED", convertedLeadId: lead.id } });
     return { leadId: lead.id, created: true };
   });

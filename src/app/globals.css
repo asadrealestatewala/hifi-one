@@ -137,3 +137,11 @@ main h1 { letter-spacing: -0.02em; }
   main { padding: 0 !important; max-width: none !important; }
   .card { box-shadow: none; }
 }
+
+/* Slide-over panels and small celebrations */
+@keyframes slidein { from { transform: translateX(32px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop { 0% { transform: scale(0.6); opacity: 0; } 60% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes confetti { 0% { transform: translateY(-10px) rotate(0); opacity: 1; } 100% { transform: translateY(120px) rotate(540deg); opacity: 0; } }
+.pop { animation: pop 0.45s ease-out both; }
+.confetti > i { position: absolute; top: 0; width: 8px; height: 12px; border-radius: 2px; animation: confetti 1.6s ease-out forwards; }

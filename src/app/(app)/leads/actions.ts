@@ -7,6 +7,7 @@ import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { leadScope, normalizePhone } from "@/lib/leads";
 import { convertLead } from "@/lib/conversion";
+import { ensureContactForLead, mirrorLeadActivity } from "@/lib/crm-contacts";
 import { LedgerError } from "@/lib/ledger-math";
 
 const opt = z.string().trim().max(500).optional().transform((v) => (v ? v : null));
@@ -62,6 +63,7 @@ export async function createLead(formData: FormData) {
       activities: { create: { kind: "CREATED", actorId: user.id, body: "Lead created" } },
     },
   });
+  await ensureContactForLead(db, lead.id);
   await audit(user, { action: "lead.create", entity: "Lead", entityId: lead.id, after: { name: lead.name, stage: stage.name } });
   revalidatePath("/leads");
   redirect(`/leads/${lead.id}`);
@@ -114,6 +116,7 @@ export async function addNote(formData: FormData) {
   if (!body) return;
   const lead = await db.lead.findFirst({ where: { id: leadId, ...leadScope(user) } });
   if (!lead) return;
-  await db.leadActivity.create({ data: { leadId, actorId: user.id, kind: "NOTE", body } });
+  const na = await db.leadActivity.create({ data: { leadId, actorId: user.id, kind: "NOTE", body } });
+  await mirrorLeadActivity(db, na.id);
   revalidatePath(`/leads/${leadId}`);
 }

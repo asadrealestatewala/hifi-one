@@ -2,6 +2,17 @@
 
 Phases follow section 35 of [spec.md](spec.md).
 
+## Contacts hub, synced with every board (done)
+
+A GoHighLevel/Flowlu-style Contacts screen. One record per person or organization that leads, opportunities, clients, quotes, meetings and activities all point to.
+- **Contacts screen:** All / Organizations / Contacts tabs with counts, search (name, email, phone, tag), filters (category, owner, tag, source, archived), sortable columns, avatars, category badges, owner avatars, tags, last activity, page by page; select rows for bulk assign, set category, tag or archive; inline pencil edit of phone and email; Export CSV (formula characters defused).
+- **Add panel (slides in from the right):** Contact or Organization toggle; title, first and last name, organization (pick or type a new one, which is created and linked), job title, industry, assignee, followers; any number of phones and emails with types; website, preferred contact, time zone; address; source, campaign, tags; optional sales opportunity (value, currency, service, stage, expected close); notes and custom fields; a live completeness meter with bonus XP; a live duplicate warning while typing (matches any email or phone, and organization names, never revealing records the person cannot see); Save or Save & add another.
+- **Contact 360 page:** header with quick Call, Email, WhatsApp, Meeting and Edit; a "synced with" strip; Overview, Activity, Deals, People (for organizations) and Billing tabs; activity composer and timeline; open an opportunity; client account, invoices, outstanding, quotes and subscriptions.
+- **Sync rules (tested):** creating a lead creates or links its contact; editing a contact updates its leads (name, email, phone, place, tags, company) and its client (email, phone); editing a lead updates the contact; renaming an organization updates the company on its people's leads; converting a lead makes the contact and its organization Customers and links the client; activities logged on either side appear on both, once; existing leads and clients are given contacts automatically the first time the screen opens (`npm run contacts:backfill` does it on demand).
+- **Gamified goals:** daily rings (contacts added, activities logged, overdue follow-ups cleared), XP, five levels, a streak counter, eight badges and a small celebration when all three goals are done.
+- 16 new automated tests plus a browser run (list, panel, live meter and duplicate warning, save with redirect and celebration).
+Limits: no email or WhatsApp inbox inside the contact yet (links open your own apps); tags and custom fields are free text; merge of two duplicate contacts is not built; contact-level files are not built.
+
 ## Module tabs and video meetings (done)
 
 - Coloured pill tab strip at the top of every module (CRM, Services & Clients, Projects, Finance, People, Vendors, My Workspace, Administration), so the screens of the module you are in are one click away, like the reference design.

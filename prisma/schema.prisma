@@ -341,6 +341,7 @@ model Lead {
   createdById    String?
   clientId       String?
   convertedAt    DateTime?
+  contactId      String?   // the contact record this lead belongs to; kept in sync
   city           String?
   timezone       String?
   preferredContact String?  // CALL | WHATSAPP | EMAIL | SMS
@@ -403,6 +404,7 @@ model Client {
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())
 
+  contactId String?
   invoices Invoice[]
   quotes   Quote[]
   subscriptions Subscription[]
@@ -1790,6 +1792,7 @@ model Meeting {
   hostId         String
   projectId      String?
   clientId       String?
+  contactId      String?
   agenda         String?
   scheduledAt    DateTime?
   durationMin    Int       @default(60)
@@ -1835,4 +1838,70 @@ model MeetingMessage {
   meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
 
   @@index([meetingId, createdAt])
+}
+
+// ---------- Contacts and organizations: the one record every board points to ----------
+
+// A person or an organization. Leads, clients, quotes, meetings and activities hang off it, so a change made here shows everywhere.
+model Contact {
+  id              String   @id @default(cuid())
+  organizationId  String
+  kind            String   @default("PERSON") // PERSON | ORGANIZATION
+  title           String?
+  firstName       String?
+  lastName        String?
+  name            String   // display name: "First Last" for a person, the company name for an organization
+  parentId        String?  // the organization a person works for
+  category        String   @default("LEAD") // LEAD | CUSTOMER | PARTNER | VENDOR | INVESTOR | OTHER
+  industry        String?
+  jobTitle        String?
+  ownerId         String?
+  followers       String[] @default([])
+  website         String?
+  phones          Json     @default("[]") // [{ type: "WORK|MOBILE|HOME|WHATSAPP|OTHER", value }]
+  emails          Json     @default("[]") // [{ type: "WORK|PERSONAL|BILLING|OTHER", value }]
+  matchKeys       String[] @default([]) // every email and normalised phone, for duplicate detection
+  primaryPhone    String?  // normalised copies of the first entry, for matching and sorting
+  primaryEmail    String?
+  addressLine     String?
+  city            String?
+  state           String?
+  country         String?
+  postalCode      String?
+  timezone        String?
+  preferredContact String?
+  source          String?
+  campaignId      String?
+  tags            String[] @default([])
+  notes           String?
+  customFields    Json     @default("{}")
+  archived        Boolean  @default(false)
+  lastActivityAt  DateTime?
+  createdById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  activities ContactActivity[]
+
+  @@index([organizationId, kind, archived])
+  @@index([organizationId, primaryEmail])
+  @@index([organizationId, primaryPhone])
+  @@index([parentId])
+  @@index([matchKeys], type: Gin)
+}
+
+model ContactActivity {
+  id        String   @id @default(cuid())
+  contactId String
+  actorId   String?
+  kind      String   // NOTE | CALL | EMAIL | MEETING | WHATSAPP | SYSTEM
+  outcome   String?
+  body      String?
+  leadActivityId String? @unique // set when the same event also exists on a linked lead, so it is shown once and counted once
+  createdAt DateTime @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([contactId, createdAt])
+  @@index([actorId, createdAt])
 }

@@ -12,7 +12,7 @@ const COLOR: Record<string, string> = {
 };
 
 const ICON: Record<string, string> = {
-  "/dashboard": "home", "/search": "search", "/leads": "users", "/pipeline": "layers", "/leads/lists": "sparkles", "/leads/worklists": "file", "/campaigns": "target", "/sales/activity": "activity", "/quotes": "receipt",
+  "/dashboard": "home", "/search": "search", "/contacts": "users", "/leads": "target", "/pipeline": "layers", "/leads/lists": "sparkles", "/leads/worklists": "file", "/campaigns": "target", "/sales/activity": "activity", "/quotes": "receipt",
   "/services": "layers", "/clients": "building", "/contracts": "file", "/finance/subscriptions": "clock", "/finance/invoices": "receipt", "/finance/payments": "wallet",
   "/projects": "briefcase", "/content": "calendar", "/meetings": "video",
   "/finance/ledger": "folder", "/finance/accounts": "layers", "/finance/journals": "file", "/finance/reconciliation": "check", "/finance/budgets": "chart", "/finance/commissions": "wallet", "/finance/reports": "chart", "/finance/close": "shield", "/finance/year-end": "calendar", "/assets": "building", "/investments": "chart",

@@ -1,6 +1,7 @@
 // Controlled Closed Won workflow. Free of Next.js imports so it can be tested against the database.
 import type { PrismaClient } from "@prisma/client";
 import { LedgerError } from "./ledger-math";
+import { onLeadConverted } from "./crm-contacts";
 import { computeInvoiceTotals } from "./ledger-math";
 
 export type ConversionResult = { clientId: string; invoiceId: string | null; alreadyConverted: boolean };
@@ -66,6 +67,7 @@ export async function convertLead(
         body: `${prev.name} → Closed Won. Linked to client ${client.code ?? client.name}${invoiceId ? " and created a draft invoice" : ""}. Activity history is kept on the lead.`,
       },
     });
+    await onLeadConverted(tx, { leadId: lead.id, clientId: client.id, clientCode: client.code });
     return { clientId: client.id, invoiceId, alreadyConverted: false };
   });
 }
