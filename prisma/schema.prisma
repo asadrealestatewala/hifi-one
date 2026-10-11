@@ -939,3 +939,92 @@ model VendorBill {
   @@unique([organizationId, number])
   @@index([vendorId])
 }
+
+// ---------- Phase 5: fixed assets and investments ----------
+
+model Asset {
+  id             String   @id @default(cuid())
+  organizationId String
+  number         String
+  name           String
+  category       String?
+  serialNumber   String?
+  supplier       String?
+  purchaseDate   String // YYYY-MM-DD
+  cost           Decimal  @db.Decimal(14, 2)
+  salvageValue   Decimal  @default(0) @db.Decimal(14, 2)
+  currency       String
+  usefulLifeMonths Int
+  location       String?
+  status         String   @default("ACTIVE") // ACTIVE | DISPOSED
+  assignedToId   String?
+  purchaseEntryId String?
+  disposedDate   String?
+  disposalProceeds Decimal? @db.Decimal(14, 2)
+  disposalEntryId String?
+  createdAt      DateTime @default(now())
+
+  depreciation DepreciationEntry[]
+  assignments  AssetAssignment[]
+
+  @@unique([organizationId, number])
+}
+
+model DepreciationEntry {
+  id             String   @id @default(cuid())
+  assetId        String
+  period         String // YYYY-MM
+  amount         Decimal  @db.Decimal(14, 2)
+  journalEntryId String?
+
+  asset Asset @relation(fields: [assetId], references: [id])
+
+  @@unique([assetId, period])
+}
+
+model AssetAssignment {
+  id         String    @id @default(cuid())
+  assetId    String
+  userId     String
+  assignedAt DateTime  @default(now())
+  returnedAt DateTime?
+
+  asset Asset @relation(fields: [assetId], references: [id])
+
+  @@index([assetId])
+}
+
+model Investment {
+  id             String   @id @default(cuid())
+  organizationId String
+  number         String
+  name           String
+  category       String?
+  investee       String
+  currency       String
+  investmentDate String
+  ownershipPct   Decimal? @db.Decimal(5, 2)
+  expectedReturn String?
+  status         String   @default("ACTIVE") // ACTIVE | EXITED
+  createdAt      DateTime @default(now())
+
+  transactions InvestmentTransaction[]
+
+  @@unique([organizationId, number])
+}
+
+model InvestmentTransaction {
+  id             String   @id @default(cuid())
+  investmentId   String
+  kind           String // CAPITAL | INCOME_RECOGNISED | INCOME_RECEIVED
+  amount         Decimal  @db.Decimal(14, 2)
+  date           String
+  note           String?
+  journalEntryId String?
+  createdById    String?
+  createdAt      DateTime @default(now())
+
+  investment Investment @relation(fields: [investmentId], references: [id])
+
+  @@index([investmentId])
+}

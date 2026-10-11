@@ -39,6 +39,15 @@ Done and verified on localhost:
 
 Still to do: Gantt/timeline, calendar, subtasks and dependencies, task comments, files, budget and cost tracking, project creation from a won deal, content calendar and approvals, success reviews, meetings.
 
+## Fixed assets and investments (first slice done)
+
+Done, 21 automated tests plus a browser run (a USD 2,400 asset over 24 months: after 3 months accumulated depreciation 300, net book value 2,100, trial balance balanced):
+- Asset register with numbers, serial, supplier, location, assignment history; purchases are capitalised (never expensed), paid from a bank or recorded as a payable
+- Straight-line depreciation from the purchase month; the last month absorbs rounding so the total equals cost minus salvage; running it repeatedly or concurrently never posts a month twice
+- Disposal requires depreciation posted through the disposal month; proceeds versus net book value books a gain or a loss; disposed assets stop depreciating and cannot be reassigned
+- Investments: capital paid in, income recognised and cash received kept separate, with the outstanding gap shown; cash received cannot exceed recognised income; request keys make retries safe
+Limits: no capitalisation threshold setting; only straight-line (no declining balance); no revaluation or impairment; no maintenance/warranty tracking or documents; partnerships and joint ventures (agreements, profit sharing, partner portal) are not built; investment valuation methods are not modelled.
+
 ## Vendors and procurement (first slice done)
 
 Done, 8 database tests plus a browser run (vendor invited, signed in, applied; all internal pages bounce a vendor back to /vendor):

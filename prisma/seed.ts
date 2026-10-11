@@ -37,7 +37,8 @@ const STAGES: [string, number, boolean, boolean][] = [
 // Starter chart of accounts (editable; not tied to one jurisdiction).
 const CHART: [string, string, string, string?][] = [
   ["1010", "Cash on Hand", "ASSET"], ["1200", "Accounts Receivable", "ASSET", "AR"], ["1300", "Prepayments", "ASSET"],
-  ["1500", "Furniture and Equipment", "ASSET"], ["1510", "Investments", "ASSET"], ["1520", "Partnership and JV Balances", "ASSET"],
+  ["1500", "Furniture and Equipment", "ASSET", "FIXED_ASSETS"], ["1510", "Investments", "ASSET", "INVESTMENTS"], ["1520", "Partnership and JV Balances", "ASSET"],
+  ["1530", "Investment Income Receivable", "ASSET", "INVESTMENT_RECEIVABLE"], ["1590", "Accumulated Depreciation", "ASSET", "ACCUM_DEPRECIATION"],
   ["2000", "Accounts Payable", "LIABILITY", "ACCOUNTS_PAYABLE"], ["2100", "Customer Advances", "LIABILITY", "CUSTOMER_ADVANCES"],
   ["2200", "Tax Payable", "LIABILITY", "TAX_PAYABLE"], ["2300", "Accrued Expenses", "LIABILITY"],
   ["2400", "Deferred Revenue", "LIABILITY"], ["2500", "Payroll Liabilities", "LIABILITY", "PAYROLL_PAYABLE"], ["2510", "Payroll Tax Withheld", "LIABILITY", "PAYROLL_TAX"],
@@ -46,8 +47,8 @@ const CHART: [string, string, string, string?][] = [
   ["4020", "Advertising Management Revenue", "REVENUE"],
   ["5000", "Direct Labor and Contractors", "DIRECT_COST"], ["5010", "Direct Software and Hosting", "DIRECT_COST"],
   ["6000", "Marketing Expense", "OPEX"], ["6010", "Rent and Utilities", "OPEX"], ["6020", "Salaries and Commissions", "OPEX", "PAYROLL_EXPENSE"],
-  ["6030", "Taxes", "OPEX"], ["6040", "Depreciation", "OPEX"],
-  ["7000", "Investment Income", "OTHER_INCOME"], ["8000", "Other Expenses", "OTHER_EXPENSE"],
+  ["6030", "Taxes", "OPEX"], ["6040", "Depreciation", "OPEX", "DEPRECIATION_EXPENSE"],
+  ["7000", "Investment Income", "OTHER_INCOME", "INVESTMENT_INCOME"], ["7100", "Gain on Asset Disposal", "OTHER_INCOME", "GAIN_DISPOSAL"], ["8000", "Other Expenses", "OTHER_EXPENSE"], ["8100", "Loss on Asset Disposal", "OTHER_EXPENSE", "LOSS_DISPOSAL"],
 ];
 
 async function seedChart(orgId: string) {
