@@ -33,6 +33,10 @@ What is in place, how it is checked, and what is not done yet.
 - Documents are generated server-side from the same loaders as downloads; drafts and cancelled documents cannot be emailed, and another organization's records are never found.
 - Every attempt is logged (who, to whom, which document, result). The log says SENT only when the mail server accepted the message.
 
+## Calendar feed
+
+The calendar address is a bearer secret (48 random hex characters, unique, rotatable, switchable off). It is the one place the system serves data without a sign-in, because calendar apps cannot sign in; the route is explicitly allowed in the authorization test and must resolve its token through one function that refuses unknown, disabled and inactive-user tokens. It is rate limited, never cached, and contains only the person's own items plus dates their role can already view. Do not paste the address into chat or email.
+
 ## Business assistant
 
 - Read-only: it has no tools that change data, so text hidden inside a record cannot make it act.

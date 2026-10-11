@@ -37,6 +37,7 @@ const NAV: NavGroup[] = [
       { href: "/me/leave", label: "My Leave", permission: "self.leave" },
       { href: "/me/documents", label: "My Documents", permission: "self.leave" },
       { href: "/me/commissions", label: "My Commissions", permission: "commissions.own" },
+      { href: "/me/calendar", label: "My Calendar Feed", permission: "self.leave" },
       { href: "/assistant", label: "Assistant", permission: "assistant.use" },
       { href: "/me/payslips", label: "My Payslips", permission: "self.payslip" },
       { href: "/expenses", label: "Expense Vouchers", permission: "self.expense" },
@@ -89,6 +90,7 @@ const NAV: NavGroup[] = [
       { href: "/settings/company", label: "Company Settings", permission: "settings.company.view" },
       { href: "/settings/bank-accounts", label: "Bank Accounts", permission: "bank.view" },
       { href: "/settings/documents", label: "Document Templates", permission: "settings.company.view" },
+      { href: "/settings/organization", label: "Offices & Departments", permission: "users.view" },
       { href: "/settings/exchange-rates", label: "Exchange Rates", permission: "reports.view" },
       { href: "/settings/tax-rates", label: "Tax Rates", permission: "settings.company.view" },
       { href: "/settings/email", label: "Email", permission: "settings.company.view" },
@@ -139,7 +141,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </aside>
       <div className="flex-1 min-w-0">
         <header className="flex items-center justify-between gap-3 border-b border-border bg-surface px-6 py-3">
-          <p className="text-sm text-muted">Hifi Marketing and Technologies</p>
+          <form action="/search" role="search" className="flex items-center gap-2"><input name="q" aria-label="Search everything" placeholder="Search clients, leads, invoices…" className="input !py-1 !w-64 text-sm" />{user.permissions.has("dashboard.view") && <button className="btn-ghost !py-1 text-sm">Search</button>}</form>
           <div className="flex items-center gap-3">
             <div className="text-right">
               <p className="text-sm font-semibold leading-tight">{user.name}</p>

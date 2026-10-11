@@ -72,6 +72,7 @@ model User {
   totpSecretEnc  String? // encrypted at rest
   totpEnabled    Boolean   @default(false)
   totpLastStep   Int? // last accepted 30-second step, so a code cannot be used twice
+  calendarToken  String?   @unique // secret address of this person's calendar feed; null means no feed
   recoveryCodes  Json? // array of sha256 hashes of unused one-time codes
   failedLogins   Int       @default(0)
   lockedUntil    DateTime?

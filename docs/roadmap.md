@@ -2,6 +2,13 @@
 
 Phases follow section 35 of [spec.md](spec.md).
 
+## Everyday tools (done)
+
+- Search box in the header and a Search page across clients, leads, invoices, quotations, contracts, projects, vendors and people. Each group appears only if you may view it, with the same record-level scope as the lists (agents find only their own leads, project members only their projects); typed % and _ are taken literally. 12 tests with the calendar and organization tests
+- Offices and Departments screen: add and edit branches (type, country, address, time zone, archive), add/rename/delete departments (not while people are in them), assign a person to a branch and department (HR profile kept in step)
+- Personal calendar feed (iCalendar): subscribe from Google Calendar, Outlook or Apple Calendar to your task deadlines, leave, lead follow-ups, projects you manage, and contract ends and planned posts if your role can view them. The address holds a 48-character secret, can be replaced (old one dies at once) or switched off, unknown and switched-off addresses are identical 404s, and it is rate limited. Browser-checked
+Limits: the feed is read-only and shows all-day entries only; anyone with the link can read it, so it is as private as the link; no saved filters or favourites yet.
+
 ## Commissions and the assistant (done; the assistant needs an API key to go live)
 
 - Commissions: a rate per salesperson, applied to the tax-free share of money actually received from clients they converted (lead owner), one commission per payment (database-unique), only on payments after the rate was set; manual bonuses; approval by someone other than the earner books the cost (Dr commissions, Cr payroll payable), payment settles it from a same-currency bank account; void while unapproved; each person has a private statement ("My Commissions"); 3 new permissions. 11 tests

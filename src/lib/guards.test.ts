@@ -97,7 +97,9 @@ describe("every server action checks the caller", () => {
 
 describe("every route handler checks the caller", () => {
   // Public by design: the health check returns nothing but "ok"
-  const PUBLIC_ROUTES = new Set(["api/health/route.ts"]);
+  // The calendar feed is opened by calendar apps that cannot sign in; it is protected by a long secret address instead
+  // and must resolve that secret through eventsForToken (which refuses unknown, switched-off and inactive-user tokens).
+  const PUBLIC_ROUTES = new Set(["api/health/route.ts", "api/calendar/[token]/route.ts"]);
   for (const f of files.filter((x) => x.endsWith("/route.ts"))) {
     const r = rel(f);
     if (PUBLIC_ROUTES.has(r)) continue;
@@ -105,6 +107,15 @@ describe("every route handler checks the caller", () => {
       expect(/require(Permission|User|ClientUser|VendorUser|Session)\(/.test(read(f)), `${r} must call a require* guard`).toBe(true);
     });
   }
+});
+
+describe("the secret-address calendar feed", () => {
+  it("only serves what eventsForToken returns, and says nothing useful for a bad token", () => {
+    const src = read(path.resolve(__dirname, "../app/api/calendar/[token]/route.ts"));
+    expect(src).toContain("eventsForToken(");
+    expect(src).toMatch(/status:\s*404/);
+    expect(src).toContain("no-store");
+  });
 });
 
 describe("secrets never live in source", () => {
