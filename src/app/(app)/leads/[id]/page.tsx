@@ -1,4 +1,6 @@
 import Link from "next/link";
+import WhatsAppButton from "@/components/WhatsAppButton";
+import { templates } from "@/lib/whatsapp";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -27,6 +29,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   return (
     <div className="space-y-6">
       <Link href="/leads" className="text-sm text-muted hover:underline">← All leads</Link>
+      {lead.phone && canEdit && <WhatsAppButton phone={lead.phone} text={templates.leadFollowUp(lead.name, user.name, "Hifi Marketing and Technologies")} />}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">{lead.name} <span className="text-muted text-base font-normal">L-{lead.number}</span></h1>
         {canEdit && (

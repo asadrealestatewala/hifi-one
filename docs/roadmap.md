@@ -2,6 +2,12 @@
 
 Phases follow section 35 of [spec.md](spec.md).
 
+## WhatsApp click-to-chat (done); other integrations decided, not built
+
+- "Message on WhatsApp" buttons on leads (follow-up), sent quotations (follow-up) and issued invoices with a balance (payment reminder). They open the person's own WhatsApp with the message ready; the person presses send. Numbers are cleaned to international form (a leading 0 uses +92 by default). 6 tests. Hifi One cannot tell whether the message was sent.
+- **Not built, and why:** the WhatsApp Business API (needs a Meta business account, a verified number and approved message templates), ad platforms such as Meta Ads and Google Ads (need developer tokens and approved app access), telephony and video meetings (need provider accounts). Each should be built against a real account so it can be tested, not guessed. 
+- **Employee monitoring is deliberately not built.** Screenshots, keystrokes or activity tracking of staff need a written policy, staff notice and consent under the laws of the countries involved (Pakistan, the UAE, the UK and the US differ), a clear business purpose, and a limit on who can see the data. Attendance, task time and project time logging already exist and are visible to the person being recorded. If you want more, start with the policy and I will build to it.
+
 ## Deployment package and rehearsal (done, Docker untested)
 
 - `scripts/preflight.mjs`: refuses development passwords, short or placeholder secrets, non-production mode, non-https address, unwritable file storage; never prints secrets (9 tests)

@@ -4,6 +4,8 @@ import { audit, requirePermission } from "@/lib/auth";
 import { randomUUID } from "node:crypto";
 import { cancelInvoice, issueInvoice, LedgerError } from "@/lib/accounting";
 import EmailDocForm from "@/components/EmailDocForm";
+import WhatsAppButton from "@/components/WhatsAppButton";
+import { templates } from "@/lib/whatsapp";
 import { issueCreditNote, writeOffInvoice } from "@/lib/bookkeeping";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
@@ -170,6 +172,7 @@ export default async function InvoicePage({
           </section>
         )}
       </article>
+      {canPost && inv.number && ["ISSUED", "PARTIALLY_PAID"].includes(inv.status) && <WhatsAppButton phone={inv.client.phone} text={templates.paymentReminder(inv.client.name, inv.number, formatMoney(inv.total.sub(inv.amountPaid).sub(inv.creditedAmount), inv.currency), inv.dueDate ? inv.dueDate.toISOString().slice(0, 10) : null, "Hifi Marketing and Technologies")} label="Payment reminder on WhatsApp" />}
       {canPost && inv.number && ["ISSUED", "PARTIALLY_PAID", "PAID"].includes(inv.status) && <EmailDocForm kind="INVOICE" id={inv.id} defaultTo={inv.client.email} returnTo={`/finance/invoices/${inv.id}`} flash={{ mailOk: sp.mailOk, mailError: sp.mailError }} />}
       {canPost && (inv.status === "ISSUED" || inv.status === "PARTIALLY_PAID") && (
         <form action={creditNote} className="card flex flex-wrap items-end gap-3 max-w-3xl print:hidden">

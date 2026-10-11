@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import EmailDocForm from "@/components/EmailDocForm";
+import WhatsAppButton from "@/components/WhatsAppButton";
+import { templates } from "@/lib/whatsapp";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { SalesError, cancelQuote, convertQuoteToInvoice, decideQuote, expireQuotes, sendQuote } from "@/lib/sales";
@@ -91,6 +93,7 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
         </div>
       )}
       {canManage && !(["DRAFT", "CANCELLED"].includes(q.status)) && <EmailDocForm kind="QUOTE" id={q.id} defaultTo={q.client.email} returnTo={`/quotes/${q.id}`} flash={{ mailOk: sp.mailOk, mailError: sp.mailError }} />}
+      {canManage && q.status === "SENT" && <WhatsAppButton phone={q.client.phone} text={templates.quoteFollowUp(q.client.name, q.number, user.name, "Hifi Marketing and Technologies")} label="Follow up on WhatsApp" />}
       {q.status === "SENT" && <p className="text-xs text-muted">The client can also accept or decline from the client portal.</p>}
     </div>
   );
