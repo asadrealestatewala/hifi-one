@@ -22,6 +22,8 @@ export type SessionUser = {
   name: string;
   email: string;
   organizationId: string;
+  userType: string;
+  clientId: string | null;
   permissions: Set<PermissionKey>;
   roles: string[];
 };
@@ -119,15 +121,27 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     name: session.user.name,
     email: session.user.email,
     organizationId: session.user.organizationId,
+    userType: session.user.userType,
+    clientId: session.user.clientId,
     permissions,
     roles: activeRoles.map((r) => r.role.name),
   };
 }
 
+// Internal pages: employees only. Portal users are sent to their own portal.
 export async function requireUser(): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  if (user.userType !== "EMPLOYEE") redirect("/portal");
   return user;
+}
+
+// Client portal pages: only a client user bound to exactly one client record.
+export async function requireClientUser(): Promise<SessionUser & { clientId: string }> {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+  if (user.userType !== "CLIENT" || !user.clientId) redirect("/forbidden");
+  return user as SessionUser & { clientId: string };
 }
 
 // Server-side authorization: call at the top of every protected page and action.

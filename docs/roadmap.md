@@ -39,6 +39,15 @@ Done and verified on localhost:
 
 Still to do: Gantt/timeline, calendar, subtasks and dependencies, task comments, files, budget and cost tracking, project creation from a won deal, content calendar and approvals, success reviews, meetings.
 
+## Client portal (first slice done)
+
+Done and verified in the browser plus 4 isolation tests:
+- One-time, 7-day invitation link per client contact (only a hash is stored; shown once; email delivery is not connected yet so staff copy the link)
+- Separate /portal for client users: own outstanding balance, issued invoices (drafts and cancelled hidden), invoice view with frozen bank details and print/PDF, account statement, projects with only client-visible tasks
+- Every portal query is scoped by the signed-in user's own client id; internal pages redirect client users to the portal; cross-client invoice ids return 404
+
+Still to do: content calendar and approvals, support requests, announcements and offers, campaign reports, client review/ratings, receipts download, meetings, vendor/partner/investor portals.
+
 ## Phase 3 (started early): accounting core, first slice done
 
 Done, covered by 21 automated tests including real-database concurrency tests:

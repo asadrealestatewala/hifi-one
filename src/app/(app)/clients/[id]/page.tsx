@@ -4,6 +4,7 @@ import { requirePermission } from "@/lib/auth";
 import { clientStatement } from "@/lib/accounting";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
+import InviteForm from "./InviteForm";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           <div key={k} className="contents"><span className="text-muted">{k}</span><span className="col-span-2">{v ?? ""}</span></div>
         ))}
       </section>
+      {user.permissions.has("clients.edit") && <InviteForm clientId={client.id} />}
       {statement && (
         <section className="card overflow-x-auto space-y-3">
           <h2 className="font-semibold">Account statement</h2>

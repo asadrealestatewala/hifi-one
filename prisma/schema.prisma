@@ -62,6 +62,7 @@ model User {
   passwordHash   String
   active         Boolean   @default(true)
   userType       String    @default("EMPLOYEE") // EMPLOYEE | CLIENT | VENDOR | PARTNER | INVESTOR
+  clientId       String?   // set for client portal users: the only client they can ever see
   branchId       String?
   departmentId   String?
   managerId      String?
@@ -387,6 +388,7 @@ model Client {
   payments Payment[]
   journalLines JournalLine[]
   leads    Lead[]
+  invites  ClientInvite[]
 
   @@unique([organizationId, name])
 }
@@ -596,4 +598,19 @@ model TaskComment {
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([taskId])
+}
+
+model ClientInvite {
+  id        String    @id @default(cuid())
+  clientId  String
+  email     String
+  tokenHash String    @unique // only the hash is stored; the link is shown once
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdById String?
+  createdAt DateTime  @default(now())
+
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@index([clientId])
 }

@@ -14,7 +14,7 @@ const actor = "actor-1";
 
 async function reset() {
   await db.$executeRawUnsafe(
-    'TRUNCATE "PaymentAllocation","Payment","InvoiceLine","Invoice","JournalLine","JournalEntry","NumberSequence","BankAccount","Account","Client","CompanyProfile","Organization" CASCADE',
+    'TRUNCATE "ClientInvite","Task","ProjectMember","Project","User","Role","Lead","PipelineStage","PaymentAllocation","Payment","InvoiceLine","Invoice","JournalLine","JournalEntry","NumberSequence","BankAccount","Account","Client","CompanyProfile","Organization" CASCADE',
   );
 }
 
@@ -223,5 +223,65 @@ describe("lead conversion", () => {
     const { lead, stage } = await wonLead("No Value", "novalue@x.example", "0");
     const r = await convertLead(db, { organizationId: org, leadId: lead.id, actorId: actor, wonStageId: stage.id });
     expect(r.invoiceId).toBeNull();
+  });
+});
+
+describe("client portal isolation", () => {
+  it("a client can never read another client's invoice, and never sees drafts", async () => {
+    const { portalInvoice, portalInvoices } = await import("./portal");
+    const other = (await db.client.create({ data: { organizationId: org, name: "Other Co", currency: "USD" } })).id;
+    const mine = await newInvoice("40"); // belongs to `client`
+    const draft = await createDraftInvoice(db, {
+      organizationId: org, clientId: client, currency: "USD", taxRate: "0", createdById: actor,
+      lines: [{ description: "Draft", quantity: "1", unitPrice: "10" }],
+    });
+    expect(await portalInvoice(db, client, mine.id)).not.toBeNull();
+    expect(await portalInvoice(db, other, mine.id)).toBeNull(); // other client guessing the id
+    expect(await portalInvoice(db, client, draft.id)).toBeNull(); // drafts are internal
+    expect((await portalInvoices(db, other)).length).toBe(0);
+    const ids = (await portalInvoices(db, client)).map((i) => i.id);
+    expect(ids).not.toContain(draft.id);
+  });
+
+  it("projects expose only client-visible tasks and no budget data", async () => {
+    const { portalProjects } = await import("./portal");
+    const p = await db.project.create({
+      data: { organizationId: org, number: "PRJ-T1", name: "Portal test", clientId: client, managerId: actor, budgetAmount: "5000" },
+    });
+    await db.task.createMany({
+      data: [
+        { projectId: p.id, title: "Public task", clientVisible: true },
+        { projectId: p.id, title: "Internal only", clientVisible: false },
+      ],
+    });
+    const rows = await portalProjects(db, client);
+    const mine = rows.find((r) => r.id === p.id)!;
+    expect(mine.tasks.map((t) => t.title)).toEqual(["Public task"]);
+    expect(JSON.stringify(rows)).not.toContain("5000");
+    expect(JSON.stringify(rows)).not.toContain("Internal only");
+    expect((await portalProjects(db, "someone-else")).length).toBe(0);
+  });
+
+  it("invitation links are single use, and concurrent accepts create one user", async () => {
+    const { createInvite, acceptInvite, inviteInfo } = await import("./portal");
+    const token = await createInvite(db, { organizationId: org, clientId: client, email: "Portal.User@Acme.Example", createdById: actor });
+    expect(await inviteInfo(db, token)).toMatchObject({ email: "portal.user@acme.example" });
+    expect(await inviteInfo(db, "not-a-real-token")).toBeNull();
+    await expect(acceptInvite(db, { token, name: "Pat", password: "short" })).rejects.toThrow(/10 characters/);
+    const results = await Promise.allSettled(
+      [1, 2].map(() => acceptInvite(db, { token, name: "Pat", password: "a-long-enough-password" })),
+    );
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const u = await db.user.findUniqueOrThrow({ where: { email: "portal.user@acme.example" } });
+    expect(u.userType).toBe("CLIENT");
+    expect(u.clientId).toBe(client);
+    expect(await inviteInfo(db, token)).toBeNull(); // used
+  });
+
+  it("expired invitations are rejected", async () => {
+    const { createInvite, acceptInvite } = await import("./portal");
+    const token = await createInvite(db, { organizationId: org, clientId: client, email: "late@acme.example", createdById: actor });
+    await db.clientInvite.updateMany({ where: { email: "late@acme.example" }, data: { expiresAt: new Date(Date.now() - 1000) } });
+    await expect(acceptInvite(db, { token, name: "Late", password: "a-long-enough-password" })).rejects.toThrow(/expired|used/);
   });
 });
