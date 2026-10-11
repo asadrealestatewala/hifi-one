@@ -38,7 +38,7 @@ const STAGES: [string, number, boolean, boolean][] = [
 const CHART: [string, string, string, string?][] = [
   ["1010", "Cash on Hand", "ASSET"], ["1200", "Accounts Receivable", "ASSET", "AR"], ["1300", "Prepayments", "ASSET"],
   ["1500", "Furniture and Equipment", "ASSET"], ["1510", "Investments", "ASSET"], ["1520", "Partnership and JV Balances", "ASSET"],
-  ["2000", "Accounts Payable", "LIABILITY"], ["2100", "Customer Advances", "LIABILITY", "CUSTOMER_ADVANCES"],
+  ["2000", "Accounts Payable", "LIABILITY", "ACCOUNTS_PAYABLE"], ["2100", "Customer Advances", "LIABILITY", "CUSTOMER_ADVANCES"],
   ["2200", "Tax Payable", "LIABILITY", "TAX_PAYABLE"], ["2300", "Accrued Expenses", "LIABILITY"],
   ["2400", "Deferred Revenue", "LIABILITY"], ["2500", "Payroll Liabilities", "LIABILITY", "PAYROLL_PAYABLE"], ["2510", "Payroll Tax Withheld", "LIABILITY", "PAYROLL_TAX"],
   ["3000", "Owner's Equity", "EQUITY"], ["3100", "Retained Earnings", "EQUITY"],

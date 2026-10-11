@@ -32,4 +32,18 @@ describe("role definitions", () => {
     const withFull = ROLE_DEFS.filter((r) => r.permissions !== "ALL" && r.permissions.includes("bank.view_full"));
     expect(withFull.map((r) => r.key)).toEqual(["FINANCE_MANAGER"]);
   });
+  it("keeps manager permissions when roles get extra permissions (no overwritten entries)", () => {
+    const pm = ROLE_DEFS.find((r) => r.key === "PROJECT_MANAGER")!.permissions as string[];
+    expect(pm).toContain("leave.approve");
+    expect(pm).toContain("budget.view");
+    expect(pm).toContain("self.expense");
+  });
+  it("separates who can approve expenses from who can submit them", () => {
+    const has = (k: string, p: string) => (ROLE_DEFS.find((r) => r.key === k)!.permissions as string[]).includes(p);
+    expect(has("INTERN", "self.expense")).toBe(true);
+    expect(has("INTERN", "expenses.approve")).toBe(false);
+    expect(has("ACCOUNTANT", "expenses.approve")).toBe(false);
+    expect(has("FINANCE_MANAGER", "expenses.approve")).toBe(true);
+    expect(has("FINANCE_MANAGER", "budget.override")).toBe(false); // override sits with leadership
+  });
 });

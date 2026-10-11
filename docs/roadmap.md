@@ -39,6 +39,15 @@ Done and verified on localhost:
 
 Still to do: Gantt/timeline, calendar, subtasks and dependencies, task comments, files, budget and cost tracking, project creation from a won deal, content calendar and approvals, success reviews, meetings.
 
+## Expenses and budgets (first slice done)
+
+Done, verified in the browser plus 16 automated tests:
+- Expense vouchers: Submitted, Under review, Approved, Posted, Paid (plus Rejected with reason, Cancelled by the submitter before review); reviewer and approver can never be the submitter; only expense accounts can be charged; others' vouchers stay private
+- Posting records expense and payable only; payment (from a bank in the voucher currency) is what moves cash; double post/pay is idempotent
+- Budgets keep their original amount; approved transfers (second person must approve, only unspent money, same currency) adjust what is available; committed vs incurred shown separately; warnings at 75/90/100%
+- Approving over budget needs the budget.override permission plus a written reason; concurrent approvals cannot jointly overspend
+Limits: receipt attachments need file storage (not built); no departments entity yet (budget scope DEPARTMENT is a label); tax on vouchers not split out; project actual-cost views not built; reimbursement to employees is recorded like any payee payment.
+
 ## Phase 4: HR (first slice done: employees, attendance, leave)
 
 Done, verified in the browser plus 16 automated tests (10 rules, 6 against the database):

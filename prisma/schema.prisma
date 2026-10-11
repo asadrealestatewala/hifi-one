@@ -758,3 +758,74 @@ model PayrollItem {
 
   @@unique([runId, userId])
 }
+
+// ---------- Phase 3: expenses and budgets ----------
+
+model Budget {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  scope          String   @default("COMPANY") // COMPANY | DEPARTMENT | PROJECT
+  projectId      String?
+  departmentId   String?
+  periodStart    String // YYYY-MM-DD
+  periodEnd      String
+  currency       String
+  originalAmount Decimal  @db.Decimal(14, 2) // never overwritten; transfers are tracked separately
+  createdById    String?
+  createdAt      DateTime @default(now())
+
+  vouchers     ExpenseVoucher[]
+  transfersOut BudgetTransfer[] @relation("from")
+  transfersIn  BudgetTransfer[] @relation("to")
+
+  @@index([organizationId])
+}
+
+model BudgetTransfer {
+  id           String    @id @default(cuid())
+  fromBudgetId String
+  toBudgetId   String
+  amount       Decimal   @db.Decimal(14, 2)
+  reason       String
+  status       String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  requestedById String
+  decidedById  String?
+  decidedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  from Budget @relation("from", fields: [fromBudgetId], references: [id])
+  to   Budget @relation("to", fields: [toBudgetId], references: [id])
+}
+
+model ExpenseVoucher {
+  id               String   @id @default(cuid())
+  organizationId   String
+  number           String
+  date             String // YYYY-MM-DD
+  payee            String
+  description      String
+  justification    String?
+  expenseAccountId String
+  projectId        String?
+  budgetId         String?
+  currency         String
+  amount           Decimal  @db.Decimal(14, 2)
+  status           String   @default("SUBMITTED") // SUBMITTED | UNDER_REVIEW | APPROVED | POSTED | PAID | REJECTED | CANCELLED
+  submittedById    String
+  reviewedById     String?
+  approvedById     String?
+  decisionNote     String?
+  overBudgetReason String?
+  journalEntryId   String?
+  paymentEntryId   String?
+  paidById         String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  budget Budget? @relation(fields: [budgetId], references: [id])
+
+  @@unique([organizationId, number])
+  @@index([organizationId, status])
+  @@index([submittedById])
+}

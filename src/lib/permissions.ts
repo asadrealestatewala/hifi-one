@@ -33,6 +33,15 @@ export const PERMISSIONS = {
   "payroll.approve": "Approve payroll runs",
   "payroll.post": "Post payroll to the ledger and record salary payments",
   "self.payslip": "View own payslips",
+  "self.expense": "Submit and track your own expense vouchers",
+  "expenses.view": "View all expense vouchers",
+  "expenses.review": "Review submitted expense vouchers",
+  "expenses.approve": "Approve or reject expense vouchers",
+  "expenses.post": "Post vouchers to the ledger and record payment",
+  "budget.view": "View budgets and utilization",
+  "budget.manage": "Create budgets and request transfers",
+  "budget.approve": "Approve budget transfers",
+  "budget.override": "Approve spending over budget with a reason",
   "clients.view": "View client accounts",
   "clients.edit": "Create and edit client accounts",
   "finance.view": "View ledgers, invoices, payments and reports",
@@ -79,12 +88,13 @@ const EXTRA: Record<string, PermissionKey[]> = {
   HR_MANAGER: ["hr.view", "hr.manage", "hr.view_sensitive", "leave.approve", "attendance.view_all", "payroll.view", "payroll.manage"],
   BRANCH_MANAGER: ["leave.approve", "hr.view"],
   SALES_MANAGER: ["leave.approve"],
-  PROJECT_MANAGER: ["leave.approve"],
-  CEO: ["hr.view", "leave.approve", "payroll.view", "payroll.approve"],
-  FINANCE_MANAGER: ["payroll.view", "payroll.approve", "payroll.post"],
+  PROJECT_MANAGER: ["leave.approve", "budget.view"],
+  CEO: ["hr.view", "leave.approve", "payroll.view", "payroll.approve", "expenses.view", "expenses.approve", "budget.view", "budget.approve", "budget.override"],
+  FINANCE_MANAGER: ["payroll.view", "payroll.approve", "payroll.post", "expenses.view", "expenses.review", "expenses.approve", "expenses.post", "budget.view", "budget.manage"],
+  ACCOUNTANT: ["expenses.view", "expenses.review", "expenses.post", "budget.view"],
   PAYROLL_OFFICER: ["hr.view", "payroll.view", "payroll.manage"],
 };
 for (const r of ROLE_DEFS) {
   if (r.permissions === "ALL" || EXTERNAL_ROLES.has(r.key)) continue;
-  r.permissions = [...new Set<PermissionKey>([...r.permissions, "self.attendance", "self.leave", "self.payslip", ...(EXTRA[r.key] ?? [])])];
+  r.permissions = [...new Set<PermissionKey>([...r.permissions, "self.attendance", "self.leave", "self.payslip", "self.expense", ...(EXTRA[r.key] ?? [])])];
 }

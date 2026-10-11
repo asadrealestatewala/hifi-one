@@ -33,6 +33,7 @@ const NAV: NavGroup[] = [
       { href: "/me/attendance", label: "My Attendance", permission: "self.attendance" },
       { href: "/me/leave", label: "My Leave", permission: "self.leave" },
       { href: "/me/payslips", label: "My Payslips", permission: "self.payslip" },
+      { href: "/expenses", label: "Expense Vouchers", permission: "self.expense" },
     ],
   },
   {
@@ -49,7 +50,10 @@ const NAV: NavGroup[] = [
   },
   {
     title: "Finance & Accounting",
-    items: [{ href: "/finance/ledger", label: "General Ledger", permission: "finance.view" }],
+    items: [
+      { href: "/finance/ledger", label: "General Ledger", permission: "finance.view" },
+      { href: "/finance/budgets", label: "Budgets", permission: "budget.view" },
+    ],
   },
   {
     title: "Analytics & Administration",
