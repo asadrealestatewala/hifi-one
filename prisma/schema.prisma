@@ -341,6 +341,13 @@ model Lead {
   createdById    String?
   clientId       String?
   convertedAt    DateTime?
+  city           String?
+  timezone       String?
+  preferredContact String?  // CALL | WHATSAPP | EMAIL | SMS
+  expectedCloseDate String? // YYYY-MM-DD
+  tags           String[]  @default([])
+  campaignId     String?
+  lastContactAt  DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -359,7 +366,10 @@ model LeadActivity {
   id        String   @id @default(cuid())
   leadId    String
   actorId   String?
-  kind      String // NOTE | CALL | EMAIL | STAGE_CHANGE | CREATED
+  kind      String // NOTE | CALL | EMAIL | MEETING | FOLLOW_UP | PROPOSAL | APPOINTMENT | WHATSAPP | STAGE_CHANGE | CREATED
+  outcome   String? // calls: NO_ANSWER | VOICEMAIL | CONNECTED | WRONG_NUMBER | NOT_INTERESTED
+  verified  Boolean  @default(false) // a connected call counts toward targets only once a manager has verified it
+  verifiedById String?
   body      String?
   createdAt DateTime @default(now())
 
@@ -1552,4 +1562,50 @@ model AssistantLog {
 
   @@index([organizationId, createdAt])
   @@index([userId, createdAt])
+}
+
+// ---------- CRM depth: campaigns, smart lists, sales targets ----------
+
+model Campaign {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  channel        String   @default("OTHER") // FACEBOOK | INSTAGRAM | LINKEDIN | GOOGLE | EMAIL | REFERRAL | COLD_CALLING | EVENT | OTHER
+  status         String   @default("ACTIVE") // PLANNED | ACTIVE | PAUSED | DONE
+  budget         Decimal? @db.Decimal(14, 2)
+  currency       String   @default("USD")
+  startDate      String?
+  endDate        String?
+  notes          String?
+  createdById    String?
+  createdAt      DateTime @default(now())
+
+  @@unique([organizationId, name])
+}
+
+// Saved filters over leads. Private to the owner unless shared with everyone who can open the Leads screen.
+model SmartList {
+  id             String   @id @default(cuid())
+  organizationId String
+  ownerId        String
+  name           String
+  filters        Json
+  shared         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@unique([organizationId, ownerId, name])
+}
+
+// Daily and monthly goals per person and activity type, for example 80 connected calls a day.
+model SalesTarget {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  metric         String   // CALLS | CONNECTED_CALLS | EMAILS | MEETINGS | FOLLOW_UPS | PROPOSALS | CONVERSIONS
+  daily          Int?
+  monthly        Int?
+  updatedById    String?
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, userId, metric])
 }

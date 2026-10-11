@@ -17,6 +17,11 @@ const createSchema = z.object({
   email: z.string().trim().email("Enter a valid email").or(z.literal("")).transform((v) => (v ? v.toLowerCase() : null)),
   phone: opt,
   country: opt,
+  city: opt,
+  preferredContact: z.enum(["CALL", "WHATSAPP", "EMAIL", "SMS"]).or(z.literal("")).transform((v) => (v ? v : null)),
+  expectedCloseDate: z.string().trim().optional().transform((v) => (v ? v : null)),
+  campaignId: opt,
+  tags: z.string().trim().max(300).optional().transform((v) => (v ? v.split(",").map((x) => x.trim().toLowerCase().slice(0, 30)).filter(Boolean).slice(0, 12) : [])),
   source: opt,
   serviceInterest: opt,
   dealValue: z.string().trim().optional().transform((v) => (v ? v : null)),
@@ -44,11 +49,14 @@ export async function createLead(formData: FormData) {
       redirect(`/leads?error=${encodeURIComponent("A lead with this email or phone already exists. Tick the box to create it anyway.")}&dup=1`);
     }
   }
+  if (d.expectedCloseDate && Number.isNaN(Date.parse(d.expectedCloseDate))) redirect(`/leads?error=${encodeURIComponent("Enter a valid expected closing date")}`);
+  if (d.campaignId && !(await db.campaign.findFirst({ where: { id: d.campaignId, organizationId: user.organizationId } }))) redirect(`/leads?error=${encodeURIComponent("Unknown campaign")}`);
   const stage = await db.pipelineStage.findFirstOrThrow({ where: { organizationId: user.organizationId }, orderBy: { sortOrder: "asc" } });
   const lead = await db.lead.create({
     data: {
       organizationId: user.organizationId,
-      name: d.name, company: d.company, email: d.email, phone, country: d.country, source: d.source,
+      name: d.name, company: d.company, email: d.email, phone, country: d.country, city: d.city, source: d.source,
+      preferredContact: d.preferredContact, expectedCloseDate: d.expectedCloseDate, tags: d.tags, campaignId: d.campaignId,
       serviceInterest: d.serviceInterest, dealValue: d.dealValue, currency: d.currency, priority: d.priority,
       stageId: stage.id, assignedToId: user.id, createdById: user.id,
       activities: { create: { kind: "CREATED", actorId: user.id, body: "Lead created" } },

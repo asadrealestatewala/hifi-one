@@ -13,7 +13,10 @@ export const NAV: NavGroup[] = [
   { id: "crm", title: "CRM & Sales", icon: "target", items: [
     { href: "/leads", label: "Leads", permission: "crm.view" },
     { href: "/pipeline", label: "Opportunities", permission: "crm.view" },
+    { href: "/leads/lists", label: "Smart Lists", permission: "crm.view" },
     { href: "/leads/worklists", label: "Prospecting Worklists", permission: "crm.view" },
+    { href: "/campaigns", label: "Campaigns", permission: "crm.view" },
+    { href: "/sales/activity", label: "Sales Activity & Targets", permission: "crm.view" },
     { href: "/quotes", label: "Proposals & Quotations", permission: "quotes.view" },
   ] },
   { id: "clients", title: "Services & Clients", icon: "layers", items: [
