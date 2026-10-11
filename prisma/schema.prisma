@@ -475,6 +475,7 @@ model Invoice {
   total          Decimal  @default(0) @db.Decimal(14, 2)
   amountPaid     Decimal  @default(0) @db.Decimal(14, 2)
   creditedAmount Decimal  @default(0) @db.Decimal(14, 2)
+  projectId      String?
   notes          String?
   // Frozen at issue time so later settings changes never alter issued documents
   companySnapshot Json?
@@ -561,6 +562,8 @@ model Project {
 
   members ProjectMember[]
   tasks   Task[]
+  milestones Milestone[]
+  timeEntries TimeEntry[]
 
   @@unique([organizationId, number])
   @@index([organizationId, status])
@@ -570,6 +573,7 @@ model ProjectMember {
   projectId String
   userId    String
   role      String? // e.g. Graphic Designer
+  hourlyCost Decimal? @db.Decimal(10, 2) // internal cost per hour in the project currency; restricted
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, userId])
@@ -587,6 +591,7 @@ model Task {
   dueDate        DateTime?
   estimatedHours Decimal? @db.Decimal(8, 2)
   clientVisible  Boolean  @default(false)
+  milestoneId    String?
   blocked        Boolean  @default(false)
   completedAt    DateTime?
   createdById    String?
@@ -594,6 +599,7 @@ model Task {
   updatedAt      DateTime @updatedAt
 
   project  Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestone Milestone?   @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
   comments TaskComment[]
 
   @@index([projectId, status])
@@ -1365,4 +1371,42 @@ model Contract {
   client Client @relation(fields: [clientId], references: [id])
 
   @@index([organizationId, status, endDate])
+}
+
+// ---------- Project depth: milestones, time, profitability ----------
+
+model Milestone {
+  id          String    @id @default(cuid())
+  projectId   String
+  name        String
+  dueDate     String?   // YYYY-MM-DD
+  status      String    @default("PENDING") // PENDING | IN_PROGRESS | DONE
+  amount      Decimal?  @db.Decimal(14, 2) // what is billed to the client when this milestone is done
+  invoiceId   String?   @unique
+  sortOrder   Int       @default(0)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+
+  @@index([projectId, sortOrder])
+}
+
+model TimeEntry {
+  id             String   @id @default(cuid())
+  organizationId String
+  projectId      String
+  taskId         String?
+  userId         String
+  workDate       String   // YYYY-MM-DD
+  hours          Decimal  @db.Decimal(5, 2)
+  note           String?
+  hourlyCost     Decimal? @db.Decimal(10, 2) // the member's cost rate when the time was logged, so later rate changes never rewrite history
+  createdAt      DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, workDate])
+  @@index([userId, workDate])
 }

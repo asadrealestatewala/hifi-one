@@ -6,6 +6,7 @@ import { formatMoney } from "@/lib/money";
 import { projectScope } from "@/lib/projects";
 import { projectProgress } from "@/lib/project-rules";
 import { addMember, createTask, setProjectStatus } from "../actions";
+import ProjectDepth from "./ProjectDepth";
 import TaskBoard from "./TaskBoard";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +65,8 @@ export default async function ProjectPage({
         <div className="h-2 rounded-full bg-border overflow-hidden"><div className="h-full bg-brand" style={{ width: `${progress}%` }} /></div>
       </div>
       {project.scope && <section className="card text-sm whitespace-pre-line">{project.scope}</section>}
+
+      <ProjectDepth user={user} projectId={project.id} closed={closed} />
 
       <TaskBoard
         key={project.tasks.map((t) => `${t.id}:${t.status}`).join(",")}
