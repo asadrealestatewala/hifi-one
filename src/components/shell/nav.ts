@@ -30,6 +30,7 @@ export const NAV: NavGroup[] = [
   { id: "projects", title: "Project Operations", icon: "briefcase", items: [
     { href: "/projects", label: "Projects & Tasks", permission: "projects.view" },
     { href: "/content", label: "Content Calendar", permission: "content.view" },
+    { href: "/meetings", label: "Meetings & Workshops", permission: "meetings.use" },
   ] },
   { id: "finance", title: "Finance & Accounting", icon: "wallet", items: [
     { href: "/finance/ledger", label: "General Ledger", permission: "finance.view" },
@@ -88,6 +89,7 @@ export const QUICK_CREATE: QuickCreate[] = [
   { href: "/quotes", label: "New quotation", permission: "quotes.manage", icon: "file" },
   { href: "/finance/invoices", label: "New invoice", permission: "finance.post", icon: "receipt" },
   { href: "/projects", label: "New project", permission: "projects.manage", icon: "briefcase" },
+  { href: "/meetings", label: "New meeting", permission: "meetings.use", icon: "video" },
   { href: "/expenses", label: "New expense voucher", permission: "self.expense", icon: "wallet" },
   { href: "/me/leave", label: "Request leave", permission: "self.leave", icon: "calendar" },
 ];

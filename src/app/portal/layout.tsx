@@ -27,6 +27,7 @@ export default async function PortalLayout({ children }: { children: React.React
             <Link href="/portal" className="hover:underline">Overview</Link>
             <Link href="/portal/content" className="hover:underline">Content{pending > 0 && ` (${pending})`}</Link>
             <Link href="/portal/quotes" className="hover:underline">Quotations{quotesOpen > 0 && ` (${quotesOpen})`}</Link>
+            <Link href="/portal/meetings" className="hover:underline">Meetings</Link>
             <Link href="/portal/statement" className="hover:underline">Statement</Link>
             <form action={signOut}><button className="underline">Sign out</button></form>
           </nav>

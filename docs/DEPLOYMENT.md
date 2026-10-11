@@ -74,6 +74,10 @@ Do this on the real server (or an identical staging one) before anyone relies on
 
 Outgoing email uses SMTP and is off until you set `SMTP_HOST` and `MAIL_FROM` (plus `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` if your provider needs them) in the server environment. With these set, invoices, quotations and customer statements can be emailed as PDFs from their pages. Use Settings > Email to test the connection and send yourself a test message; every attempt is logged there as sent, failed (with the provider's reason) or not sent. Invitation and password-reset links are still copied by hand. Use an app password or API key for the mail account, not a personal password, and add SPF/DKIM records for your sending domain or messages will land in spam.
 
+## Video meetings
+
+Serve Hifi One over HTTPS (browsers block camera, microphone and screen capture otherwise). For reliable calls across company firewalls and mobile networks, run a TURN relay (for example coturn) and set `ICE_SERVERS`, a JSON array such as `[{"urls":"stun:stun.l.google.com:19302"},{"urls":"turn:turn.example.com:3478","username":"u","credential":"p"}]`. Run a single application process (live meeting messages are held in memory), or use sticky routing. Details and limits are in docs/MEETINGS.md.
+
 ## Business assistant
 
 Off until `ANTHROPIC_API_KEY` is set. When on, a person's question and the figures needed to answer it are sent to Anthropic's API; tell staff this (the page says so). The assistant only reads, only through tools that re-check the person's permissions, and every question is logged (who, what, which data sources, outcome; answers are not stored). Each person is limited to 20 questions an hour. Set a spending limit on the API key in the provider console.

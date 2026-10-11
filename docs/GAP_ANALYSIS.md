@@ -90,6 +90,7 @@ The spec ([spec.md](spec.md)) describes a very large platform. The accounting, H
 - Not built, deliberately. Screenshots, app and website usage need a separate signed desktop agent, a written monitoring policy and employee disclosure. A browser cannot and should not do this silently. Attendance and time worked are built; activity tracking is not.
 
 ### 27 and 28: Integrations and AI
+- Done: built-in video meetings and online workshops with screen sharing and chat (docs/MEETINGS.md). Not built: recording, breakout rooms, polls, whiteboard, larger calls (needs a media server), calendar-invite files.
 - Done: work time and activity monitoring with a Windows desktop agent (see docs/MONITORING.md), smart lists, campaigns, sales targets, WhatsApp click-to-chat links, personal calendar feeds, email sending (needs an SMTP account), a read-only permission-checked assistant (needs an Anthropic API key), commissions and bonuses.
 - Not built: WhatsApp Business, calendar, ad platforms, telephony, video meetings, AI actions that change data, AI-written summaries stored on records. Each needs credentials from the provider and setup guides.
 

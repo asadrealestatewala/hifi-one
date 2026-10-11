@@ -1779,3 +1779,60 @@ model TimesheetCorrection {
   @@index([organizationId, status])
   @@index([userId, day])
 }
+
+// ---------- Meetings and online workshops (video, screen share, chat) ----------
+
+model Meeting {
+  id             String    @id @default(cuid())
+  organizationId String
+  title          String
+  kind           String    @default("MEETING") // MEETING | WORKSHOP
+  hostId         String
+  projectId      String?
+  clientId       String?
+  agenda         String?
+  scheduledAt    DateTime?
+  durationMin    Int       @default(60)
+  joinToken      String    @unique // the secret in the guest link
+  waitingRoom    Boolean   @default(true)
+  status         String    @default("SCHEDULED") // SCHEDULED | LIVE | ENDED | CANCELLED
+  startedAt      DateTime?
+  endedAt        DateTime?
+  createdAt      DateTime  @default(now())
+
+  participants MeetingParticipant[]
+  messages     MeetingMessage[]
+
+  @@index([organizationId, scheduledAt])
+  @@index([projectId])
+}
+
+model MeetingParticipant {
+  id         String    @id @default(cuid())
+  meetingId  String
+  userId     String?   // set for staff; guests have only a name
+  name       String
+  isHost     Boolean   @default(false)
+  ticket     String    @unique // proves this browser is this participant
+  status     String    @default("WAITING") // WAITING | ADMITTED | DENIED | LEFT | REMOVED
+  joinedAt   DateTime  @default(now())
+  admittedAt DateTime?
+  leftAt     DateTime?
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId, status])
+}
+
+model MeetingMessage {
+  id            String   @id @default(cuid())
+  meetingId     String
+  participantId String
+  authorName    String
+  body          String
+  createdAt     DateTime @default(now())
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId, createdAt])
+}

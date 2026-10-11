@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import ModuleTabs from "./ModuleTabs";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 
@@ -16,7 +17,7 @@ export default function Shell({ groups, quick, name, roles, unread, canSearch, s
       <Sidebar groups={groups} mobileOpen={mobile} onClose={() => setMobile(false)} />
       <div className="min-w-0 flex-1">
         <Topbar name={name} roles={roles} unread={unread} quick={quick} canSearch={canSearch} signOut={signOut} onMenu={() => setMobile(true)} />
-        <main className="mx-auto w-full max-w-[1400px] p-4 md:p-8">{children}</main>
+        <main className="mx-auto w-full max-w-[1400px] p-4 md:p-8"><ModuleTabs groups={groups} />{children}</main>
       </div>
     </div>
   );

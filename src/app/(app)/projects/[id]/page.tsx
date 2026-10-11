@@ -7,6 +7,7 @@ import { projectScope } from "@/lib/projects";
 import { projectProgress } from "@/lib/project-rules";
 import { addMember, createTask, setProjectStatus } from "../actions";
 import ProjectDepth from "./ProjectDepth";
+import ProjectMeetings from "./ProjectMeetings";
 import TaskBoard from "./TaskBoard";
 
 export const dynamic = "force-dynamic";
@@ -67,6 +68,7 @@ export default async function ProjectPage({
       {project.scope && <section className="card text-sm whitespace-pre-line">{project.scope}</section>}
 
       <ProjectDepth user={user} projectId={project.id} closed={closed} />
+      {user.permissions.has("meetings.use") && <ProjectMeetings projectId={project.id} organizationId={user.organizationId} closed={closed} />}
 
       <TaskBoard
         key={project.tasks.map((t) => `${t.id}:${t.status}`).join(",")}

@@ -2,6 +2,12 @@
 
 Phases follow section 35 of [spec.md](spec.md).
 
+## Module tabs and video meetings (done)
+
+- Coloured pill tab strip at the top of every module (CRM, Services & Clients, Projects, Finance, People, Vendors, My Workspace, Administration), so the screens of the module you are in are one click away, like the reference design.
+- Meetings & Workshops: schedule or start instantly, guest link with waiting room for clients, video, voice, screen sharing, active speaker, chat with transcript, host controls, attendance, project and client links, email and WhatsApp invitations, client portal list. See docs/MEETINGS.md.
+Limits: peer-to-peer video for up to 8 people; no recording; a TURN relay is needed for strict networks; real camera, microphone and cross-network calls were not tested on this machine.
+
 ## Redesign, speed, CRM depth and activity monitoring (done)
 
 - **Speed:** the slowness came from running the development server, which compiles every page when first opened. In production mode pages answer in about 35 to 140 ms on this machine. Use `npm run serve` (build then start). Also added: loading skeletons so screens respond instantly, and a per-request session cache (one database lookup instead of two per page).

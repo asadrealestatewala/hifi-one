@@ -33,6 +33,10 @@ What is in place, how it is checked, and what is not done yet.
 - Documents are generated server-side from the same loaders as downloads; drafts and cancelled documents cannot be emailed, and another organization's records are never found.
 - Every attempt is logged (who, to whom, which document, result). The log says SENT only when the mail server accepted the message.
 
+## Video meetings
+
+- Guest links are bearer secrets (32 random characters) protected by a host-controlled waiting room, and die when the meeting ends. Each participant holds a private per-meeting ticket cookie checked on every live request; chat is stored as text and shown as text. See docs/MEETINGS.md.
+
 ## Work monitoring
 
 - Off by default; nothing is recorded for a person until they accept the current policy version, and a new version needs fresh acceptance.
