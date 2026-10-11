@@ -82,6 +82,7 @@ export default async function InvoicePage({
         {(inv.status === "ISSUED" || inv.status === "DRAFT") && canPost && (
           <form action={cancel}><input type="hidden" name="id" value={inv.id} /><button className="btn-ghost">Cancel invoice</button></form>
         )}
+        <a className="btn" href={`/finance/invoices/${inv.id}/pdf`} target="_blank" rel="noopener">Download PDF</a>
         <PrintButton />
       </div>
       <article className="card max-w-3xl space-y-6">
@@ -143,13 +144,13 @@ export default async function InvoicePage({
         {inv.creditNotes.length > 0 && (
           <section className="text-sm print:hidden">
             <p className="label">Credit notes</p>
-            <ul>{inv.creditNotes.map((c) => <li key={c.id}>{c.number}: {formatMoney(c.amount, inv.currency)} · {c.reason}</li>)}</ul>
+            <ul>{inv.creditNotes.map((c) => <li key={c.id}>{c.number}: {formatMoney(c.amount, inv.currency)} · {c.reason} · <a className="underline" href={`/finance/credit-notes/${c.id}/pdf`} target="_blank" rel="noopener">PDF</a></li>)}</ul>
           </section>
         )}
         {inv.allocations.length > 0 && (
           <section className="text-sm print:hidden">
             <p className="label">Payments received</p>
-            <ul>{inv.allocations.map((a) => <li key={a.id}>{a.payment.number}: {formatMoney(a.amount, inv.currency)}</li>)}</ul>
+            <ul>{inv.allocations.map((a) => <li key={a.id}>{a.payment.number}: {formatMoney(a.amount, inv.currency)} · <a className="underline" href={`/finance/payments/${a.paymentId}/pdf`} target="_blank" rel="noopener">Receipt PDF</a></li>)}</ul>
           </section>
         )}
       </article>

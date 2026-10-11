@@ -6,6 +6,7 @@ import {
   VendorError, acceptDelivery, approveBill, createOpportunity, decideApplication, issueWorkOrder, payBill, postBill, rejectBill,
 } from "@/lib/vendors";
 import { formatMoney } from "@/lib/money";
+import FilesPanel from "@/components/FilesPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -74,9 +75,9 @@ const Op = ({ op, id }: { op: string; id?: string }) => (
   </>
 );
 
-export default async function Procurement({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function Procurement({ searchParams }: { searchParams: Promise<{ error?: string; fileError?: string; fileOk?: string }> }) {
   const user = await requirePermission("vendors.view");
-  const { error } = await searchParams;
+  const { error, fileError, fileOk } = await searchParams;
   const can = (p: Parameters<typeof user.permissions.has>[0]) => user.permissions.has(p);
   const org = user.organizationId;
   const [opps, orders, bills, vendors, expenseAccounts, banks, projects] = await Promise.all([
@@ -179,6 +180,7 @@ export default async function Procurement({ searchParams }: { searchParams: Prom
             <div key={b.id} className="flex flex-wrap items-center gap-2 border-t border-border py-2 text-sm first:border-0">
               <span className="font-medium w-24">{b.number}</span><span className="w-40">{b.vendor.name}</span><span className="w-32">{formatMoney(b.amount, b.currency)}</span>
               <span className="text-muted w-24">{b.status.toLowerCase()}</span>
+              <details className="w-full"><summary className="cursor-pointer text-xs text-muted">Documents</summary><div className="mt-1"><FilesPanel user={user} ownerType="VENDOR_BILL" ownerId={b.id} returnTo="/procurement" title="Bill documents" flash={{ fileError, fileOk }} /></div></details>
               {b.status === "SUBMITTED" && can("vendors.bills") && (<>
                 <form action={act} className="flex gap-1"><Op op="approve_bill" id={b.id} />
                   <select name="expenseAccountId" required aria-label="Expense account" className="input !w-48"><option value="">Expense account…</option>{expenseAccounts.map((a) => <option key={a.id} value={a.id}>{a.code} {a.name}</option>)}</select>

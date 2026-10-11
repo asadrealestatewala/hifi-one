@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import FilesPanel from "@/components/FilesPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -42,9 +43,10 @@ async function save(formData: FormData) {
   revalidatePath(`/hr/employees/${id}`);
 }
 
-export default async function EmployeePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EmployeePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ fileError?: string; fileOk?: string }> }) {
   const user = await requirePermission("hr.view");
   const { id } = await params;
+  const { fileError, fileOk } = await searchParams;
   const p = await db.employeeProfile.findFirst({ where: { id, organizationId: user.organizationId } });
   if (!p) notFound();
   const u = await db.user.findUnique({ where: { id: p.userId }, include: { roles: { include: { role: true } } } });
@@ -81,6 +83,7 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
         )}
         {canManage && <div className="sm:col-span-2"><button className="btn">Save changes</button></div>}
       </form>
+      {sensitive && <FilesPanel user={user} ownerType="EMPLOYEE" ownerId={p.userId} returnTo={`/hr/employees/${p.id}`} title="Employee documents" withCategory withExpiry flash={{ fileError, fileOk }} />}
     </div>
   );
 }

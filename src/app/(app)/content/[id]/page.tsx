@@ -4,6 +4,7 @@ import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ContentError, editContent, transition } from "@/lib/content";
 import { canTransition, isEditable, needsComment } from "@/lib/content-rules";
+import FilesPanel from "@/components/FilesPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -39,10 +40,10 @@ async function save(formData: FormData) {
   redirect(`/content/${id}`);
 }
 
-export default async function ContentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
+export default async function ContentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; fileError?: string; fileOk?: string }> }) {
   const user = await requirePermission("content.view");
   const { id } = await params;
-  const { error } = await searchParams;
+  const { error, fileError, fileOk } = await searchParams;
   const item = await db.contentItem.findFirst({ where: { id, organizationId: user.organizationId }, include: { events: { orderBy: { createdAt: "desc" } }, versions: { orderBy: { version: "desc" } } } });
   if (!item) notFound();
   const [client, people, clientUsers] = await Promise.all([
@@ -76,6 +77,8 @@ export default async function ContentPage({ params, searchParams }: { params: Pr
       ) : (
         <section className="card text-sm space-y-1"><p className="whitespace-pre-line">{item.copy}</p>{item.hashtags && <p className="text-muted">{item.hashtags}</p>}</section>
       )}
+
+      <FilesPanel user={user} ownerType="CONTENT" ownerId={item.id} returnTo={`/content/${item.id}`} title="Creative files (images, video, documents)" flash={{ fileError, fileOk }} />
 
       {next.length > 0 && (
         <section className="card space-y-2">

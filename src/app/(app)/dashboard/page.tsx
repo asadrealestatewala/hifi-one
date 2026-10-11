@@ -53,6 +53,7 @@ export default async function Dashboard() {
     { n: d.overdueInvoices, label: "overdue customer invoices", href: "/finance/reports?type=aging" },
     { n: d.overdueTasks, label: "overdue tasks", href: "/projects" },
     { n: d.openSessions, label: "attendance sessions left open", href: "/hr/attendance" },
+    { n: d.expiringDocs, label: "employee documents expired or expiring within 30 days", href: "/hr/employees" },
   ].filter((t) => t.n > 0);
   return (
     <div className="space-y-6">

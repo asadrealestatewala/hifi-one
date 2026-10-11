@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireClientUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ContentError, clientContent, transition } from "@/lib/content";
+import FilesPanel from "@/components/FilesPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ export default async function PortalContent({ searchParams }: { searchParams: Pr
           <div className="flex justify-between gap-2"><h2 className="font-semibold">{i.title}</h2><span className="text-xs text-muted">{LABEL(i.platform)}{i.plannedDate && ` · planned ${i.plannedDate}`}</span></div>
           <p className="text-sm whitespace-pre-line">{i.copy}</p>
           {i.hashtags && <p className="text-sm text-muted">{i.hashtags}</p>}
+          <FilesPanel user={user} ownerType="CONTENT" ownerId={i.id} returnTo="/portal/content" title="Files to review" />
           <div className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
             <form action={decide}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="to" value="APPROVED" /><button className="btn">Approve</button></form>
             <form action={decide} className="flex gap-2 items-end">

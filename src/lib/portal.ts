@@ -24,6 +24,11 @@ export function portalInvoice(db: PrismaClient, clientId: string, invoiceId: str
   });
 }
 
+// Payments this client has made, for receipts
+export function portalPayments(db: PrismaClient, clientId: string) {
+  return db.payment.findMany({ where: { clientId }, orderBy: { date: "desc" }, select: { id: true, number: true, date: true, amount: true, currency: true }, take: 50 });
+}
+
 // Projects of this client, with only the tasks marked client-visible. Internal notes, budgets,
 // costs and non-visible tasks are never selected.
 export async function portalProjects(db: PrismaClient, clientId: string) {

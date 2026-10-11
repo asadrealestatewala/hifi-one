@@ -65,7 +65,7 @@ export default async function Payments({ searchParams }: { searchParams: Promise
             <tbody>
               {payments.map((p) => (
                 <tr key={p.id} className="border-t border-border">
-                  <td className="py-2 pr-4 font-medium">{p.number}</td>
+                  <td className="py-2 pr-4 font-medium"><a className="underline" href={`/finance/payments/${p.id}/pdf`} target="_blank" rel="noopener">{p.number}</a></td>
                   <td className="pr-4">{p.client.name}</td>
                   <td className="pr-4">
                     {p.allocations.map((a) => (

@@ -26,7 +26,7 @@ export default async function Payslip({ params }: { params: Promise<{ id: string
   );
   return (
     <div className="space-y-4 max-w-xl">
-      <div className="flex gap-3 print:hidden"><Link href="/me/payslips" className="text-sm text-muted hover:underline">← My payslips</Link><PrintButton /></div>
+      <div className="flex gap-3 print:hidden"><Link href="/me/payslips" className="text-sm text-muted hover:underline">← My payslips</Link><a className="btn" href={`/payslips/${item.id}/pdf`}>Download PDF</a><PrintButton /></div>
       <article className="card space-y-4">
         <header>
           <h1 className="text-xl font-bold">Payslip {item.run.period}</h1>

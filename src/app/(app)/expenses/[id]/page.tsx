@@ -6,6 +6,7 @@ import { LedgerError } from "@/lib/ledger-math";
 import { ExpenseError, approveVoucher, budgetStatus, cancelVoucher, payVoucher, postVoucher, rejectVoucher, reviewVoucher } from "@/lib/expenses";
 import { formatMoney } from "@/lib/money";
 import { notify, notifyPermission } from "@/lib/notifications";
+import FilesPanel from "@/components/FilesPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -42,10 +43,10 @@ async function step(formData: FormData) {
   redirect(`/expenses/${id}`);
 }
 
-export default async function VoucherPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
+export default async function VoucherPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; fileError?: string; fileOk?: string }> }) {
   const user = await requireUser();
   const { id } = await params;
-  const { error } = await searchParams;
+  const { error, fileError, fileOk } = await searchParams;
   const v = await db.expenseVoucher.findFirst({ where: { id, organizationId: user.organizationId } });
   if (!v) notFound();
   const mine = v.submittedById === user.id;
@@ -71,6 +72,7 @@ export default async function VoucherPage({ params, searchParams }: { params: Pr
       <Link href="/expenses" className="text-sm text-muted hover:underline">← All vouchers</Link>
       {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
       <article className="card space-y-3">
+        <div className="flex justify-end"><a className="btn-ghost" href={`/expenses/${v.id}/voucher`} target="_blank" rel="noopener">Voucher PDF</a></div>
         <h1 className="text-xl font-bold">{v.number} <span className="text-base font-normal text-muted">{v.status.replace("_", " ")}</span></h1>
         <dl className="grid grid-cols-3 gap-y-1 text-sm">
           {([["Payee", v.payee], ["Date", v.date], ["Description", v.description], ["Justification", v.justification], ["Category", acct ? `${acct.code} ${acct.name}` : ""],
@@ -87,6 +89,7 @@ export default async function VoucherPage({ params, searchParams }: { params: Pr
           </p>
         )}
       </article>
+      <FilesPanel user={user} ownerType="EXPENSE" ownerId={v.id} returnTo={`/expenses/${v.id}`} title="Receipts and supporting documents" flash={{ fileError, fileOk }} />
       <div className="card flex flex-wrap items-end gap-2">
         {v.status === "SUBMITTED" && can("expenses.review") && !mine && <form action={step}>{f("review")}<button className="btn">Take into review</button></form>}
         {v.status === "SUBMITTED" && mine && <form action={step}>{f("cancel")}<button className="btn-ghost">Cancel voucher</button></form>}

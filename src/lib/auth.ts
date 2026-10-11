@@ -218,3 +218,14 @@ export async function audit(
 
 // The identity used by user and role administration rules (see accounts.ts)
 export const toActor = (u: SessionUser) => ({ id: u.id, isSuperAdmin: u.roleKeys.includes("SUPER_ADMIN"), permissions: u.permissions as ReadonlySet<string> });
+
+// Any signed-in person of any type (staff, client, vendor). Used where access is decided by the record, not by the person's area.
+export async function requireSession(): Promise<SessionUser> {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+  return user;
+}
+
+export const toFileActor = (u: SessionUser) => ({
+  id: u.id, organizationId: u.organizationId, userType: u.userType, clientId: u.clientId, vendorId: u.vendorId, permissions: u.permissions as ReadonlySet<string>,
+});

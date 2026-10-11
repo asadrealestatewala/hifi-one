@@ -17,6 +17,7 @@ The local development database (`npm run db:start`) is for development only. Do 
 | `DATABASE_URL` | PostgreSQL connection string, for example `postgresql://user:password@host:5432/hifi_one?sslmode=require` |
 | `SESSION_SECRET` | 32+ random characters used to sign session cookies. Generate: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Changing it signs everyone out. |
 | `SETUP_TOKEN` | Production only. 16+ random characters. Required to run first-run setup (see below). The setup page closes by itself once a user exists. |
+| `STORAGE_DIR` | Folder for uploaded files (default `.data/files` next to the app). Use a persistent path outside the code, and back it up together with the database. |
 | `NODE_ENV` | `production` (set by `next start`). Turns on secure cookies, HSTS and the strict Content-Security-Policy. |
 
 Keep these in your host's secret store, never in git. Only `.env.example` (placeholders) is committed.
@@ -67,7 +68,7 @@ pg_restore --no-owner --dbname="$TARGET_DATABASE_URL" hifi_one_2026-10-11.dump
 
 - Schedule a backup at least daily and keep copies off the server. Most managed databases offer automated backups and point-in-time recovery; turn them on.
 - **Rehearse a restore** into a scratch database before you need it, and confirm that you can sign in and that the trial balance balances.
-- Uploaded files: none are stored yet (there is no file storage). When it is added, back it up with the database.
+- **Uploaded files** live in `STORAGE_DIR` (receipts, vendor bill documents, employee documents, content media). Back that folder up on the same schedule as the database and restore both together: the database stores each file's record and checksum, the folder stores the bytes. The storage layer is a small interface (`src/lib/storage.ts`), so moving to S3, Azure Blob or Google Cloud Storage means writing one provider class.
 
 Local development database: stop it, then `npm run db:backup`. Restore with `npm run db:restore -- <folder-name> --yes` (the current data is moved aside, not deleted).
 

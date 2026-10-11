@@ -20,6 +20,15 @@ What is in place, how it is checked, and what is not done yet.
 - **User and role administration is guarded by rules in the service layer:** the system always keeps an active Super Admin (even when two admins change each other at once), only a Super Admin can grant, remove or reset a Super Admin, nobody can grant or remove a permission they do not hold themselves, changing a role or deactivating a user signs the people affected out, and built-in roles cannot be deleted. All changes are audited.
 - Staff, client and vendor sessions are separate: each type is redirected away from the other areas.
 
+## Files and documents
+
+- Uploads are checked on the server by looking inside the file: the extension must match the contents, programs, scripts, HTML and SVG are refused, Office files with macros are refused, and the size limit is 15 MB. The server decides the content type; the uploader cannot.
+- Files are stored outside any public folder under random names. The only way to get one is the download route, which needs a signed-in user, a link signed for that user and file that expires after 10 minutes, and the access rule of the record the file belongs to (for example only the submitter and reviewers see an expense receipt; only the employee and sensitive-data HR see employee documents; clients see content media only once it reaches client review). A file you may not see looks exactly like one that does not exist.
+- Downloads are sent with `nosniff`, a sandboxing Content-Security-Policy and `no-store`.
+- Removal is soft (recoverable) until a retention purge deletes the bytes.
+- **Not done:** virus scanning (every file is marked not scanned; add a scanner such as ClamAV behind `scanStatus` before accepting files from the public), encryption of files at rest beyond what your disk or object store provides, and per-type retention schedules.
+- PDF documents are generated on the server from recorded data, with the same access rules as the screens. Issued invoices are rebuilt from the details frozen at issue.
+
 ## Data integrity
 
 - Posted journal lines cannot be edited or deleted (database trigger). Corrections are reversing entries.

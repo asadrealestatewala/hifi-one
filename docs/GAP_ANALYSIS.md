@@ -25,8 +25,8 @@ The spec ([spec.md](spec.md)) describes a very large platform. The accounting, H
 | Chat, meetings, WhatsApp, email, calendar, ad platforms, telephony | Not built (need provider accounts) |
 | AI assistant | Not built (needs an AI provider and a knowledge base) |
 | Employee activity monitoring | Not built, by design (needs a separate desktop agent and written policy) |
-| File storage and uploads | Not built |
-| Server-side PDF and document templates | Not built (browser print only) |
+| File storage and uploads | Partial (receipts, vendor bill documents, employee documents, content media; no virus scanning) |
+| Server-side PDF and document templates | Partial (invoice, receipt, credit note, statement, payslip, voucher; template toggles; Latin text only) |
 | Exchange rates and multi-currency reporting | Not built |
 
 ## Detail by spec section
@@ -112,8 +112,8 @@ The spec ([spec.md](spec.md)) describes a very large platform. The accounting, H
 
 1. ~~Manual journal entries, chart of accounts editing, period locking, credit notes and refunds~~ (done). Still needed for accountants: year-end closing, bank reconciliation, tax rates and tax reports, accounts payable aging, write-offs.
 2. ~~First-run setup, user and role administration, password reset, multi-factor authentication~~ (done). Still needed: branches and departments screens, enforce two-step verification for sensitive roles.
-3. **File storage** (private, signed downloads) unlocking receipts, contracts, expense attachments, employee and vendor documents, content media.
-4. **Server-side PDF and document templates** for invoices, receipts, statements, payslips and vouchers.
+3. ~~File storage~~ (done for receipts, bill documents, employee documents and content media). Still needed: contracts, a virus scanner, other attachment points (quotes, projects, assets).
+4. ~~Server-side PDF and document templates~~ (done for six document types). Still needed: right-to-left languages such as Urdu and Arabic, quotations and contracts, emailing documents, letterheads.
 5. **Exchange rates** and consolidated reports.
 6. **Service catalog editing, quotations, contracts, subscriptions and renewals**, completing the sales-to-cash flow.
 7. **Project depth**: milestones, deliverables, costs, profitability, timeline and calendar views.

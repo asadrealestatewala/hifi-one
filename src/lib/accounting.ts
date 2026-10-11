@@ -108,6 +108,7 @@ export async function issueInvoice(db: PrismaClient, p: { organizationId: string
     const bank = await tx.bankAccount.findFirst({
       where: { organizationId: p.organizationId, currency: inv.currency, active: true, isDefault: true },
     });
+    const tpl = await tx.documentSetting.findUnique({ where: { organizationId_docType: { organizationId: p.organizationId, docType: "INVOICE" } } });
     const number = await nextNumber(tx, p.organizationId, "INV", "INV");
     const lines: DraftLine[] = [{ accountId: ar.id, debit: inv.total, clientId: inv.clientId, memo: number }];
     lines.push({ accountId: revenue.id, credit: inv.subtotal, memo: number });
@@ -125,7 +126,7 @@ export async function issueInvoice(db: PrismaClient, p: { organizationId: string
       data: {
         status: "ISSUED", number, issueDate, dueDate, journalEntryId: entry.id,
         // Snapshots keep this invoice's details fixed even if settings change later
-        companySnapshot: profile ? JSON.parse(JSON.stringify(profile)) : undefined,
+        companySnapshot: profile ? JSON.parse(JSON.stringify({ ...profile, _template: { config: tpl?.config ?? null, version: tpl?.version ?? 0 } })) : undefined,
         bankSnapshot: bank
           ? { bankName: bank.bankName, accountHolder: bank.accountHolder, accountNumber: bank.accountNumber, iban: bank.iban, swift: bank.swift, routingCode: bank.routingCode, currency: bank.currency, paymentInstructions: bank.paymentInstructions }
           : undefined,

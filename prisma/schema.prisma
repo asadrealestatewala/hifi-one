@@ -1207,3 +1207,38 @@ model PasswordResetToken {
 
   @@index([userId])
 }
+
+// ---------- File storage and document settings ----------
+
+model StoredFile {
+  id             String    @id @default(cuid())
+  organizationId String
+  ownerType      String // EXPENSE | VENDOR_BILL | CONTENT | EMPLOYEE
+  ownerId        String
+  filename       String // display name only; never used as a path
+  contentType    String // decided by the server from the file contents, not by the uploader
+  size           Int
+  sha256         String
+  storageKey     String    @unique // random; where the bytes live in the storage provider
+  category       String?
+  expiresOn      String? // YYYY-MM-DD, for documents that lapse (employee IDs, contracts)
+  scanStatus     String    @default("UNSCANNED") // UNSCANNED | CLEAN | INFECTED
+  uploadedById   String
+  createdAt      DateTime  @default(now())
+  deletedAt      DateTime?
+  deletedById    String?
+
+  @@index([organizationId, ownerType, ownerId])
+}
+
+model DocumentSetting {
+  id             String   @id @default(cuid())
+  organizationId String
+  docType        String // INVOICE | RECEIPT | CREDIT_NOTE | STATEMENT | PAYSLIP | VOUCHER
+  config         Json
+  version        Int      @default(1)
+  updatedById    String?
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, docType])
+}

@@ -35,6 +35,7 @@ const NAV: NavGroup[] = [
     items: [
       { href: "/me/attendance", label: "My Attendance", permission: "self.attendance" },
       { href: "/me/leave", label: "My Leave", permission: "self.leave" },
+      { href: "/me/documents", label: "My Documents", permission: "self.leave" },
       { href: "/me/payslips", label: "My Payslips", permission: "self.payslip" },
       { href: "/expenses", label: "Expense Vouchers", permission: "self.expense" },
     ],
@@ -79,6 +80,7 @@ const NAV: NavGroup[] = [
     items: [
       { href: "/settings/company", label: "Company Settings", permission: "settings.company.view" },
       { href: "/settings/bank-accounts", label: "Bank Accounts", permission: "bank.view" },
+      { href: "/settings/documents", label: "Document Templates", permission: "settings.company.view" },
       { href: "/users", label: "Users", permission: "users.view" },
       { href: "/roles", label: "Roles & Permissions", permission: "roles.manage" },
       { href: "/audit-logs", label: "Audit Logs", permission: "audit.view" },

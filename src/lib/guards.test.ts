@@ -85,7 +85,7 @@ describe("every server action checks the caller", () => {
       // Public by design: sign-in, and accepting an emailed invitation (protected by a secret token)
       if (PUBLIC_ACTIONS.has(r)) continue;
       it(`${r} › ${a.name}`, () => {
-        expect(/require(Permission|User|ClientUser|VendorUser)\(|\blogout\(/.test(a.body), `${r} ${a.name} must call a require* guard`).toBe(true);
+        expect(/require(Permission|User|ClientUser|VendorUser|Session)\(|\blogout\(/.test(a.body), `${r} ${a.name} must call a require* guard`).toBe(true);
       });
     }
   }
@@ -93,6 +93,18 @@ describe("every server action checks the caller", () => {
     const n = files.filter((f) => /["']use server["']/.test(read(f))).length;
     expect(n).toBeGreaterThan(20);
   });
+});
+
+describe("every route handler checks the caller", () => {
+  // Public by design: the health check returns nothing but "ok"
+  const PUBLIC_ROUTES = new Set(["api/health/route.ts"]);
+  for (const f of files.filter((x) => x.endsWith("/route.ts"))) {
+    const r = rel(f);
+    if (PUBLIC_ROUTES.has(r)) continue;
+    it(`${r} is guarded`, () => {
+      expect(/require(Permission|User|ClientUser|VendorUser|Session)\(/.test(read(f)), `${r} must call a require* guard`).toBe(true);
+    });
+  }
 });
 
 describe("secrets never live in source", () => {

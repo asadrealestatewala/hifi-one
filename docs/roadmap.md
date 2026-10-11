@@ -2,6 +2,16 @@
 
 Phases follow section 35 of [spec.md](spec.md).
 
+## File storage, server-side PDFs and document templates (done)
+
+Done, 48 automated tests plus a browser run (an invoice PDF downloaded and inspected visually; a receipt uploaded to an expense voucher; the download worked only with the right link; a missing or tampered link gave 404; an HTML file renamed .pdf was refused):
+- Private file storage with a swappable provider; validation by content, macro and program checks, 15 MB limit; per-record access rules (expense receipts, vendor bill documents, content media, employee documents with category and expiry); signed 10-minute download links bound to the person; soft delete with retention purge; audit entries
+- Employee self-service "My Documents"; dashboard flag for expired or soon-expiring employee documents
+- PDFs for invoices, receipts (from recorded payments), credit notes, customer statements, payslips and expense vouchers, with portal versions for clients; multi-page, page numbers, consistent number formats
+- Document templates: choose which company details, bank instructions, footer text and accent colour appear; preview with sample figures; issued invoices keep the details and template they were issued with
+- Every route handler now needs a caller check (extended authorization test)
+Limits: Latin characters only in PDFs (other scripts show as ? with a notice; Urdu/Arabic needs a different renderer); no virus scanning; no emailing of documents; quotations and contracts not built; file attachments exist on four record types only.
+
 ## First-run setup, user and role administration, password reset, two-step verification (done)
 
 Done, 32 automated tests (9 against RFC 6238 vectors) plus a full browser run on a brand-new empty database: the home page redirected to /setup, setup created the installation and the page then closed; two-step verification was turned on with a real QR code and key, sign-in stopped at the code page, a wrong code and a recovery code behaved correctly, and the dashboard was unreachable without a code; a staff user set their own password from a one-time link, the old link died, and the new accountant could not open Users, Roles or Setup; a custom role was created.

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireClientUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
-import { portalInvoices, portalProjects } from "@/lib/portal";
+import { portalInvoices, portalPayments, portalProjects } from "@/lib/portal";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,7 @@ const LABEL: Record<string, string> = { TODO: "To do", IN_PROGRESS: "In progress
 
 export default async function PortalHome() {
   const user = await requireClientUser();
-  const [invoices, projects] = await Promise.all([portalInvoices(db, user.clientId), portalProjects(db, user.clientId)]);
+  const [invoices, projects, payments] = await Promise.all([portalInvoices(db, user.clientId), portalProjects(db, user.clientId), portalPayments(db, user.clientId)]);
   const owed = new Map<string, number>();
   for (const i of invoices) owed.set(i.currency, (owed.get(i.currency) ?? 0) + Number(i.total.sub(i.amountPaid).sub(i.creditedAmount)));
   return (
@@ -43,6 +43,13 @@ export default async function PortalHome() {
           </table>
         )}
       </section>
+
+      {payments.length > 0 && (
+        <section className="card">
+          <h2 className="font-semibold mb-2">Payments and receipts</h2>
+          <ul className="text-sm">{payments.map((p) => <li key={p.id} className="flex justify-between border-t border-border py-1.5 first:border-0"><a className="underline" href={`/portal/receipts/${p.id}/pdf`} target="_blank" rel="noopener">{p.number}</a><span>{p.date.toLocaleDateString()} · {formatMoney(p.amount, p.currency)}</span></li>)}</ul>
+        </section>
+      )}
 
       <section className="space-y-3">
         <h2 className="font-semibold">Projects</h2>

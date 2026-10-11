@@ -40,7 +40,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       ))}
       {statement && (
         <section className="card overflow-x-auto space-y-3">
-          <h2 className="font-semibold">Account statement</h2>
+          <div className="flex items-center justify-between gap-2"><h2 className="font-semibold">Account statement</h2><a className="btn-ghost" href={`/clients/${client.id}/statement/pdf`} target="_blank" rel="noopener">Statement PDF</a></div>
           {statement.advances.map((a) => (
             <p key={a.currency} className="text-sm">Advance held on account: <strong>{formatMoney(a.amount, a.currency)}</strong></p>
           ))}

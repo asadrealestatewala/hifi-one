@@ -18,6 +18,8 @@ const csp = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Uploads travel through server actions; the file size limit itself is enforced by the file service (15 MB)
+  experimental: { serverActions: { bodySizeLimit: "16mb" } },
   async headers() {
     return [
       {

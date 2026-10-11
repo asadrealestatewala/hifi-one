@@ -21,6 +21,7 @@ export default async function PortalInvoice({ params }: { params: Promise<{ id: 
     <div className="space-y-4">
       <div className="flex gap-3 items-center print:hidden">
         <Link href="/portal" className="text-sm text-muted hover:underline">← Back</Link>
+        <a className="btn" href={`/portal/invoices/${inv.id}/pdf`} target="_blank" rel="noopener">Download PDF</a>
         <PrintButton />
       </div>
       <article className="card space-y-6">
