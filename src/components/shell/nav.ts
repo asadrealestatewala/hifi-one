@@ -100,3 +100,8 @@ export const QUICK_CREATE: QuickCreate[] = [
   { href: "/expenses", label: "New expense voucher", permission: "self.expense", icon: "wallet" },
   { href: "/me/leave", label: "Request leave", permission: "self.leave", icon: "calendar" },
 ];
+
+// The menu a person may see, before their own arrangement is applied. Used by the layout and by the action that saves the arrangement.
+export function visibleNav(permissions: ReadonlySet<string>) {
+  return NAV.map((g) => ({ id: g.id, title: g.title, icon: g.icon, items: g.items.filter((i) => i.permission === null || permissions.has(i.permission)).map((i) => ({ href: i.href, label: i.label })) })).filter((g) => g.items.length > 0);
+}

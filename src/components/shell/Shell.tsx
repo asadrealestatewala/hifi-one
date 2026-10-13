@@ -13,15 +13,15 @@ import Topbar from "./Topbar";
 type Group = { id: string; title: string; icon: string; items: { href: string; label: string }[] };
 
 // The signed-in frame: sidebar, top bar and the page. Only layout state lives here; every permission decision was made on the server.
-export default function Shell({ groups, quick, name, roles, userId, unread, stats, canSearch, canAsk, signOut, children }: {
-  groups: Group[]; quick: { href: string; label: string; icon: string }[]; name: string; roles: string; userId: string; unread: number; stats: NavStats; canSearch: boolean; canAsk: boolean; signOut: () => Promise<void>; children: React.ReactNode;
+export default function Shell({ groups, allGroups, menuPrefs, quick, name, roles, userId, unread, stats, canSearch, canAsk, signOut, children }: {
+  groups: Group[]; allGroups: Group[]; menuPrefs: { order: string[]; hidden: string[] }; quick: { href: string; label: string; icon: string }[]; name: string; roles: string; userId: string; unread: number; stats: NavStats; canSearch: boolean; canAsk: boolean; signOut: () => Promise<void>; children: React.ReactNode;
 }) {
   const [mobile, setMobile] = useState(false);
   const pathname = usePathname();
   return (
     <div className="min-h-screen md:flex">
       <Suspense fallback={null}><NavProgress /></Suspense>
-      <Sidebar stats={stats} groups={groups} name={name} roles={roles} userId={userId} signOut={signOut} mobileOpen={mobile} onClose={() => setMobile(false)} />
+      <Sidebar stats={stats} groups={groups} allGroups={allGroups} menuPrefs={menuPrefs} name={name} roles={roles} userId={userId} signOut={signOut} mobileOpen={mobile} onClose={() => setMobile(false)} />
       <div className="min-w-0 flex-1">
         <Topbar unread={unread} quick={quick} canSearch={canSearch} onMenu={() => setMobile(true)} />
         <main className="mx-auto w-full max-w-[1400px] p-4 md:p-8"><RowClick /><div key={pathname} className="[animation:fade_.25s_ease-out]">{children}</div></main>

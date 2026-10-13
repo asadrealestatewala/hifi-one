@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon";
 import { MODULE_COLOR } from "./nav-colors";
 import Avatar from "@/components/ui/Avatar";
+import ArrangeMenu from "./ArrangeMenu";
 import type { NavStats } from "@/lib/nav-stats";
 
 type Item = { href: string; label: string };
@@ -22,7 +23,7 @@ const write = (key: string, value: unknown) => { try { localStorage.setItem(key,
 
 // Grouped, collapsible navigation. Each group is a dropdown; the group holding the current page opens by itself;
 // the whole bar can shrink to icons. Choices are remembered in this browser only.
-export default function Sidebar({ groups, stats, name, roles, userId, signOut, mobileOpen, onClose }: { groups: Group[]; stats: NavStats; name: string; roles: string; userId: string; signOut: () => Promise<void>; mobileOpen: boolean; onClose: () => void }) {
+export default function Sidebar({ groups, allGroups, menuPrefs, stats, name, roles, userId, signOut, mobileOpen, onClose }: { groups: Group[]; allGroups: Group[]; menuPrefs: { order: string[]; hidden: string[] }; stats: NavStats; name: string; roles: string; userId: string; signOut: () => Promise<void>; mobileOpen: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [open, setOpen] = useState<string[]>([]);
@@ -100,6 +101,7 @@ export default function Sidebar({ groups, stats, name, roles, userId, signOut, m
           })}
         </nav>
 
+        {!collapsed && <ArrangeMenu groups={allGroups} prefs={menuPrefs} />}
         <AccountBlock name={name} roles={roles} userId={userId} signOut={signOut} collapsed={collapsed} onNavigate={onClose} />
         <div className="hidden shrink-0 border-t border-white/10 p-2 md:block">
           <button type="button" onClick={toggleCollapsed} className="flex h-9 w-full items-center gap-3 rounded-lg px-3 text-[13px] text-sidebar-fg hover:bg-white/8 hover:text-white" aria-label={collapsed ? "Expand menu" : "Collapse menu"}>
