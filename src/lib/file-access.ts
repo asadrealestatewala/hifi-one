@@ -11,7 +11,7 @@ export type FileActor = {
   permissions: ReadonlySet<string>;
 };
 
-export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT"] as const;
+export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK"] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 export type Mode = "read" | "upload" | "delete";
 
@@ -48,6 +48,17 @@ export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: 
       return a.userType === "CLIENT" && a.clientId !== null && a.clientId === c.clientId && CLIENT_VISIBLE.includes(c.status); // never drafts
     }
     return has("content.manage") && CONTENT_EDITABLE.includes(c.status);
+  }
+
+  if (ownerType === "TASK") {
+    // Same visibility as the project: members, its manager, or people who can see all projects
+    const t = await db.task.findUnique({ where: { id: ownerId }, include: { project: { include: { members: true } } } });
+    if (!t || t.project.organizationId !== a.organizationId || !staff) return false;
+    const inProject = a.permissions.has("projects.view_all") || t.project.managerId === a.id || t.project.members.some((m) => m.userId === a.id);
+    if (!inProject || !has("projects.view")) return false;
+    if (mode === "read") return true;
+    const manager = a.permissions.has("projects.manage") || t.project.managerId === a.id;
+    return (manager || t.assigneeId === a.id) && has("tasks.edit") && !["COMPLETED", "CANCELLED"].includes(t.project.status);
   }
 
   if (ownerType === "CONTACT") {

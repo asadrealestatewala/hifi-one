@@ -23,7 +23,8 @@
 - **Currencies.** Amounts carry their own currency and are never mixed in totals. `ExchangeRate` is used only by the consolidated reports.
 - **Commissions.** `CommissionEntry.allocationId` is unique: one payment allocation is commissioned once. Rules live in `CommissionRule`.
 - **Quotes and subscriptions.** `Quote` → `QuoteLine`; accepted quotes convert to a draft invoice once (`Quote.invoiceId`). `Subscription` → `SubscriptionInvoice` (unique per period) so a period is billed once.
-- **Projects.** Progress is derived from tasks; completion is blocked while tasks are open. `TimeEntry` and cost rates feed profitability. Tasks flagged client-visible appear in the client portal.
+- **Tasks.** `Task.parentId` makes a subtask (one level); `Task.blockedBy` lists tasks in the same project that must be Done first (cycles refused); `Task.recurrence` plus unique `recurredFromId` makes the next occurrence exactly once; `TaskComment` is internal by default; files with owner TASK follow the project.
+- **Projects.** Progress is derived from top-level tasks; completion is blocked while tasks are open. `TimeEntry` and cost rates feed profitability. Tasks flagged client-visible appear in the client portal.
 - **Vendors.** Opportunity → application → work order → bill → payment, with accounts payable on the ledger; vendor users see only their own records.
 - **HR and monitoring.** `AttendanceRecord` and `BreakRecord` are the source for worked time. Monitoring (`MonitoringPolicy`, `PolicyAck`, `WorkSession`, `ActivityBucket`, `AppUsage`, `Screenshot`, `MonitorDevice`, `MonitoringAccess`, `TimesheetCorrection`) is separate, consent-gated, and every screenshot view is logged.
 - **Files.** `StoredFile` is polymorphic (`ownerType` EXPENSE, VENDOR_BILL, CONTENT, EMPLOYEE, CONTRACT, CONTACT). Access always follows the owning record (`src/lib/file-access.ts`); links are signed and short-lived.
@@ -37,4 +38,4 @@ Unique per organization: `Client(name)`, `Account(code)`, `NumberSequence(key)`.
 
 ## Not modelled yet
 
-Brands under a client, deliverables as their own entity, subtasks and task dependencies, recurring tasks, purchase orders separate from work orders, ad-platform metrics, saved views for arbitrary lists (smart lists exist for leads).
+Brands under a client, deliverables as their own entity, purchase orders separate from work orders, ad-platform metrics, saved views for arbitrary lists (smart lists exist for leads).

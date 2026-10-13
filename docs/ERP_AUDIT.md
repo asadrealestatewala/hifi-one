@@ -8,7 +8,7 @@ Method: read the repository, run the checks, open screens in a browser. Only thi
 |---|---|
 | `npx tsc --noEmit` | clean |
 | `npx eslint src` | clean |
-| `npx vitest run` | 47 files, 704 tests passed (includes a test that every page and action calls an authorization guard, and real-database tests for concurrency, idempotency, immutability, isolation, merge, dashboard layout, contact profile) |
+| `npx vitest run` | 49 files, 719 tests passed (includes a test that every page and action calls an authorization guard, and real-database tests for concurrency, idempotency, immutability, isolation, merge, dashboard layout, contact profile) |
 | `npm run build` | succeeds |
 | Server speed (production mode, warm) | pages render in about 30 to 200 ms; first request after start about 3.5 s |
 
@@ -28,3 +28,5 @@ Method: read the repository, run the checks, open screens in a browser. Only thi
 ## Security review notes
 
 Server-side guards on every page and action (test-enforced); org filter on queries; file access follows the owning record; contact merge limited to managers; contact email can only go to addresses on the record; CSV export defuses spreadsheet formulas; social and website links render as links only for http(s). Headers sent: HSTS, nosniff, frame denial, referrer policy, permissions policy, content policy.
+
+11. **Task panel not yet checked in a browser.** The rules and permissions are tested; the screen was built, type-checked and the production build succeeds, but the browser pane was signed out so I could not open it. Open.

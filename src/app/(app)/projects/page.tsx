@@ -20,7 +20,7 @@ export default async function Projects({ searchParams }: { searchParams: Promise
   const status = STATUSES.includes(sp.status ?? "") ? sp.status! : "all";
   const q = sp.q?.trim();
   const [all, clients] = await Promise.all([
-    db.project.findMany({ where: projectScope(user), orderBy: { createdAt: "desc" }, include: { tasks: { select: { status: true, dueDate: true } } } }),
+    db.project.findMany({ where: projectScope(user), orderBy: { createdAt: "desc" }, include: { tasks: { select: { status: true, dueDate: true, parentId: true } } } }),
     db.client.findMany({ where: { organizationId: user.organizationId, active: true }, orderBy: { name: "asc" } }),
   ]);
   const clientName = new Map(clients.map((c) => [c.id, c.name]));

@@ -9,16 +9,20 @@ import { addMember, createTask, setProjectStatus } from "../actions";
 import ProjectDepth from "./ProjectDepth";
 import ProjectMeetings from "./ProjectMeetings";
 import TaskBoard from "./TaskBoard";
+import TaskDetail from "./TaskDetail";
+import Drawer from "@/components/ui/Drawer";
+import FilesPanel from "@/components/FilesPanel";
+import { openBlockers } from "@/lib/task-rules";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProjectPage({
   params,
   searchParams,
-}: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
+}: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; task?: string; fileError?: string; fileOk?: string }> }) {
   const user = await requirePermission("projects.view");
   const { id } = await params;
-  const { error } = await searchParams;
+  const { error, task: taskId, fileError, fileOk } = await searchParams;
   const project = await db.project.findFirst({
     where: { id, ...projectScope(user) },
     include: { members: true, tasks: { orderBy: { createdAt: "asc" } } },
@@ -34,6 +38,10 @@ export default async function ProjectPage({
   const nameOf = new Map(orgUsers.map((u) => [u.id, u.name]));
   const client = project.clientId ? await db.client.findUnique({ where: { id: project.clientId } }) : null;
   const progress = projectProgress(project.tasks);
+  const open = taskId ? project.tasks.find((t) => t.id === taskId) ?? null : null;
+  const comments = open ? await db.taskComment.findMany({ where: { taskId: open.id }, orderBy: { createdAt: "asc" }, take: 100 }) : [];
+  const top = project.tasks.filter((t) => !t.parentId);
+  const byId = new Map(project.tasks.map((t) => [t.id, t]));
   const closed = project.status === "COMPLETED" || project.status === "CANCELLED";
   return (
     <div className="space-y-6">
@@ -71,15 +79,17 @@ export default async function ProjectPage({
       {user.permissions.has("meetings.use") && <ProjectMeetings projectId={project.id} organizationId={user.organizationId} closed={closed} />}
 
       <TaskBoard
-        key={project.tasks.map((t) => `${t.id}:${t.status}`).join(",")}
+        key={project.tasks.map((t) => `${t.id}:${t.status}:${t.blockedBy.join("")}`).join(",")}
         canMove={canMove && !closed}
         userId={user.id}
         isManager={canManage || project.managerId === user.id}
-        tasks={project.tasks.map((t) => ({
+        tasks={top.map((t) => ({
           id: t.id, title: t.title, status: t.status, priority: t.priority,
           assignee: t.assigneeId ? nameOf.get(t.assigneeId) ?? "Unknown" : null, assigneeId: t.assigneeId,
           due: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
           overdue: t.status !== "DONE" && t.dueDate !== null && t.dueDate < new Date(),
+          subDone: project.tasks.filter((x) => x.parentId === t.id && x.status === "DONE").length, subTotal: project.tasks.filter((x) => x.parentId === t.id).length,
+          waitingFor: openBlockers(t.blockedBy, byId).map((x) => x.title), recurrence: t.recurrence, href: `/projects/${project.id}?task=${t.id}`,
         }))}
       />
 
@@ -121,6 +131,21 @@ export default async function ProjectPage({
           </form>
         )}
       </div>
+      {open && (
+        <Drawer title={open.title} closeTo={`/projects/${project.id}`}>
+          <TaskDetail
+            key={`${open.id}:${open.status}:${project.tasks.length}:${comments.length}`}
+            task={{ id: open.id, title: open.title, status: open.status, description: open.description ?? "", priority: open.priority, assigneeId: open.assigneeId ?? "", due: open.dueDate ? open.dueDate.toISOString().slice(0, 10) : "", clientVisible: open.clientVisible, recurrence: open.recurrence ?? "", blockedBy: open.blockedBy, parentTitle: open.parentId ? byId.get(open.parentId)?.title ?? "another task" : null }}
+            subtasks={project.tasks.filter((t) => t.parentId === open.id).map((t) => ({ id: t.id, title: t.title, status: t.status }))}
+            candidates={project.tasks.filter((t) => t.id !== open.id && t.parentId !== open.id && open.parentId !== t.id).map((t) => ({ id: t.id, title: t.title }))}
+            members={project.members.map((m) => ({ id: m.userId, name: nameOf.get(m.userId) ?? "Unknown" }))}
+            comments={comments.map((c) => ({ id: c.id, author: nameOf.get(c.authorId) ?? "Former staff", body: c.body, at: c.createdAt.toLocaleString() }))}
+            canManage={(canManage || project.managerId === user.id) && !closed} canMoveSubtasks={canMove && !closed && (canManage || project.managerId === user.id || open.assigneeId === user.id)} canComment={canMove}
+          >
+            <FilesPanel user={user} ownerType="TASK" ownerId={open.id} returnTo={`/projects/${project.id}?task=${open.id}`} title="Files" flash={{ fileError, fileOk }} />
+          </TaskDetail>
+        </Drawer>
+      )}
     </div>
   );
 }

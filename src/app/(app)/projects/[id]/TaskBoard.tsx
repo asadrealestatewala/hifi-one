@@ -1,12 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { moveTask } from "../actions";
 import { STATUS_LABEL, TASK_STATUSES } from "@/lib/project-rules";
 
 type T = {
   id: string; title: string; status: string; priority: string; assignee: string | null; assigneeId: string | null;
-  due: string | null; overdue: boolean;
+  due: string | null; overdue: boolean; subDone: number; subTotal: number; waitingFor: string[]; recurrence: string | null; href: string;
 };
 
 export default function TaskBoard({ tasks: initial, canMove, userId, isManager }: { tasks: T[]; canMove: boolean; userId: string; isManager: boolean }) {
@@ -41,7 +42,14 @@ export default function TaskBoard({ tasks: initial, canMove, userId, isManager }
                 {col.map((t) => (
                   <article key={t.id} draggable={mayMove(t)} onDragStart={() => setDragId(t.id)} onDragEnd={() => setDragId(null)}
                     className="card !p-3 text-sm space-y-1 cursor-grab">
-                    <p className="font-semibold">{t.title}</p>
+                    <p className="font-semibold"><Link href={t.href} className="hover:underline">{t.title}</Link></p>
+                    {(t.subTotal > 0 || t.waitingFor.length > 0 || t.recurrence) && (
+                      <p className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                        {t.subTotal > 0 && <span className="rounded-full bg-hover px-2 py-0.5 text-muted" title="Subtasks done">{t.subDone}/{t.subTotal} subtasks</span>}
+                        {t.waitingFor.length > 0 && <span className="rounded-full bg-warning/10 px-2 py-0.5 font-medium text-warning" title={`Waiting for: ${t.waitingFor.join(", ")}`}>waiting for {t.waitingFor.length}</span>}
+                        {t.recurrence && <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">repeats {t.recurrence.toLowerCase()}</span>}
+                      </p>
+                    )}
                     <p className="text-xs text-muted">{t.assignee ?? "Unassigned"} · {t.priority}</p>
                     {t.due && <p className={`text-xs ${t.overdue ? "text-brand font-semibold" : "text-muted"}`}>{t.overdue ? "Overdue: " : "Due "}{t.due}</p>}
                     {mayMove(t) && (

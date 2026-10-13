@@ -609,6 +609,10 @@ model Task {
   blocked        Boolean  @default(false)
   completedAt    DateTime?
   createdById    String?
+  parentId       String?   // a subtask points at its parent task (one level only)
+  blockedBy      String[]  @default([]) // ids of tasks in the same project that must be Done first
+  recurrence     String?   // DAILY | WEEKLY | MONTHLY: completing the task creates the next one
+  recurredFromId String?   @unique // the completed task that created this one, so it is created once
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -616,6 +620,7 @@ model Task {
   milestone Milestone?   @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
   comments TaskComment[]
 
+  @@index([parentId])
   @@index([projectId, status])
   @@index([assigneeId])
 }

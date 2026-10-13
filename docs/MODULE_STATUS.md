@@ -14,8 +14,8 @@ Master prompt section in brackets.
 - **Not built:** brands, deliverables as their own record, ad budgets and actual spend per platform, KPIs per channel, monthly client reports. Live ad metrics need provider accounts and are not faked.
 
 ## Projects and tasks [7]
-- **Done:** projects, members, Kanban task board, milestones with billing, time entries and cost rates, profitability, client-visible tasks, progress derived from tasks, meetings linked to projects.
-- **Not built:** subtasks, dependencies, recurring tasks, calendar and Gantt views, workload view, task comments and files, timesheet approval.
+- **Done:** projects, members, Kanban task board, milestones with billing, time entries and cost rates, profitability, client-visible tasks, progress derived from top-level tasks, meetings linked to projects, and (tested at the service level; the panel itself not yet checked signed in) a task panel with description, assignee, priority, due date, subtasks (one level, parent cannot finish while any are open), "waits for" dependencies (no loops, a blocked task cannot start or finish), repeat daily/weekly/monthly (completing creates the next one exactly once), internal comments with assignee notification, and files that follow the project's visibility.
+- **Not built:** calendar and Gantt views, workload view, timesheet approval, client-visible comments, subtasks on the client portal.
 
 ## HR [8]
 - **Done:** employee profiles with restricted sensitive fields, attendance with breaks and HR correction, leave with balances and approvals, payroll runs with separation of duties and payslips, assets and assignment, employee documents with expiry, offices and departments.
@@ -60,5 +60,5 @@ Master prompt section in brackets.
 ## Next concrete actions
 1. Verify the sidebar at several window heights while signed in; confirm nothing is clipped or overlapped.
 2. Auto-start script for database and server; first browser end-to-end tests (sign-in, invoice, contact edit).
-3. Task depth (subtasks, dependencies, recurring), then deliverables and monthly client report.
+3. Check the task panel signed in; then deliverables and monthly client report.
 4. Tighten the content security policy.

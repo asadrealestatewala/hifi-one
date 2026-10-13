@@ -7,7 +7,9 @@ export const STATUS_LABEL: Record<TaskStatus, string> = {
 };
 
 // One consistent rule everywhere: progress is the share of tasks that are Done.
-export function projectProgress(tasks: { status: string }[]): number {
+// Subtasks are steps inside a task, so only top-level tasks count.
+export function projectProgress(all: { status: string; parentId?: string | null }[]): number {
+  const tasks = all.filter((t) => !t.parentId);
   if (tasks.length === 0) return 0;
   return Math.round((tasks.filter((t) => t.status === "DONE").length / tasks.length) * 100);
 }

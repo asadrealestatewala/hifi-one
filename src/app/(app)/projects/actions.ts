@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { projectScope } from "@/lib/projects";
 import { notify } from "@/lib/notifications";
 import { TASK_STATUSES, canCompleteProject } from "@/lib/project-rules";
+import { TaskError, addComment, addSubtask, changeTaskStatus, setBlockers, setRecurrence } from "@/lib/tasks";
 
 const optDate = z.string().optional().transform((v) => (v ? new Date(v) : null));
 
@@ -107,11 +108,13 @@ export async function moveTask(taskId: string, status: string): Promise<MoveResu
   if (!isManager && task.assigneeId !== user.id) return { ok: false, error: "You can only move tasks assigned to you." };
   if (project.status === "COMPLETED" || project.status === "CANCELLED") return { ok: false, error: "This project is closed." };
   if (task.status === status) return { ok: true };
-  await db.task.update({
-    where: { id: taskId },
-    data: { status, completedAt: status === "DONE" ? new Date() : null },
-  });
-  await audit(user, { action: "task.move", entity: "Task", entityId: taskId, before: { status: task.status }, after: { status } });
+  try {
+    const r = await changeTaskStatus(db, { projectId: task.projectId, taskId, status, actorId: user.id });
+    await audit(user, { action: "task.move", entity: "Task", entityId: taskId, before: { status: task.status }, after: { status, nextOccurrence: r.next?.id ?? null } });
+  } catch (e) {
+    if (e instanceof TaskError) return { ok: false, error: e.message };
+    throw e;
+  }
   revalidatePath(`/projects/${task.projectId}`);
   return { ok: true };
 }
@@ -130,4 +133,76 @@ export async function setProjectStatus(formData: FormData) {
   await db.project.update({ where: { id: projectId }, data: { status: status.data } });
   await audit(user, { action: "project.status", entity: "Project", entityId: projectId, before: { status: project.status }, after: { status: status.data } });
   revalidatePath(`/projects/${projectId}`);
+}
+
+
+export type TaskActionResult = { ok: boolean; error?: string };
+
+// The task detail panel: who may change a task's structure (subtasks, blockers, repeat, details) is the project manager or anyone with project management rights.
+async function manageTask(user: Awaited<ReturnType<typeof requireUser>>, taskId: string) {
+  const task = await db.task.findUnique({ where: { id: taskId } });
+  const project = task ? await loadProject(task.projectId, user) : null;
+  if (!task || !project) return null;
+  const isManager = user.permissions.has("projects.manage") || project.managerId === user.id;
+  const closed = project.status === "COMPLETED" || project.status === "CANCELLED";
+  return { user, task, project, isManager, closed };
+}
+
+export async function addSubtaskAction(taskId: string, title: string): Promise<TaskActionResult> {
+  const user = await requirePermission("tasks.edit");
+  const c = await manageTask(user, taskId);
+  if (!c) return { ok: false, error: "Task not found." };
+  if (!c.isManager && c.task.assigneeId !== c.user.id) return { ok: false, error: "Only the project manager or the assignee can add subtasks." };
+  if (c.closed) return { ok: false, error: "This project is closed." };
+  try {
+    const t = await addSubtask(db, { projectId: c.task.projectId, parentId: taskId, title, assigneeId: c.task.assigneeId, actorId: c.user.id });
+    await audit(c.user, { action: "task.subtask", entity: "Task", entityId: t.id, after: { parent: taskId, title: t.title } });
+  } catch (e) {
+    if (e instanceof TaskError) return { ok: false, error: e.message };
+    throw e;
+  }
+  revalidatePath(`/projects/${c.task.projectId}`);
+  return { ok: true };
+}
+
+export async function saveTaskDetailAction(taskId: string, formData: FormData): Promise<TaskActionResult> {
+  const user = await requirePermission("tasks.edit");
+  const c = await manageTask(user, taskId);
+  if (!c) return { ok: false, error: "Task not found." };
+  if (!c.isManager) return { ok: false, error: "Only the project manager can change task details." };
+  if (c.closed) return { ok: false, error: "This project is closed." };
+  const blockers = formData.getAll("blockedBy").map(String);
+  const recurrence = String(formData.get("recurrence") ?? "") || null;
+  const due = String(formData.get("dueDate") ?? "");
+  const assigneeId = String(formData.get("assigneeId") ?? "") || null;
+  const priority = z.enum(["LOW", "MEDIUM", "HIGH"]).safeParse(formData.get("priority"));
+  if (due && Number.isNaN(Date.parse(due))) return { ok: false, error: "Enter a valid due date." };
+  if (assigneeId && !(await db.projectMember.findUnique({ where: { projectId_userId: { projectId: c.task.projectId, userId: assigneeId } } }))) return { ok: false, error: "Assign tasks to project members." };
+  try {
+    await setBlockers(db, { projectId: c.task.projectId, taskId, blockerIds: blockers });
+    await setRecurrence(db, { projectId: c.task.projectId, taskId, recurrence });
+    await db.task.update({ where: { id: taskId }, data: { dueDate: due ? new Date(due) : null, assigneeId, description: String(formData.get("description") ?? "").trim().slice(0, 4000) || null, ...(priority.success ? { priority: priority.data } : {}), clientVisible: formData.get("clientVisible") === "on" } });
+    await audit(c.user, { action: "task.update", entity: "Task", entityId: taskId, after: { blockers: blockers.length, recurrence, assigneeId } });
+  } catch (e) {
+    if (e instanceof TaskError) return { ok: false, error: e.message };
+    throw e;
+  }
+  revalidatePath(`/projects/${c.task.projectId}`);
+  return { ok: true };
+}
+
+export async function addTaskCommentAction(taskId: string, body: string): Promise<TaskActionResult> {
+  const user = await requirePermission("tasks.edit");
+  const c = await manageTask(user, taskId);
+  if (!c) return { ok: false, error: "Task not found." };
+  try {
+    await addComment(db, { projectId: c.task.projectId, taskId, authorId: c.user.id, body });
+    await audit(c.user, { action: "task.comment", entity: "Task", entityId: taskId });
+    if (c.task.assigneeId && c.task.assigneeId !== c.user.id) await notify(db, c.task.assigneeId, { kind: "task.comment", title: "New comment on your task", body: c.task.title, link: `/projects/${c.task.projectId}?task=${taskId}` });
+  } catch (e) {
+    if (e instanceof TaskError) return { ok: false, error: e.message };
+    throw e;
+  }
+  revalidatePath(`/projects/${c.task.projectId}`);
+  return { ok: true };
 }
