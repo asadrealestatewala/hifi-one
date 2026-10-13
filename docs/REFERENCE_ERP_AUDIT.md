@@ -94,7 +94,9 @@ Express routes, SQLite, JWT, `localStorage`-only state, PKR integer money, Asia/
 | 9 | Inline server actions in 56 pages | Verified | Audit and notify steps skipped inconsistently |
 | 10 | Real-world behaviour of mail, video across networks, drag and drop | Unknown | Not testable on this machine |
 
-## 7. Five highest-priority implementation tasks (recommendations, not done)
+## 7. Five highest-priority implementation tasks
+
+Status 2026-10-13 (branch `feat/erp-consistency`): a first pass of all five is implemented and covered by tests. It has not been checked in a browser, and CI has not run because the repository has no remote. Remaining scope is in `docs/MODULE_STATUS.md` under "Cross-cutting gaps".
 
 1. **Paginate every list** with a shared server `DataTable` (URL `page`, `sort`, `q`; `skip`/`take` plus `count`), show "x–y of N", and compute every KPI from aggregates, not capped lists. Start with invoices, payments, leads, quotes, expenses, audit logs; fix the dashboard assets tab.
 2. **Add `error.tsx` and `not-found.tsx`** at `(app)`, `portal`, `vendor`; add section `loading.tsx` for finance, CRM, HR; give `PanelForm` a pending submit button.

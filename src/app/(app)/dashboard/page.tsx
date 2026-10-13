@@ -112,18 +112,25 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       </div>
     );
   } else if (tab === "assets" && canAssets) {
-    const [assets, staff] = await Promise.all([db.asset.findMany({ where: { organizationId: org }, orderBy: { createdAt: "desc" }, take: 500 }), db.user.findMany({ where: { organizationId: org, userType: "EMPLOYEE" }, select: { id: true, name: true } })]);
-    const active = assets.filter((a) => a.status === "ACTIVE");
-    const cost = new Map<string, number>();
-    for (const a of active) cost.set(a.currency, (cost.get(a.currency) ?? 0) + Number(a.cost));
+    // Every figure is an aggregate over all assets; only the six most recent are loaded as rows
+    const activeWhere = { organizationId: org, status: "ACTIVE" as const };
+    const [assets, staff, activeCount, assignedCount, costRows, catRows] = await Promise.all([
+      db.asset.findMany({ where: { organizationId: org }, orderBy: { createdAt: "desc" }, take: 6 }),
+      db.user.findMany({ where: { organizationId: org, userType: "EMPLOYEE" }, select: { id: true, name: true } }),
+      db.asset.count({ where: activeWhere }),
+      db.asset.count({ where: { ...activeWhere, assignedToId: { not: null } } }),
+      db.asset.groupBy({ by: ["currency"], where: activeWhere, _sum: { cost: true } }),
+      db.asset.groupBy({ by: ["category"], where: activeWhere, _count: true }),
+    ]);
+    const cost = new Map(costRows.map((r) => [r.currency, r._sum.cost ?? 0]));
     const nm = new Map(staff.map((s) => [s.id, s.name]));
     const byCat = new Map<string, number>();
-    for (const a of active) byCat.set(a.category || "Uncategorised", (byCat.get(a.category || "Uncategorised") ?? 0) + 1);
+    for (const r of catRows) byCat.set(r.category || "Uncategorised", (byCat.get(r.category || "Uncategorised") ?? 0) + r._count);
     body = (
       <div className="space-y-5">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="Active assets" value={active.length} /><Stat label="Assigned to people" value={active.filter((a) => a.assignedToId).length} /><Stat label="In stock" value={active.filter((a) => !a.assignedToId).length} hint="not assigned" />
-          <Stat label="Purchase cost" value={<span className="text-lg">{[...cost].map(([c, v]) => formatMoney(v.toFixed(2), c)).join(" · ") || "0"}</span>} />
+          <Stat label="Active assets" value={activeCount} /><Stat label="Assigned to people" value={assignedCount} /><Stat label="In stock" value={activeCount - assignedCount} hint="not assigned" />
+          <Stat label="Purchase cost" value={<span className="text-lg">{[...cost].map(([c, v]) => formatMoney(v, c)).join(" · ") || "0"}</span>} />
         </div>
         <div className="grid gap-5 lg:grid-cols-2">
           <section className="card space-y-3"><h3 className="font-semibold">By category</h3>{byCat.size === 0 ? <p className="text-sm text-muted">No assets registered.</p> : <Bars rows={[...byCat].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([label, value]) => ({ label, value }))} />}</section>

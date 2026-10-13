@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import Icon from "@/components/shell/Icon";
+import SubmitButton from "./ui/SubmitButton";
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
@@ -100,10 +101,34 @@ export function NewButton({ href, children }: { href: string; children: ReactNod
   return <Link href={href} className="btn"><Icon name="plus" className="h-4 w-4" />{children}</Link>;
 }
 
+// Footer for a paged list: "51–100 of 230" with previous and next links. `href(n)` builds the address of page n
+// keeping the current filters, so pages can be shared.
+export function Pager({ page, size, total, href }: { page: number; size: number; total: number; href: (page: number) => string }) {
+  const pages = Math.max(1, Math.ceil(total / size));
+  const from = total === 0 ? 0 : Math.min((page - 1) * size + 1, total);
+  const to = Math.min(page * size, total);
+  const link = "rounded-lg border border-border bg-surface px-3 py-1 text-[13px] font-medium hover:bg-hover";
+  const off = "rounded-lg border border-border px-3 py-1 text-[13px] text-muted opacity-50";
+  return (
+    <nav aria-label="Pages" className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2.5 text-sm text-muted">
+      <span>{total === 0 ? "No results" : `${from}–${to} of ${total}`}</span>
+      {pages > 1 && (
+        <span className="flex items-center gap-2">
+          {page > 1 ? <Link className={link} href={href(page - 1)} rel="prev">Previous</Link> : <span className={off} aria-disabled="true">Previous</span>}
+          <span>Page {Math.min(page, pages)} of {pages}</span>
+          {page < pages ? <Link className={link} href={href(page + 1)} rel="next">Next</Link> : <span className={off} aria-disabled="true">Next</span>}
+        </span>
+      )}
+    </nav>
+  );
+}
+
 // Escapes % and _ so typed text is matched literally in LIKE searches
 export const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => "\\" + c);
 
 export { default as Avatar } from "./ui/Avatar";
+export { default as SubmitButton } from "./ui/SubmitButton";
+export { default as ConfirmButton } from "./ui/ConfirmButton";
 
 // Body of a slide-over "New …" panel: scrolling fields with a fixed Save / Cancel bar.
 export function PanelForm({ action, closeTo, submit, error, hint, children }: { action: (f: FormData) => void | Promise<void>; closeTo: string; submit: string; error?: string; hint?: ReactNode; children: ReactNode }) {
@@ -115,7 +140,7 @@ export function PanelForm({ action, closeTo, submit, error, hint, children }: { 
       </div>
       <footer className="flex items-center justify-between gap-3 border-t border-border bg-surface px-5 py-3">
         <p className="text-xs text-muted">{hint}</p>
-        <div className="flex gap-2"><Link href={closeTo} className="btn-ghost">Cancel</Link><button className="btn">{submit}</button></div>
+        <div className="flex gap-2"><Link href={closeTo} className="btn-ghost">Cancel</Link><SubmitButton>{submit}</SubmitButton></div>
       </footer>
     </form>
   );

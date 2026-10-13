@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import WhatsAppButton from "@/components/WhatsAppButton";
-import { Badge, Notice, PageHeader } from "@/components/ui";
+import { Badge, ConfirmButton, Notice, PageHeader } from "@/components/ui";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { baseUrl } from "@/lib/meeting-cookie";
@@ -53,7 +53,7 @@ export default async function MeetingDetail({ params, searchParams }: { params: 
         </section>
       )}
 
-      {isHost && m.status === "SCHEDULED" && <form action={cancelAction}><input type="hidden" name="id" value={m.id} /><button className="btn-ghost">Cancel this meeting</button></form>}
+      {isHost && m.status === "SCHEDULED" && <form action={cancelAction}><input type="hidden" name="id" value={m.id} /><ConfirmButton title="Cancel this meeting?" message="Participants can no longer join with their links." confirmLabel="Cancel meeting">Cancel this meeting</ConfirmButton></form>}
 
       {att.length > 0 && (
         <section className="card overflow-x-auto">

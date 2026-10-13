@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { Avatar, Chips, Empty, NewButton, PageHeader, PanelForm, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import { Avatar, Chips, Empty, NewButton, PageHeader, Pager, PanelForm, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import { paging } from "@/lib/paging";
 import Drawer from "@/components/ui/Drawer";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +42,7 @@ async function createClient(formData: FormData) {
   redirect(`/clients/${client.id}`);
 }
 
-type SP = { error?: string; q?: string; show?: string; new?: string };
+type SP = { error?: string; q?: string; show?: string; new?: string; page?: string };
 
 export default async function Clients({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requirePermission("clients.view");
@@ -50,11 +51,12 @@ export default async function Clients({ searchParams }: { searchParams: Promise<
   const canEdit = user.permissions.has("clients.edit");
   const show = sp.show === "inactive" ? "inactive" : sp.show === "all" ? "all" : "active";
   const q = sp.q?.trim();
-  const [clients, active, inactive] = await Promise.all([
-    db.client.findMany({
-      where: { organizationId: org, ...(show === "all" ? {} : { active: show === "active" }), ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { email: { contains: q, mode: "insensitive" } }, { code: { contains: q, mode: "insensitive" } }] } : {}) },
-      orderBy: { name: "asc" }, take: 300,
-    }),
+  const pg = paging(sp.page);
+  const where = { organizationId: org, ...(show === "all" ? {} : { active: show === "active" }), ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" as const } }, { email: { contains: q, mode: "insensitive" as const } }, { code: { contains: q, mode: "insensitive" as const } }] } : {}) };
+  const [clients, matched, currencies, active, inactive] = await Promise.all([
+    db.client.findMany({ where, orderBy: [{ name: "asc" }, { id: "asc" }], skip: pg.skip, take: pg.take }),
+    db.client.count({ where }),
+    db.client.groupBy({ by: ["currency"], where: { organizationId: org, active: true }, orderBy: { currency: "asc" } }),
     db.client.count({ where: { organizationId: org, active: true } }),
     db.client.count({ where: { organizationId: org, active: false } }),
   ]);
@@ -65,7 +67,7 @@ export default async function Clients({ searchParams }: { searchParams: Promise<
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Active clients" value={active} />
         <Stat label="Inactive" value={inactive} />
-        <Stat label="Billing currencies" value={[...new Set(clients.map((c) => c.currency))].join(" · ") || "None"} />
+        <Stat label="Billing currencies" value={currencies.map((c) => c.currency).join(" · ") || "None"} />
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <SearchBox q={q} placeholder="Search name, email or code" hidden={{ show: show === "active" ? undefined : show }} />
@@ -88,6 +90,7 @@ export default async function Clients({ searchParams }: { searchParams: Promise<
               ))}
             </tbody>
           </table>
+          <Pager page={pg.page} size={pg.size} total={matched} href={(n) => href({ page: n > 1 ? String(n) : undefined })} />
         </div>
       )}
       {canEdit && sp.new && (

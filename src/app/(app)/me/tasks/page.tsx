@@ -1,37 +1,43 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { Chips, Empty, PageHeader, Stat, StatusBadge } from "@/components/ui";
+import { Chips, Empty, PageHeader, Pager, Stat, StatusBadge } from "@/components/ui";
+import { paging } from "@/lib/paging";
 import MyTaskStatus from "./MyTaskStatus";
 
 export const dynamic = "force-dynamic";
 
 // Everything assigned to the signed-in person, across projects. It is their own list, scoped by assignee and organization.
-export default async function MyTasks({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
+export default async function MyTasks({ searchParams }: { searchParams: Promise<{ show?: string; page?: string }> }) {
   const user = await requireUser();
   const sp = await searchParams;
   const show = sp.show === "done" ? "done" : sp.show === "all" ? "all" : "open";
-  const rows = await db.task.findMany({
-    where: { assigneeId: user.id, project: { organizationId: user.organizationId, status: { not: "CANCELLED" } }, parentId: null },
-    include: { project: { select: { id: true, name: true, number: true, status: true } } },
-    orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }], take: 300,
-  });
+  const mine = { assigneeId: user.id, project: { organizationId: user.organizationId, status: { not: "CANCELLED" as const } }, parentId: null };
   const today = new Date().toISOString().slice(0, 10);
-  const open = rows.filter((t) => t.status !== "DONE");
-  const overdue = open.filter((t) => t.dueDate && t.dueDate.toISOString().slice(0, 10) < today).length;
-  const dueToday = open.filter((t) => t.dueDate?.toISOString().slice(0, 10) === today).length;
-  const shown = rows.filter((t) => (show === "all" ? true : show === "done" ? t.status === "DONE" : t.status !== "DONE"));
+  const dayStart = new Date(`${today}T00:00:00.000Z`);
+  const dayEnd = new Date(dayStart.getTime() + 86_400_000);
+  const pg = paging(sp.page);
+  const where = { ...mine, ...(show === "all" ? {} : show === "done" ? { status: "DONE" as const } : { status: { not: "DONE" as const } }) };
+  // Counts are taken over all of the person's tasks; only the shown page is loaded
+  const [shown, matched, openCount, doneCount, overdue, dueToday] = await Promise.all([
+    db.task.findMany({ where, include: { project: { select: { id: true, name: true, number: true, status: true } } }, orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }, { id: "asc" }], skip: pg.skip, take: pg.take }),
+    db.task.count({ where }),
+    db.task.count({ where: { ...mine, status: { not: "DONE" } } }),
+    db.task.count({ where: { ...mine, status: "DONE" } }),
+    db.task.count({ where: { ...mine, status: { not: "DONE" }, dueDate: { lt: dayStart } } }),
+    db.task.count({ where: { ...mine, status: { not: "DONE" }, dueDate: { gte: dayStart, lt: dayEnd } } }),
+  ]);
   const canMove = user.permissions.has("tasks.edit");
   const href = (s: string) => (s === "open" ? "/me/tasks" : `/me/tasks?show=${s}`);
   return (
     <div className="space-y-5">
       <PageHeader title="My tasks" subtitle="Everything assigned to you across projects." />
       <div className="grid gap-3 sm:grid-cols-3">
-        <Stat label="Open" value={open.length} />
+        <Stat label="Open" value={openCount} />
         <Stat label="Due today" value={dueToday} />
         <Stat label="Overdue" value={overdue} hint={overdue ? "needs attention" : "all on time"} />
       </div>
-      <Chips current={show} items={[{ key: "open", label: "Open", count: open.length, href: href("open") }, { key: "done", label: "Done", count: rows.length - open.length, href: href("done") }, { key: "all", label: "All", count: rows.length, href: href("all") }]} />
+      <Chips current={show} items={[{ key: "open", label: "Open", count: openCount, href: href("open") }, { key: "done", label: "Done", count: doneCount, href: href("done") }, { key: "all", label: "All", count: openCount + doneCount, href: href("all") }]} />
       {shown.length === 0 ? <Empty title={show === "done" ? "Nothing finished yet" : "No tasks assigned to you"}>Tasks that a project manager assigns to you will appear here.</Empty> : (
         <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">
@@ -51,6 +57,7 @@ export default async function MyTasks({ searchParams }: { searchParams: Promise<
               })}
             </tbody>
           </table>
+          <Pager page={pg.page} size={pg.size} total={matched} href={(n) => { const p = new URLSearchParams(); if (show !== "open") p.set("show", show); if (n > 1) p.set("page", String(n)); const t = p.toString(); return `/me/tasks${t ? `?${t}` : ""}`; }} />
         </div>
       )}
     </div>

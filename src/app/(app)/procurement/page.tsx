@@ -7,6 +7,7 @@ import {
 } from "@/lib/vendors";
 import { formatMoney } from "@/lib/money";
 import FilesPanel from "@/components/FilesPanel";
+import { vendorBillChanged } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
 
@@ -51,15 +52,18 @@ async function act(formData: FormData) {
     } else if (op === "approve_bill") {
       await approveBill(db, { organizationId: o, id, approverId: user.id, expenseAccountId: String(formData.get("expenseAccountId")) });
       await audit(user, { action: "vendor_bill.approve", entity: "VendorBill", entityId: id });
+      await vendorBillChanged(db, { organizationId: o, billId: id });
     } else if (op === "reject_bill") {
       await rejectBill(db, { organizationId: o, id, note: String(formData.get("note") ?? "") });
       await audit(user, { action: "vendor_bill.reject", entity: "VendorBill", entityId: id });
+      await vendorBillChanged(db, { organizationId: o, billId: id });
     } else if (op === "post_bill") {
       await postBill(db, { organizationId: o, id, actorId: user.id });
       await audit(user, { action: "vendor_bill.post", entity: "VendorBill", entityId: id });
     } else if (op === "pay_bill") {
       await payBill(db, { organizationId: o, id, bankAccountId: String(formData.get("bankAccountId")), actorId: user.id });
       await audit(user, { action: "vendor_bill.pay", entity: "VendorBill", entityId: id });
+      await vendorBillChanged(db, { organizationId: o, billId: id });
     }
   } catch (e) {
     if (e instanceof VendorError || e instanceof LedgerError) redirect(`/procurement?error=${encodeURIComponent(e.message)}`);

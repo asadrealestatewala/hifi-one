@@ -27,9 +27,12 @@ Newest last. Each entry: what was decided, why, and what it costs.
 23. **Agentify ERP is a benchmark, not a source.** Its interaction quality (complete UI kit, one list engine, confirmations, one feedback channel, event helper, flow tests, CI) is the bar; its code, schema, palette, font and domain are not copied. Hifi One keeps Next.js, Prisma, PostgreSQL, exact decimals with currency, and its brand. See `docs/REFERENCE_ERP_AUDIT.md`.
 24. **Project knowledge lives in the repository.** `CLAUDE.md` holds the rules and the operating contract; `docs/SYSTEM_MAP.md`, `DESIGN_SYSTEM.md`, `DATA_MODEL.md`, `DATA_FLOWS.md`, `MODULE_STATUS.md`, this file and `REFERENCE_ERP_AUDIT.md` hold the detail; `.claude/rules/*.md` hold path-scoped rules. A change that alters architecture, a business rule or a module's status updates the matching file in the same change.
 
+25. **Lists page by number in the address, 50 rows a page** (`src/lib/paging.ts`, `Pager`): shareable, works without client JavaScript, fits the `?status=` chips. Counts and KPIs are separate aggregate queries. Cost: one extra `count` per list; very large tables (audit log, monitoring) may later need cursor paging.
+26. **Cross-module notifications live in `src/lib/events.ts`**, one function per business event, called by the action after the service commits, each with a dedupe key. Kept out of ledger transactions so a notification failure can never undo money. Cost: a crash between commit and notify loses that notification.
+27. **Destructive and financial buttons use `ConfirmButton`** (native `<dialog>`). Cancelling an invoice and voiding a commission now require a reason, stored in the audit log (`src/lib/reasons.ts`). This adds a required input to two existing actions.
+
 ## Open questions
 
-- Pagination style for server lists: page numbers in the URL (shareable, fits current `?status=` chips) or cursor-based for very large tables (audit log, monitoring)? Proposed: page numbers first.
 - Success feedback: `?ok=` query flag (current, visible in the address) or a short-lived flash cookie read by the layout?
 - Scheduled work (subscription billing, commission accrual, reminders, monitoring purge): an in-process scheduler, an OS task, or a hosted cron calling a guarded route? Affects deployment (`docs/DEPLOYMENT.md`).
 - Should commission accrue at payment time (inside `recordPayment`) instead of by batch, and should payroll pay approved commissions as the reference does?

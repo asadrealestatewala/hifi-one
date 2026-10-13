@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { addRole, removeRole, saveRole, type RoleState } from "./actions";
+import { ConfirmButton } from "@/components/ui";
 
 type Perm = { key: string; description: string };
 export type Group = { name: string; perms: Perm[] };
@@ -36,7 +37,7 @@ export function RoleCard({ id, name, isSystem, users, held, groups, grantable, l
   id: string; name: string; isSystem: boolean; users: number; held: string[]; groups: Group[]; grantable: string[]; locked: boolean; lockedReason?: string;
 }) {
   const [state, save, saving] = useActionState<RoleState, FormData>(saveRole, {});
-  const [delState, del, deleting] = useActionState<RoleState, FormData>(removeRole, {});
+  const [delState, del] = useActionState<RoleState, FormData>(removeRole, {});
   return (
     <details className="card">
       <summary className="cursor-pointer font-semibold">{name} <span className="text-xs font-normal text-muted">{isSystem ? "built-in" : "custom"} · {users} user(s) · {held.length} permission(s)</span></summary>
@@ -52,7 +53,7 @@ export function RoleCard({ id, name, isSystem, users, held, groups, grantable, l
         {!isSystem && (
           <form action={del} className="border-t border-border pt-3">
             <input type="hidden" name="roleId" value={id} />
-            <button className="btn-ghost" disabled={deleting}>Delete this role</button>
+            <ConfirmButton title="Delete this role?" message="People who hold only this role lose its permissions. This cannot be undone." confirmLabel="Delete role">Delete this role</ConfirmButton>
             {delState.error && <p role="alert" className="text-sm text-brand mt-1">{delState.error}</p>}
             {delState.done && <p className="text-sm text-green-700 mt-1">{delState.done}</p>}
           </form>

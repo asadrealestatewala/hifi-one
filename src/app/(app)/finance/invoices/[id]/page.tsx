@@ -10,7 +10,9 @@ import { issueCreditNote, writeOffInvoice } from "@/lib/bookkeeping";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import PrintButton from "@/components/PrintButton";
-import { Notice, StatusBadge } from "@/components/ui";
+import { ConfirmButton, Notice, StatusBadge } from "@/components/ui";
+import { readReason } from "@/lib/reasons";
+import { invoiceIssued } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +23,7 @@ async function issue(formData: FormData) {
   try {
     const inv = await issueInvoice(db, { organizationId: user.organizationId, invoiceId: id, actorId: user.id });
     await audit(user, { action: "invoice.issue", entity: "Invoice", entityId: id, after: { number: inv.number, total: inv.total.toString() } });
+    await invoiceIssued(db, { organizationId: user.organizationId, invoiceId: id });
   } catch (e) {
     if (e instanceof LedgerError) redirect(`/finance/invoices/${id}?error=${encodeURIComponent(e.message)}`);
     throw e;
@@ -32,9 +35,11 @@ async function cancel(formData: FormData) {
   "use server";
   const user = await requirePermission("finance.post");
   const id = String(formData.get("id"));
+  const why = readReason(formData.get("reason"));
+  if (!why.ok) redirect(`/finance/invoices/${id}?error=${encodeURIComponent(why.error)}`);
   try {
     await cancelInvoice(db, { organizationId: user.organizationId, invoiceId: id, actorId: user.id });
-    await audit(user, { action: "invoice.cancel", entity: "Invoice", entityId: id });
+    await audit(user, { action: "invoice.cancel", entity: "Invoice", entityId: id, after: { reason: why.reason } });
   } catch (e) {
     if (e instanceof LedgerError) redirect(`/finance/invoices/${id}?error=${encodeURIComponent(e.message)}`);
     throw e;
@@ -114,7 +119,7 @@ export default async function InvoicePage({
                 <form action={issue}><input type="hidden" name="id" value={inv.id} /><button className="btn">Issue invoice</button></form>
               )}
               {(inv.status === "ISSUED" || inv.status === "DRAFT") && canPost && (
-                <form action={cancel}><input type="hidden" name="id" value={inv.id} /><button className="btn-ghost">Cancel invoice</button></form>
+                <form action={cancel}><input type="hidden" name="id" value={inv.id} /><ConfirmButton title="Cancel this invoice?" message="The invoice stops counting as owed and a reversing entry is posted to the ledger. This cannot be undone; issue a new invoice if needed." confirmLabel="Cancel invoice" reason>Cancel invoice</ConfirmButton></form>
               )}
               <a className="btn-ghost" href={`/finance/invoices/${inv.id}/pdf`} target="_blank" rel="noopener">Download PDF</a>
               <PrintButton />
@@ -215,7 +220,7 @@ export default async function InvoicePage({
           <div><label className="label" htmlFor="woAmount">Amount ({inv.currency})</label><input id="woAmount" name="amount" required inputMode="decimal" className="input !w-36" /></div>
           <div className="flex-1 min-w-48"><label className="label" htmlFor="woReason">Reason</label><input id="woReason" name="reason" required minLength={5} className="input" /></div>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="reverseTax" /> Also reverse the tax</label>
-          <button className="btn-ghost">Write off</button>
+          <ConfirmButton title="Write off this amount?" message="The amount is booked to Bad Debt Expense and the balance due falls. Posted entries cannot be edited; a mistake needs a reversing journal." confirmLabel="Write off">Write off</ConfirmButton>
         </form>
       )}
           </div>

@@ -51,7 +51,7 @@ The owner asked for a "sleek, modern, interactive, gamified" interface after the
 ## Adoption (measured 2026-10-13)
 
 The kit above is correct but under-used, which is the main reason screens drift (`docs/REFERENCE_ERP_AUDIT.md`, RC1):
-28 of 102 pages use `PageHeader` (73 write their own `<h1>`); 53 files hand-write `<table>` markup; 64 files inline an error `<p role="alert">` instead of `Notice`; one `loading.tsx`, no `error.tsx` or `not-found.tsx`; `PanelForm`'s submit button has no pending state; there is no confirmation component.
+28 of 102 pages used `PageHeader` (73 wrote their own `<h1>`); 53 files hand-wrote `<table>` markup; 64 files inlined an error `<p role="alert">` instead of `Notice`. Since then the expenses, audit log and commissions pages moved onto the kit, and `Pager`, `SubmitButton`, `ConfirmButton` and `ErrorView` were added.
 
 When you touch a page, bring it onto the kit: `PageHeader`, `Notice`, `Empty`, `StatusBadge`, `Stat`, `Chips`, `SearchBox`, `Drawer` + `PanelForm`. Do not restyle a page with one-off classes.
 
@@ -64,16 +64,16 @@ These are the standards new and touched screens must meet. Components marked *pl
 | Page title | Title, one-line purpose, primary action on the right | `PageHeader` |
 | Card with a heading | Title row with optional actions, then body | `Card` *(planned)* |
 | Form field | Label (with `htmlFor`), required mark, hint, error under the field | `Field` *(planned)*; today `label` class + `htmlFor` |
-| Submit | Button disables and says "Saving…" while pending; no double submit | `SubmitButton` *(planned, `useFormStatus`)* |
-| Destructive or financial action (cancel, void, write off, reverse, reject, delete) | Confirmation step, and a reason when the service records one | `ConfirmButton` *(planned)* |
+| Submit | Button disables and says "Saving…" while pending; no double submit | `SubmitButton` (`src/components/ui/SubmitButton.tsx`; built into `PanelForm`) |
+| Destructive or financial action (cancel, void, write off, reverse, reject, delete) | Confirmation dialog inside the action's form; `reason` adds a required reason field, read on the server with `readReason` (`src/lib/reasons.ts`) and kept in the audit log | `ConfirmButton` (`src/components/ui/ConfirmButton.tsx`) |
 | Result of an action | Error: `Notice kind="error"` at the top of the form or page; success: a short `Notice kind="ok"` or flash | `Notice` |
-| List | Search, status chips, sortable headers, pagination with "x–y of N", empty state with next step, export where the role may export | `DataTable` *(planned, URL-driven)*; today `card !p-0` table pattern |
+| List | Search, status chips, pagination with "x–y of N" (50 per page, `?page=` in the address), empty state with next step, export where the role may export | `paging()` (`src/lib/paging.ts`) plus `Pager` at the bottom of the `card !p-0` table; a full `DataTable` with sorting and export is still *planned* |
 | Key/value detail | Two-column definition list | `KV` *(planned)* |
 | Money | Tabular figures, currency always shown | `formatMoney` (`src/lib/money.ts`) |
 | Date ranges | Presets (this month, last month, quarter, year, custom) | the dashboard period picker; generalise to `DateRange` *(planned)* |
 | Status | One tone map for all statuses (`STATUS_TONE`); colour plus text | `StatusBadge` |
 | Loading | Skeleton matching the layout, per route segment | `loading.tsx` with `.skeleton` |
-| Errors | Friendly message, retry, link home; never a stack trace | `error.tsx` per area *(planned)* |
+| Errors | Friendly message, retry, link home, reference code; never the error text | `ErrorView` via `error.tsx` in `(app)`, `portal`, `vendor`; `not-found.tsx` at the root and in `(app)` |
 | Dialogs and panels | Escape closes, focus moves into the panel, close button labelled | `Drawer` (focus handling to add) |
 
 Tokens stay as listed at the top (brand red, violet primary, navy sidebar). If a tone is missing (for example an info blue or tinted backgrounds for status), add a token to `globals.css` and record it in `docs/DECISIONS.md`; do not adopt the reference's teal palette or font.

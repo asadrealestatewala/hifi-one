@@ -29,7 +29,7 @@ Rule: a screen never computes a stored total itself, and a total is never copied
 6. Credit notes and write-offs reduce the balance by reversal entries (`bookkeeping.ts`).
 7. Commissions: `accrueCommissions` (`commissions.ts:37`) creates `CommissionEntry` per allocation (unique `allocationId`), then approve → pay, each posting a journal.
 - **Gap:** step 7 runs from a button, not when a payment is recorded. Payroll does not include approved commissions.
-- **Gap:** no notification at steps 2, 3 (portal decision), 4, 5.
+- Notifications (`src/lib/events.ts`): lead assigned; portal quote decision to the quote author; invoice issued to client portal users; payment received to the sales owner and client portal users.
 
 ### Retainers
 `createSubscription` → `generateDueInvoices` (unique `SubscriptionInvoice` per period, so a period bills once). **Gap:** no scheduler; someone must run it.
@@ -44,7 +44,7 @@ Project → members with cost rates → tasks (subtasks, dependencies, recurrenc
 Expense voucher: submit → review → approve (budget check, `budgetStatus`) → `postVoucher` (Dr expense / Cr payable) → `payVoucher`. Vendor: opportunity → application → work order → delivery → bill → approve → `postBill` → `payBill`; vendor ledger from the books (`vendorLedger`). Asset purchases are separate (`assets.ts`, `sourceType ASSET_PURCHASE`), not created from vouchers.
 
 ### People
-Attendance and leave (balances, approvals) → payroll run: create → bonus → approve (separation of duties) → `postRun` → `payRun` → payslips. Monitoring is consent-gated and separate (`docs/MONITORING.md`).
+Attendance and leave (balances, approvals) → payroll run: create → bonus → approve (separation of duties) → `postRun` → `payRun` → payslips; each employee is notified when the run is paid. Vendor portal users are notified when a bill is approved, rejected or paid. Monitoring is consent-gated and separate (`docs/MONITORING.md`).
 
 ### Period controls
 `PeriodLock` blocks posting into closed periods; year-end close posts `YEAR_END_CLOSE` entries excluded from period P&L.
@@ -56,9 +56,9 @@ Attendance and leave (balances, approvals) → payroll run: create → bonus →
 3. **Currency.** Every amount carries its currency; totals are per currency; only consolidated reports convert using `ExchangeRate`.
 4. **Organization scope.** Every query filters by `organizationId`; record scope helpers apply for own-scope roles; portals never take a client or vendor id from the request.
 5. **Audit.** Every sensitive change calls `audit(...)` (`src/lib/auth.ts:213`) with before/after where it matters.
-6. **Notify.** When an event creates work for someone else, notify them (`src/lib/notifications.ts`: `notify`, `notifyMany`, `notifyPermission`) with a `dedupeKey` for reminders.
+6. **Notify.** When an event creates work or news for someone else, notify them after the service commits: add a function to `src/lib/events.ts` (recipients, wording, `dedupeKey`), test it in `events.integration.test.ts`, and call it from the action. Low-level helpers are in `src/lib/notifications.ts`.
 7. **Derived numbers.** Progress, profitability, goals, balances and dashboard figures are computed from source rows, not typed in.
-8. **Lists and KPIs.** KPIs come from aggregates (`count`, `groupBy`, `aggregate`), never from a capped `findMany`.
+8. **Lists and KPIs.** Lists page with `paging()` (`src/lib/paging.ts`); KPIs come from aggregates (`count`, `groupBy`, `aggregate`), never from a page of rows or a capped `findMany`.
 
 ## External integration contracts
 

@@ -5,7 +5,8 @@ import { audit, requirePermission } from "@/lib/auth";
 import { createDraftInvoice, LedgerError } from "@/lib/accounting";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
-import { Chips, Empty, NewButton, PageHeader, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import { Chips, Empty, NewButton, Notice, PageHeader, Pager, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import { paging } from "@/lib/paging";
 import Drawer from "@/components/ui/Drawer";
 import InvoiceForm from "./InvoiceForm";
 
@@ -47,7 +48,7 @@ async function createInvoice(formData: FormData) {
   redirect(`/finance/invoices/${id}`);
 }
 
-type SP = { error?: string; status?: string; q?: string; new?: string };
+type SP = { error?: string; status?: string; q?: string; new?: string; page?: string };
 const STATUSES = ["DRAFT", "ISSUED", "PARTIALLY_PAID", "PAID", "OVERDUE", "CANCELLED"];
 
 export default async function Invoices({ searchParams }: { searchParams: Promise<SP> }) {
@@ -62,8 +63,10 @@ export default async function Invoices({ searchParams }: { searchParams: Promise
     ...(status !== "all" ? { status: status as never } : {}),
     ...(q ? { OR: [{ number: { contains: q, mode: "insensitive" as const } }, { client: { name: { contains: q, mode: "insensitive" as const } } }] } : {}),
   };
-  const [invoices, counts, clients, rates] = await Promise.all([
-    db.invoice.findMany({ where, orderBy: { createdAt: "desc" }, take: 200, include: { client: true } }),
+  const pg = paging(sp.page);
+  const [invoices, matched, counts, clients, rates] = await Promise.all([
+    db.invoice.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: pg.skip, take: pg.take, include: { client: true } }),
+    db.invoice.count({ where }),
     db.invoice.groupBy({ by: ["status"], where: { organizationId: org }, _count: true }),
     sp.new && canPost ? db.client.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true, currency: true } }) : Promise.resolve([]),
     sp.new && canPost ? db.taxRate.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
@@ -85,7 +88,7 @@ export default async function Invoices({ searchParams }: { searchParams: Promise
         <Stat label="Overdue" value={count.get("OVERDUE") ?? 0} />
         <Stat label="Outstanding" value={owed.size === 0 ? "None" : [...owed].map(([c, v]) => formatMoney(v, c)).join(" · ")} hint="per currency" />
       </div>
-      {sp.error && !sp.new && <p role="alert" className="rounded-lg bg-brand/10 px-3 py-2 text-sm text-brand">{sp.error}</p>}
+      {sp.error && !sp.new && <Notice kind="error">{sp.error}</Notice>}
       <div className="flex flex-wrap items-center gap-3">
         <SearchBox q={q} placeholder="Search number or client" hidden={{ status: status === "all" ? undefined : status }} />
         <Chips current={status} items={[{ key: "all", label: "All", count: total, href: href({ status: undefined }) }, ...STATUSES.map((s) => ({ key: s, label: s.toLowerCase().replace("_", " ").replace(/^./, (c) => c.toUpperCase()), count: count.get(s) ?? 0, href: href({ status: s }) }))]} />
@@ -109,6 +112,7 @@ export default async function Invoices({ searchParams }: { searchParams: Promise
               ))}
             </tbody>
           </table>
+          <Pager page={pg.page} size={pg.size} total={matched} href={(n) => href({ page: n > 1 ? String(n) : undefined })} />
         </div>
       )}
       {canPost && sp.new && (

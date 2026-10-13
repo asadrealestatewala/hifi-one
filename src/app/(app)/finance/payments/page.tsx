@@ -6,8 +6,10 @@ import { audit, requirePermission } from "@/lib/auth";
 import { LedgerError, recordPayment } from "@/lib/accounting";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
-import { Empty, NewButton, Notice, PageHeader, PanelForm, SearchBox, Stat } from "@/components/ui";
+import { Empty, NewButton, Notice, PageHeader, Pager, PanelForm, SearchBox, Stat } from "@/components/ui";
+import { paging } from "@/lib/paging";
 import Drawer from "@/components/ui/Drawer";
+import { paymentReceived } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +37,7 @@ async function receive(formData: FormData) {
     });
     pid = p.id;
     await audit(user, { action: "payment.record", entity: "Payment", entityId: p.id, after: { number: p.number, amount: p.amount.toString(), currency: p.currency } });
+    await paymentReceived(db, { organizationId: user.organizationId, paymentId: p.id, actorId: user.id });
   } catch (e) {
     if (e instanceof LedgerError) redirect(`/finance/payments?new=1&error=${encodeURIComponent(e.message)}`);
     throw e;
@@ -42,38 +45,38 @@ async function receive(formData: FormData) {
   redirect(`/finance/payments?ok=${pid}`);
 }
 
-export default async function Payments({ searchParams }: { searchParams: Promise<{ error?: string; ok?: string; q?: string; new?: string }> }) {
+export default async function Payments({ searchParams }: { searchParams: Promise<{ error?: string; ok?: string; q?: string; new?: string; page?: string }> }) {
   const user = await requirePermission("finance.view");
-  const { error, ok, q, new: isNew } = await searchParams;
+  const { error, ok, q, new: isNew, page } = await searchParams;
+  const pg = paging(page);
   const canPost = user.permissions.has("finance.post");
   const search = q?.trim();
   const profile = await db.companyProfile.findFirst({ where: { organizationId: user.organizationId, isDefault: true } });
   // Default to today in the company timezone, not UTC, so receipts are not dated before their invoice
   const today = new Date().toLocaleDateString("en-CA", { timeZone: profile?.timezone ?? "UTC" });
   const open = Boolean(canPost && isNew);
-  const [payments, clients, banks] = await Promise.all([
-    db.payment.findMany({
-      where: { organizationId: user.organizationId, ...(search ? { OR: [{ number: { contains: search, mode: "insensitive" } }, { client: { name: { contains: search, mode: "insensitive" } } }, { reference: { contains: search, mode: "insensitive" } }] } : {}) },
-      orderBy: { createdAt: "desc" }, take: 100, include: { client: true, allocations: { include: { invoice: true } } },
-    }),
+  const org = user.organizationId;
+  const where = { organizationId: org, ...(search ? { OR: [{ number: { contains: search, mode: "insensitive" as const } }, { client: { name: { contains: search, mode: "insensitive" as const } } }, { reference: { contains: search, mode: "insensitive" as const } }] } : {}) };
+  // Figures come from aggregates over every payment, not from the page of rows shown
+  const monthStart = today.slice(0, 7);
+  const [payments, matched, received, advances, clients, banks] = await Promise.all([
+    db.payment.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: pg.skip, take: pg.take, include: { client: true, allocations: { include: { invoice: true } } } }),
+    db.payment.count({ where }),
+    db.payment.groupBy({ by: ["currency"], where: { organizationId: org, createdAt: { gte: new Date(`${monthStart}-01T00:00:00.000Z`) } }, _sum: { amount: true } }),
+    db.payment.groupBy({ by: ["currency"], where: { organizationId: org, unallocated: { gt: 0 } }, _sum: { unallocated: true } }),
     open ? db.client.findMany({ where: { organizationId: user.organizationId, active: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
     open ? db.bankAccount.findMany({ where: { organizationId: user.organizationId, active: true, ledgerAccountId: { not: null } }, orderBy: { internalName: "asc" } }) : Promise.resolve([]),
   ]);
   // Received this month and advances held, per currency, never mixed
-  const monthStart = today.slice(0, 7);
-  const sum = (rows: typeof payments, f: (p: (typeof payments)[number]) => { toString(): string } | null) => {
-    const m = new Map<string, number>();
-    for (const p of rows) { const v = f(p); if (v) m.set(p.currency, (m.get(p.currency) ?? 0) + Number(v.toString())); }
-    return [...m].map(([c, v]) => formatMoney(v.toFixed(2), c)).join(" · ") || "None";
-  };
-  const thisMonth = payments.filter((p) => p.createdAt.toISOString().slice(0, 7) === monthStart);
+  const perCurrency = (rows: { currency: string; v: { toString(): string } | null }[]) => rows.filter((r) => r.v && Number(r.v.toString()) !== 0).map((r) => formatMoney(r.v!, r.currency)).join(" · ") || "None";
+  const total = await db.payment.count({ where: { organizationId: org } });
   return (
     <div className="space-y-5">
       <PageHeader title="Payments & receipts" subtitle="Money received, and which invoices it settled." actions={canPost ? <NewButton href="/finance/payments?new=1">Record payment</NewButton> : undefined} />
       <div className="grid gap-3 sm:grid-cols-3">
-        <Stat label="Receipts shown" value={payments.length} />
-        <Stat label="Received this month" value={sum(thisMonth, (p) => p.amount)} hint="per currency" />
-        <Stat label="Held as advances" value={sum(payments, (p) => (p.unallocated.gt(0) ? p.unallocated : null))} hint="not yet applied to an invoice" />
+        <Stat label="Receipts" value={total} />
+        <Stat label="Received this month" value={perCurrency(received.map((r) => ({ currency: r.currency, v: r._sum.amount })))} hint="per currency" />
+        <Stat label="Held as advances" value={perCurrency(advances.map((r) => ({ currency: r.currency, v: r._sum.unallocated })))} hint="not yet applied to an invoice" />
       </div>
       {ok && <Notice kind="ok">Payment recorded and applied to open invoices, oldest first.</Notice>}
       {error && !open && <Notice kind="error">{error}</Notice>}
@@ -96,6 +99,7 @@ export default async function Payments({ searchParams }: { searchParams: Promise
               ))}
             </tbody>
           </table>
+          <Pager page={pg.page} size={pg.size} total={matched} href={(n) => { const p = new URLSearchParams(); if (search) p.set("q", search); if (n > 1) p.set("page", String(n)); const t = p.toString(); return `/finance/payments${t ? `?${t}` : ""}`; }} />
         </div>
       )}
       {open && (

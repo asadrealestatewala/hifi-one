@@ -1,5 +1,5 @@
 import { requirePermission } from "@/lib/auth";
-import { Badge, Notice, PageHeader } from "@/components/ui";
+import { Badge, ConfirmButton, Notice, PageHeader } from "@/components/ui";
 import { db } from "@/lib/db";
 import { getPolicy } from "@/lib/monitoring";
 import { categoryAction, purgeAction, revokeAction, savePolicyAction } from "./actions";
@@ -84,7 +84,7 @@ export default async function MonitoringSettings({ searchParams }: { searchParam
               <tr key={d.id} className="border-t border-border transition hover:bg-hover/50">
                 <td className="py-2 pr-4">{d.name}<span className="block text-xs text-muted">{d.os} {d.agentVersion && `· v${d.agentVersion}`}</span></td><td className="pr-4">{name.get(d.userId) ?? "Former staff"}</td>
                 <td className="pr-4">{d.lastSeenAt ? d.lastSeenAt.toLocaleString() : "never"}</td><td className="pr-4">{d.revokedAt ? <Badge tone="danger">revoked</Badge> : <Badge tone="success">active</Badge>}</td>
-                <td>{!d.revokedAt && <form action={revokeAction}><input type="hidden" name="id" value={d.id} /><button className="underline text-xs">Revoke</button></form>}</td>
+                <td>{!d.revokedAt && <form action={revokeAction}><input type="hidden" name="id" value={d.id} /><ConfirmButton className="underline text-xs" title="Revoke this device?" message="The agent on that computer stops sending activity at once. Enrol it again to resume." confirmLabel="Revoke">Revoke</ConfirmButton></form>}</td>
               </tr>
             ))}</tbody>
           </table>

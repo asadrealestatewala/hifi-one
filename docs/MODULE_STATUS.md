@@ -65,17 +65,17 @@ Master prompt section in brackets.
 ## Cross-cutting gaps (reference audit, 2026-10-13)
 
 Found by comparing with the reference ERP; evidence in `docs/REFERENCE_ERP_AUDIT.md`. These affect every module above.
-- **Lists are capped, not paginated.** `take:` limits with no pager or notice on invoices (200), payments (100), leads (200), quotes (200), expenses (200), pipeline (500), audit logs (100). Only contacts paginate. The dashboard Assets tab totals come from a 500-row capped query.
-- **States.** One `loading.tsx` for the whole staff area; no `error.tsx` or `not-found.tsx`.
-- **Action safety.** No confirmation on Cancel invoice or commission Void; `PanelForm` submit has no pending state.
-- **Shared UI under-used.** 73 of 102 pages hand-roll the header, 53 files hand-roll tables, 64 inline alerts.
-- **Notifications missing** on lead assignment, invoice issued, payment received, portal quote decision, payroll, vendor bill decisions.
+- **Paging (done 2026-10-13).** Invoices, payments, leads, quotes, expenses, clients, audit logs, my tasks, smart lists, worklist rows and the commission queue page 50 rows at a time with "x–y of N" (`src/lib/paging.ts`, `Pager`). Their KPI cards, the dashboard Assets tab, payments month and advances, and pipeline column totals now come from aggregates over every record. The pipeline board still draws the 500 most recently updated cards and says so when there are more. Not yet paged: notifications (latest 100), lead activity on the lead page (latest 100), exchange-rate history (100), monitoring devices (100).
+- **States (done).** `error.tsx` in the staff area, client portal and vendor portal; `not-found.tsx` at the root and in the staff area. One shared `loading.tsx`.
+- **Action safety (done for the listed actions).** `ConfirmButton` guards Cancel invoice and commission Void (both require a reason, kept in the audit log), Write off, Cancel voucher, Delete screenshot, Revoke device, Cancel meeting, Archive contacts, Delete department, Delete role. Slide-over forms show "Saving…" and cannot submit twice. Other plain forms still have no pending state.
+- **Shared UI under-used.** About 70 pages still hand-roll the header and tables; bring each onto the kit when touched.
+- **Notifications (done).** `src/lib/events.ts`: lead assigned, contacts assigned, invoice issued (client portal), payment received (sales owner and client), portal quote accepted or declined (quote author), payroll paid (each employee), vendor bill approved, rejected or paid (vendor portal). Tested in `events.integration.test.ts`. Not checked in a browser.
 - **Batch jobs by button.** Commission accrual and subscription billing run on demand; payroll ignores approved commissions.
 - **Exports** only for contacts.
-- **No CI**, no HTTP or browser flow tests.
+- **CI (added, not yet run).** `.github/workflows/ci.yml` runs tsc, eslint, vitest with a Postgres service, and the build. The repository has no remote yet, so it has never run. No browser tests.
 
 ## Test coverage gaps
-- Service rules are covered (748 tests). Not covered: page rendering, pagination, end-to-end flows across modules (lead to cash in one test with trial balance and receivable control checks), portal screens in a browser, drag and drop, mail delivery, video across networks.
+- Service rules are covered. `lead-to-cash.integration.test.ts` runs lead → client → quote → invoice → two payments (one retried) → commissions, checking after every step that debits equal credits and the receivable account equals open invoice balances. Not covered: page rendering and paging in a browser, the confirmation dialog in a browser, portal screens in a browser, drag and drop, mail delivery, video across networks.
 
 ## Next concrete actions
 1. Check the sidebar and the new row-click behaviour signed in.

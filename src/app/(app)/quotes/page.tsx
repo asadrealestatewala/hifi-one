@@ -5,7 +5,8 @@ import { CatalogError, resolvePlanLines } from "@/lib/catalog";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { SalesError, createQuote, expireQuotes } from "@/lib/sales";
-import { Chips, Empty, NewButton, Notice, PageHeader, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import { Chips, Empty, NewButton, Notice, PageHeader, Pager, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import { paging } from "@/lib/paging";
 import Drawer from "@/components/ui/Drawer";
 import QuoteForm from "./QuoteForm";
 
@@ -40,7 +41,7 @@ async function create(formData: FormData) {
   redirect(`/quotes/${id}`);
 }
 
-type SP = { error?: string; status?: string; q?: string; new?: string };
+type SP = { error?: string; status?: string; q?: string; new?: string; page?: string };
 
 export default async function Quotes({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requirePermission("quotes.view");
@@ -48,19 +49,31 @@ export default async function Quotes({ searchParams }: { searchParams: Promise<S
   const org = user.organizationId;
   await expireQuotes(db, org, new Date().toISOString().slice(0, 10));
   const canManage = user.permissions.has("quotes.manage");
-  const [all, clients, plans, rates] = await Promise.all([
-    db.quote.findMany({ where: { organizationId: org }, orderBy: { createdAt: "desc" }, take: 200, include: { client: true } }),
+  // Counts and the pipeline value come from aggregates over every quote; only the shown page is loaded
+  const [counts, sentValue, clients, plans, rates] = await Promise.all([
+    db.quote.groupBy({ by: ["status"], where: { organizationId: org }, _count: true }),
+    db.quote.groupBy({ by: ["currency"], where: { organizationId: org, status: "SENT" }, _sum: { total: true } }),
     sp.new && canManage ? db.client.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true, currency: true } }) : Promise.resolve([]),
     sp.new && canManage ? db.servicePlan.findMany({ where: { organizationId: org, active: true, category: { active: true } }, orderBy: [{ category: { sortOrder: "asc" } }, { sortOrder: "asc" }], include: { category: true } }) : Promise.resolve([]),
     sp.new && canManage ? db.taxRate.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
   ]);
-  const statuses = [...new Set(all.map((x) => x.status))];
+  const byStatus = new Map(counts.map((c) => [c.status as string, c._count]));
+  const statuses = [...byStatus.keys()];
   const status = statuses.includes(sp.status ?? "") ? sp.status! : "all";
-  const q = sp.q?.trim().toLowerCase();
-  const quotes = all.filter((x) => (status === "all" || x.status === status) && (!q || `${x.number} ${x.client.name}`.toLowerCase().includes(q)));
-  const count = (s: string) => all.filter((x) => x.status === s).length;
-  const pipeline = new Map<string, ReturnType<(typeof all)[number]["total"]["add"]>>();
-  for (const x of all.filter((y) => y.status === "SENT")) { const c = pipeline.get(x.currency); pipeline.set(x.currency, c ? c.add(x.total) : x.total); }
+  const q = sp.q?.trim();
+  const where = {
+    organizationId: org,
+    ...(status !== "all" ? { status: status as never } : {}),
+    ...(q ? { OR: [{ number: { contains: q, mode: "insensitive" as const } }, { client: { name: { contains: q, mode: "insensitive" as const } } }] } : {}),
+  };
+  const pg = paging(sp.page);
+  const [quotes, matched] = await Promise.all([
+    db.quote.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: pg.skip, take: pg.take, include: { client: true } }),
+    db.quote.count({ where }),
+  ]);
+  const count = (s: string) => byStatus.get(s) ?? 0;
+  const all = counts.reduce((n, c) => n + c._count, 0);
+  const pipeline = new Map(sentValue.filter((r) => r._sum.total).map((r) => [r.currency, r._sum.total!]));
   const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ status: status === "all" ? undefined : status, q: sp.q?.trim(), ...over })) if (v) p.set(k, v); const t = p.toString(); return `/quotes${t ? `?${t}` : ""}`; };
   return (
     <div className="space-y-5">
@@ -74,7 +87,7 @@ export default async function Quotes({ searchParams }: { searchParams: Promise<S
       {sp.error && !sp.new && <Notice kind="error">{sp.error}</Notice>}
       <div className="flex flex-wrap items-center gap-3">
         <SearchBox q={sp.q?.trim()} placeholder="Search number or client" hidden={{ status: status === "all" ? undefined : status }} />
-        <Chips current={status} items={[{ key: "all", label: "All", count: all.length, href: href({ status: undefined }) }, ...statuses.map((s) => ({ key: s, label: s.toLowerCase().replace(/^./, (c) => c.toUpperCase()), count: count(s), href: href({ status: s }) }))]} />
+        <Chips current={status} items={[{ key: "all", label: "All", count: all, href: href({ status: undefined }) }, ...statuses.map((s) => ({ key: s, label: s.toLowerCase().replace(/^./, (c) => c.toUpperCase()), count: count(s), href: href({ status: s }) }))]} />
       </div>
       {quotes.length === 0 ? <Empty title={q || status !== "all" ? "No quotations match" : "No quotations yet"}>{canManage ? "Create one with New quotation." : "Quotations will appear here."}</Empty> : (
         <div className="card overflow-x-auto !p-0">
@@ -90,6 +103,7 @@ export default async function Quotes({ searchParams }: { searchParams: Promise<S
               ))}
             </tbody>
           </table>
+          <Pager page={pg.page} size={pg.size} total={matched} href={(n) => href({ page: n > 1 ? String(n) : undefined })} />
         </div>
       )}
       {canManage && sp.new && (

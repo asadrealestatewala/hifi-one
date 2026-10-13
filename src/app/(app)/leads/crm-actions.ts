@@ -6,6 +6,7 @@ import { CrmError, cleanFilters, deleteSmartList, logActivity, saveCampaign, sav
 import { ensureContactForLead, mirrorLeadActivity } from "@/lib/crm-contacts";
 import { db } from "@/lib/db";
 import { leadScope } from "@/lib/leads";
+import { leadAssigned } from "@/lib/events";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "");
 const flash = (to: string, kind: "error" | "msg", m: string) => redirect(`${to}${to.includes("?") ? "&" : "?"}${kind}=${encodeURIComponent(m)}`);
@@ -60,6 +61,7 @@ export async function updateLeadDetails(formData: FormData) {
   });
   await ensureContactForLead(db, id);
   await audit(user, { action: "lead.update", entity: "Lead", entityId: id, before, after: { city: t("city"), campaignId, assignedToId: reassign, tags } });
+  if (reassign !== lead.assignedToId) await leadAssigned(db, { organizationId: user.organizationId, leadId: id, toUserId: reassign, byUserId: user.id });
   redirect(`${back}?saved=1`);
 }
 

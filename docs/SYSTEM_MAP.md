@@ -15,7 +15,7 @@ Verified against the repository on 2026-10-13 (commit `5f3e9d8`). If the code an
 | Package manager | npm (`package-lock.json`); `npm install --legacy-peer-deps` | `README.md` |
 | Env | `DATABASE_URL`, `SESSION_SECRET` (plus optional SMTP, `ANTHROPIC_API_KEY`) | `.env.example`, `docs/DEPLOYMENT.md` |
 | Deploy | `Dockerfile`, `docker-compose.yml`, `npm run serve` locally | `docs/DEPLOYMENT.md` |
-| CI | none | — |
+| CI | GitHub Actions: tsc, eslint, vitest (Postgres 17 service), build. Not yet run (no remote) | `.github/workflows/ci.yml` |
 
 Commands are listed in `CLAUDE.md`.
 
@@ -58,7 +58,7 @@ Public pages: `login`, `login/verify`, `invite/[token]`, `reset/[token]`, `setup
 
 ## Shared UI
 
-`src/components/ui.tsx` (14 exports), `src/components/ui/{Drawer,LineItems,Avatar}.tsx`, `src/components/shell/*`, `src/components/{FilesPanel,EmailDocForm,PhotoForm,PrintButton,WhatsAppButton}.tsx`. Details and gaps: `docs/DESIGN_SYSTEM.md`.
+`src/components/ui.tsx` (`PageHeader`, `Stat`, `Badge`, `StatusBadge`, `Progress`, `Empty`, `Notice`, `Chips`, `SearchBox`, `NewButton`, `Pager`, `PanelForm`, `Avatar`, `SubmitButton`, `ConfirmButton`), `src/components/ui/{Drawer,LineItems,Avatar,SubmitButton,ConfirmButton,ErrorView}.tsx`, `src/components/shell/*`, `src/components/{FilesPanel,EmailDocForm,PhotoForm,PrintButton,WhatsAppButton}.tsx`. Details and gaps: `docs/DESIGN_SYSTEM.md`.
 
 ## Outside the web app
 
@@ -70,4 +70,4 @@ SMTP mail (`mailer.ts`), Anthropic assistant (`assistant.ts`), WhatsApp click-to
 
 ## Measured conventions (2026-10-13)
 
-102 `page.tsx`; 28 use `PageHeader`, 73 render their own `<h1>`; 53 files hand-write `<table>`; 56 pages define inline server actions, 19 `actions.ts` files; 1 `loading.tsx`, 0 `error.tsx`, 0 `not-found.tsx`; 15 pages use `Drawer`. These numbers are the baseline for `docs/REFERENCE_ERP_AUDIT.md` task 1 to 3.
+Baseline before the first improvement batch: 102 `page.tsx`; 28 used `PageHeader`, 73 rendered their own `<h1>`; 53 files hand-wrote `<table>`; 56 pages define inline server actions, 19 `actions.ts` files; 1 `loading.tsx`, 0 `error.tsx`, 0 `not-found.tsx`; 15 pages use `Drawer`. Now: `error.tsx` in `(app)`, `portal`, `vendor`; `not-found.tsx` at the root and in `(app)`; 11 lists paged.

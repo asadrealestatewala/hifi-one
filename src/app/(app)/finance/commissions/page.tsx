@@ -2,6 +2,9 @@ import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { CommissionError, accrueCommissions, addBonus, approveEntry, payEntry, setRule, voidEntry } from "@/lib/commissions";
 import { db } from "@/lib/db";
+import { paging } from "@/lib/paging";
+import { ConfirmButton, Notice, PageHeader, Pager } from "@/components/ui";
+import { readReason } from "@/lib/reasons";
 import { formatMoney } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
@@ -31,8 +34,10 @@ async function manage(formData: FormData) {
       return back("msg", "Bonus added, waiting for approval.");
     }
     if (op === "void") {
+      const why = readReason(formData.get("reason"));
+      if (!why.ok) return back("error", why.error);
       await voidEntry(db, { organizationId: org, entryId: s("entryId") });
-      await audit(user, { action: "commission.void", entity: "CommissionEntry", entityId: s("entryId") });
+      await audit(user, { action: "commission.void", entity: "CommissionEntry", entityId: s("entryId"), after: { reason: why.reason } });
     }
   } catch (e) {
     if (e instanceof CommissionError) return back("error", e.message);
@@ -63,15 +68,18 @@ async function decide(formData: FormData) {
   redirect("/finance/commissions");
 }
 
-export default async function Commissions({ searchParams }: { searchParams: Promise<{ error?: string; msg?: string }> }) {
+export default async function Commissions({ searchParams }: { searchParams: Promise<{ error?: string; msg?: string; page?: string }> }) {
   const user = await requirePermission("commissions.manage");
   const sp = await searchParams;
   const org = user.organizationId;
   const canApprove = user.permissions.has("commissions.approve");
   const canPay = canApprove && user.permissions.has("finance.post");
-  const [rules, entries, staff, banks] = await Promise.all([
+  const pg = paging(sp.page);
+  const waiting = { organizationId: org, status: { in: ["EARNED", "APPROVED"] as never } };
+  const [rules, entries, waitingCount, staff, banks] = await Promise.all([
     db.commissionRule.findMany({ where: { organizationId: org } }),
-    db.commissionEntry.findMany({ where: { organizationId: org, status: { in: ["EARNED", "APPROVED"] } }, orderBy: { createdAt: "asc" }, take: 200 }),
+    db.commissionEntry.findMany({ where: waiting, orderBy: [{ createdAt: "asc" }, { id: "asc" }], skip: pg.skip, take: pg.take }),
+    db.commissionEntry.count({ where: waiting }),
     db.user.findMany({ where: { organizationId: org, userType: "EMPLOYEE", active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     canPay ? db.bankAccount.findMany({ where: { organizationId: org, active: true, ledgerAccountId: { not: null } } }) : Promise.resolve([]),
   ]);
@@ -79,17 +87,14 @@ export default async function Commissions({ searchParams }: { searchParams: Prom
   const ruleOf = new Map(rules.map((r) => [r.userId, r]));
   return (
     <div className="space-y-6 max-w-4xl">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Commissions and bonuses</h1>
-        <form action={manage}><input type="hidden" name="op" value="accrue" /><button className="btn">Work out new commissions</button></form>
-      </div>
+      <PageHeader title="Commissions and bonuses" actions={<form action={manage}><input type="hidden" name="op" value="accrue" /><button className="btn">Work out new commissions</button></form>} />
       <p className="text-sm text-muted">A salesperson earns a percentage of the revenue (before tax) on money actually received from clients they converted, one commission per payment. Approval books the cost; paying it settles the liability. Nobody can approve their own payout.</p>
-      {sp.msg && <p className="text-sm bg-green-600/10 text-green-700 rounded-lg px-3 py-2">{sp.msg}</p>}
-      {sp.error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{sp.error}</p>}
+      {sp.msg && <Notice kind="ok">{sp.msg}</Notice>}
+      {sp.error && <Notice kind="error">{sp.error}</Notice>}
 
       <section className="card overflow-x-auto">
         <h2 className="font-semibold mb-2">Waiting for approval or payment</h2>
-        {entries.length === 0 ? <p className="text-sm text-muted">Nothing waiting.</p> : (
+        {entries.length === 0 ? <p className="text-sm text-muted">Nothing waiting.</p> : (<>
           <table className="w-full text-sm">
             <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-1 pr-3">Who</th><th className="pr-3">What</th><th className="pr-3 text-right">Amount</th><th className="pr-3">Status</th><th></th></tr></thead>
             <tbody>
@@ -100,7 +105,7 @@ export default async function Commissions({ searchParams }: { searchParams: Prom
                   <td className="pr-3 text-right">{formatMoney(e.amount, e.currency)}</td><td className="pr-3">{e.status.toLowerCase()}</td>
                   <td className="space-y-1">
                     {e.status === "EARNED" && canApprove && <form action={decide}><input type="hidden" name="entryId" value={e.id} /><input type="hidden" name="op" value="approve" /><button className="underline text-xs">{e.userId === user.id ? "Approve (not your own)" : "Approve"}</button></form>}
-                    {e.status === "EARNED" && <form action={manage}><input type="hidden" name="entryId" value={e.id} /><input type="hidden" name="op" value="void" /><button className="underline text-xs">Void</button></form>}
+                    {e.status === "EARNED" && <form action={manage}><input type="hidden" name="entryId" value={e.id} /><input type="hidden" name="op" value="void" /><ConfirmButton className="underline text-xs" title="Void this commission?" message="The person will not be paid this amount. It cannot be restored; a new bonus would be needed." confirmLabel="Void" reason>Void</ConfirmButton></form>}
                     {e.status === "APPROVED" && canPay && (
                       <form action={decide} className="flex gap-1"><input type="hidden" name="entryId" value={e.id} /><input type="hidden" name="op" value="pay" />
                         <select name="bankAccountId" aria-label="Pay from" className="input !py-0.5 text-xs">{banks.filter((b) => b.currency === e.currency).map((b) => <option key={b.id} value={b.id}>{b.internalName}</option>)}</select>
@@ -111,6 +116,7 @@ export default async function Commissions({ searchParams }: { searchParams: Prom
               ))}
             </tbody>
           </table>
+          <Pager page={pg.page} size={pg.size} total={waitingCount} href={(n) => (n > 1 ? `/finance/commissions?page=${n}` : "/finance/commissions")} /></>
         )}
       </section>
 

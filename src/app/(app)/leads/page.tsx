@@ -4,28 +4,30 @@ import { leadScore } from "@/lib/crm";
 import { db } from "@/lib/db";
 import { leadScope } from "@/lib/leads";
 import { formatMoney } from "@/lib/money";
-import { Badge, Chips, Empty, NewButton, PageHeader, PanelForm, SearchBox, Stat } from "@/components/ui";
+import { Badge, Chips, Empty, NewButton, PageHeader, Pager, PanelForm, SearchBox, Stat } from "@/components/ui";
+import { paging } from "@/lib/paging";
 import Drawer from "@/components/ui/Drawer";
 import { createLead } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function Leads({ searchParams }: { searchParams: Promise<{ error?: string; dup?: string; q?: string; stage?: string; new?: string }> }) {
+export default async function Leads({ searchParams }: { searchParams: Promise<{ error?: string; dup?: string; q?: string; stage?: string; new?: string; page?: string }> }) {
   const user = await requirePermission("crm.view");
-  const { error, dup, q, stage, new: isNew } = await searchParams;
+  const { error, dup, q, stage, new: isNew, page } = await searchParams;
+  const pg = paging(page);
   const canEdit = user.permissions.has("crm.edit");
   const search = q?.trim();
   const esc = (s: string) => s.replace(/[\\%_]/g, (c) => "\\" + c);
   const base = leadScope(user);
-  const [leads, campaigns, stages, stageCounts] = await Promise.all([
-    db.lead.findMany({
-      where: {
-        ...base,
-        ...(stage ? { stageId: stage } : {}),
-        ...(search ? { AND: [{ OR: [{ name: { contains: esc(search), mode: "insensitive" } }, { company: { contains: esc(search), mode: "insensitive" } }, { email: { contains: esc(search), mode: "insensitive" } }, { phone: { contains: search } }] }] } : {}),
-      },
-      orderBy: { createdAt: "desc" }, take: 200, include: { stage: true },
-    }),
+  const where = {
+    ...base,
+    ...(stage ? { stageId: stage } : {}),
+    ...(search ? { AND: [{ OR: [{ name: { contains: esc(search), mode: "insensitive" as const } }, { company: { contains: esc(search), mode: "insensitive" as const } }, { email: { contains: esc(search), mode: "insensitive" as const } }, { phone: { contains: search } }] }] } : {}),
+  };
+  const [leads, matched, dueNow, campaigns, stages, stageCounts] = await Promise.all([
+    db.lead.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: pg.skip, take: pg.take, include: { stage: true } }),
+    db.lead.count({ where }),
+    db.lead.count({ where: { ...base, nextFollowUp: { lt: new Date() } } }),
     db.campaign.findMany({ where: { organizationId: user.organizationId, status: { in: ["ACTIVE", "PLANNED"] } }, orderBy: { name: "asc" } }),
     db.pipelineStage.findMany({ where: { organizationId: user.organizationId }, orderBy: { sortOrder: "asc" }, select: { id: true, name: true } }),
     db.lead.groupBy({ by: ["stageId"], where: base, _count: true }),
@@ -33,7 +35,6 @@ export default async function Leads({ searchParams }: { searchParams: Promise<{ 
   const counts = new Map(stageCounts.map((c) => [c.stageId, c._count]));
   const total = stageCounts.reduce((n, c) => n + c._count, 0);
   const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ stage, q: search, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/leads${t ? `?${t}` : ""}`; };
-  const dueNow = leads.filter((l) => l.nextFollowUp && l.nextFollowUp < new Date()).length;
   const campaignName = new Map(campaigns.map((c) => [c.id, c.name]));
   return (
     <div className="space-y-6">
@@ -48,7 +49,7 @@ export default async function Leads({ searchParams }: { searchParams: Promise<{ 
       />
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Leads" value={total} />
-        <Stat label="Follow-ups overdue" value={dueNow} hint="in the list below" />
+        <Stat label="Follow-ups overdue" value={dueNow} hint="across all your leads" />
         <Stat label="Stages" value={stages.length} />
       </div>
       <div className="flex flex-wrap items-center gap-3">
@@ -78,6 +79,7 @@ export default async function Leads({ searchParams }: { searchParams: Promise<{ 
               })}
             </tbody>
           </table>
+          <Pager page={pg.page} size={pg.size} total={matched} href={(n) => href({ page: n > 1 ? String(n) : undefined })} />
         </div>
       )}
 

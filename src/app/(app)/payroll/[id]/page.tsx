@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { LedgerError } from "@/lib/ledger-math";
 import { PayrollError, approveRun, payRun, postRun, setBonus } from "@/lib/payroll";
 import { formatMoney } from "@/lib/money";
+import { payrollPaid } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,10 @@ async function step(formData: FormData) {
   try {
     if (which === "approve") await approveRun(db, { organizationId: user.organizationId, runId, approverId: user.id });
     else if (which === "post") await postRun(db, { organizationId: user.organizationId, runId, actorId: user.id });
-    else if (which === "pay") await payRun(db, { organizationId: user.organizationId, runId, bankAccountId: String(formData.get("bankAccountId")), actorId: user.id });
+    else if (which === "pay") {
+      await payRun(db, { organizationId: user.organizationId, runId, bankAccountId: String(formData.get("bankAccountId")), actorId: user.id });
+      await payrollPaid(db, { organizationId: user.organizationId, runId });
+    }
     await audit(user, { action: `payroll.${which}`, entity: "PayrollRun", entityId: runId });
   } catch (e) {
     if (isKnown(e)) fail(runId, (e as Error).message);

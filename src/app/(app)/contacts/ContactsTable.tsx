@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
 import Icon from "@/components/shell/Icon";
 import { bulkAction, quickUpdateAction } from "./actions";
+import { ConfirmButton } from "@/components/ui";
 
 export type Row = {
   id: string; name: string; kind: string; category: string; parentName: string | null; email: string | null; phone: string | null; ownerId: string | null; ownerName: string | null; tags: string[]; lastActivity: string | null;
@@ -54,7 +55,7 @@ export default function ContactsTable({ rows: initial, staff, canEdit, canAssign
           {canAssign && <form action={bulkAction} className="flex items-center gap-1.5"><input type="hidden" name="action" value="ASSIGN" /><input type="hidden" name="returnTo" value={returnTo} />{ids}<select name="value" aria-label="Assign to" className="input !w-40 !py-1"><option value="">Assign to…</option>{staff.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select><button className="btn-ghost !py-1">Apply</button></form>}
           <form action={bulkAction} className="flex items-center gap-1.5"><input type="hidden" name="action" value="CATEGORY" /><input type="hidden" name="returnTo" value={returnTo} />{ids}<select name="value" aria-label="Set category" className="input !w-36 !py-1"><option value="">Category…</option>{["LEAD", "CUSTOMER", "PARTNER", "VENDOR", "INVESTOR", "OTHER"].map((c) => <option key={c} value={c}>{c.charAt(0) + c.slice(1).toLowerCase()}</option>)}</select><button className="btn-ghost !py-1">Apply</button></form>
           <form action={bulkAction} className="flex items-center gap-1.5"><input type="hidden" name="action" value="TAG" /><input type="hidden" name="returnTo" value={returnTo} />{ids}<input name="value" placeholder="Add tag" aria-label="Tag to add" maxLength={30} className="input !w-28 !py-1" /><button className="btn-ghost !py-1">Tag</button></form>
-          <form action={bulkAction}><input type="hidden" name="action" value="ARCHIVE" /><input type="hidden" name="returnTo" value={returnTo} />{ids}<button className="btn-ghost !py-1">Archive</button></form>
+          <form action={bulkAction}><input type="hidden" name="action" value="ARCHIVE" /><input type="hidden" name="returnTo" value={returnTo} />{ids}<ConfirmButton className="btn-ghost !py-1" title="Archive the selected contacts?" message="They leave lists and search. History is kept and an administrator can restore them." confirmLabel="Archive">Archive</ConfirmButton></form>
           <button type="button" onClick={() => setSel([])} className="ml-auto text-xs text-muted hover:text-foreground">Clear</button>
         </div>
       )}

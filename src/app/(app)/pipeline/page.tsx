@@ -2,20 +2,25 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { leadScore } from "@/lib/crm";
 import { db } from "@/lib/db";
-import { dec } from "@/lib/ledger-math";
 import { leadScope } from "@/lib/leads";
 import { formatMoney } from "@/lib/money";
-import { PageHeader } from "@/components/ui";
+import { Notice, PageHeader } from "@/components/ui";
 import Board from "./Board";
 
 export const dynamic = "force-dynamic";
 
+const BOARD_LIMIT = 500;
+
 export default async function Pipeline() {
   const user = await requirePermission("crm.view");
   const org = user.organizationId;
-  const [stages, leads, campaigns] = await Promise.all([
+  const scope = leadScope(user);
+  const [stages, leads, leadCount, sums, campaigns] = await Promise.all([
     db.pipelineStage.findMany({ where: { organizationId: org }, orderBy: { sortOrder: "asc" } }),
-    db.lead.findMany({ where: leadScope(user), orderBy: { updatedAt: "desc" }, take: 500, include: { stage: true } }),
+    db.lead.findMany({ where: scope, orderBy: { updatedAt: "desc" }, take: BOARD_LIMIT, include: { stage: true } }),
+    db.lead.count({ where: scope }),
+    // Column totals cover every lead in scope, not only the cards drawn on the board
+    db.lead.groupBy({ by: ["stageId", "currency"], where: { ...scope, dealValue: { not: null } }, _sum: { dealValue: true } }),
     db.campaign.findMany({ where: { organizationId: org }, select: { id: true, name: true } }),
   ]);
   const ownerIds = [...new Set(leads.map((l) => l.assignedToId).filter(Boolean) as string[])];
@@ -25,14 +30,13 @@ export default async function Pipeline() {
   // Column totals per currency (never added across currencies)
   const totals: Record<string, string> = {};
   for (const s of stages) {
-    const by = new Map<string, ReturnType<typeof dec>>();
-    for (const l of leads.filter((x) => x.stageId === s.id && x.dealValue)) by.set(l.currency, (by.get(l.currency) ?? dec(0)).add(l.dealValue!.toString()));
-    totals[s.id] = [...by].map(([c, v]) => formatMoney(v.toString(), c)).join(" + ");
+    totals[s.id] = sums.filter((r) => r.stageId === s.id && r._sum.dealValue && !r._sum.dealValue.isZero()).map((r) => formatMoney(r._sum.dealValue!.toString(), r.currency)).join(" + ");
   }
   return (
     <div className="space-y-5">
       <PageHeader title="Opportunities" subtitle="Drag a card to another column, or use the stage menu on it. Moving a deal to Closed Won starts the controlled conversion; changes save immediately."
         actions={<><Link href="/leads" className="btn-ghost">List view</Link><Link href="/leads/lists" className="btn-ghost">Smart lists</Link></>} />
+      {leadCount > leads.length && <Notice kind="error">The board shows the {leads.length} most recently updated of {leadCount} leads. Column totals include all of them; use the list view or smart lists to find older leads.</Notice>}
       <Board
         key={leads.map((l) => `${l.id}:${l.stageId}`).join(",")}
         canEdit={user.permissions.has("crm.edit")}
