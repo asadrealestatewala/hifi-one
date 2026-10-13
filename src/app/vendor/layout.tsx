@@ -13,6 +13,7 @@ async function signOut() {
 export default async function VendorLayout({ children }: { children: React.ReactNode }) {
   const user = await requireVendorUser();
   const vendor = await db.vendor.findUnique({ where: { id: user.vendorId }, select: { name: true, status: true } });
+  const unread = await db.notification.count({ where: { userId: user.id, readAt: null } });
   return (
     <div className="min-h-screen">
       <header className="bg-navy text-white">
@@ -25,6 +26,8 @@ export default async function VendorLayout({ children }: { children: React.React
             <Link href="/vendor" className="hover:underline">Opportunities</Link>
             <Link href="/vendor/work" className="hover:underline">Work & bills</Link>
             <Link href="/vendor/ledger" className="hover:underline">Statement</Link>
+            <Link href="/vendor/profile" className="hover:underline">Profile</Link>
+            <Link href="/vendor/notifications" className="hover:underline">Updates{unread > 0 && ` (${unread})`}</Link>
             <form action={signOut}><button className="underline">Sign out</button></form>
           </nav>
         </div>

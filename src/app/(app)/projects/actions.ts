@@ -6,7 +6,7 @@ import { z } from "zod";
 import { audit, requirePermission, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { projectScope } from "@/lib/projects";
-import { projectMemberAdded, projectStatusChanged, taskAssigned, taskCommented, taskMoved } from "@/lib/events";
+import { commentSharedWithClient, projectMemberAdded, projectStatusChanged, taskAssigned, taskCommented, taskMoved } from "@/lib/events";
 import { TASK_STATUSES, canCompleteProject } from "@/lib/project-rules";
 import { TaskError, addComment, addSubtask, changeTaskStatus, setBlockers, setRecurrence } from "@/lib/tasks";
 
@@ -195,14 +195,16 @@ export async function saveTaskDetailAction(taskId: string, formData: FormData): 
   return { ok: true };
 }
 
-export async function addTaskCommentAction(taskId: string, body: string): Promise<TaskActionResult> {
+export async function addTaskCommentAction(taskId: string, body: string, shareWithClient = false): Promise<TaskActionResult> {
   const user = await requirePermission("tasks.edit");
   const c = await manageTask(user, taskId);
   if (!c) return { ok: false, error: "Task not found." };
   try {
-    const comment = await addComment(db, { projectId: c.task.projectId, taskId, authorId: c.user.id, body });
+    const share = shareWithClient && c.task.clientVisible && Boolean(c.project.clientId);
+    const comment = await addComment(db, { projectId: c.task.projectId, taskId, authorId: c.user.id, body, internal: !share });
     await audit(c.user, { action: "task.comment", entity: "Task", entityId: taskId });
     await taskCommented(db, { organizationId: c.user.organizationId, taskId, commentId: comment.id, authorId: c.user.id, body });
+    if (share) await commentSharedWithClient(db, { organizationId: c.user.organizationId, taskId, commentId: comment.id, authorId: c.user.id });
   } catch (e) {
     if (e instanceof TaskError) return { ok: false, error: e.message };
     throw e;

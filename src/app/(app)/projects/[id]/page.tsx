@@ -42,6 +42,8 @@ export default async function ProjectPage({
   const progress = projectProgress(project.tasks);
   const open = taskId ? project.tasks.find((t) => t.id === taskId) ?? null : null;
   const comments = open ? await db.taskComment.findMany({ where: { taskId: open.id }, orderBy: { createdAt: "asc" }, take: 100 }) : [];
+  // Comment authors can also be the client's portal users, who are not in the staff list
+  const outsiders = new Map((await db.user.findMany({ where: { id: { in: comments.map((c) => c.authorId).filter((a) => !nameOf.has(a)) } }, select: { id: true, name: true, clientId: true } })).map((u) => [u.id, u]));
   const top = project.tasks.filter((t) => !t.parentId);
   const byId = new Map(project.tasks.map((t) => [t.id, t]));
   const closed = project.status === "COMPLETED" || project.status === "CANCELLED";
@@ -142,7 +144,7 @@ export default async function ProjectPage({
             subtasks={project.tasks.filter((t) => t.parentId === open.id).map((t) => ({ id: t.id, title: t.title, status: t.status }))}
             candidates={project.tasks.filter((t) => t.id !== open.id && t.parentId !== open.id && open.parentId !== t.id).map((t) => ({ id: t.id, title: t.title }))}
             members={project.members.map((m) => ({ id: m.userId, name: nameOf.get(m.userId) ?? "Unknown" }))}
-            comments={comments.map((c) => ({ id: c.id, authorId: c.authorId, author: nameOf.get(c.authorId) ?? "Former staff", body: c.body, at: c.createdAt.toLocaleString() }))}
+            comments={comments.map((c) => ({ id: c.id, authorId: c.authorId, author: nameOf.get(c.authorId) ?? outsiders.get(c.authorId)?.name ?? "Former staff", body: c.body, at: c.createdAt.toLocaleString(), shared: !c.internal, fromClient: Boolean(outsiders.get(c.authorId)?.clientId) }))}
             canManage={(canManage || project.managerId === user.id) && !closed} canMoveSubtasks={canMove && !closed && (canManage || project.managerId === user.id || open.assigneeId === user.id)} canComment={canMove}
           >
             <FilesPanel user={user} ownerType="TASK" ownerId={open.id} returnTo={`/projects/${project.id}?task=${open.id}`} title="Files" flash={{ fileError, fileOk }} />

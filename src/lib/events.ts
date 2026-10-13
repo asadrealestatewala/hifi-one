@@ -138,3 +138,19 @@ export async function taskCommented(db: Db, p: { organizationId: string; taskId:
   await notifyMany(db, mentioned, { kind: "task.mention", title: `${author} mentioned you on ${t.title}`, body: snippet, link: PROJECT_LINK(t.projectId, t.id), dedupeKey: `comment:${p.commentId}` });
   await notifyMany(db, watchers, { kind: "task.comment", title: `${author} commented on ${t.title}`, body: snippet, link: PROJECT_LINK(t.projectId, t.id), dedupeKey: `comment:${p.commentId}` });
 }
+
+// The client wrote on a task in the portal: the assignee, project manager and task creator are told.
+export async function clientCommented(db: Db, p: { organizationId: string; taskId: string; commentId: string; userId: string }) {
+  const t = await db.task.findFirst({ where: { id: p.taskId, project: { organizationId: p.organizationId } }, select: { id: true, title: true, projectId: true, assigneeId: true, createdById: true, project: { select: { managerId: true, name: true, clientId: true } } } });
+  if (!t) return;
+  const clientName = t.project.clientId ? (await db.client.findUnique({ where: { id: t.project.clientId }, select: { name: true } }))?.name : null;
+  const people = [...new Set([t.assigneeId, t.project.managerId, t.createdById].filter((x): x is string => !!x))];
+  await notifyMany(db, people, { kind: "task.client_comment", title: `${clientName ?? "The client"} wrote on ${t.title}`, body: t.project.name, link: PROJECT_LINK(t.projectId, t.id), dedupeKey: `client-comment:${p.commentId}` });
+}
+
+// A staff comment was shared with the client: their portal users are told.
+export async function commentSharedWithClient(db: Db, p: { organizationId: string; taskId: string; commentId: string; authorId: string }) {
+  const t = await db.task.findFirst({ where: { id: p.taskId, clientVisible: true, project: { organizationId: p.organizationId, clientId: { not: null } } }, select: { title: true, project: { select: { id: true, name: true, clientId: true } } } });
+  if (!t?.project.clientId) return;
+  await notifyMany(db, await portalUsers(db, { clientId: t.project.clientId }), { kind: "task.shared_comment", title: `New message on ${t.title}`, body: t.project.name, link: `/portal/projects/${t.project.id}`, dedupeKey: `shared-comment:${p.commentId}` });
+}

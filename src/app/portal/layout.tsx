@@ -15,6 +15,7 @@ export default async function PortalLayout({ children }: { children: React.React
   const client = await db.client.findUnique({ where: { id: user.clientId }, select: { name: true } });
   const pending = await db.contentItem.count({ where: { clientId: user.clientId, status: "CLIENT_REVIEW" } });
   const quotesOpen = await db.quote.count({ where: { clientId: user.clientId, status: "SENT" } });
+  const unread = await db.notification.count({ where: { userId: user.id, readAt: null } });
   return (
     <div className="min-h-screen">
       <header className="bg-navy text-white">
@@ -25,9 +26,11 @@ export default async function PortalLayout({ children }: { children: React.React
           </div>
           <nav aria-label="Portal" className="flex items-center gap-4 text-sm">
             <Link href="/portal" className="hover:underline">Overview</Link>
+            <Link href="/portal/projects" className="hover:underline">Projects</Link>
             <Link href="/portal/content" className="hover:underline">Content{pending > 0 && ` (${pending})`}</Link>
             <Link href="/portal/quotes" className="hover:underline">Quotations{quotesOpen > 0 && ` (${quotesOpen})`}</Link>
             <Link href="/portal/meetings" className="hover:underline">Meetings</Link>
+            <Link href="/portal/notifications" className="hover:underline">Updates{unread > 0 && ` (${unread})`}</Link>
             <Link href="/portal/statement" className="hover:underline">Statement</Link>
             <form action={signOut}><button className="underline">Sign out</button></form>
           </nav>

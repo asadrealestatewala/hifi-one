@@ -24,7 +24,7 @@ export const NAV: NavGroup[] = [
   ] },
   { id: "clients", title: "Services & Clients", icon: "layers", items: [
     { href: "/services", label: "Service Catalog", permission: "catalog.view" },
-    { href: "/clients", label: "Client Accounts", permission: "clients.view" },
+    { href: "/clients", label: "Customers", permission: "clients.view" },
     { href: "/contracts", label: "Contracts", permission: "contracts.view" },
     { href: "/finance/subscriptions", label: "Subscriptions", permission: "finance.view" },
     { href: "/finance/invoices", label: "Invoices", permission: "finance.view" },
@@ -55,7 +55,7 @@ export const NAV: NavGroup[] = [
     { href: "/hr/monitoring", label: "Workfolio", permission: "monitoring.view_team" },
   ] },
   { id: "vendors", title: "Procurement & Vendors", icon: "truck", items: [
-    { href: "/vendors", label: "Vendor Directory", permission: "vendors.view" },
+    { href: "/vendors", label: "Vendors", permission: "vendors.view" },
     { href: "/procurement", label: "Orders & Bills", permission: "vendors.view" },
   ] },
   { id: "me", title: "My Space", icon: "user", items: [

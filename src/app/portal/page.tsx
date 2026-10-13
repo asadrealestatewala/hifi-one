@@ -52,7 +52,7 @@ export default async function PortalHome() {
       )}
 
       <section className="space-y-3">
-        <h2 className="font-semibold">Projects</h2>
+        <div className="flex items-center justify-between"><h2 className="font-semibold">Projects</h2><Link href="/portal/projects" className="text-sm text-primary hover:underline">Open projects and message the team</Link></div>
         {projects.length === 0 && <div className="card text-sm text-muted">No projects yet.</div>}
         {projects.map((p) => (
           <article key={p.id} className="card space-y-2">

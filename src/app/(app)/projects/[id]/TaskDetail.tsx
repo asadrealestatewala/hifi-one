@@ -7,7 +7,7 @@ import Avatar from "@/components/ui/Avatar";
 import { addSubtaskAction, addTaskCommentAction, moveTask, saveTaskDetailAction } from "../actions";
 
 type Sub = { id: string; title: string; status: string };
-type Comment = { id: string; authorId: string; author: string; body: string; at: string };
+type Comment = { id: string; authorId: string; author: string; body: string; at: string; shared: boolean; fromClient: boolean };
 export type TaskDetailData = {
   id: string; title: string; status: string; description: string; priority: string; assigneeId: string; due: string; clientVisible: boolean; recurrence: string;
   blockedBy: string[]; parentTitle: string | null;
@@ -24,6 +24,7 @@ export default function TaskDetail({ task, subtasks, candidates, members, commen
   const [saved, setSaved] = useState(false);
   const [sub, setSub] = useState("");
   const [note, setNote] = useState("");
+  const [share, setShare] = useState(false);
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) => start(async () => {
     setError(""); setSaved(false);
     const r = await fn();
@@ -83,11 +84,12 @@ export default function TaskDetail({ task, subtasks, candidates, members, commen
       <section className="space-y-2">
         <h3 className="font-semibold">Comments</h3>
         {comments.length === 0 ? <p className="text-muted">No comments yet.</p> : (
-          <ul className="space-y-3">{comments.map((c) => <li key={c.id} className="flex gap-3"><Avatar name={c.author} userId={c.authorId} size={28} /><div className="min-w-0"><p className="text-xs text-muted"><span className="font-medium text-foreground">{c.author}</span> · {c.at}</p><p className="whitespace-pre-wrap">{c.body}</p></div></li>)}</ul>
+          <ul className="space-y-3">{comments.map((c) => <li key={c.id} className="flex gap-3"><Avatar name={c.author} userId={c.authorId} size={28} /><div className="min-w-0"><p className="text-xs text-muted"><span className="font-medium text-foreground">{c.author}</span>{c.fromClient && <span className="ml-1 rounded-full bg-primary/10 px-1.5 text-[10px] font-medium text-primary">client</span>}{c.shared && !c.fromClient && <span className="ml-1 rounded-full bg-success/10 px-1.5 text-[10px] font-medium text-success">shared with client</span>} · {c.at}</p><p className="whitespace-pre-wrap">{c.body}</p></div></li>)}</ul>
         )}
         {canComment && (
-          <form onSubmit={(e) => { e.preventDefault(); const t = note; run(() => addTaskCommentAction(task.id, t), () => setNote("")); }} className="space-y-2">
+          <form onSubmit={(e) => { e.preventDefault(); const t = note; run(() => addTaskCommentAction(task.id, t, share), () => { setNote(""); setShare(false); }); }} className="space-y-2">
             <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={4000} placeholder="Write a comment. Type @ and a name to notify a team member (internal, clients never see it)" aria-label="New comment" className="input" />
+            {task.clientVisible && <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={share} onChange={(e) => setShare(e.target.checked)} /> Share this comment with the client</label>}
             <div className="flex items-center justify-between gap-2"><p className="text-xs text-muted">Team: {members.map((m) => `@${m.name}`).join(", ") || "no members yet"}</p><button className="btn-ghost" disabled={pending || !note.trim()}>Comment</button></div>
           </form>
         )}

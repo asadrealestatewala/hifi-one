@@ -1,4 +1,4 @@
-import { getSessionUser } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { MAX_SHOT_BYTES, MonitorError, storeBrowserScreenshot } from "@/lib/monitoring";
 import { limiter } from "@/lib/rate-limit";
@@ -10,8 +10,8 @@ const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body)
 // One JPEG or PNG snapshot from the person's own browser screen share. Same-origin only, own session only, and the server
 // applies the policy again: working hours, not on a break, clocked in, no faster than the interval.
 export async function POST(req: Request) {
-  const user = await getSessionUser();
-  if (!user || user.userType !== "EMPLOYEE" || !user.permissions.has("monitoring.own")) return reply({ error: "Unauthorized" }, 401);
+  const user = await requirePermission("monitoring.own");
+  if (user.userType !== "EMPLOYEE") return reply({ error: "Unauthorized" }, 401);
   const origin = req.headers.get("origin");
   if (!origin || new URL(origin).host !== req.headers.get("host")) return reply({ error: "Forbidden" }, 403);
   if (!limiter("snapshot-user", 30, 3_600_000).take(user.id)) return reply({ error: "Too many snapshots." }, 429);
