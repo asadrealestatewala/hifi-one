@@ -1,6 +1,7 @@
 import type { PermissionKey } from "@/lib/permissions";
 
-export type NavItem = { href: string; label: string; permission: PermissionKey };
+// permission null = every signed-in employee (own profile, own tasks, help, own security)
+export type NavItem = { href: string; label: string; permission: PermissionKey | null };
 export type NavGroup = { id: string; title: string; icon: string; items: NavItem[] };
 
 // Menu items render only when the user holds the permission. Pages and actions re-check on the server,
@@ -18,6 +19,7 @@ export const NAV: NavGroup[] = [
     { href: "/leads/worklists", label: "Prospecting Worklists", permission: "crm.view" },
     { href: "/campaigns", label: "Campaigns", permission: "crm.view" },
     { href: "/sales/activity", label: "Sales Activity & Targets", permission: "crm.view" },
+    { href: "/sales/leads-report", label: "Leads Report", permission: "crm.view" },
     { href: "/quotes", label: "Proposals & Quotations", permission: "quotes.view" },
   ] },
   { id: "clients", title: "Services & Clients", icon: "layers", items: [
@@ -56,11 +58,15 @@ export const NAV: NavGroup[] = [
     { href: "/vendors", label: "Vendor Directory", permission: "vendors.view" },
     { href: "/procurement", label: "Orders & Bills", permission: "vendors.view" },
   ] },
-  { id: "me", title: "My Workspace", icon: "user", items: [
+  { id: "me", title: "My Space", icon: "user", items: [
+    { href: "/me/profile", label: "My Profile", permission: null },
+    { href: "/me/help", label: "Help & Guide", permission: null },
+    { href: "/account/security", label: "Account Security", permission: null },
     { href: "/me/attendance", label: "My Attendance", permission: "self.attendance" },
-    { href: "/me/time", label: "My Time & Activity", permission: "monitoring.own" },
     { href: "/me/leave", label: "My Leave", permission: "self.leave" },
-    { href: "/me/payslips", label: "My Payslips", permission: "self.payslip" },
+    { href: "/me/payslips", label: "My Payroll", permission: "self.payslip" },
+    { href: "/me/tasks", label: "My Tasks", permission: null },
+    { href: "/me/time", label: "My Time & Activity", permission: "monitoring.own" },
     { href: "/expenses", label: "Expense Vouchers", permission: "self.expense" },
     { href: "/me/commissions", label: "My Commissions", permission: "commissions.own" },
     { href: "/me/documents", label: "My Documents", permission: "self.leave" },

@@ -40,12 +40,12 @@ export default function DashboardGrid({ widgets, order: o, hidden: h }: { widget
         )}
       </div>
       {editing && <p className="rounded-xl bg-hover px-3 py-2 text-sm text-muted">Drag a widget by its handle, or use the arrows, to reorder. Use the eye to hide or show. Only you see this layout.</p>}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {shown.map((id, idx) => {
           const w = byId.get(id)!;
           const off = hidden.has(id);
           return (
-            <section key={id} className={`${w.wide ? "lg:col-span-2" : ""} ${editing ? "rounded-2xl ring-1 ring-dashed ring-primary/40" : ""} ${drag === id ? "opacity-40" : ""} ${off ? "opacity-50" : ""}`}
+            <section key={id} className={`${w.wide ? "md:col-span-2 xl:col-span-3" : ""} ${editing ? "rounded-2xl ring-1 ring-dashed ring-primary/40" : ""} ${drag === id ? "opacity-40" : ""} ${off ? "opacity-50" : ""}`}
               draggable={editing} onDragStart={() => setDrag(id)} onDragEnd={() => setDrag(null)}
               onDragOver={(e) => { if (editing && drag && drag !== id) e.preventDefault(); }}
               onDrop={(e) => { e.preventDefault(); if (drag && drag !== id) move(drag, order.indexOf(id)); setDrag(null); }}>

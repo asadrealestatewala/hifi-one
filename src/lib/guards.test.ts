@@ -29,7 +29,7 @@ const PUBLIC = new Set(["page.tsx", "login/page.tsx", "login/verify/page.tsx", "
 
 // Pages that only need a signed-in employee because they show the caller's own data and check
 // record ownership or permissions themselves. Everything else in (app) must call requirePermission.
-const OWN_DATA_PAGES = new Set(["(app)/account/password/page.tsx", "(app)/account/security/page.tsx", "(app)/notifications/page.tsx", "(app)/me/profile/page.tsx", "(app)/payslips/[id]/page.tsx", "(app)/expenses/[id]/page.tsx"]);
+const OWN_DATA_PAGES = new Set(["(app)/account/password/page.tsx", "(app)/account/security/page.tsx", "(app)/notifications/page.tsx", "(app)/me/profile/page.tsx", "(app)/me/help/page.tsx", "(app)/me/tasks/page.tsx", "(app)/payslips/[id]/page.tsx", "(app)/expenses/[id]/page.tsx"]);
 
 describe("every protected page checks the caller", () => {
   const pages = files.filter((f) => f.endsWith("/page.tsx"));

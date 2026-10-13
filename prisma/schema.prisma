@@ -673,6 +673,9 @@ model EmployeeProfile {
   address        String?
   emergencyContact String?
   // Sensitive: only users with hr.view_sensitive may read these
+  dateOfBirth    String?   // YYYY-MM-DD
+  gender         String?
+  fatherName     String?
   identityNumber String?
   bankDetails    String?
   status         String   @default("ACTIVE") // ACTIVE | EXITED

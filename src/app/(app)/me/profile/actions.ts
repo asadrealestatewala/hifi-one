@@ -50,3 +50,18 @@ export async function removePhotoAction(formData: FormData): Promise<void> {
   }
   back(to, "photoOk", "Picture removed.");
 }
+
+// Self-service: a person may change their own contact numbers and address, nothing else. Everything else on the profile is HR's.
+export async function updateMyContactAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const field = (k: string, max: number) => String(formData.get(k) ?? "").trim().slice(0, max) || null;
+  const email = field("personalEmail", 200);
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) redirect(`/me/profile?edit=1&error=${encodeURIComponent("Enter a valid personal email.")}`);
+  const phone = field("phone", 40);
+  if (phone && !/^[+\d][\d\s().-]{5,}$/.test(phone)) redirect(`/me/profile?edit=1&error=${encodeURIComponent("Enter a valid phone number, for example +92 300 1234567.")}`);
+  const mine = await db.employeeProfile.findFirst({ where: { userId: user.id, organizationId: user.organizationId }, select: { id: true } });
+  if (!mine) redirect("/me/profile");
+  await db.employeeProfile.update({ where: { id: mine.id }, data: { phone, emergencyContact: field("emergencyContact", 200), personalEmail: email, address: field("address", 300) } });
+  await audit(user, { action: "employee.self_update", entity: "EmployeeProfile", entityId: mine.id, after: { fields: ["phone", "emergencyContact", "personalEmail", "address"] } });
+  redirect("/me/profile?saved=1");
+}

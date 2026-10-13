@@ -40,6 +40,9 @@ Master prompt section in brackets.
 - **Not built:** discounts, input tax on purchases, FX gain or loss accounting, direct bank feeds, reimbursements as a separate flow.
 
 ## Dashboards and reports [13]
+- **Home dashboard (done, tested at data level):** hero with period picker (this month, last month, this quarter, this year), collected, overdue and new-lead numbers; quick-action pills (new lead, receive payment, new voucher, mark attendance, leave requests, asset library, my tasks, ask the assistant) shown by role; tabs Overview, Leads & sales, Finance, People, Assets shown by role. Overview has the collected-and-spent chart, a Needs-attention list and arrangeable cards (follow-ups, overdue invoices, vouchers, commissions, attendance not marked, posts today, tasks, meetings, contacts, goals). Leads & sales is the leads report (also at CRM > Leads Report). Finance shows profit and loss for the period from the same ledger loader as Financial reports, position today, and overdue invoices. People: headcount, present, on leave, birthdays, new joiners. Assets: counts, cost, categories.
+- **My Space:** My Profile (details, branch, company assets, update contact details, picture), Help & Guide, Account Security, My Attendance, My Leave, My Payroll, My Tasks; a floating Ask button opens the assistant.
+- Old widgets (money tiles, KPIs) were replaced by the above; saved layouts keep any card ids that still exist.
 - **Done:** personal dashboard (widgets: goals, follow-ups, my tasks, meetings, contacts, money, pipeline, attention, organisation; reorder, hide, save per user), financial reports with quick periods.
 - **Not built:** separate dashboards per role beyond permission-filtered widgets, date-range and drill-down on every widget, report builder, XLS export.
 

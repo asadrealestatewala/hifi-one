@@ -12,6 +12,8 @@ export const dynamic = "force-dynamic";
 
 const opt = z.string().trim().max(300).optional().transform((v) => (v ? v : null));
 const schema = z.object({
+  dateOfBirth: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, "Enter a valid date of birth").or(z.literal("")).transform((v) => (v ? v : null)),
+  gender: z.enum(["Male", "Female", "Other", ""]).transform((v) => (v ? v : null)), fatherName: opt,
   designation: opt, phone: opt, personalEmail: opt, address: opt, emergencyContact: opt,
   workLocation: z.enum(["OFFICE", "REMOTE", "HYBRID", "FIELD"]),
   employmentType: z.enum(["FULL_TIME", "PART_TIME", "CONTRACT", "INTERN"]),
@@ -52,6 +54,7 @@ export default async function EmployeePage({ params, searchParams }: { params: P
   const p = await db.employeeProfile.findFirst({ where: { id, organizationId: user.organizationId } });
   if (!p) notFound();
   const u = await db.user.findUnique({ where: { id: p.userId }, include: { roles: { include: { role: true } } } });
+  const photoCount = await db.storedFile.count({ where: { organizationId: user.organizationId, ownerType: "USER_PHOTO", ownerId: p.userId, deletedAt: null } });
   const canManage = user.permissions.has("hr.manage");
   const sensitive = user.permissions.has("hr.view_sensitive");
   const f = (name: string, label: string, value: string | null) => (
@@ -61,11 +64,14 @@ export default async function EmployeePage({ params, searchParams }: { params: P
     <div className="space-y-4">
       <Link href="/hr/employees" className="text-sm text-muted hover:underline">← All employees</Link>
       <div className="flex flex-wrap items-center gap-4"><Avatar name={u?.name ?? "?"} userId={p.userId} size={72} /><h1 className="text-2xl font-semibold tracking-tight">{u?.name} <span className="text-muted text-base font-normal">{p.employeeNo}</span></h1></div>
-      {canManage && <PhotoForm userId={p.userId} returnTo={`/hr/employees/${p.id}`} hasPhoto={false} />}
+      {canManage && <PhotoForm userId={p.userId} returnTo={`/hr/employees/${p.id}`} hasPhoto={photoCount > 0} />}
       <p className="text-sm text-muted">{u?.email} · {u?.roles.map((r) => r.role.name).join(", ")}{p.joinDate && ` · Joined ${p.joinDate.toLocaleDateString()}`}</p>
       <form action={save} className="card grid gap-4 sm:grid-cols-2">
         <input type="hidden" name="id" value={p.id} />
         {f("designation", "Designation", p.designation)}
+        <div><label className="label" htmlFor="dateOfBirth">Date of birth</label><input id="dateOfBirth" name="dateOfBirth" type="date" defaultValue={p.dateOfBirth ?? ""} disabled={!canManage} className="input" /></div>
+        <div><label className="label" htmlFor="gender">Gender</label><select id="gender" name="gender" defaultValue={p.gender ?? ""} disabled={!canManage} className="input"><option value="">Not set</option><option>Male</option><option>Female</option><option>Other</option></select></div>
+        {f("fatherName", "Father's name", p.fatherName)}
         {f("phone", "Phone", p.phone)}
         {f("personalEmail", "Personal email", p.personalEmail)}
         {f("emergencyContact", "Emergency contact", p.emergencyContact)}

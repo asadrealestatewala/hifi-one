@@ -23,6 +23,7 @@
 - **Currencies.** Amounts carry their own currency and are never mixed in totals. `ExchangeRate` is used only by the consolidated reports.
 - **Commissions.** `CommissionEntry.allocationId` is unique: one payment allocation is commissioned once. Rules live in `CommissionRule`.
 - **Content.** `ContentItem` has `platforms` (several), `postType`, `plannedDate` and `plannedTime`; `clientId` is empty for the company's own posts. Every wording change is a `ContentVersion`; status changes are `ContentEvent`s.
+- **Profile.** `EmployeeProfile` now also holds `dateOfBirth`, `gender`, `fatherName` (set by HR); staff change only their own phone, emergency contact, personal email and address.
 - **Quotes and subscriptions.** `Quote` → `QuoteLine`; accepted quotes convert to a draft invoice once (`Quote.invoiceId`). `Subscription` → `SubscriptionInvoice` (unique per period) so a period is billed once.
 - **Tasks.** `Task.parentId` makes a subtask (one level); `Task.blockedBy` lists tasks in the same project that must be Done first (cycles refused); `Task.recurrence` plus unique `recurredFromId` makes the next occurrence exactly once; `TaskComment` is internal by default; files with owner TASK follow the project.
 - **Projects.** Progress is derived from top-level tasks; completion is blocked while tasks are open. `TimeEntry` and cost rates feed profitability. Tasks flagged client-visible appear in the client portal.

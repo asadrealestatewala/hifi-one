@@ -21,6 +21,8 @@ Dark sidebar with module groups (dropdowns, a coloured icon chip per module, cou
 
 Interactivity: pages fade in on navigation; link cards and stat tiles lift on hover; a click anywhere on a table row opens its record (`RowClick`, only when the click is not on a control or a text selection; the real link stays for keyboard users); menu items nudge on hover; reduced-motion settings switch the motion off.
 
+The dashboard hero uses the primary colour with a soft gradient (owner asked for a sample-style hero); a small floating Ask button sits bottom-right on every screen where the assistant is allowed.
+
 ## Shared components (use these, do not copy markup)
 
 `src/components/ui.tsx`: `PageHeader`, `Stat` (KPI card), `Badge`, `StatusBadge`, `Progress`, `Empty`, `Notice`, `Chips` (filter links with counts), `SearchBox`, `NewButton`, `Avatar`, `PanelForm` (body of a slide-over form), `likeEscape`.
