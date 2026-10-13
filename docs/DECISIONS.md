@@ -24,3 +24,14 @@ Newest last. Each entry: what was decided, why, and what it costs.
 21. **Home dashboard follows the owner's sample:** hero with period picker, quick actions, role-based tabs, needs-attention list and arrangeable cards. Every number comes from the same loaders as the reports (ledger balances, receivables aging, leads scope) so dashboard and reports cannot disagree; sections a role cannot see are not computed. The menu group "My Workspace" became "My Space" with items every employee has (profile, help, security, tasks).
 22. **Arrange menu is per person and cosmetic:** stored in `UserPreference` (key menu), validated against the menu the person is allowed to see, never produces an empty menu. It is not an access control.
 18. **Navigation lives only in the sidebar.** The owner asked to remove the top tab strip (it repeated the menu) and the Prospector level card at the bottom of the sidebar. Level, XP and daily goals stay on the dashboard. Menu count badges stay. Interactivity moved to motion and behaviour instead: fade-in on navigation, hover lift on link cards, whole-row click on tables.
+23. **Agentify ERP is a benchmark, not a source.** Its interaction quality (complete UI kit, one list engine, confirmations, one feedback channel, event helper, flow tests, CI) is the bar; its code, schema, palette, font and domain are not copied. Hifi One keeps Next.js, Prisma, PostgreSQL, exact decimals with currency, and its brand. See `docs/REFERENCE_ERP_AUDIT.md`.
+24. **Project knowledge lives in the repository.** `CLAUDE.md` holds the rules and the operating contract; `docs/SYSTEM_MAP.md`, `DESIGN_SYSTEM.md`, `DATA_MODEL.md`, `DATA_FLOWS.md`, `MODULE_STATUS.md`, this file and `REFERENCE_ERP_AUDIT.md` hold the detail; `.claude/rules/*.md` hold path-scoped rules. A change that alters architecture, a business rule or a module's status updates the matching file in the same change.
+
+## Open questions
+
+- Pagination style for server lists: page numbers in the URL (shareable, fits current `?status=` chips) or cursor-based for very large tables (audit log, monitoring)? Proposed: page numbers first.
+- Success feedback: `?ok=` query flag (current, visible in the address) or a short-lived flash cookie read by the layout?
+- Scheduled work (subscription billing, commission accrual, reminders, monitoring purge): an in-process scheduler, an OS task, or a hosted cron calling a guarded route? Affects deployment (`docs/DEPLOYMENT.md`).
+- Should commission accrue at payment time (inside `recordPayment`) instead of by batch, and should payroll pay approved commissions as the reference does?
+- Inline `"use server"` actions in pages vs `actions.ts` per module: standardise on `actions.ts` for new work?
+

@@ -1,6 +1,6 @@
 # Module status
 
-Last checked against the code and the test run: 704 automated tests passing, `tsc` and `eslint` clean, production build succeeds. "Done" = works end to end, persisted, permission-checked, tested. "Partial" says what is missing. "Not built" = nothing exists. "Needs outside setup" = built, but cannot be verified without credentials or software that this machine lacks.
+Last checked against the code and the test run (2026-10-13): 748 automated tests in 52 files passing, `tsc` and `eslint` clean, production build succeeds. "Done" = works end to end, persisted, permission-checked, tested. "Partial" says what is missing. "Not built" = nothing exists. "Needs outside setup" = built, but cannot be verified without credentials or software that this machine lacks.
 
 Master prompt section in brackets.
 
@@ -62,8 +62,24 @@ Master prompt section in brackets.
 - **Meetings (built-in video):** done for up to 8 people, screen sharing, chat, guest links, waiting room. Not verified with real cameras across networks; no recording.
 - **UI shell [2, 3]:** design system documented; the top tab strip and the sidebar level card were removed on request; navigation is the sidebar only (see `docs/ERP_AUDIT.md`, finding 1).
 
+## Cross-cutting gaps (reference audit, 2026-10-13)
+
+Found by comparing with the reference ERP; evidence in `docs/REFERENCE_ERP_AUDIT.md`. These affect every module above.
+- **Lists are capped, not paginated.** `take:` limits with no pager or notice on invoices (200), payments (100), leads (200), quotes (200), expenses (200), pipeline (500), audit logs (100). Only contacts paginate. The dashboard Assets tab totals come from a 500-row capped query.
+- **States.** One `loading.tsx` for the whole staff area; no `error.tsx` or `not-found.tsx`.
+- **Action safety.** No confirmation on Cancel invoice or commission Void; `PanelForm` submit has no pending state.
+- **Shared UI under-used.** 73 of 102 pages hand-roll the header, 53 files hand-roll tables, 64 inline alerts.
+- **Notifications missing** on lead assignment, invoice issued, payment received, portal quote decision, payroll, vendor bill decisions.
+- **Batch jobs by button.** Commission accrual and subscription billing run on demand; payroll ignores approved commissions.
+- **Exports** only for contacts.
+- **No CI**, no HTTP or browser flow tests.
+
+## Test coverage gaps
+- Service rules are covered (748 tests). Not covered: page rendering, pagination, end-to-end flows across modules (lead to cash in one test with trial balance and receivable control checks), portal screens in a browser, drag and drop, mail delivery, video across networks.
+
 ## Next concrete actions
 1. Check the sidebar and the new row-click behaviour signed in.
 2. Auto-start script for database and server; first browser end-to-end tests (sign-in, invoice, contact edit).
 3. Check the task panel signed in; then deliverables and monthly client report.
 4. Tighten the content security policy.
+5. Work through the five tasks at the end of `docs/REFERENCE_ERP_AUDIT.md` (pagination, error states, confirmations, notifications, CI).

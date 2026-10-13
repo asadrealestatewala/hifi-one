@@ -40,10 +40,40 @@ Back link, header with status badge, the key number (balance, term, stage) and p
 ## Rules
 
 - Sizes, radii and spacing come from the existing classes; no per-page overrides. Tables scroll horizontally inside their card, never the page.
-- Every list has empty, loading (`loading.tsx` skeleton) and error states.
+- Every list has empty, loading (`loading.tsx` skeleton) and error states. (Target, not yet met: today there is one `src/app/(app)/loading.tsx` and no `error.tsx`; see "Adoption" below.)
 - Colour is never the only signal: statuses carry a text label; progress bars carry `role="progressbar"`.
 - Touch targets and keyboard: all controls are real buttons or links; panels close with Escape.
 
 ## Approved deviations from the original reference
 
 The owner asked for a "sleek, modern, interactive, gamified" interface after the first version. Approved and implemented: module-coloured icon chips, slide-over panels, dashboard goals card, small gradients on progress bars. Gradients are not used elsewhere. See `docs/DECISIONS.md`.
+
+## Adoption (measured 2026-10-13)
+
+The kit above is correct but under-used, which is the main reason screens drift (`docs/REFERENCE_ERP_AUDIT.md`, RC1):
+28 of 102 pages use `PageHeader` (73 write their own `<h1>`); 53 files hand-write `<table>` markup; 64 files inline an error `<p role="alert">` instead of `Notice`; one `loading.tsx`, no `error.tsx` or `not-found.tsx`; `PanelForm`'s submit button has no pending state; there is no confirmation component.
+
+When you touch a page, bring it onto the kit: `PageHeader`, `Notice`, `Empty`, `StatusBadge`, `Stat`, `Chips`, `SearchBox`, `Drawer` + `PanelForm`. Do not restyle a page with one-off classes.
+
+## Interaction standards (benchmark: Agentify ERP, adapted to server components)
+
+These are the standards new and touched screens must meet. Components marked *planned* do not exist yet; build them once in `src/components/ui.tsx` (or `src/components/ui/`) and reuse them, never per page.
+
+| Situation | Standard | Component |
+|---|---|---|
+| Page title | Title, one-line purpose, primary action on the right | `PageHeader` |
+| Card with a heading | Title row with optional actions, then body | `Card` *(planned)* |
+| Form field | Label (with `htmlFor`), required mark, hint, error under the field | `Field` *(planned)*; today `label` class + `htmlFor` |
+| Submit | Button disables and says "Saving…" while pending; no double submit | `SubmitButton` *(planned, `useFormStatus`)* |
+| Destructive or financial action (cancel, void, write off, reverse, reject, delete) | Confirmation step, and a reason when the service records one | `ConfirmButton` *(planned)* |
+| Result of an action | Error: `Notice kind="error"` at the top of the form or page; success: a short `Notice kind="ok"` or flash | `Notice` |
+| List | Search, status chips, sortable headers, pagination with "x–y of N", empty state with next step, export where the role may export | `DataTable` *(planned, URL-driven)*; today `card !p-0` table pattern |
+| Key/value detail | Two-column definition list | `KV` *(planned)* |
+| Money | Tabular figures, currency always shown | `formatMoney` (`src/lib/money.ts`) |
+| Date ranges | Presets (this month, last month, quarter, year, custom) | the dashboard period picker; generalise to `DateRange` *(planned)* |
+| Status | One tone map for all statuses (`STATUS_TONE`); colour plus text | `StatusBadge` |
+| Loading | Skeleton matching the layout, per route segment | `loading.tsx` with `.skeleton` |
+| Errors | Friendly message, retry, link home; never a stack trace | `error.tsx` per area *(planned)* |
+| Dialogs and panels | Escape closes, focus moves into the panel, close button labelled | `Drawer` (focus handling to add) |
+
+Tokens stay as listed at the top (brand red, violet primary, navy sidebar). If a tone is missing (for example an info blue or tinted backgrounds for status), add a token to `globals.css` and record it in `docs/DECISIONS.md`; do not adopt the reference's teal palette or font.
