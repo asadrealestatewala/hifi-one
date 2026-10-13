@@ -103,12 +103,7 @@ export function NewButton({ href, children }: { href: string; children: ReactNod
 // Escapes % and _ so typed text is matched literally in LIKE searches
 export const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => "\\" + c);
 
-const AVATAR_HUES = ["#5648e8", "#8b5cf6", "#2563eb", "#f97316", "#059669", "#e11d74", "#d97706", "#0d9488"];
-export function Avatar({ name, size = 32 }: { name: string; size?: number }) {
-  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
-  let h = 0; for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return <span aria-hidden className="inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-white" style={{ width: size, height: size, fontSize: size * 0.38, background: AVATAR_HUES[h % AVATAR_HUES.length] }}>{initials}</span>;
-}
+export { default as Avatar } from "./ui/Avatar";
 
 // Body of a slide-over "New …" panel: scrolling fields with a fixed Save / Cancel bar.
 export function PanelForm({ action, closeTo, submit, error, hint, children }: { action: (f: FormData) => void | Promise<void>; closeTo: string; submit: string; error?: string; hint?: ReactNode; children: ReactNode }) {

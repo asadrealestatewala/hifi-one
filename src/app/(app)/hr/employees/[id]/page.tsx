@@ -5,6 +5,8 @@ import { z } from "zod";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import FilesPanel from "@/components/FilesPanel";
+import PhotoForm from "@/components/PhotoForm";
+import Avatar from "@/components/ui/Avatar";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +60,8 @@ export default async function EmployeePage({ params, searchParams }: { params: P
   return (
     <div className="space-y-4">
       <Link href="/hr/employees" className="text-sm text-muted hover:underline">← All employees</Link>
-      <h1 className="text-2xl font-semibold tracking-tight">{u?.name} <span className="text-muted text-base font-normal">{p.employeeNo}</span></h1>
+      <div className="flex flex-wrap items-center gap-4"><Avatar name={u?.name ?? "?"} userId={p.userId} size={72} /><h1 className="text-2xl font-semibold tracking-tight">{u?.name} <span className="text-muted text-base font-normal">{p.employeeNo}</span></h1></div>
+      {canManage && <PhotoForm userId={p.userId} returnTo={`/hr/employees/${p.id}`} hasPhoto={false} />}
       <p className="text-sm text-muted">{u?.email} · {u?.roles.map((r) => r.role.name).join(", ")}{p.joinDate && ` · Joined ${p.joinDate.toLocaleDateString()}`}</p>
       <form action={save} className="card grid gap-4 sm:grid-cols-2">
         <input type="hidden" name="id" value={p.id} />

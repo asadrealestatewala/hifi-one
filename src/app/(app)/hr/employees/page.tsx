@@ -19,10 +19,10 @@ export default async function Employees({ searchParams }: { searchParams: Promis
     sp.new && canManage ? db.role.findMany({ where: { organizationId: user.organizationId, key: { notIn: ["CLIENT", "VENDOR", "BUSINESS_PARTNER", "INVESTOR"] } }, orderBy: { name: "asc" } }) : Promise.resolve([]),
   ]);
   const byId = new Map(users.map((u) => [u.id, u]));
-  type Row = { key: string; href: string | null; no: string; name: string; email: string; roles: string; location: string; status: string };
+  type Row = { key: string; uid: string; href: string | null; no: string; name: string; email: string; roles: string; location: string; status: string };
   const rows: Row[] = [
-    ...users.filter((u) => !profiles.some((p) => p.userId === u.id)).map((u) => ({ key: u.id, href: null, no: "-", name: u.name, email: u.email, roles: u.roles.map((r) => r.role.name).join(", "), location: "", status: "NO_PROFILE" })),
-    ...profiles.map((p) => { const u = byId.get(p.userId); return { key: p.id, href: `/hr/employees/${p.id}`, no: p.employeeNo, name: u?.name ?? "", email: u?.email ?? "", roles: u?.roles.map((r) => r.role.name).join(", ") ?? "", location: p.workLocation, status: p.status }; }),
+    ...users.filter((u) => !profiles.some((p) => p.userId === u.id)).map((u) => ({ key: u.id, uid: u.id, href: null, no: "-", name: u.name, email: u.email, roles: u.roles.map((r) => r.role.name).join(", "), location: "", status: "NO_PROFILE" })),
+    ...profiles.map((p) => { const u = byId.get(p.userId); return { key: p.id, uid: p.userId, href: `/hr/employees/${p.id}`, no: p.employeeNo, name: u?.name ?? "", email: u?.email ?? "", roles: u?.roles.map((r) => r.role.name).join(", ") ?? "", location: p.workLocation, status: p.status }; }),
   ];
   const statuses = [...new Set(rows.map((r) => r.status))];
   const status = statuses.includes(sp.status ?? "") ? sp.status! : "all";
@@ -47,7 +47,7 @@ export default async function Employees({ searchParams }: { searchParams: Promis
             <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="px-4 py-2.5">Employee</th><th className="pr-4">Roles</th><th className="pr-4">Location</th><th className="pr-4">Status</th></tr></thead>
             <tbody>
               {shown.map((r) => {
-                const who = <><Avatar name={r.name} /><span><span className={`block font-medium ${r.href ? "hover:underline" : ""}`}>{r.name}</span><span className="text-xs text-muted">{r.no} · {r.email}</span></span></>;
+                const who = <><Avatar name={r.name} userId={r.uid} /><span><span className={`block font-medium ${r.href ? "hover:underline" : ""}`}>{r.name}</span><span className="text-xs text-muted">{r.no} · {r.email}</span></span></>;
                 return (
                   <tr key={r.key} className="border-t border-border transition hover:bg-hover/50">
                     <td className="px-4 py-2.5">{r.href ? <Link href={r.href} className="flex items-center gap-3">{who}</Link> : <div className="flex items-center gap-3">{who}</div>}</td>

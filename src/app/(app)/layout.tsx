@@ -19,7 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const groups = NAV.map((g) => ({ id: g.id, title: g.title, icon: g.icon, items: g.items.filter((i) => user.permissions.has(i.permission)).map((i) => ({ href: i.href, label: i.label })) })).filter((g) => g.items.length > 0);
   const quick = QUICK_CREATE.filter((q) => user.permissions.has(q.permission)).map(({ href, label, icon }) => ({ href, label, icon }));
   return (
-    <Shell groups={groups} quick={quick} name={user.name} roles={user.roles.join(", ")} unread={unread} stats={stats} canSearch={user.permissions.has("dashboard.view")} signOut={signOut}>
+    <Shell groups={groups} quick={quick} name={user.name} roles={user.roles.join(", ")} userId={user.id} unread={unread} stats={stats} canSearch={user.permissions.has("dashboard.view")} signOut={signOut}>
       {children}
     </Shell>
   );

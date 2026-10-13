@@ -29,4 +29,5 @@ Method: read the repository, run the checks, open screens in a browser. Only thi
 
 Server-side guards on every page and action (test-enforced); org filter on queries; file access follows the owning record; contact merge limited to managers; contact email can only go to addresses on the record; CSV export defuses spreadsheet formulas; social and website links render as links only for http(s). Headers sent: HSTS, nosniff, frame denial, referrer policy, permissions policy, content policy.
 
+12. **Account block, profile pictures and the content calendar screens not yet checked in a browser** (pane signed out). Their rules and permissions are tested. Open.
 11. **Task panel not yet checked in a browser.** The rules and permissions are tested; the screen was built, type-checked and the production build succeeds, but the browser pane was signed out so I could not open it. Open.

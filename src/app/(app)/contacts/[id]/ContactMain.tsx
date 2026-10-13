@@ -20,7 +20,7 @@ const social = (k: string, v: string) => (k === "skype" || k === "x" && !v.start
 
 export default function ContactMain({ c, parent, people, staff, owners, followerNames, orgs, canEdit, manager, right }: {
   c: Contact; parent: { id: string; name: string; primaryEmail: string | null; primaryPhone: string | null } | null; people: number; staff: { id: string; name: string }[]; owners: Map<string, string>;
-  followerNames: string[]; orgs: string[]; canEdit: boolean; manager: boolean; right: React.ReactNode;
+  followerNames: { id: string; name: string }[]; orgs: string[]; canEdit: boolean; manager: boolean; right: React.ReactNode;
 }) {
   const phones = c.phones as unknown as Entry[], emails = c.emails as unknown as Entry[];
   const soc = c.social as Record<string, string>, utm = c.utm as Record<string, string>, custom = c.customFields as Record<string, string>;
@@ -40,7 +40,7 @@ export default function ContactMain({ c, parent, people, staff, owners, follower
           <Row label="Birthday">{c.birthday ? new Date(c.birthday + "T00:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : null}</Row>
           <Row label="Industry">{c.industry}</Row>
           <Row label="Category"><Badge tone={TONE[c.category] ?? "neutral"}>{c.category.toLowerCase()}</Badge></Row>
-          <Row label="Owner">{ownerName ? <span className="inline-flex items-center gap-2"><Avatar name={ownerName} size={22} />{ownerName}</span> : null}</Row>
+          <Row label="Owner">{ownerName ? <span className="inline-flex items-center gap-2"><Avatar name={ownerName} userId={c.ownerId} size={22} />{ownerName}</span> : null}</Row>
         </dl>
       }>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -94,7 +94,7 @@ export default function ContactMain({ c, parent, people, staff, owners, follower
 
         <Block>
           <EditableSection {...common} section="followers" title="Followers" view={
-            followerNames.length === 0 ? <p className="text-sm text-muted">No followers. {canEdit && "Add colleagues who should be kept in the loop."}</p> : <ul className="flex flex-wrap gap-2">{followerNames.map((n) => <li key={n} className="inline-flex items-center gap-2 rounded-full bg-hover py-1 pl-1 pr-3 text-sm"><Avatar name={n} size={22} />{n}</li>)}</ul>
+            followerNames.length === 0 ? <p className="text-sm text-muted">No followers. {canEdit && "Add colleagues who should be kept in the loop."}</p> : <ul className="flex flex-wrap gap-2">{followerNames.map((f) => <li key={f.id} className="inline-flex items-center gap-2 rounded-full bg-hover py-1 pl-1 pr-3 text-sm"><Avatar name={f.name} userId={f.id} size={22} />{f.name}</li>)}</ul>
           }>
             <div className="grid max-h-48 gap-1 overflow-y-auto sm:grid-cols-2">{staff.filter((u) => u.id !== c.ownerId).map((u) => <label key={u.id} className="flex items-center gap-2 rounded-lg px-2 py-1 text-sm hover:bg-hover"><input type="checkbox" name="followers" value={u.id} defaultChecked={c.followers.includes(u.id)} />{u.name}</label>)}</div>
           </EditableSection>

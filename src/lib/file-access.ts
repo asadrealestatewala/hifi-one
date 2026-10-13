@@ -11,7 +11,7 @@ export type FileActor = {
   permissions: ReadonlySet<string>;
 };
 
-export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK"] as const;
+export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO"] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 export type Mode = "read" | "upload" | "delete";
 
@@ -48,6 +48,13 @@ export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: 
       return a.userType === "CLIENT" && a.clientId !== null && a.clientId === c.clientId && CLIENT_VISIBLE.includes(c.status); // never drafts
     }
     return has("content.manage") && CONTENT_EDITABLE.includes(c.status);
+  }
+
+  if (ownerType === "USER_PHOTO") {
+    // A profile picture: any staff member of the organization may see it; only the person, or HR, may change it
+    const u = await db.user.findFirst({ where: { id: ownerId, organizationId: a.organizationId, userType: "EMPLOYEE" }, select: { id: true } });
+    if (!u || !staff) return false;
+    return mode === "read" ? true : a.id === ownerId || has("hr.manage");
   }
 
   if (ownerType === "TASK") {

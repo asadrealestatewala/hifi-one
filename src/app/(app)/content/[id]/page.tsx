@@ -3,7 +3,9 @@ import { notFound, redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ContentError, editContent, transition } from "@/lib/content";
-import { canTransition, isEditable, needsComment } from "@/lib/content-rules";
+import { PLATFORMS, PLATFORM_META, POST_TYPES, POST_TYPE_LABEL, canTransition, isEditable, needsComment } from "@/lib/content-rules";
+import { PlatformDot } from "../PostForm";
+import { STATUS_STYLE } from "../status-style";
 import FilesPanel from "@/components/FilesPanel";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +33,7 @@ async function save(formData: FormData) {
   const user = await requirePermission("content.manage");
   const id = String(formData.get("id"));
   try {
-    await editContent(db, { organizationId: user.organizationId, id, copy: String(formData.get("copy") ?? ""), hashtags: String(formData.get("hashtags") ?? ""), title: String(formData.get("title") ?? ""), plannedDate: String(formData.get("plannedDate") ?? "") });
+    await editContent(db, { organizationId: user.organizationId, id, copy: String(formData.get("copy") ?? ""), hashtags: String(formData.get("hashtags") ?? ""), title: String(formData.get("title") ?? ""), plannedDate: String(formData.get("plannedDate") ?? ""), plannedTime: String(formData.get("plannedTime") ?? ""), postType: String(formData.get("postType") ?? "") || undefined, platforms: formData.getAll("platforms").map(String) });
     await audit(user, { action: "content.edit", entity: "ContentItem", entityId: id });
   } catch (e) {
     if (e instanceof ContentError) back(id, e.message);
@@ -40,27 +42,33 @@ async function save(formData: FormData) {
   redirect(`/content/${id}`);
 }
 
-export default async function ContentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; fileError?: string; fileOk?: string }> }) {
+export default async function ContentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; fileError?: string; fileOk?: string; created?: string }> }) {
   const user = await requirePermission("content.view");
   const { id } = await params;
-  const { error, fileError, fileOk } = await searchParams;
+  const { error, fileError, fileOk, created } = await searchParams;
   const item = await db.contentItem.findFirst({ where: { id, organizationId: user.organizationId }, include: { events: { orderBy: { createdAt: "desc" } }, versions: { orderBy: { version: "desc" } } } });
   if (!item) notFound();
   const [client, people, clientUsers] = await Promise.all([
-    db.client.findUnique({ where: { id: item.clientId } }),
+    item.clientId ? db.client.findUnique({ where: { id: item.clientId } }) : Promise.resolve(null),
     db.user.findMany({ where: { organizationId: user.organizationId }, select: { id: true, name: true } }),
-    db.user.findMany({ where: { clientId: item.clientId }, select: { id: true, name: true } }),
+    item.clientId ? db.user.findMany({ where: { clientId: item.clientId }, select: { id: true, name: true } }) : Promise.resolve([]),
   ]);
   const who = (e: { actorId: string; actorType: string }) => [...people, ...clientUsers].find((p) => p.id === e.actorId)?.name ?? "Unknown";
   const canManage = user.permissions.has("content.manage");
   const canPublish = user.permissions.has("content.publish");
-  const next = ["DRAFT", "INTERNAL_REVIEW", "CLIENT_REVIEW", "CHANGES_REQUESTED", "APPROVED", "SCHEDULED", "PUBLISHED"].filter((to) => canTransition("STAFF", item.status, to))
+  const next = ["DRAFT", "INTERNAL_REVIEW", "CLIENT_REVIEW", "CHANGES_REQUESTED", "APPROVED", "SCHEDULED", "PUBLISHED"].filter((to) => canTransition("STAFF", item.status, to, Boolean(item.clientId)))
     .filter((to) => (to === "SCHEDULED" || to === "PUBLISHED" ? canPublish : canManage));
   return (
     <div className="space-y-6 max-w-3xl">
       <Link href="/content" className="text-sm text-muted hover:underline">← Content calendar</Link>
       <h1 className="text-2xl font-semibold tracking-tight">{item.title} <span className="text-base font-normal text-muted">{LABEL(item.status)} · version {item.version}</span></h1>
-      <p className="text-sm text-muted">{client?.name} · {LABEL(item.platform)}{item.plannedDate && ` · planned ${item.plannedDate}`}</p>
+      <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
+        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium ${(STATUS_STYLE[item.status] ?? STATUS_STYLE.DRAFT).chip}`}>{(STATUS_STYLE[item.status] ?? STATUS_STYLE.DRAFT).label}</span>
+        <span>{client?.name ?? "Our own account"}</span><span>·</span><span>{POST_TYPE_LABEL[item.postType] ?? item.postType}</span><span>·</span>
+        <span className="inline-flex items-center gap-1">{(item.platforms.length ? item.platforms : [item.platform]).map((p) => <PlatformDot key={p} code={PLATFORM_META[p]?.code ?? "?"} color={PLATFORM_META[p]?.color ?? "#6b7280"} size={20} />)}</span>
+        {item.plannedDate && <span>· {item.plannedDate}{item.plannedTime ? ` at ${item.plannedTime}` : ""}</span>}
+      </div>
+      {created && <p className="rounded-lg bg-success/10 px-3 py-2 text-sm text-success">Post saved as a draft. Attach the creative below, then send it for review.</p>}
       {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
 
       {canManage && isEditable(item.status) ? (
@@ -68,6 +76,11 @@ export default async function ContentPage({ params, searchParams }: { params: Pr
           <input type="hidden" name="id" value={item.id} />
           <div><label className="label" htmlFor="title">Title</label><input id="title" name="title" defaultValue={item.title} className="input" /></div>
           <div><label className="label" htmlFor="copy">Post copy (saving a change creates a new version)</label><textarea id="copy" name="copy" defaultValue={item.copy} rows={4} className="input" /></div>
+          <fieldset><legend className="label">Platforms</legend><div className="flex flex-wrap gap-2">{PLATFORMS.filter((p) => p !== "OTHER" || item.platforms.includes("OTHER")).map((p) => <label key={p} className="flex cursor-pointer items-center gap-2 rounded-full border border-border bg-surface py-1 pl-1 pr-3 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/10"><input type="checkbox" name="platforms" value={p} defaultChecked={(item.platforms.length ? item.platforms : [item.platform]).includes(p)} className="sr-only" /><PlatformDot code={PLATFORM_META[p].code} color={PLATFORM_META[p].color} />{PLATFORM_META[p].label}</label>)}</div></fieldset>
+          <div className="grid grid-cols-3 gap-2">
+            <div><label className="label" htmlFor="postType">Post type</label><select id="postType" name="postType" defaultValue={item.postType} className="input">{POST_TYPES.map((t) => <option key={t} value={t}>{POST_TYPE_LABEL[t]}</option>)}</select></div>
+            <div><label className="label" htmlFor="plannedTime">Posting time</label><input id="plannedTime" name="plannedTime" type="time" defaultValue={item.plannedTime ?? ""} className="input" /></div>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <div><label className="label" htmlFor="hashtags">Hashtags</label><input id="hashtags" name="hashtags" defaultValue={item.hashtags ?? ""} className="input" /></div>
             <div><label className="label" htmlFor="plannedDate">Planned date</label><input id="plannedDate" name="plannedDate" type="date" defaultValue={item.plannedDate ?? ""} className="input" /></div>

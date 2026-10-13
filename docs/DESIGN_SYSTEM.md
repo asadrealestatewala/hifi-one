@@ -17,7 +17,7 @@ Classes `btn`, `btn-ghost`, `input`, `label`, `card` and `skeleton` are defined 
 
 ## Shell
 
-Dark sidebar with module groups (dropdowns, a coloured icon chip per module, count badges for what waits for you), and a top bar (search, Create, theme, notifications). Navigation lives only in the sidebar: the pill tab strip that repeated it at the top and the level card at the bottom of the sidebar were removed at the owner's request. Level and daily goals remain on the dashboard. A thin progress bar runs across the top while a page loads. Module colours: `src/components/shell/nav-colors.ts`.
+Dark sidebar with module groups (dropdowns, a coloured icon chip per module, count badges for what waits for you) and, at the bottom, the signed-in person: picture, name, role, an account menu (My profile, two-step verification, change password, calendar feed, notifications) and a sign-out button. The top bar has only search, Create, theme and notifications. Navigation lives only in the sidebar: the pill tab strip that repeated it at the top and the level card at the bottom of the sidebar were removed at the owner's request. Level and daily goals remain on the dashboard. A thin progress bar runs across the top while a page loads. Module colours: `src/components/shell/nav-colors.ts`.
 
 Interactivity: pages fade in on navigation; link cards and stat tiles lift on hover; a click anywhere on a table row opens its record (`RowClick`, only when the click is not on a control or a text selection; the real link stays for keyboard users); menu items nudge on hover; reduced-motion settings switch the motion off.
 

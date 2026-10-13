@@ -120,7 +120,7 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
 
       {tab === "overview" && (
         <ContactMain c={c} parent={parent ? { ...parent, primaryEmail: parentFull?.primaryEmail ?? null, primaryPhone: parentFull?.primaryPhone ?? null } : null} people={people.length} staff={staff} owners={name}
-          followerNames={c.followers.map((f) => name.get(f) ?? "Former staff")} orgs={orgNames.map((o) => o.name)} canEdit={canEdit} manager={manager}
+          followerNames={c.followers.map((f) => ({ id: f, name: name.get(f) ?? "Former staff" }))} orgs={orgNames.map((o) => o.name)} canEdit={canEdit} manager={manager}
           right={<div className="space-y-6"><Timeline c={c} canEdit={canEdit} activities={activities.slice(0, 30)} names={name} showAll />{meetings.length > 0 && <section className="card space-y-2"><h2 className="font-semibold">Upcoming meetings</h2><ul className="text-sm">{meetings.map((m) => <li key={m.id} className="flex justify-between border-t border-border py-1.5 first:border-0"><Link className="hover:underline" href={`/meetings/${m.id}`}>{m.title}</Link><span className="text-muted">{m.scheduledAt?.toLocaleString() ?? "now"}</span></li>)}</ul></section>}</div>} />
       )}
 

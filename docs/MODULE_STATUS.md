@@ -10,6 +10,7 @@ Master prompt section in brackets.
 - **Not built:** proposals separate from quotations, editing pipeline stages in the UI, inbound email inbox (outbound email from a contact works when SMTP is configured).
 
 ## Marketing agency operations [6]
+- **Content calendar (done, tested at service level):** month calendar and sheet views, filters (search, platform, type, status, assignee, client), KPI cards, Plan-a-post panel (type, caption with count, nine platforms, date, time, client or our own account, assignee), drag a post to another day, creative files on the post, approval workflow kept (client review for clients, internal approval for own posts). Not built: posting to the platforms (needs their API credentials), per-platform captions, analytics.
 - **Done:** service catalog with per-currency prices, clients, retainers as subscriptions, campaigns, content calendar with client approvals, contracts, project profitability.
 - **Not built:** brands, deliverables as their own record, ad budgets and actual spend per platform, KPIs per channel, monthly client reports. Live ad metrics need provider accounts and are not faked.
 

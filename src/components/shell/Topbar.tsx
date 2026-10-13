@@ -16,10 +16,10 @@ function useClickAway(ref: React.RefObject<HTMLElement | null>, close: () => voi
   }, [ref, close]);
 }
 
-export default function Topbar({ name, roles, unread, quick, canSearch, signOut, onMenu }: {
-  name: string; roles: string; unread: number; quick: Quick[]; canSearch: boolean; signOut: () => Promise<void>; onMenu: () => void;
+export default function Topbar({ unread, quick, canSearch, onMenu }: {
+  unread: number; quick: Quick[]; canSearch: boolean; onMenu: () => void;
 }) {
-  const [menu, setMenu] = useState<"" | "quick" | "profile">("");
+  const [menu, setMenu] = useState<"" | "quick">("");
   const [dark, setDark] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
@@ -38,7 +38,6 @@ export default function Topbar({ name, roles, unread, quick, canSearch, signOut,
     try { localStorage.setItem("hifi.theme", next); } catch { /* private mode: the choice just is not remembered */ }
     setDark(!dark);
   };
-  const initials = name.split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
 
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-surface/90 px-4 backdrop-blur md:px-6">
@@ -82,25 +81,6 @@ export default function Topbar({ name, roles, unread, quick, canSearch, signOut,
           {unread > 0 && <span className="absolute right-1 top-1 min-w-[16px] rounded-full bg-brand px-1 text-center text-[10px] font-semibold leading-4 text-white">{unread > 99 ? "99+" : unread}</span>}
         </Link>
 
-        <div className="relative">
-          <button type="button" onClick={() => setMenu(menu === "profile" ? "" : "profile")} aria-expanded={menu === "profile"} aria-haspopup="menu"
-            className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 hover:bg-hover">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">{initials}</span>
-            <span className="hidden text-left leading-tight lg:block"><span className="block text-[13px] font-medium">{name}</span><span className="block max-w-40 truncate text-[11px] text-muted">{roles}</span></span>
-            <Icon name="down" className="hidden h-3.5 w-3.5 text-muted lg:block" />
-          </button>
-          {menu === "profile" && (
-            <div role="menu" className="absolute right-0 mt-2 w-60 rounded-xl border border-border bg-surface p-1.5 shadow-lg">
-              <div className="px-3 py-2"><p className="text-sm font-medium">{name}</p><p className="text-xs text-muted">{roles}</p></div>
-              <div className="my-1 border-t border-border" />
-              {[["/account/security", "Two-step verification", "shield"], ["/account/password", "Change password", "key"], ["/me/calendar", "Calendar feed", "calendar"], ["/notifications", "Notifications", "bell"]].map(([href, label, icon]) => (
-                <Link key={href} href={href} role="menuitem" onClick={() => setMenu("")} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-hover"><Icon name={icon} className="h-4 w-4 text-muted" />{label}</Link>
-              ))}
-              <div className="my-1 border-t border-border" />
-              <form action={signOut}><button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-hover"><Icon name="logout" className="h-4 w-4 text-muted" />Sign out</button></form>
-            </div>
-          )}
-        </div>
       </div>
     </header>
   );

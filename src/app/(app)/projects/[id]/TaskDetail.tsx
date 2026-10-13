@@ -3,10 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 import { StatusBadge } from "@/components/ui";
+import Avatar from "@/components/ui/Avatar";
 import { addSubtaskAction, addTaskCommentAction, moveTask, saveTaskDetailAction } from "../actions";
 
 type Sub = { id: string; title: string; status: string };
-type Comment = { id: string; author: string; body: string; at: string };
+type Comment = { id: string; authorId: string; author: string; body: string; at: string };
 export type TaskDetailData = {
   id: string; title: string; status: string; description: string; priority: string; assigneeId: string; due: string; clientVisible: boolean; recurrence: string;
   blockedBy: string[]; parentTitle: string | null;
@@ -82,7 +83,7 @@ export default function TaskDetail({ task, subtasks, candidates, members, commen
       <section className="space-y-2">
         <h3 className="font-semibold">Comments</h3>
         {comments.length === 0 ? <p className="text-muted">No comments yet.</p> : (
-          <ul className="space-y-3">{comments.map((c) => <li key={c.id}><p className="text-xs text-muted"><span className="font-medium text-foreground">{c.author}</span> · {c.at}</p><p className="whitespace-pre-wrap">{c.body}</p></li>)}</ul>
+          <ul className="space-y-3">{comments.map((c) => <li key={c.id} className="flex gap-3"><Avatar name={c.author} userId={c.authorId} size={28} /><div className="min-w-0"><p className="text-xs text-muted"><span className="font-medium text-foreground">{c.author}</span> · {c.at}</p><p className="whitespace-pre-wrap">{c.body}</p></div></li>)}</ul>
         )}
         {canComment && (
           <form onSubmit={(e) => { e.preventDefault(); const t = note; run(() => addTaskCommentAction(task.id, t), () => setNote("")); }} className="space-y-2">

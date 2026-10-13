@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Avatar from "@/components/ui/Avatar";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import CreateUserForm from "./CreateUserForm";
@@ -24,7 +25,7 @@ export default async function Users() {
           <tbody>
             {users.map((u) => (
               <tr key={u.id} className="border-t border-border transition hover:bg-hover/50">
-                <td className="py-2 pr-4 font-medium">{canManage ? <Link className="hover:underline" href={`/users/${u.id}`}>{u.name}</Link> : u.name}</td>
+                <td className="py-2 pr-4 font-medium"><span className="flex items-center gap-2"><Avatar name={u.name} userId={u.userType === "EMPLOYEE" ? u.id : null} size={28} />{canManage ? <Link className="hover:underline" href={`/users/${u.id}`}>{u.name}</Link> : u.name}</span></td>
                 <td className="pr-4">{u.email}</td><td className="pr-4">{u.userType.toLowerCase()}</td>
                 <td className="pr-4">{u.roles.map((r) => r.role.name).join(", ")}</td>
                 <td className="pr-4">{u.totpEnabled ? "on" : <span className="text-muted">off</span>}</td>

@@ -59,3 +59,15 @@ describe("files on a contact follow the contact's visibility", () => {
     expect(await authorizeOwner(db, { ...actor(ann, "crm.view"), organizationId: "other" }, "CONTACT", id, "read")).toBe(false);
   });
 });
+
+describe("profile pictures", () => {
+  it("any staff member can see a colleague's picture; only the person or HR can change it; clients and other organizations cannot", async () => {
+    expect(await authorizeOwner(db, actor(bob, "dashboard.view"), "USER_PHOTO", ann, "read")).toBe(true);
+    expect(await authorizeOwner(db, actor(ann), "USER_PHOTO", ann, "upload")).toBe(true); // your own
+    expect(await authorizeOwner(db, actor(bob), "USER_PHOTO", ann, "upload")).toBe(false); // someone else's
+    expect(await authorizeOwner(db, actor(bob, "hr.manage"), "USER_PHOTO", ann, "upload")).toBe(true);
+    expect(await authorizeOwner(db, { ...actor(bob), userType: "CLIENT" }, "USER_PHOTO", ann, "read")).toBe(false);
+    expect(await authorizeOwner(db, { ...actor(bob), organizationId: "other" }, "USER_PHOTO", ann, "read")).toBe(false);
+    expect(await authorizeOwner(db, actor(bob), "USER_PHOTO", "ghost", "read")).toBe(false);
+  });
+});

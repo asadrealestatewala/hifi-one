@@ -11,6 +11,7 @@ import ProjectMeetings from "./ProjectMeetings";
 import TaskBoard from "./TaskBoard";
 import TaskDetail from "./TaskDetail";
 import Drawer from "@/components/ui/Drawer";
+import Avatar from "@/components/ui/Avatar";
 import FilesPanel from "@/components/FilesPanel";
 import { openBlockers } from "@/lib/task-rules";
 
@@ -97,7 +98,7 @@ export default async function ProjectPage({
         <section className="card space-y-3">
           <h2 className="font-semibold">Team</h2>
           <ul className="text-sm space-y-1">
-            {project.members.map((m) => <li key={m.userId}>{nameOf.get(m.userId) ?? "Unknown"}{m.role && <span className="text-muted"> · {m.role}</span>}</li>)}
+            {project.members.map((m) => <li key={m.userId} className="flex items-center gap-2"><Avatar name={nameOf.get(m.userId) ?? "Unknown"} userId={m.userId} size={28} /><span>{nameOf.get(m.userId) ?? "Unknown"}{m.role && <span className="text-muted"> · {m.role}</span>}</span></li>)}
           </ul>
           {canManage && !closed && (
             <form action={addMember} className="flex gap-2 flex-wrap">
@@ -139,7 +140,7 @@ export default async function ProjectPage({
             subtasks={project.tasks.filter((t) => t.parentId === open.id).map((t) => ({ id: t.id, title: t.title, status: t.status }))}
             candidates={project.tasks.filter((t) => t.id !== open.id && t.parentId !== open.id && open.parentId !== t.id).map((t) => ({ id: t.id, title: t.title }))}
             members={project.members.map((m) => ({ id: m.userId, name: nameOf.get(m.userId) ?? "Unknown" }))}
-            comments={comments.map((c) => ({ id: c.id, author: nameOf.get(c.authorId) ?? "Former staff", body: c.body, at: c.createdAt.toLocaleString() }))}
+            comments={comments.map((c) => ({ id: c.id, authorId: c.authorId, author: nameOf.get(c.authorId) ?? "Former staff", body: c.body, at: c.createdAt.toLocaleString() }))}
             canManage={(canManage || project.managerId === user.id) && !closed} canMoveSubtasks={canMove && !closed && (canManage || project.managerId === user.id || open.assigneeId === user.id)} canComment={canMove}
           >
             <FilesPanel user={user} ownerType="TASK" ownerId={open.id} returnTo={`/projects/${project.id}?task=${open.id}`} title="Files" flash={{ fileError, fileOk }} />

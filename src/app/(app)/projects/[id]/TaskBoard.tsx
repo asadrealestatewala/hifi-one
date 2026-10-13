@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Avatar from "@/components/ui/Avatar";
 import { useState, useTransition } from "react";
 import { moveTask } from "../actions";
 import { STATUS_LABEL, TASK_STATUSES } from "@/lib/project-rules";
@@ -50,7 +51,7 @@ export default function TaskBoard({ tasks: initial, canMove, userId, isManager }
                         {t.recurrence && <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">repeats {t.recurrence.toLowerCase()}</span>}
                       </p>
                     )}
-                    <p className="text-xs text-muted">{t.assignee ?? "Unassigned"} · {t.priority}</p>
+                    <p className="flex items-center gap-1.5 text-xs text-muted">{t.assignee ? <Avatar name={t.assignee} userId={t.assigneeId} size={20} /> : null}{t.assignee ?? "Unassigned"} · {t.priority}</p>
                     {t.due && <p className={`text-xs ${t.overdue ? "text-brand font-semibold" : "text-muted"}`}>{t.overdue ? "Overdue: " : "Due "}{t.due}</p>}
                     {mayMove(t) && (
                       <select aria-label={`Status of ${t.title}`} value={t.status} onChange={(e) => move(t.id, e.target.value)} className="input !py-1 !text-xs">
