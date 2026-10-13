@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { SetupError, firstSetup, needsSetup } from "@/lib/bootstrap";
 import { db } from "@/lib/db";
 import { limiter } from "@/lib/rate-limit";
+import { Notice } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -51,11 +52,11 @@ export default async function Setup({ searchParams }: { searchParams: Promise<{ 
           </div>
         </div>
         {tokenMissing && (
-          <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">
+          <Notice kind="error">
             This server has no SETUP_TOKEN. Set a random value of 16 or more characters in the server environment and restart, so only you can run setup.
-          </p>
+          </Notice>
         )}
-        {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+        {error && <Notice kind="error">{error}</Notice>}
         {isProd && (
           <div>
             <label className="label" htmlFor="token">Setup token (from the server environment)</label>

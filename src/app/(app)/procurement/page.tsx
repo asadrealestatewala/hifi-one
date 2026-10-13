@@ -8,6 +8,7 @@ import {
 import { formatMoney } from "@/lib/money";
 import FilesPanel from "@/components/FilesPanel";
 import { vendorBillChanged } from "@/lib/events";
+import { Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -95,9 +96,8 @@ export default async function Procurement({ searchParams }: { searchParams: Prom
   ]);
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-semibold tracking-tight">Procurement</h1>
-      <p className="text-sm text-muted">Applying never awards work. Each step needs a person: approve the application, issue the work order, accept the delivery, approve the bill, post it, then pay.</p>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      <PageHeader title="Procurement" subtitle="Applying never awards work. Each step needs a person: approve the application, issue the work order, accept the delivery, approve the bill, post it, then pay." />
+      {error && <Notice kind="error">{error}</Notice>}
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Outsourcing opportunities</h2>

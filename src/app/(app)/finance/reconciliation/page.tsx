@@ -4,6 +4,7 @@ import { audit, requirePermission } from "@/lib/auth";
 import { BankError, acceptSuggestions, clearOpeningBalance, importStatement, matchLines, postStatementLine, reconcile, reconciliationView, unmatch } from "@/lib/bank-rec";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
+import { Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -64,16 +65,15 @@ export default async function Reconciliation({ searchParams }: { searchParams: P
   const banks = await db.bankAccount.findMany({ where: { organizationId: org, active: true }, orderBy: { internalName: "asc" } });
   const selected = banks.find((b) => b.id === sp.bank);
   const flash = (<>
-    {sp.msg && <p className="text-sm bg-green-600/10 text-green-700 rounded-lg px-3 py-2">{sp.msg}</p>}
-    {sp.error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{sp.error}</p>}
+    {sp.msg && <Notice kind="ok">{sp.msg}</Notice>}
+    {sp.error && <Notice kind="error">{sp.error}</Notice>}
   </>);
 
   if (!selected) {
     const last = await db.bankReconciliation.findMany({ where: { organizationId: org }, orderBy: { statementDate: "desc" } });
     return (
       <div className="space-y-4 max-w-3xl">
-        <h1 className="text-2xl font-semibold tracking-tight">Bank Reconciliation</h1>
-        <p className="text-sm text-muted">Compare the bank statement with the books. Import the statement, match each line to a ledger entry, post anything missing (like bank charges), then confirm the closing balance.</p>
+        <PageHeader title="Bank Reconciliation" subtitle="Compare the bank statement with the books. Import the statement, match each line to a ledger entry, post anything missing (like bank charges), then confirm the closing balance." />
         {flash}
         <div className="card">
           {banks.length === 0 ? <p className="text-sm text-muted">No bank accounts yet.</p> : (

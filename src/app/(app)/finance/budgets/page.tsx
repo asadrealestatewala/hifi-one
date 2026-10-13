@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { PageHeader, Stat } from "@/components/ui";
+import { Notice, PageHeader, Stat } from "@/components/ui";
 import { ExpenseError, budgetStatus, createBudget, decideTransfer, requestTransfer } from "@/lib/expenses";
 import { formatMoney } from "@/lib/money";
 import { notifyPermission } from "@/lib/notifications";
@@ -74,7 +74,7 @@ export default async function Budgets({ searchParams }: { searchParams: Promise<
         <Stat label="Nearing the limit" value={statuses.filter((x) => x.level >= 75 && !x.over).length} hint="75% or more used" />
         <Stat label="Over budget" value={statuses.filter((x) => x.over).length} />
       </div>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      {error && <Notice kind="error">{error}</Notice>}
       <div className="grid gap-4 md:grid-cols-2">
         {statuses.length === 0 && <div className="card text-sm text-muted">No budgets yet.</div>}
         {statuses.map((s) => {

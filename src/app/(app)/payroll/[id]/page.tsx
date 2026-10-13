@@ -6,6 +6,7 @@ import { LedgerError } from "@/lib/ledger-math";
 import { PayrollError, approveRun, payRun, postRun, setBonus } from "@/lib/payroll";
 import { formatMoney } from "@/lib/money";
 import { payrollPaid } from "@/lib/events";
+import { Notice } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,7 @@ export default async function RunPage({ params, searchParams }: { params: Promis
     <div className="space-y-6">
       <Link href="/payroll" className="text-sm text-muted hover:underline">← All payroll runs</Link>
       <h1 className="text-2xl font-semibold tracking-tight">Payroll {run.period} <span className="text-base font-normal text-muted">{run.currency} · {run.status}</span></h1>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      {error && <Notice kind="error">{error}</Notice>}
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-hover/60 text-left text-xs text-muted"><tr>

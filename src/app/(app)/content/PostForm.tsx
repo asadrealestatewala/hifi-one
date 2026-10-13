@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PLATFORMS, PLATFORM_META, POST_TYPES, POST_TYPE_LABEL } from "@/lib/content-rules";
 import { createPostAction } from "./actions";
+import { Notice } from "@/components/ui";
 
 type Opt = { id: string; name: string };
 
@@ -19,7 +20,7 @@ export default function PostForm({ clients, people, defaultDate, closeTo, error 
   return (
     <form action={createPostAction} className="flex h-full flex-col">
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
-        {error && <p role="alert" className="rounded-lg bg-brand/10 px-3 py-2 text-sm text-brand">{error}</p>}
+        {error && <Notice kind="error">{error}</Notice>}
         <div><label className="label" htmlFor="pf-title">Title <span className="text-brand">*</span></label><input id="pf-title" name="title" required maxLength={200} autoFocus placeholder="e.g. Expert City: plots now open" className="input" /></div>
 
         <fieldset><legend className="label">Post type</legend>

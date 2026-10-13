@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { secretStrength, type SecurityFinding } from "@/lib/mfa-policy";
+import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +47,7 @@ export default async function SecurityChecklist() {
   ];
   return (
     <div className="space-y-5 max-w-3xl">
-      <h1 className="text-2xl font-semibold tracking-tight">Security checklist</h1>
+      <PageHeader title="Security checklist" />
       <p className="text-sm text-muted">Checked just now from the live system. Backups are verified with <code>npm run backup:check</code> because they live outside the application; see the <Link className="underline" href="/audit-logs">audit log</Link> for who did what.</p>
       <div className="card">
         <ul className="text-sm">

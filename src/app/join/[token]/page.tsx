@@ -6,6 +6,7 @@ import { readTicket, setTicket } from "@/lib/meeting-cookie";
 import { MeetingError, authenticateParticipant, joinAsGuest } from "@/lib/meetings";
 import { limiter } from "@/lib/rate-limit";
 import { headers } from "next/headers";
+import { Notice } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Join meeting" };
@@ -42,7 +43,7 @@ export default async function Join({ params, searchParams }: { params: Promise<{
       <form action={enter} className="w-full max-w-sm space-y-4">
         <div className="flex items-center gap-3"><Image src="/logo.png" alt="" width={36} height={36} className="rounded-lg" /><span className="font-semibold">Hifi Marketing and Technologies</span></div>
         <div><p className="text-xs font-semibold uppercase tracking-wide text-muted">{m.kind === "WORKSHOP" ? "Online workshop" : "Meeting"}</p><h1 className="text-2xl font-semibold tracking-tight">{m.title}</h1></div>
-        {sp.error && <p role="alert" className="rounded-lg bg-brand/10 px-3 py-2 text-sm text-brand">{sp.error}</p>}
+        {sp.error && <Notice kind="error">{sp.error}</Notice>}
         <input type="hidden" name="token" value={token} />
         <div><label className="label" htmlFor="name">Your name</label><input id="name" name="name" required minLength={2} maxLength={40} autoComplete="name" className="input" /></div>
         <button className="btn w-full !py-2.5">Ask to join</button>

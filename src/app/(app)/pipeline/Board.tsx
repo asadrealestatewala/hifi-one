@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { moveLead } from "../leads/actions";
+import { Notice } from "@/components/ui";
 
 type Stage = { id: string; name: string; isWon: boolean; probability: number };
 type Card = {
@@ -32,7 +33,7 @@ export default function Board({ stages, cards: initial, canEdit, totals }: { sta
 
   return (
     <div className="space-y-3">
-      {error && <p role="alert" className="rounded-lg bg-brand/10 px-3 py-2 text-sm text-brand">{error}</p>}
+      {error && <Notice kind="error">{error}</Notice>}
       <div className="flex gap-4 overflow-x-auto pb-4">
         {stages.map((s) => {
           const col = cards.filter((c) => c.stageId === s.id);

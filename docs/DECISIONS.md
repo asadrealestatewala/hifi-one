@@ -36,6 +36,10 @@ Newest last. Each entry: what was decided, why, and what it costs.
 30. **New permissions reach existing roles once**, when first registered, following the code defaults; afterwards the Roles screen owns each role. This let `campaigns.view` replace `crm.view` on the Campaigns page without locking anyone out.
 31. **Initial records live in code (names, designations, roles, campaigns) and in a git-ignored file (numbers, CNIC)**, reconciled by an idempotent script that only fills gaps.
 
+32. **Workfolio is browser-first and consent-based.** Snapshots come from a screen share the person starts and can stop; there is no covert capture and no live video feed for managers. A live view would need a media relay and explicit written consent.
+33. **Client comments live in `TaskComment` with `internal = false`.** One table, one thread per task; the portal reads only non-internal comments on client-visible tasks of the signed-in client.
+34. **Menu labels follow the business words:** "Customers" (was Client Accounts) and "Vendors" (was Vendor Directory); the record type is still `Client` in the database.
+
 ## Open questions
 
 - Success feedback: `?ok=` query flag (current, visible in the address) or a short-lived flash cookie read by the layout?

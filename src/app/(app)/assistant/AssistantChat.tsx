@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { askAssistant, type AssistantState } from "./actions";
+import { Notice } from "@/components/ui";
 
 const LABEL: Record<string, string> = {
   receivables_summary: "money owed by clients", overdue_invoices: "overdue invoices", profit_this_month: "this month's profit", sales_pipeline: "the sales pipeline", project_status: "project status", my_open_tasks: "your tasks",
@@ -19,7 +20,7 @@ export default function AssistantChat({ examples }: { examples: string[] }) {
           <span className="text-xs text-muted">Try: {examples.join(" · ")}</span>
         </div>
       </form>
-      {state.error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{state.error}</p>}
+      {state.error && <Notice kind="error">{state.error}</Notice>}
       {state.answer && (
         <section className="card space-y-2" aria-live="polite">
           <p className="text-sm whitespace-pre-line">{state.answer}</p>

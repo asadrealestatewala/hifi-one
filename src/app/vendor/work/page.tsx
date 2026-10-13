@@ -5,6 +5,7 @@ import { VendorError, markDelivered, submitBill } from "@/lib/vendors";
 import { formatMoney } from "@/lib/money";
 import { notifyPermission } from "@/lib/notifications";
 import FilesPanel from "@/components/FilesPanel";
+import { Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -45,8 +46,8 @@ export default async function VendorWork({ searchParams }: { searchParams: Promi
   ]);
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Work orders and bills</h1>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      <PageHeader title="Work orders and bills" />
+      {error && <Notice kind="error">{error}</Notice>}
       {orders.length === 0 && <div className="card text-sm text-muted">No work orders yet.</div>}
       {orders.map((w) => {
         const mine = bills.filter((b) => b.workOrderId === w.id);

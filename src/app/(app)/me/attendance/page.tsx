@@ -4,6 +4,7 @@ import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { HrError, clockIn, clockOut, endBreak, startBreak } from "@/lib/hr";
 import { dateInZone, fmtMinutes, workedMinutes } from "@/lib/hr-rules";
+import { Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -42,12 +43,12 @@ export default async function MyAttendance({ searchParams }: { searchParams: Pro
   const live = open ? workedMinutes(open, open.breaks) : null;
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">My Attendance</h1>
+      <PageHeader title="My Attendance" />
       <p className="text-sm text-muted">
         Attendance time is the time between clock in and clock out, minus breaks. Being signed in to this system does not count as working time.
         Today in {zone}: {dateInZone(new Date(), zone)}.
       </p>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      {error && <Notice kind="error">{error}</Notice>}
       <form action={act} className="card flex flex-wrap items-end gap-3">
         {!open ? (
           <>

@@ -14,6 +14,7 @@ import Drawer from "@/components/ui/Drawer";
 import Avatar from "@/components/ui/Avatar";
 import FilesPanel from "@/components/FilesPanel";
 import { openBlockers } from "@/lib/task-rules";
+import { Notice } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +51,7 @@ export default async function ProjectPage({
   return (
     <div className="space-y-6">
       <Link href="/projects" className="text-sm text-muted hover:underline">← All projects</Link>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      {error && <Notice kind="error">{error}</Notice>}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{project.name} <span className="text-muted text-base font-normal">{project.number}</span></h1>

@@ -5,6 +5,7 @@ import Avatar from "@/components/ui/Avatar";
 import { useState, useTransition } from "react";
 import { moveTask } from "../actions";
 import { STATUS_LABEL, TASK_STATUSES } from "@/lib/project-rules";
+import { Notice } from "@/components/ui";
 
 type T = {
   id: string; title: string; status: string; priority: string; assignee: string | null; assigneeId: string | null;
@@ -31,7 +32,7 @@ export default function TaskBoard({ tasks: initial, canMove, userId, isManager }
 
   return (
     <div className="space-y-2">
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      {error && <Notice kind="error">{error}</Notice>}
       <div className="grid gap-3 md:grid-cols-4">
         {TASK_STATUSES.map((s) => {
           const col = tasks.filter((t) => t.status === s);

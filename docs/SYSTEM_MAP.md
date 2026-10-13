@@ -55,6 +55,8 @@ Guards: `src/lib/auth.ts` (`getSessionUser` cached per request, `requireUser`, `
 | Administration | `users`, `roles`, `settings/*`, `audit-logs`, `menu` | `permissions.ts`, `mfa-policy.ts`, `mailer.ts`, `menu-layout.ts` |
 | Portals | `src/app/portal/*` (client), `src/app/vendor/*` (vendor) | `portal.ts`, `vendors.ts`, `statements.ts` |
 
+Downloads: `/reports/download?report=…&format=csv|pdf` (`report-tables.ts`). Workfolio dock: `src/components/shell/WorkfolioDock.tsx` with `api/monitor/state` and `api/monitor/snapshot`. Client portal: `portal/{projects,notifications,…}`; vendor portal: `vendor/{profile,notifications,…}`.
+
 Public pages: `login` (email or phone), `login/verify`, `login/forgot`, `invite/[token]`, `reset/[token]`, `setup`, `forbidden`, `join/[token]`.
 
 ## Shared UI

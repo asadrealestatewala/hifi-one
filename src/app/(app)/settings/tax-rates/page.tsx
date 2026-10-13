@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { TaxError, addTaxRate, setTaxRateActive } from "@/lib/tax";
+import { Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -40,9 +41,8 @@ export default async function TaxRates({ searchParams }: { searchParams: Promise
   const rates = await db.taxRate.findMany({ where: { organizationId: user.organizationId }, orderBy: [{ active: "desc" }, { name: "asc" }] });
   return (
     <div className="space-y-5 max-w-2xl">
-      <h1 className="text-2xl font-semibold tracking-tight">Tax rates</h1>
-      <p className="text-sm text-muted">Named rates are offered as suggestions when you write an invoice, quotation or subscription. An invoice always keeps the percentage it was issued with, so changing this list never alters existing documents.</p>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      <PageHeader title="Tax rates" subtitle="Named rates are offered as suggestions when you write an invoice, quotation or subscription. An invoice always keeps the percentage it was issued with, so changing this list never alters existing documents." />
+      {error && <Notice kind="error">{error}</Notice>}
       <div className="card">
         {rates.length === 0 ? <p className="text-sm text-muted">No tax rates yet.</p> : (
           <ul className="text-sm">

@@ -55,6 +55,10 @@ The kit above is correct but under-used, which is the main reason screens drift 
 
 When you touch a page, bring it onto the kit: `PageHeader`, `Notice`, `Empty`, `StatusBadge`, `Stat`, `Chips`, `SearchBox`, `Drawer` + `PanelForm`. Do not restyle a page with one-off classes.
 
+## Downloads, tabs and notices (2026-10-14)
+
+`DownloadButtons` puts CSV and PDF links on a report (`/reports/download`). Detail pages with several concerns use `Chips` as tabs (`?tab=` in the address; each tab loads only its own data): My Profile, customer, vendor. Errors and confirmations use `Notice`; as of this date 32 page headers use `PageHeader` and 59 inline alert boxes were moved to `Notice`; about 40 pages still write their own header (those with actions or custom titles).
+
 ## Clickable figures
 
 `Stat` takes `href`: the whole card becomes a link with an arrow, and must open the filtered list behind the number. Dashboard `Bars` rows take `href` the same way. Destination lists show `AppliedFilters` (removable filter pills and a back link) and accept `from=dashboard` / `src=dashboard`. `DateRangeForm` adds from/to dates to a list. Leave `href` off when the person cannot open the destination.

@@ -7,7 +7,7 @@ import { ExpenseError, approveVoucher, budgetStatus, cancelVoucher, payVoucher, 
 import { formatMoney } from "@/lib/money";
 import { notify, notifyPermission } from "@/lib/notifications";
 import FilesPanel from "@/components/FilesPanel";
-import { ConfirmButton } from "@/components/ui";
+import { ConfirmButton, Notice } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +71,7 @@ export default async function VoucherPage({ params, searchParams }: { params: Pr
   return (
     <div className="space-y-4 max-w-3xl">
       <Link href="/expenses" className="text-sm text-muted hover:underline">← All vouchers</Link>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      {error && <Notice kind="error">{error}</Notice>}
       <article className="card space-y-3">
         <div className="flex justify-end"><a className="btn-ghost" href={`/expenses/${v.id}/voucher`} target="_blank" rel="noopener">Voucher PDF</a></div>
         <h1 className="text-xl font-bold">{v.number} <span className="text-base font-normal text-muted">{v.status.replace("_", " ")}</span></h1>

@@ -2,6 +2,7 @@ import { requireVendorUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { vendorLedger } from "@/lib/vendors";
+import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ export default async function VendorStatement() {
   const rows = await vendorLedger(db, user.organizationId, user.vendorId); // scoped to this vendor only
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight">Statement</h1>
+      <PageHeader title="Statement" />
       <div className="card overflow-x-auto">
         {rows.length === 0 ? <p className="text-sm text-muted">No approved bills or payments yet.</p> : (
           <table className="w-full text-sm">

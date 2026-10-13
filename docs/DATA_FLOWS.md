@@ -51,6 +51,12 @@ Attendance and leave (balances, approvals) → payroll run: create → bonus →
 ### Staff and campaigns
 Staff are created by `createStaff` (no password; setup link) and change status through `setStaffStatus` / `setStaffArchived`, which stop sign-in and keep history. Campaign membership (`setCampaignTeam`) notifies people added and shows the campaign in their My tasks. Leads and projects point to a campaign; `campaignMetrics` counts them from those rows, so nothing is copied or double-counted. Details: `docs/STAFF_AND_CAMPAIGNS.md`.
 
+### Projects, collaboration and the client portal
+`src/lib/events.ts` tells people about project work: added to a project, task assigned or reassigned, task sent to review or finished (manager and creator), project status changed (team), comments (assignee, creator, manager and earlier commenters) and `@name` mentions (project members only; an ambiguous first name mentions nobody). A client's portal users see only their own client's projects, the tasks marked client-visible and the comments marked shared (`TaskComment.internal = false`); a client message goes to the assignee, manager and creator, and a staff comment is shared with the client only when the person ticks "Share this comment with the client" on a client-visible task (`src/lib/portal.ts`).
+
+### Workfolio
+A clocked-in person starts a browser screen share themselves; the dock saves a snapshot every policy interval while sharing; the server applies the policy again (`storeScreenshot`, `requireSession`). Managers see who is working and the last snapshot time (`liveStatus`), not a live feed.
+
 ### Period controls
 `PeriodLock` blocks posting into closed periods; year-end close posts `YEAR_END_CLOSE` entries excluded from period P&L.
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { searchAll } from "@/lib/search";
+import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,7 @@ export default async function Search({ searchParams }: { searchParams: Promise<{
   const groups = await searchAll(db, { id: user.id, organizationId: user.organizationId, permissions: user.permissions }, q);
   return (
     <div className="space-y-5 max-w-3xl">
-      <h1 className="text-2xl font-semibold tracking-tight">Search</h1>
+      <PageHeader title="Search" />
       <form className="flex gap-2" role="search">
         <input name="q" defaultValue={q} aria-label="Search" placeholder="Client, lead, invoice number, project…" className="input" autoFocus />
         <button className="btn">Search</button>

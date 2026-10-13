@@ -66,6 +66,7 @@ Hifi One is one connected agency ERP. For each feature identify its source of tr
 | `docs/DESIGN_SYSTEM.md` | Tokens, shared components, layout patterns, interaction standards |
 | `docs/DATA_MODEL.md` | Entities, canonical records, constraints |
 | `docs/DATA_FLOWS.md` | Ownership of each fact, cross-module workflows, integration contracts |
+| `docs/PORTALS_AND_PROJECTS.md` | Report downloads, My Profile, projects and tasks with notifications, customer and vendor tabs and portals |
 | `docs/STAFF_AND_CAMPAIGNS.md` | Staff records, sign-in by email or phone, agency roles, campaigns, categories, dashboard routing, initial seed |
 | `docs/MODULE_STATUS.md` | What is done, partial, missing; known defects; test gaps |
 | `docs/DECISIONS.md` | Decisions with rationale; open questions |

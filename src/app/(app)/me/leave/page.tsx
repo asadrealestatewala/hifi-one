@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { HrError, cancelLeave, decideLeave, leaveBalances, requestLeave } from "@/lib/hr";
 import { dateInZone } from "@/lib/hr-rules";
 import { notify } from "@/lib/notifications";
+import { Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -84,8 +85,8 @@ export default async function MyLeave({ searchParams }: { searchParams: Promise<
   const approvable = toDecide.filter((r) => user.permissions.has("attendance.view_all") || people.get(r.userId)?.managerId === user.id);
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">My Leave</h1>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      <PageHeader title="My Leave" />
+      {error && <Notice kind="error">{error}</Notice>}
       <div className="grid gap-4 sm:grid-cols-4">
         {balances.map((b) => (
           <div key={b.type.id} className="card">

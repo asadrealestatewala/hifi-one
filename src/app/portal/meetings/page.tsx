@@ -1,5 +1,5 @@
 import { requireClientUser } from "@/lib/auth";
-import { Badge, Empty } from "@/components/ui";
+import { Badge, Empty, PageHeader } from "@/components/ui";
 import { db } from "@/lib/db";
 import { baseUrl } from "@/lib/meeting-cookie";
 import { guestLink } from "@/lib/meetings";
@@ -13,7 +13,7 @@ export default async function PortalMeetings() {
   const base = await baseUrl();
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight">Meetings & workshops</h1>
+      <PageHeader title="Meetings & workshops" />
       {meetings.length === 0 ? <Empty title="Nothing scheduled">When we invite you to a meeting or workshop it will appear here with a button to join.</Empty> : (
         <ul className="space-y-3">{meetings.map((m) => (
           <li key={m.id} className="card flex flex-wrap items-center justify-between gap-3">

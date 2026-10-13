@@ -7,6 +7,7 @@ import { PLATFORMS, PLATFORM_META, POST_TYPES, POST_TYPE_LABEL, canTransition, i
 import { PlatformDot } from "../PostForm";
 import { STATUS_STYLE } from "../status-style";
 import FilesPanel from "@/components/FilesPanel";
+import { Notice } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,7 @@ export default async function ContentPage({ params, searchParams }: { params: Pr
         {item.plannedDate && <span>· {item.plannedDate}{item.plannedTime ? ` at ${item.plannedTime}` : ""}</span>}
       </div>
       {created && <p className="rounded-lg bg-success/10 px-3 py-2 text-sm text-success">Post saved as a draft. Attach the creative below, then send it for review.</p>}
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      {error && <Notice kind="error">{error}</Notice>}
 
       {canManage && isEditable(item.status) ? (
         <form action={save} className="card grid gap-3">

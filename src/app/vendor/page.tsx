@@ -3,6 +3,7 @@ import { requireVendorUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { VendorError, apply } from "@/lib/vendors";
 import { formatMoney } from "@/lib/money";
+import { Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -39,10 +40,10 @@ export default async function VendorHome({ searchParams }: { searchParams: Promi
   const applied = new Set(mine.map((a) => a.opportunityId));
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Opportunities</h1>
+      <PageHeader title="Opportunities" />
       {vendor.status !== "APPROVED" && <p className="card text-sm">Your vendor account is awaiting approval. You will be able to apply once it is approved.</p>}
-      {ok && <p className="text-sm bg-green-600/10 text-green-700 rounded-lg px-3 py-2">Application submitted. Applying does not guarantee an award; you will see the decision here.</p>}
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      {ok && <Notice kind="ok">Application submitted. Applying does not guarantee an award; you will see the decision here.</Notice>}
+      {error && <Notice kind="error">{error}</Notice>}
       {opps.length === 0 && vendor.status === "APPROVED" && <div className="card text-sm text-muted">No open opportunities right now.</div>}
       {opps.map((o) => (
         <article key={o.id} className="card space-y-2">

@@ -3,6 +3,7 @@ import { requireClientUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { portalInvoices, portalPayments, portalProjects } from "@/lib/portal";
+import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export default async function PortalHome() {
   for (const i of invoices) owed.set(i.currency, (owed.get(i.currency) ?? 0) + Number(i.total.sub(i.amountPaid).sub(i.creditedAmount)));
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Your account</h1>
+      <PageHeader title="Your account" />
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="card"><p className="text-xs font-semibold text-muted">Outstanding</p>
           {owed.size === 0 ? <p className="text-2xl font-bold">Nothing due</p> : [...owed].map(([c, v]) => <p key={c} className="text-2xl font-bold">{formatMoney(v, c)}</p>)}
