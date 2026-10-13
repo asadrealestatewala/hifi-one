@@ -14,6 +14,18 @@ Hifi One includes a transparent time-tracking and activity module in the spirit 
 
 **Never collected, by design:** what is typed, passwords, messages, window titles, web addresses, pointer positions, microphone or camera. The database has no column that could hold them.
 
+## Workfolio screen sharing from the browser
+
+The module is called **Workfolio** in the menu (Workfolio for HR and managers, My Workfolio for everyone). Besides the desktop app, a person can share their screen from the browser:
+
+1. They clock in on My Workfolio. When the policy has screenshots on and they accepted it, a small **Workfolio pill** appears at the bottom of every screen (`src/components/shell/WorkfolioDock.tsx`).
+2. They press **Share my screen**. The browser asks which screen or window to share and shows its own sharing indicator; nothing is captured unless they do this, and the browser asks again after every reload or sign-in.
+3. While sharing, the pill turns red ("Workfolio is capturing your screen"), shows the countdown to the next snapshot and has **Stop sharing**. A snapshot (JPEG, at most 1600 px wide) is sent every `screenshotIntervalMin` minutes (set by an administrator in Settings > Monitoring Policy, 5 to 120).
+4. The server applies the same rules as for the desktop agent (`storeScreenshot`): policy on, consent for the current version, clocked in, inside working hours, not on a break, no faster than the interval, real JPEG or PNG. Stopping the share, a break, clocking out or leaving working hours ends capture.
+5. Managers see **Working now** on the Workfolio page: who is clocked in, on a break or without signal, and when each person's last snapshot was taken. They do not see a live video feed. Opening a snapshot still needs `monitoring.screenshots` and is logged for the person.
+
+Not built: a live video view of someone's screen for managers (it would need a media relay like the meeting module; recommended only with explicit written consent), and capture of screens when the browser is closed. Real screen capture could not be exercised in the automated browser here (it blocks capture); the snapshot route, limits and consent rules are covered by tests and the dock was checked in the browser.
+
 ## The rules the system enforces (not just documents)
 
 1. **Off by default.** Nothing is recorded until an administrator writes the policy text and turns monitoring on.

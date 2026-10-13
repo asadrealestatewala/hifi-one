@@ -27,7 +27,8 @@ Master prompt section in brackets.
 - **Done:** employee profiles with restricted sensitive fields, attendance with breaks and HR correction, leave with balances and approvals, payroll runs with separation of duties and payslips, assets and assignment, employee documents with expiry, offices and departments.
 - **Not built:** shifts, holidays calendar, onboarding and offboarding, training, performance reviews, recruitment, loans.
 
-## Workfolio-style monitoring [9]
+## Workfolio-style monitoring [9] (called Workfolio in the menu)
+- **Browser screen sharing (2026-10-14):** a dock on every screen lets a clocked-in person share their screen; snapshots every policy interval while sharing, same server rules as the agent, a Working now panel for managers, tests in `workfolio.integration.test.ts`. Real capture not exercised in the automated browser; no live video view for managers.
 - **Done (verified with a real agent session earlier):** policy with versions and employee consent, visible status, device enrolment and tokens, secure ingestion, activity and app usage with categories, attendance linkage, screenshots with access logging, retention purge, reports.
 - **Needs outside setup:** the Windows agent is a console script, not a signed installer; macOS and Linux agents do not exist. No keylogging or covert capture by design.
 - **Not built:** screenshot blurring, time-lapse, team comparison charts, low-activity alert rules, XLS export.

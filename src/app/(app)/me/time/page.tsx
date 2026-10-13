@@ -38,7 +38,7 @@ export default async function MyTime({ searchParams }: { searchParams: Promise<{
             <dt className="text-muted">Working hours recorded</dt><dd>{policy.workStart} to {policy.workEnd} ({policy.timezone}), days {policy.workDays.split(",").map((d) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][Number(d)]).join(", ")}</dd>
             <dt className="text-muted">Activity</dt><dd>{policy.trackActivity ? "Active and idle time, and counts of key presses and clicks. Never what you type." : "Not collected"}</dd>
             <dt className="text-muted">Applications</dt><dd>{policy.trackApps ? "Names of applications you use, as durations. Never window titles or web addresses." : "Not collected"}</dd>
-            <dt className="text-muted">Screenshots</dt><dd>{policy.screenshots ? `Every ${policy.screenshotIntervalMin} minutes during working hours, only from the desktop app, never during breaks.` : "Not collected"}</dd>
+            <dt className="text-muted">Screenshots</dt><dd>{policy.screenshots ? `Every ${policy.screenshotIntervalMin} minutes during working hours, from the desktop app, or from your browser while you choose to share your screen. Never during breaks or outside work hours, and only while you are clocked in.` : "Not collected"}</dd>
             <dt className="text-muted">Kept for</dt><dd>Screenshots {policy.retentionDays} days; activity totals 180 days</dd>
           </dl>
           <p className="text-xs text-muted">You can see everything recorded about you on this page, see who has looked at it, ask for a day to be corrected, and dispute a screenshot. Version {policy.version}.</p>

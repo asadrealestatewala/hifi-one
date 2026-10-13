@@ -52,7 +52,7 @@ export const NAV: NavGroup[] = [
     { href: "/hr/employees", label: "Staff Directory", permission: "hr.view" },
     { href: "/hr/attendance", label: "Attendance (all)", permission: "attendance.view_all" },
     { href: "/payroll", label: "Payroll", permission: "payroll.view" },
-    { href: "/hr/monitoring", label: "Workforce Activity", permission: "monitoring.view_team" },
+    { href: "/hr/monitoring", label: "Workfolio", permission: "monitoring.view_team" },
   ] },
   { id: "vendors", title: "Procurement & Vendors", icon: "truck", items: [
     { href: "/vendors", label: "Vendor Directory", permission: "vendors.view" },
@@ -66,7 +66,7 @@ export const NAV: NavGroup[] = [
     { href: "/me/leave", label: "My Leave", permission: "self.leave" },
     { href: "/me/payslips", label: "My Payroll", permission: "self.payslip" },
     { href: "/me/tasks", label: "My Tasks", permission: null },
-    { href: "/me/time", label: "My Time & Activity", permission: "monitoring.own" },
+    { href: "/me/time", label: "My Workfolio", permission: "monitoring.own" },
     { href: "/expenses", label: "Expense Vouchers", permission: "self.expense" },
     { href: "/me/commissions", label: "My Commissions", permission: "commissions.own" },
     { href: "/me/documents", label: "My Documents", permission: "self.leave" },
