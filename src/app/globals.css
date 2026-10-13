@@ -145,3 +145,12 @@ main h1 { letter-spacing: -0.02em; }
 @keyframes confetti { 0% { transform: translateY(-10px) rotate(0); opacity: 1; } 100% { transform: translateY(120px) rotate(540deg); opacity: 0; } }
 .pop { animation: pop 0.45s ease-out both; }
 .confetti > i { position: absolute; top: 0; width: 8px; height: 12px; border-radius: 2px; animation: confetti 1.6s ease-out forwards; }
+
+/* Interactivity: cards lift a little on hover when they are links or stat tiles, and table rows that open a record show it */
+main a > .card, main .card[tabindex] { transition: transform .15s ease, box-shadow .15s ease; }
+main a:hover > .card { transform: translateY(-2px); box-shadow: 0 6px 18px rgb(16 20 50 / 0.10); }
+main tbody tr:has(a[href]) { cursor: pointer; }
+@media (prefers-reduced-motion: reduce) {
+  main a:hover > .card { transform: none; }
+  main [style*="animation"], main .\[animation\:fade_\.25s_ease-out\] { animation: none !important; }
+}

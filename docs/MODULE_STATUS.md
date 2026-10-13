@@ -55,10 +55,10 @@ Master prompt section in brackets.
 
 ## Other
 - **Meetings (built-in video):** done for up to 8 people, screen sharing, chat, guest links, waiting room. Not verified with real cameras across networks; no recording.
-- **UI shell [2, 3]:** design system documented; the sidebar level card is compact and foldable on short screens (see `docs/ERP_AUDIT.md`, finding 1).
+- **UI shell [2, 3]:** design system documented; the top tab strip and the sidebar level card were removed on request; navigation is the sidebar only (see `docs/ERP_AUDIT.md`, finding 1).
 
 ## Next concrete actions
-1. Verify the sidebar at several window heights while signed in; confirm nothing is clipped or overlapped.
+1. Check the sidebar and the new row-click behaviour signed in.
 2. Auto-start script for database and server; first browser end-to-end tests (sign-in, invoice, contact edit).
 3. Check the task panel signed in; then deliverables and monthly client report.
 4. Tighten the content security policy.

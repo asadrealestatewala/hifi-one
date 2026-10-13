@@ -260,7 +260,7 @@ Known limits: no inbound email (a true inbox needs IMAP or a provider webhook); 
 
 ## Gamified menu, faster feel, remaining list screens (done)
 
-- Sidebar: each module has a coloured icon chip that lights up when you are inside it; a red count badge shows what waits for you (follow-ups due under CRM, your overdue tasks under Projects); the active page gets an accent bar; items nudge on hover. At the bottom, a level card shows your level name, XP bar, streak and today's three goals, and opens the dashboard. Collapsed, it shrinks to a level badge. The numbers are cached for 20 seconds per person so the menu adds no noticeable cost.
+- Sidebar: each module has a coloured icon chip that lights up when you are inside it; a red count badge shows what waits for you (follow-ups due under CRM, your overdue tasks under Projects); the active page gets an accent bar; items nudge on hover. (The level card at the bottom and the top pill tab strip were later removed at the owner's request; see docs/DECISIONS.md, 18.) The numbers are cached for 20 seconds per person so the menu adds no noticeable cost.
 - Speed: measured in production mode, pages render on the server in about 30 to 100 ms (the dashboard went from about 190 to about 100 ms by loading its widgets in parallel). A thin progress bar now starts the instant you click an in-app link and finishes when the page arrives, and the loading skeleton shows straight away. Most of the "slow" feeling comes from running `npm run dev`, which compiles each page the first time it is opened; use `npm run serve` (build plus production server) for day-to-day use.
 - Contracts, Subscriptions, Payments and Leads now use the same KPI strip, chips, search and slide-over panels as the other list screens.
 

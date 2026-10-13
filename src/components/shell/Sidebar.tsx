@@ -99,7 +99,6 @@ export default function Sidebar({ groups, stats, mobileOpen, onClose }: { groups
           })}
         </nav>
 
-        {stats.quest && <QuestMini q={stats.quest} collapsed={collapsed} onNavigate={onClose} />}
         <div className="hidden shrink-0 border-t border-white/10 p-2 md:block">
           <button type="button" onClick={toggleCollapsed} className="flex h-9 w-full items-center gap-3 rounded-lg px-3 text-[13px] text-sidebar-fg hover:bg-white/8 hover:text-white" aria-label={collapsed ? "Expand menu" : "Collapse menu"}>
             <Icon name="menu" />{!collapsed && <span>Collapse menu</span>}
@@ -114,39 +113,5 @@ function Chip({ color = "#5648e8", on, children }: { color?: string; on: boolean
   return (
     <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white transition-transform duration-150 group-hover:scale-110 ${on ? "shadow-lg" : "opacity-90"}`}
       style={{ background: on ? `linear-gradient(135deg, ${color}, color-mix(in srgb, ${color} 60%, #fff))` : `color-mix(in srgb, ${color} 55%, #1e2247)`, boxShadow: on ? `0 4px 14px color-mix(in srgb, ${color} 55%, transparent)` : undefined }}>{children}</span>
-  );
-}
-
-// Level, XP and today's goals, always in sight but never in the way. It sits in the normal flow under the menu (not floating), starts
-// compact on short screens so the navigation keeps its room, and the arrow opens or folds the details. The choice is remembered.
-function QuestMini({ q, collapsed, onNavigate }: { q: NonNullable<NavStats["quest"]>; collapsed: boolean; onNavigate: () => void }) {
-  const [open, setOpen] = useState(false);
-  useEffect(() => { setOpen(read<boolean | null>("hifi.sidebar.quest", null) ?? window.innerHeight >= 820); }, []);
-  const toggle = () => setOpen((o) => { write("hifi.sidebar.quest", !o); return !o; });
-  const span = q.nextLevelAt ? q.nextLevelAt - q.levelStartsAt : 1;
-  const pct = q.nextLevelAt ? Math.min(100, Math.max(0, Math.round(((q.xp - q.levelStartsAt) / span) * 100))) : 100;
-  const done = q.goalsDone === q.goalsTotal;
-  if (collapsed) return <Link href="/dashboard" onClick={onNavigate} title={`Level ${q.level} ${q.levelName}, ${q.goalsDone}/${q.goalsTotal} goals today`} className="mx-auto mb-2 hidden h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-bold text-white md:flex">{q.level}</Link>;
-  return (
-    <div className="mx-2 mb-2 shrink-0 rounded-xl border border-white/10 bg-white/5">
-      <div className="flex items-center gap-2 p-2">
-        <Link href="/dashboard" onClick={onNavigate} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg p-1 transition hover:bg-white/10" aria-label={`Level ${q.level} ${q.levelName}. ${q.goalsDone} of ${q.goalsTotal} daily goals done. Open dashboard.`}>
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-accent text-sm font-bold text-white">{q.level}</span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[13px] font-semibold text-white">{q.levelName}</span>
-            <span className="mt-1 block h-1 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}><span className="block h-full rounded-full bg-gradient-to-r from-primary to-accent transition-all duration-700" style={{ width: `${pct}%` }} /></span>
-          </span>
-          {q.streak > 0 && <span title={`${q.streak}-day streak`} className="text-xs font-semibold text-amber-300">🔥{q.streak}</span>}
-        </Link>
-        <button type="button" onClick={toggle} aria-expanded={open} aria-label={open ? "Hide goal details" : "Show goal details"} className="rounded-md p-1 text-sidebar-fg hover:bg-white/10 hover:text-white"><Icon name="down" className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} /></button>
-      </div>
-      {open && (
-        <div className="border-t border-white/10 px-3 pb-3 pt-2 text-[11px] text-sidebar-fg">
-          <p>{q.xp} XP{q.nextLevelAt ? ` · ${q.nextLevelAt - q.xp} to level ${q.level + 1}` : ""}</p>
-          <p className="mt-1.5 flex items-center justify-between"><span>Today&apos;s goals</span>
-            <span className="flex items-center gap-1">{Array.from({ length: q.goalsTotal }).map((_, i) => <span key={i} className={`h-2 w-2 rounded-full ${i < q.goalsDone ? "bg-emerald-400" : "bg-white/20"}`} />)}<span className={done ? "ml-1 font-semibold text-emerald-300" : "ml-1"}>{done ? "All done!" : `${q.goalsDone}/${q.goalsTotal}`}</span></span></p>
-        </div>
-      )}
-    </div>
   );
 }

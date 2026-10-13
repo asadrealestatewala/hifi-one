@@ -14,7 +14,7 @@ Method: read the repository, run the checks, open screens in a browser. Only thi
 
 ## Findings
 
-1. **"Prospector" widget at the bottom-left.** There is no floating or fixed widget in this repository (searched for fixed bottom/left positioning). "Prospector" is a level name (Rookie, Prospector, Closer, Rainmaker, Legend) on the level and goals card at the bottom of the sidebar. That card was in the sidebar's flow and took about 120 px, so on a short window (600 px high) the menu was squeezed and groups below Project Operations were cut off. **Fixed:** the card is now compact (level, name, progress, streak), folds open with an arrow, starts compact below 820 px of window height, and remembers the choice; the menu list scrolls on its own. Verified by type check, lint and build. **Not yet verified visually signed in at several heights.**
+1. **"Prospector" card at the bottom-left of the sidebar.** It was not a floating widget: "Prospector" is a level name on the level and goals card inside the sidebar, which squeezed the menu on short windows. The first fix made it compact and foldable; the owner then asked for it to be removed, so it is gone. Level and goals remain on the dashboard. **Closed.**
 2. **Perceived slowness.** The server renders quickly; most slowness came from `npm run dev` compiling pages on first visit and from navigation giving no feedback. Fixed: progress bar on navigation, dashboard queries in parallel (about 190 to 100 ms), menu numbers cached. Use `npm run serve`.
 3. **Nothing restarts the app after a reboot**, and a stale process can hold port 3000 (observed). Open.
 4. **Content security policy allows inline scripts.** Open.

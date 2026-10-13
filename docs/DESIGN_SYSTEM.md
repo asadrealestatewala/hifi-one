@@ -17,9 +17,9 @@ Classes `btn`, `btn-ghost`, `input`, `label`, `card` and `skeleton` are defined 
 
 ## Shell
 
-Dark sidebar with module groups (dropdowns, coloured icon chip per module, count badges, a compact level card at the bottom that folds away), a top bar (search, Create, theme, notifications), and a pill tab strip of the screens in the current module (`ModuleTabs`). A thin progress bar runs across the top while a page loads. Module colours: `src/components/shell/nav-colors.ts`.
+Dark sidebar with module groups (dropdowns, a coloured icon chip per module, count badges for what waits for you), and a top bar (search, Create, theme, notifications). Navigation lives only in the sidebar: the pill tab strip that repeated it at the top and the level card at the bottom of the sidebar were removed at the owner's request. Level and daily goals remain on the dashboard. A thin progress bar runs across the top while a page loads. Module colours: `src/components/shell/nav-colors.ts`.
 
-The level card is part of the sidebar's normal flow, not a floating widget. It starts compact on screens shorter than 820 px so the menu keeps its room; the arrow opens it and the choice is remembered.
+Interactivity: pages fade in on navigation; link cards and stat tiles lift on hover; a click anywhere on a table row opens its record (`RowClick`, only when the click is not on a control or a text selection; the real link stays for keyboard users); menu items nudge on hover; reduced-motion settings switch the motion off.
 
 ## Shared components (use these, do not copy markup)
 
@@ -44,4 +44,4 @@ Back link, header with status badge, the key number (balance, term, stage) and p
 
 ## Approved deviations from the original reference
 
-The owner asked for a "sleek, modern, interactive, gamified" interface after the first version. Approved and implemented: module-coloured icon chips, pill module tabs, slide-over panels, level and goal card, small gradients on the level badge and progress bars. Gradients are not used elsewhere. See `docs/DECISIONS.md`.
+The owner asked for a "sleek, modern, interactive, gamified" interface after the first version. Approved and implemented: module-coloured icon chips, slide-over panels, dashboard goals card, small gradients on progress bars. Gradients are not used elsewhere. See `docs/DECISIONS.md`.
