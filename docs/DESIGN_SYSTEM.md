@@ -55,6 +55,10 @@ The kit above is correct but under-used, which is the main reason screens drift 
 
 When you touch a page, bring it onto the kit: `PageHeader`, `Notice`, `Empty`, `StatusBadge`, `Stat`, `Chips`, `SearchBox`, `Drawer` + `PanelForm`. Do not restyle a page with one-off classes.
 
+## Clickable figures
+
+`Stat` takes `href`: the whole card becomes a link with an arrow, and must open the filtered list behind the number. Dashboard `Bars` rows take `href` the same way. Destination lists show `AppliedFilters` (removable filter pills and a back link) and accept `from=dashboard` / `src=dashboard`. `DateRangeForm` adds from/to dates to a list. Leave `href` off when the person cannot open the destination.
+
 ## Interaction standards (benchmark: Agentify ERP, adapted to server components)
 
 These are the standards new and touched screens must meet. Components marked *planned* do not exist yet; build them once in `src/components/ui.tsx` (or `src/components/ui/`) and reuse them, never per page.

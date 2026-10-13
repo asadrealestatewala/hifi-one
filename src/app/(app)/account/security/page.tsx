@@ -15,7 +15,7 @@ export default async function Security({ searchParams }: { searchParams: Promise
     // Setup was started but not confirmed: show the same secret again so the user can finish
     try {
       const secret = decryptSecret(row.totpSecretEnc, process.env.SESSION_SECRET ?? "");
-      pending = { secret, qr: await QRCode.toDataURL(otpauthUri(secret, row.email), { width: 200, margin: 1 }) };
+      pending = { secret, qr: await QRCode.toDataURL(otpauthUri(secret, row.email ?? row.phone ?? row.name), { width: 200, margin: 1 }) };
     } catch {
       pending = null;
     }

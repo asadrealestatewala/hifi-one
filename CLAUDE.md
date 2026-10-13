@@ -19,6 +19,7 @@ vitest. Auth is a signed cookie plus database sessions. Roles and permissions li
 | Production-mode server | `npm run serve` (build, then `next start -p 3000`). Stop whatever holds port 3000 first |
 | Checks | `npx tsc --noEmit`, `npx eslint src`, `npx vitest run`, `npm run build` |
 | After adding a permission | `npm run roles:sync`, then `npm run docs:roles` |
+| Initial staff and campaigns (idempotent, production-safe) | `npm run seed:initial` (private numbers and CNICs in `.data/initial-staff-private.json`) |
 
 Prisma `generate` fails with an engine lock while the server runs: stop the server on port 3000 first.
 Integration tests TRUNCATE their own tables in the test DB; never point `TEST_DATABASE_URL` at real data.
@@ -32,6 +33,7 @@ Integration tests TRUNCATE their own tables in the test DB; never point `TEST_DA
 - No secrets, payroll, client financials or monitoring screenshots to people without the permission. No keylogging, covert recording or hidden monitoring.
 - Real persisted data only: no fake buttons, mock statistics or simulated success.
 - Every business rule gets a test, including a denied-access case.
+- Staff details are never invented: missing email, number or CNIC stays empty. CNIC needs `hr.view_sensitive` and never appears in lists, exports or audit entries. Sign-in by email or phone always needs the password; nobody's password is set for them (setup links only).
 
 ## Operating contract (every meaningful task)
 
@@ -64,6 +66,7 @@ Hifi One is one connected agency ERP. For each feature identify its source of tr
 | `docs/DESIGN_SYSTEM.md` | Tokens, shared components, layout patterns, interaction standards |
 | `docs/DATA_MODEL.md` | Entities, canonical records, constraints |
 | `docs/DATA_FLOWS.md` | Ownership of each fact, cross-module workflows, integration contracts |
+| `docs/STAFF_AND_CAMPAIGNS.md` | Staff records, sign-in by email or phone, agency roles, campaigns, categories, dashboard routing, initial seed |
 | `docs/MODULE_STATUS.md` | What is done, partial, missing; known defects; test gaps |
 | `docs/DECISIONS.md` | Decisions with rationale; open questions |
 | `docs/REFERENCE_ERP_AUDIT.md` | Comparison with the reference ERP and the prioritised task list |

@@ -48,13 +48,14 @@ Guards: `src/lib/auth.ts` (`getSessionUser` cached per request, `requireUser`, `
 | Services & Clients | `services`, `clients`, `contracts`, `finance/subscriptions`, `finance/invoices`, `finance/payments` | `catalog.ts`, `sales.ts`, `accounting.ts`, `bookkeeping.ts`, `statements.ts` |
 | Project Operations | `projects`, `content`, `meetings` | `projects.ts`, `tasks.ts`, `task-rules.ts`, `project-finance.ts`, `content.ts`, `content-rules.ts`, `meetings.ts`, `meeting-hub.ts` |
 | Finance & Accounting | `finance/{ledger,accounts,journals,reconciliation,budgets,commissions,reports,close,year-end}`, `assets`, `investments` | `accounting.ts` (`postJournal`), `bookkeeping.ts`, `bank-rec.ts`, `expenses.ts`, `commissions.ts`, `fx.ts`, `tax.ts`, `period-lock.ts`, `year-end.ts`, `assets.ts` |
-| People & HR | `hr/employees`, `hr/attendance`, `payroll`, `hr/monitoring` | `hr.ts`, `hr-rules.ts`, `payroll.ts`, `payroll-rules.ts`, `monitoring.ts`, `org-structure.ts` |
+| People & HR | `hr/employees` (staff directory, `export`), `hr/attendance`, `payroll`, `hr/monitoring` | `staff.ts`, `hr.ts`, `hr-rules.ts`, `payroll.ts`, `payroll-rules.ts`, `monitoring.ts`, `org-structure.ts` |
 | Procurement | `vendors`, `procurement` | `vendors.ts` |
 | My Space | `me/{profile,help,attendance,leave,payslips,tasks,time,commissions,documents,calendar}`, `account/*`, `expenses`, `assistant` | `hr.ts`, `assistant.ts`, `mfa.ts`, `totp.ts` |
+| Campaigns | `campaigns`, `campaigns/[id]` | `campaigns.ts` |
 | Administration | `users`, `roles`, `settings/*`, `audit-logs`, `menu` | `permissions.ts`, `mfa-policy.ts`, `mailer.ts`, `menu-layout.ts` |
 | Portals | `src/app/portal/*` (client), `src/app/vendor/*` (vendor) | `portal.ts`, `vendors.ts`, `statements.ts` |
 
-Public pages: `login`, `login/verify`, `invite/[token]`, `reset/[token]`, `setup`, `forbidden`, `join/[token]`.
+Public pages: `login` (email or phone), `login/verify`, `login/forgot`, `invite/[token]`, `reset/[token]`, `setup`, `forbidden`, `join/[token]`.
 
 ## Shared UI
 

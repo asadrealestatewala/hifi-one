@@ -15,6 +15,8 @@ How data moves between modules. Entities, canonical records and constraints are 
 | Project progress | derived from top-level tasks (`task-rules.ts`), never typed | projects list, portal |
 | Content state | `ContentItem` + `ContentVersion` + `ContentEvent` (`src/lib/content.ts`) | calendar, portal approvals |
 | Dashboard numbers | the same loaders as the reports (`dashboard-home.ts`) | home dashboard |
+| Staff record, sign-in identity | `src/lib/staff.ts` (`User` + `EmployeeProfile`) | directory, sign-in, assignments, payroll |
+| Campaign, its team, clients and project links | `src/lib/campaigns.ts` | campaigns, My tasks, staff directory filter, projects, leads, dashboard |
 
 Rule: a screen never computes a stored total itself, and a total is never copied into a second table unless it is a cache updated in the same transaction as its source.
 
@@ -45,6 +47,9 @@ Expense voucher: submit → review → approve (budget check, `budgetStatus`) �
 
 ### People
 Attendance and leave (balances, approvals) → payroll run: create → bonus → approve (separation of duties) → `postRun` → `payRun` → payslips; each employee is notified when the run is paid. Vendor portal users are notified when a bill is approved, rejected or paid. Monitoring is consent-gated and separate (`docs/MONITORING.md`).
+
+### Staff and campaigns
+Staff are created by `createStaff` (no password; setup link) and change status through `setStaffStatus` / `setStaffArchived`, which stop sign-in and keep history. Campaign membership (`setCampaignTeam`) notifies people added and shows the campaign in their My tasks. Leads and projects point to a campaign; `campaignMetrics` counts them from those rows, so nothing is copied or double-counted. Details: `docs/STAFF_AND_CAMPAIGNS.md`.
 
 ### Period controls
 `PeriodLock` blocks posting into closed periods; year-end close posts `YEAR_END_CLOSE` entries excluded from period P&L.

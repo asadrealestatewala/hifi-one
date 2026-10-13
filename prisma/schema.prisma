@@ -58,7 +58,10 @@ model Department {
 model User {
   id             String    @id @default(cuid())
   organizationId String
-  email          String    @unique
+  email          String?   @unique // official email; optional because some staff have none yet (never invented)
+  phone          String?   @unique // registered contact number in E.164 (+923001234567); can be used to sign in
+  emailVerifiedAt DateTime? // set when the person proves they receive mail there, or an administrator confirms it
+  phoneVerifiedAt DateTime? // set when an administrator confirms the number (no SMS provider is configured)
   name           String
   passwordHash   String
   active         Boolean   @default(true)
@@ -88,6 +91,8 @@ model User {
   roles        UserRole[]
   sessions     Session[]
   auditLogs    AuditLog[]
+  campaigns    CampaignMember[]
+  employeeProfile EmployeeProfile?
 
   @@index([organizationId])
 }
@@ -253,7 +258,8 @@ model ServiceCategory {
   sortOrder      Int      @default(0)
   active         Boolean  @default(true)
 
-  plans ServicePlan[]
+  plans     ServicePlan[]
+  campaigns Campaign[]
 
   @@unique([organizationId, name])
 }
@@ -415,6 +421,7 @@ model Client {
   invites  ClientInvite[]
 
   @@unique([organizationId, name])
+  campaigns CampaignClient[]
 }
 
 model Account {
@@ -571,9 +578,11 @@ model Project {
   budgetAmount   Decimal? @db.Decimal(14, 2)
   currency       String   @default("USD")
   scope          String?
+  campaignId     String? // the campaign this project delivers, if any
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  campaign Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   members ProjectMember[]
   tasks   Task[]
   milestones Milestone[]
@@ -678,8 +687,12 @@ model EmployeeProfile {
   fatherName     String?
   identityNumber String?
   bankDetails    String?
-  status         String   @default("ACTIVE") // ACTIVE | EXITED
+  status         String   @default("ACTIVE") // ACTIVE | INACTIVE | EXITED
   exitDate       DateTime?
+  notes          String? // internal HR notes, visible to hr.view
+  archivedAt     DateTime? // archived records leave the directory but keep all history
+
+  user User @relation(fields: [userId], references: [id])
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -1592,8 +1605,49 @@ model Campaign {
   notes          String?
   createdById    String?
   createdAt      DateTime @default(now())
+  code           String? // CMP-0001, from NumberSequence "CAMPAIGN"
+  categoryId     String? // the shared business category list (ServiceCategory)
+  description    String?
+  objectives     String?
+  ownerId        String?
+  archivedAt     DateTime?
+  updatedAt      DateTime? @updatedAt
+
+  category ServiceCategory? @relation(fields: [categoryId], references: [id])
+  members  CampaignMember[]
+  clients  CampaignClient[]
+  projects Project[]
 
   @@unique([organizationId, name])
+  @@unique([organizationId, code])
+  @@index([organizationId, categoryId])
+}
+
+// Staff assigned to a campaign (their workload). One row per person per campaign.
+model CampaignMember {
+  campaignId String
+  userId     String
+  role       String?
+  addedAt    DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, userId])
+  @@index([userId])
+}
+
+// Client accounts a campaign is run for. Links to the canonical Client record.
+model CampaignClient {
+  campaignId String
+  clientId   String
+  addedAt    DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, clientId])
+  @@index([clientId])
 }
 
 // Saved filters over leads. Private to the owner unless shared with everyone who can open the Leads screen.

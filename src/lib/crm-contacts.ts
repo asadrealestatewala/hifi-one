@@ -378,7 +378,10 @@ export async function bulkUpdate(db: Db, who: Who, p: { ids: string[]; action: B
   return vid.length;
 }
 
-const csvCell = (v: unknown) => { let s = String(v ?? ""); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+export const csvCell = (v: unknown) => { let s = String(v ?? ""); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+// Any table as CSV with formula characters defused
+export const tableCsv = (head: string[], rows: unknown[][]) => [head, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n") + "\r\n";
+
 export function toCsv(rows: { name: string; kind: string; category: string; parentName?: string | null; primaryEmail: string | null; primaryPhone: string | null; city: string | null; country: string | null; source: string | null; tags: string[]; createdAt: Date }[]) {
   const head = ["Name", "Type", "Category", "Organization", "Email", "Phone", "City", "Country", "Source", "Tags", "Created"];
   return [head, ...rows.map((r) => [r.name, r.kind === "ORGANIZATION" ? "Organization" : "Person", r.category, r.parentName ?? "", r.primaryEmail, r.primaryPhone, r.city, r.country, r.source, r.tags.join("; "), r.createdAt.toISOString().slice(0, 10)])].map((row) => row.map(csvCell).join(",")).join("\r\n") + "\r\n";

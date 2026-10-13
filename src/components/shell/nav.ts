@@ -17,7 +17,7 @@ export const NAV: NavGroup[] = [
     { href: "/pipeline", label: "Opportunities", permission: "crm.view" },
     { href: "/leads/lists", label: "Smart Lists", permission: "crm.view" },
     { href: "/leads/worklists", label: "Prospecting Worklists", permission: "crm.view" },
-    { href: "/campaigns", label: "Campaigns", permission: "crm.view" },
+    { href: "/campaigns", label: "Campaigns", permission: "campaigns.view" },
     { href: "/sales/activity", label: "Sales Activity & Targets", permission: "crm.view" },
     { href: "/sales/leads-report", label: "Leads Report", permission: "crm.view" },
     { href: "/quotes", label: "Proposals & Quotations", permission: "quotes.view" },
@@ -49,7 +49,7 @@ export const NAV: NavGroup[] = [
     { href: "/investments", label: "Investments", permission: "investments.view" },
   ] },
   { id: "people", title: "People & HR", icon: "users", items: [
-    { href: "/hr/employees", label: "Employees", permission: "hr.view" },
+    { href: "/hr/employees", label: "Staff Directory", permission: "hr.view" },
     { href: "/hr/attendance", label: "Attendance (all)", permission: "attendance.view_all" },
     { href: "/payroll", label: "Payroll", permission: "payroll.view" },
     { href: "/hr/monitoring", label: "Workforce Activity", permission: "monitoring.view_team" },

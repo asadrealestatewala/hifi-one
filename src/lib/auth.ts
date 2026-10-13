@@ -8,6 +8,7 @@ import { db } from "./db";
 import { limiter } from "./rate-limit";
 import { checkSecondFactor } from "./mfa";
 import { needsMfaSetup } from "./mfa-policy";
+import { parseLoginIdentifier } from "./login-identifier";
 import type { PermissionKey } from "./permissions";
 
 const COOKIE = "hifi_session";
@@ -24,7 +25,8 @@ function secret() {
 export type SessionUser = {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
+  phone: string | null;
   organizationId: string;
   userType: string;
   mustChangePassword: boolean;
@@ -39,7 +41,7 @@ export type SessionUser = {
 
 const MFA_COOKIE = "hifi_mfa_pending";
 
-type LoginResult = { ok: true; mfa?: boolean } | { ok: false; error: string };
+type LoginResult = { ok: true; mfa?: boolean; userType: string } | { ok: false; error: string };
 
 async function startSession(user: { id: string; organizationId: string }) {
   const h = await headers();
@@ -55,14 +57,18 @@ async function startSession(user: { id: string; organizationId: string }) {
   (await cookies()).set(COOKIE, token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", expires: expiresAt });
 }
 
-export async function login(email: string, password: string): Promise<LoginResult> {
-  const generic = { ok: false as const, error: "Invalid email or password." };
-  // Slow down guessing from one address, on top of the per-account lockout below
+// Sign in with the registered email or registered contact number, plus the password. The identifier is normalised
+// first, so "+92 300 1234567", "03001234567" and "+923001234567" all find the same account. Messages never say
+// which part was wrong, and attempts are limited per address and per identifier.
+export async function login(identifier: string, password: string): Promise<LoginResult> {
+  const generic = { ok: false as const, error: "Invalid email, phone number or password." };
+  const id = parseLoginIdentifier(identifier);
   const ip = (await headers()).get("x-forwarded-for")?.split(",")[0].trim() ?? "local";
-  if (!limiter("login-ip", 20, 10 * 60_000).take(ip) || !limiter("login-email", 8, 10 * 60_000).take(email.trim().toLowerCase())) {
+  if (!limiter("login-ip", 20, 10 * 60_000).take(ip) || !limiter("login-email", 8, 10 * 60_000).take(id?.value ?? identifier.trim().toLowerCase())) {
     return { ok: false, error: "Too many sign-in attempts. Please wait a few minutes and try again." };
   }
-  const user = await db.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+  if (!id) return generic;
+  const user = await db.user.findUnique({ where: id.kind === "email" ? { email: id.value } : { phone: id.value } });
   if (!user || !user.active) return generic;
   if (user.lockedUntil && user.lockedUntil > new Date()) {
     return { ok: false, error: "Account temporarily locked after repeated failed sign-ins. Try again later." };
@@ -81,10 +87,10 @@ export async function login(email: string, password: string): Promise<LoginResul
     // Password is right, but no session exists until the second factor is proven. The pending cookie only proves step one.
     const token = await new SignJWT({ uid: user.id, purpose: "mfa" }).setProtectedHeader({ alg: "HS256" }).setExpirationTime("5m").sign(secret());
     (await cookies()).set(MFA_COOKIE, token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 300 });
-    return { ok: true, mfa: true };
+    return { ok: true, mfa: true, userType: user.userType };
   }
   await startSession(user);
-  return { ok: true };
+  return { ok: true, userType: user.userType };
 }
 
 // Step two of sign-in for accounts with an authenticator app. Accepts a 6-digit code or one recovery code.
@@ -157,6 +163,7 @@ async function loadSessionUser(): Promise<SessionUser | null> {
     id: session.user.id,
     name: session.user.name,
     email: session.user.email,
+    phone: session.user.phone,
     organizationId: session.user.organizationId,
     userType: session.user.userType,
     mustChangePassword: session.user.mustChangePassword,

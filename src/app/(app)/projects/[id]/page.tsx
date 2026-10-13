@@ -29,6 +29,7 @@ export default async function ProjectPage({
     include: { members: true, tasks: { orderBy: { createdAt: "asc" } } },
   });
   if (!project) notFound();
+  const projectCampaign = project.campaignId ? await db.campaign.findFirst({ where: { id: project.campaignId, organizationId: user.organizationId }, select: { id: true, name: true } }) : null;
   const canManage = user.permissions.has("projects.manage");
   const canMove = user.permissions.has("tasks.edit");
   const orgUsers = await db.user.findMany({
@@ -51,6 +52,7 @@ export default async function ProjectPage({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{project.name} <span className="text-muted text-base font-normal">{project.number}</span></h1>
+          {projectCampaign && <p className="text-sm text-muted">Campaign: {user.permissions.has("campaigns.view") ? <Link className="hover:underline" href={`/campaigns/${projectCampaign.id}`}>{projectCampaign.name}</Link> : projectCampaign.name}</p>}
           <p className="text-sm text-muted">
             {client ? client.name : "Internal project"} · {project.status.replace("_", " ")} · Manager: {nameOf.get(project.managerId) ?? "Unknown"}
             {project.deadline && ` · Due ${project.deadline.toLocaleDateString()}`}

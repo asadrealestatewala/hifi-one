@@ -28,10 +28,22 @@ export default async function MyTasks({ searchParams }: { searchParams: Promise<
     db.task.count({ where: { ...mine, status: { not: "DONE" }, dueDate: { gte: dayStart, lt: dayEnd } } }),
   ]);
   const canMove = user.permissions.has("tasks.edit");
+  // Campaigns the person is on are part of their workload, whether or not they can open the campaign list
+  const myCampaigns = await db.campaignMember.findMany({ where: { userId: user.id, campaign: { organizationId: user.organizationId, archivedAt: null } }, include: { campaign: { select: { id: true, name: true, code: true, status: true, endDate: true } } }, orderBy: { addedAt: "desc" } });
+  const canOpenCampaigns = user.permissions.has("campaigns.view");
   const href = (s: string) => (s === "open" ? "/me/tasks" : `/me/tasks?show=${s}`);
   return (
     <div className="space-y-5">
-      <PageHeader title="My tasks" subtitle="Everything assigned to you across projects." />
+      <PageHeader title="My tasks" subtitle="Everything assigned to you across projects and campaigns." />
+      <section className="card space-y-2" aria-labelledby="my-campaigns">
+        <h2 id="my-campaigns" className="font-semibold">My campaigns</h2>
+        {myCampaigns.length === 0 ? <p className="text-sm text-muted">You are not on any campaign team.</p> : (
+          <ul className="flex flex-wrap gap-2">{myCampaigns.map((m) => {
+            const body = <><span className="font-medium">{m.campaign.name}</span> <span className="text-xs text-muted">{m.campaign.code}{m.campaign.endDate && ` · ends ${m.campaign.endDate}`}</span> <StatusBadge status={m.campaign.status} /></>;
+            return <li key={m.campaignId} className="rounded-lg border border-border px-3 py-1.5 text-sm">{canOpenCampaigns ? <Link href={`/campaigns/${m.campaignId}`} className="hover:underline">{body}</Link> : body}</li>;
+          })}</ul>
+        )}
+      </section>
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Open" value={openCount} />
         <Stat label="Due today" value={dueToday} />

@@ -6,7 +6,8 @@ import { audit, requirePermission } from "@/lib/auth";
 import { LedgerError, recordPayment } from "@/lib/accounting";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
-import { Empty, NewButton, Notice, PageHeader, Pager, PanelForm, SearchBox, Stat } from "@/components/ui";
+import { AppliedFilters, DateRangeForm, Empty, NewButton, Notice, PageHeader, Pager, PanelForm, SearchBox, Stat } from "@/components/ui";
+import { parseRange, rangeFilter, rangeLabel } from "@/lib/date-range";
 import { paging } from "@/lib/paging";
 import Drawer from "@/components/ui/Drawer";
 import { paymentReceived } from "@/lib/events";
@@ -45,9 +46,11 @@ async function receive(formData: FormData) {
   redirect(`/finance/payments?ok=${pid}`);
 }
 
-export default async function Payments({ searchParams }: { searchParams: Promise<{ error?: string; ok?: string; q?: string; new?: string; page?: string }> }) {
+export default async function Payments({ searchParams }: { searchParams: Promise<{ error?: string; ok?: string; q?: string; new?: string; page?: string; from?: string; to?: string; src?: string }> }) {
   const user = await requirePermission("finance.view");
-  const { error, ok, q, new: isNew, page } = await searchParams;
+  const { error, ok, q, new: isNew, page, from, to, src } = await searchParams;
+  const range = parseRange(from, to);
+  const received = rangeFilter(range);
   const pg = paging(page);
   const canPost = user.permissions.has("finance.post");
   const search = q?.trim();
@@ -56,10 +59,10 @@ export default async function Payments({ searchParams }: { searchParams: Promise
   const today = new Date().toLocaleDateString("en-CA", { timeZone: profile?.timezone ?? "UTC" });
   const open = Boolean(canPost && isNew);
   const org = user.organizationId;
-  const where = { organizationId: org, ...(search ? { OR: [{ number: { contains: search, mode: "insensitive" as const } }, { client: { name: { contains: search, mode: "insensitive" as const } } }, { reference: { contains: search, mode: "insensitive" as const } }] } : {}) };
+  const where = { organizationId: org, ...(search ? { OR: [{ number: { contains: search, mode: "insensitive" as const } }, { client: { name: { contains: search, mode: "insensitive" as const } } }, { reference: { contains: search, mode: "insensitive" as const } }] } : {}), ...(received ? { date: received } : {}) };
   // Figures come from aggregates over every payment, not from the page of rows shown
   const monthStart = today.slice(0, 7);
-  const [payments, matched, received, advances, clients, banks] = await Promise.all([
+  const [payments, matched, receivedThisMonth, advances, clients, banks] = await Promise.all([
     db.payment.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: pg.skip, take: pg.take, include: { client: true, allocations: { include: { invoice: true } } } }),
     db.payment.count({ where }),
     db.payment.groupBy({ by: ["currency"], where: { organizationId: org, createdAt: { gte: new Date(`${monthStart}-01T00:00:00.000Z`) } }, _sum: { amount: true } }),
@@ -70,17 +73,22 @@ export default async function Payments({ searchParams }: { searchParams: Promise
   // Received this month and advances held, per currency, never mixed
   const perCurrency = (rows: { currency: string; v: { toString(): string } | null }[]) => rows.filter((r) => r.v && Number(r.v.toString()) !== 0).map((r) => formatMoney(r.v!, r.currency)).join(" · ") || "None";
   const total = await db.payment.count({ where: { organizationId: org } });
+  const listHref = (n: number, over: Record<string, string | undefined> = {}) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ q: search, from: range.from, to: range.to, src, page: n > 1 ? String(n) : undefined, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/finance/payments${t ? `?${t}` : ""}`; };
   return (
     <div className="space-y-5">
       <PageHeader title="Payments & receipts" subtitle="Money received, and which invoices it settled." actions={canPost ? <NewButton href="/finance/payments?new=1">Record payment</NewButton> : undefined} />
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Receipts" value={total} />
-        <Stat label="Received this month" value={perCurrency(received.map((r) => ({ currency: r.currency, v: r._sum.amount })))} hint="per currency" />
+        <Stat label="Received this month" value={perCurrency(receivedThisMonth.map((r) => ({ currency: r.currency, v: r._sum.amount })))} hint="per currency" />
         <Stat label="Held as advances" value={perCurrency(advances.map((r) => ({ currency: r.currency, v: r._sum.unallocated })))} hint="not yet applied to an invoice" />
       </div>
       {ok && <Notice kind="ok">Payment recorded and applied to open invoices, oldest first.</Notice>}
       {error && !open && <Notice kind="error">{error}</Notice>}
-      <SearchBox q={search} placeholder="Search receipt, client or reference" />
+      <AppliedFilters items={range.from || range.to ? [{ label: `Received ${rangeLabel(range)}`, removeHref: listHref(1, { from: undefined, to: undefined }) }] : []} clearHref="/finance/payments" backHref={src === "dashboard" ? "/dashboard" : undefined} />
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchBox q={search} placeholder="Search receipt, client or reference" hidden={{ from: range.from, to: range.to, src }} />
+        <DateRangeForm from={range.from} to={range.to} label="Received" hidden={{ q: search, src }} />
+      </div>
       {payments.length === 0 ? <Empty title={search ? "No payments match" : "No payments yet"}>{canPost ? "Record the first one with Record payment." : "Receipts will appear here."}</Empty> : (
         <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">
@@ -99,7 +107,7 @@ export default async function Payments({ searchParams }: { searchParams: Promise
               ))}
             </tbody>
           </table>
-          <Pager page={pg.page} size={pg.size} total={matched} href={(n) => { const p = new URLSearchParams(); if (search) p.set("q", search); if (n > 1) p.set("page", String(n)); const t = p.toString(); return `/finance/payments${t ? `?${t}` : ""}`; }} />
+          <Pager page={pg.page} size={pg.size} total={matched} href={(n) => listHref(n)} />
         </div>
       )}
       {open && (

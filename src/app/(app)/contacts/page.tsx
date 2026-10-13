@@ -31,7 +31,7 @@ export default async function Contacts({ searchParams }: { searchParams: Promise
     questFor(db, { organizationId: org, userId: user.id }),
     db.user.findMany({ where: { organizationId: org, userType: "EMPLOYEE", active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     canEdit && sp.new ? db.contact.findMany({ where: { organizationId: org, kind: "ORGANIZATION", archived: false }, orderBy: { name: "asc" }, select: { name: true }, take: 500 }) : Promise.resolve([]),
-    canEdit && sp.new ? db.campaign.findMany({ where: { organizationId: org, status: { in: ["ACTIVE", "PLANNED"] } }, orderBy: { name: "asc" }, select: { id: true, name: true } }) : Promise.resolve([]),
+    canEdit && sp.new ? db.campaign.findMany({ where: { organizationId: org, archivedAt: null, status: { in: ["ACTIVE", "PLANNED"] } }, orderBy: { name: "asc" }, select: { id: true, name: true } }) : Promise.resolve([]),
     canEdit && sp.new ? db.pipelineStage.findMany({ where: { organizationId: org }, orderBy: { sortOrder: "asc" }, select: { id: true, name: true } }) : Promise.resolve([]),
   ]);
   const owner = new Map(staff.map((s) => [s.id, s.name]));

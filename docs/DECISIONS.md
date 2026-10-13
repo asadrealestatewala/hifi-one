@@ -31,6 +31,11 @@ Newest last. Each entry: what was decided, why, and what it costs.
 26. **Cross-module notifications live in `src/lib/events.ts`**, one function per business event, called by the action after the service commits, each with a dedupe key. Kept out of ledger transactions so a notification failure can never undo money. Cost: a crash between commit and notify loses that notification.
 27. **Destructive and financial buttons use `ConfirmButton`** (native `<dialog>`). Cancelling an invoice and voiding a commission now require a reason, stored in the audit log (`src/lib/reasons.ts`). This adds a required input to two existing actions.
 
+28. **Staff email is optional; the contact number is a second sign-in identifier.** `User.email` became nullable (never invented), `User.phone` holds the E.164 number, unique. A phone number only identifies the account; the password (and two-step code) is always required. Staff get setup links, never passwords chosen by someone else.
+29. **One category list.** Campaign categories reuse `ServiceCategory` (the service catalog's list) instead of a second list; "SaaS" is the existing "SaaS Products and Subscriptions". Cost: campaign and catalog categories cannot diverge without splitting later.
+30. **New permissions reach existing roles once**, when first registered, following the code defaults; afterwards the Roles screen owns each role. This let `campaigns.view` replace `crm.view` on the Campaigns page without locking anyone out.
+31. **Initial records live in code (names, designations, roles, campaigns) and in a git-ignored file (numbers, CNIC)**, reconciled by an idempotent script that only fills gaps.
+
 ## Open questions
 
 - Success feedback: `?ok=` query flag (current, visible in the address) or a short-lived flash cookie read by the layout?

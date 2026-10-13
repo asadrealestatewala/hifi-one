@@ -38,7 +38,7 @@ describe("role defaults", () => {
   it("a new installation requires it for money, people and admin roles only", async () => {
     await syncPermissionsAndRoles(db, a, { overwrite: true, requireMfaForSensitive: true });
     const roles = await db.role.findMany({ where: { organizationId: a, requireMfa: true } });
-    expect(roles.map((r) => r.key).sort()).toEqual(["ACCOUNTANT", "CEO", "FINANCE_MANAGER", "HR_MANAGER", "SUPER_ADMIN"]);
+    expect(roles.map((r) => r.key).sort()).toEqual(["ACCOUNTANT", "CEO", "FINANCE_MANAGER", "HR_COORDINATOR", "HR_MANAGER", "SUPER_ADMIN"]);
   });
 
   it("an existing installation is not locked out by a sync, and a re-sync never switches it off", async () => {

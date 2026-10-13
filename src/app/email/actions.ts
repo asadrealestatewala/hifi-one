@@ -40,6 +40,7 @@ export async function testEmailAction(formData: FormData) {
     await audit(user, { action: "email.verify", entity: "EmailMessage", after: { ok: r.ok } });
     redirect(`/settings/email?${r.ok ? "ok" : "error"}=${encodeURIComponent(r.message)}`);
   }
+  if (!user.email) redirect(`/settings/email?error=${encodeURIComponent("Your account has no email address to send the test to.")}`);
   try {
     const m = await sendEmail(db, { organizationId: user.organizationId, to: user.email, subject: "Hifi One test email", text: "This is a test email from Hifi One. If you can read it, outgoing email works.", relatedType: "TEST", actorId: user.id });
     await audit(user, { action: "email.test", entity: "EmailMessage", entityId: m.id, after: { status: m.status } });

@@ -9,7 +9,9 @@
 | Person or company you deal with | `Contact` (kind PERSON or ORGANIZATION; `parentId` links a person to an organization) | `Lead.contactId`, `Client.contactId`, `ContactActivity`, `Meeting.contactId`, files with owner CONTACT |
 | Sales opportunity | `Lead` (stage on `PipelineStage`) | `LeadActivity`, `Contact` |
 | Paying customer | `Client` | `Invoice`, `Quote`, `Subscription`, `Contract`, `Payment`, `Project.clientId`, `Meeting.clientId`, `ClientInvite`, portal `User.clientId` |
-| Employee | `User` (userType EMPLOYEE) plus `EmployeeProfile` | attendance, leave, payroll, monitoring, tasks, commissions |
+| Employee | `User` (userType EMPLOYEE; optional unique `email` and `phone`) plus `EmployeeProfile` (foreign key `userId`) | attendance, leave, payroll, monitoring, tasks, commissions, `CampaignMember` |
+| Campaign | `Campaign` (code CMP-0001, category from `ServiceCategory`) | `CampaignMember`, `CampaignClient`, `Lead.campaignId`, `Project.campaignId` |
+| Business category | `ServiceCategory` (one list for the catalog and campaigns) | `ServicePlan`, `Campaign` |
 | Vendor | `Vendor` | `VendorOpportunity`, `VendorApplication`, `WorkOrder`, `VendorBill`, portal `User.vendorId` |
 | Project | `Project` | `ProjectMember`, `Task`, `Milestone`, `TimeEntry`, `Budget` (scope PROJECT), `Meeting.projectId` |
 | Money movement | `JournalEntry` and `JournalLine` (double entry, immutable once posted) | `Invoice`, `Payment`, `CreditNote`, `ExpenseVoucher`, `VendorBill`, `PayrollRun`, `ManualJournal`, `DepreciationEntry` reference their entry |
@@ -40,4 +42,4 @@ Unique per organization: `Client(name)`, `Account(code)`, `NumberSequence(key)`.
 
 ## Not modelled yet
 
-Brands under a client, deliverables as their own entity, purchase orders separate from work orders, ad-platform metrics, saved views for arbitrary lists (smart lists exist for leads).
+Brands under a client, deliverables as their own entity (campaign deliverables are content items and tasks in linked projects), purchase orders separate from work orders, ad-platform metrics, saved views for arbitrary lists (smart lists exist for leads).
