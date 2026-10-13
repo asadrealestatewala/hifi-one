@@ -6,7 +6,7 @@ import { z } from "zod";
 import { audit, requirePermission, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { projectScope } from "@/lib/projects";
-import { notify } from "@/lib/notifications";
+import { projectMemberAdded, projectStatusChanged, taskAssigned, taskCommented, taskMoved } from "@/lib/events";
 import { TASK_STATUSES, canCompleteProject } from "@/lib/project-rules";
 import { TaskError, addComment, addSubtask, changeTaskStatus, setBlockers, setRecurrence } from "@/lib/tasks";
 
@@ -68,6 +68,7 @@ export async function addMember(formData: FormData) {
     where: { projectId_userId: { projectId, userId } }, update: { role }, create: { projectId, userId, role },
   });
   await audit(user, { action: "project.add_member", entity: "Project", entityId: projectId, after: { userId, role } });
+  await projectMemberAdded(db, { organizationId: user.organizationId, projectId, userId, byUserId: user.id, role });
   revalidatePath(`/projects/${projectId}`);
 }
 
@@ -89,7 +90,7 @@ export async function createTask(formData: FormData) {
     },
   });
   await audit(user, { action: "task.create", entity: "Task", entityId: task.id, after: { title, projectId, assigneeId } });
-  if (assigneeId && assigneeId !== user.id) await notify(db, assigneeId, { kind: "task.assigned", title: "A task was assigned to you", body: title, link: `/projects/${projectId}`, dedupeKey: `task:${task.id}` });
+  await taskAssigned(db, { organizationId: user.organizationId, taskId: task.id, toUserId: assigneeId, byUserId: user.id });
   revalidatePath(`/projects/${projectId}`);
 }
 
@@ -111,6 +112,7 @@ export async function moveTask(taskId: string, status: string): Promise<MoveResu
   try {
     const r = await changeTaskStatus(db, { projectId: task.projectId, taskId, status, actorId: user.id });
     await audit(user, { action: "task.move", entity: "Task", entityId: taskId, before: { status: task.status }, after: { status, nextOccurrence: r.next?.id ?? null } });
+    await taskMoved(db, { organizationId: user.organizationId, taskId, status, byUserId: user.id });
   } catch (e) {
     if (e instanceof TaskError) return { ok: false, error: e.message };
     throw e;
@@ -132,6 +134,7 @@ export async function setProjectStatus(formData: FormData) {
   }
   await db.project.update({ where: { id: projectId }, data: { status: status.data } });
   await audit(user, { action: "project.status", entity: "Project", entityId: projectId, before: { status: project.status }, after: { status: status.data } });
+  if (status.data !== project.status) await projectStatusChanged(db, { organizationId: user.organizationId, projectId, status: status.data, byUserId: user.id });
   revalidatePath(`/projects/${projectId}`);
 }
 
@@ -183,6 +186,7 @@ export async function saveTaskDetailAction(taskId: string, formData: FormData): 
     await setRecurrence(db, { projectId: c.task.projectId, taskId, recurrence });
     await db.task.update({ where: { id: taskId }, data: { dueDate: due ? new Date(due) : null, assigneeId, description: String(formData.get("description") ?? "").trim().slice(0, 4000) || null, ...(priority.success ? { priority: priority.data } : {}), clientVisible: formData.get("clientVisible") === "on" } });
     await audit(c.user, { action: "task.update", entity: "Task", entityId: taskId, after: { blockers: blockers.length, recurrence, assigneeId } });
+    if (assigneeId !== c.task.assigneeId) await taskAssigned(db, { organizationId: c.user.organizationId, taskId, toUserId: assigneeId, byUserId: c.user.id });
   } catch (e) {
     if (e instanceof TaskError) return { ok: false, error: e.message };
     throw e;
@@ -196,9 +200,9 @@ export async function addTaskCommentAction(taskId: string, body: string): Promis
   const c = await manageTask(user, taskId);
   if (!c) return { ok: false, error: "Task not found." };
   try {
-    await addComment(db, { projectId: c.task.projectId, taskId, authorId: c.user.id, body });
+    const comment = await addComment(db, { projectId: c.task.projectId, taskId, authorId: c.user.id, body });
     await audit(c.user, { action: "task.comment", entity: "Task", entityId: taskId });
-    if (c.task.assigneeId && c.task.assigneeId !== c.user.id) await notify(db, c.task.assigneeId, { kind: "task.comment", title: "New comment on your task", body: c.task.title, link: `/projects/${c.task.projectId}?task=${taskId}` });
+    await taskCommented(db, { organizationId: c.user.organizationId, taskId, commentId: comment.id, authorId: c.user.id, body });
   } catch (e) {
     if (e instanceof TaskError) return { ok: false, error: e.message };
     throw e;

@@ -87,8 +87,8 @@ export default function TaskDetail({ task, subtasks, candidates, members, commen
         )}
         {canComment && (
           <form onSubmit={(e) => { e.preventDefault(); const t = note; run(() => addTaskCommentAction(task.id, t), () => setNote("")); }} className="space-y-2">
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={4000} placeholder="Write a comment (internal, clients never see it)" aria-label="New comment" className="input" />
-            <div className="flex justify-end"><button className="btn-ghost" disabled={pending || !note.trim()}>Comment</button></div>
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={4000} placeholder="Write a comment. Type @ and a name to notify a team member (internal, clients never see it)" aria-label="New comment" className="input" />
+            <div className="flex items-center justify-between gap-2"><p className="text-xs text-muted">Team: {members.map((m) => `@${m.name}`).join(", ") || "no members yet"}</p><button className="btn-ghost" disabled={pending || !note.trim()}>Comment</button></div>
           </form>
         )}
       </section>

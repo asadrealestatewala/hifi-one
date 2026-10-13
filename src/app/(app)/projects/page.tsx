@@ -7,16 +7,19 @@ import { createProject } from "./actions";
 import { AppliedFilters, Avatar, Chips, Empty, NewButton, PageHeader, PanelForm, SearchBox, Stat, StatusBadge } from "@/components/ui";
 import Drawer from "@/components/ui/Drawer";
 import { isOverdue } from "@/lib/project-rules";
+import TasksView from "./TasksView";
 
 export const dynamic = "force-dynamic";
 
 const STATUSES = ["ACTIVE", "ON_HOLD", "COMPLETED", "CANCELLED"];
-type SP = { error?: string; status?: string; q?: string; new?: string; campaign?: string; from?: string };
+type SP = { error?: string; status?: string; q?: string; new?: string; campaign?: string; from?: string; view?: string; who?: string; tstatus?: string; priority?: string; project?: string; due?: string; page?: string };
 
 export default async function Projects({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requirePermission("projects.view");
   const sp = await searchParams;
   const canManage = user.permissions.has("projects.manage");
+  const tabs = <Chips current={sp.view === "tasks" ? "tasks" : "projects"} items={[{ key: "projects", label: "Projects", href: "/projects" }, { key: "tasks", label: "Tasks", href: "/projects?view=tasks" }]} />;
+  if (sp.view === "tasks") return <TasksView user={user} sp={sp} tabs={tabs} />;
   const status = STATUSES.includes(sp.status ?? "") ? sp.status! : "all";
   const q = sp.q?.trim();
   const [all, clients] = await Promise.all([
@@ -34,11 +37,12 @@ export default async function Projects({ searchParams }: { searchParams: Promise
   return (
     <div className="space-y-5">
       <PageHeader title="Projects" subtitle="Delivery work, progress and deadlines in one place." actions={canManage ? <NewButton href={href({ new: "1" })}>New project</NewButton> : undefined} />
+      {tabs}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Active" value={count("ACTIVE")} />
-        <Stat label="On hold" value={count("ON_HOLD")} />
-        <Stat label="Completed" value={count("COMPLETED")} />
-        <Stat label="Overdue tasks" value={lateTasks} hint="across active projects" />
+        <Stat label="Active" value={count("ACTIVE")} href={href({ status: "ACTIVE" })} />
+        <Stat label="On hold" value={count("ON_HOLD")} href={href({ status: "ON_HOLD" })} />
+        <Stat label="Completed" value={count("COMPLETED")} href={href({ status: "COMPLETED" })} />
+        <Stat label="Overdue tasks" value={lateTasks} hint="across active projects" href="/projects?view=tasks&who=all&due=overdue" />
       </div>
       <AppliedFilters items={camp ? [{ label: camp === "linked" ? "Linked to a campaign" : `Campaign: ${campaignName}`, removeHref: href({ campaign: undefined }) }] : []} clearHref="/projects" backHref={sp.from === "dashboard" ? "/dashboard?tab=campaigns" : undefined} />
       <div className="flex flex-wrap items-center gap-3">
