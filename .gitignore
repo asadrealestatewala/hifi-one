@@ -1,6 +1,6 @@
 # Dependencies
 node_modules/
-vendor/
+/vendor/
 .venv/
 venv/
 __pycache__/
