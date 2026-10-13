@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
-import { Badge, Empty, Notice, PageHeader, Stat } from "@/components/ui";
+import { Badge, DownloadButtons, Empty, Notice, PageHeader, Stat } from "@/components/ui";
 import { db } from "@/lib/db";
 import { MonitorError, decideCorrection, getPolicy, logReportAccess, summarize } from "@/lib/monitoring";
 
@@ -48,7 +48,7 @@ export default async function Monitoring({ searchParams }: { searchParams: Promi
   return (
     <div className="space-y-6">
       <PageHeader title="Workforce activity" subtitle="Time and activity reported by people who have accepted the policy. These are context, not a verdict: weigh them with task delivery, quality reviews and agreed targets."
-        actions={<>{user.permissions.has("monitoring.configure") && <Link href="/settings/monitoring" className="btn-ghost">Policy &amp; devices</Link>}{canShots && <Link href="/hr/monitoring/screenshots" className="btn-ghost">Screenshots</Link>}</>} />
+        actions={<>{user.permissions.has("monitoring.configure") && <Link href="/settings/monitoring" className="btn-ghost">Policy &amp; devices</Link>}{canShots && <Link href="/hr/monitoring/screenshots" className="btn-ghost">Screenshots</Link>}<DownloadButtons report="workforce" params={{ from, to, dept: sp.dept }} /></>} />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {!policy.enabled && <Notice kind="error">Monitoring is switched off, so there is nothing new to report.</Notice>}
 

@@ -143,6 +143,17 @@ export function Pager({ page, size, total, href }: { page: number; size: number;
   );
 }
 
+// Download links for a report: CSV for spreadsheets, PDF for sharing. `params` carries the on-screen filters.
+export function DownloadButtons({ report, params }: { report: string; params?: Record<string, string | undefined> }) {
+  const q = (format: string) => { const p = new URLSearchParams({ report, format }); for (const [k, v] of Object.entries(params ?? {})) if (v) p.set(k, v); return `/reports/download?${p}`; };
+  return (
+    <span className="inline-flex gap-2" role="group" aria-label="Download this report">
+      <a href={q("csv")} className="btn-ghost" download>Download CSV</a>
+      <a href={q("pdf")} className="btn-ghost" download>Download PDF</a>
+    </span>
+  );
+}
+
 // From/to date filter for a list. Keeps the other filters as hidden fields; the range lives in the address.
 export function DateRangeForm({ from, to, hidden, label = "Dates" }: { from?: string; to?: string; hidden?: Record<string, string | undefined>; label?: string }) {
   return (

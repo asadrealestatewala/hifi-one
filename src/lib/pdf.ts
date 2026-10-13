@@ -360,3 +360,29 @@ export async function voucherPdf(d: VoucherDoc, b: Build = {}) {
   footer(ctx, d.company);
   return done();
 }
+
+// ---- Generic report (any ReportTable: finance, leads, workforce) ----
+export type ReportDoc = {
+  title: string; subtitle: string; company: Company; config: DocConfig; generatedBy: string;
+  sections: { heading: string; columns: { label: string; align?: "left" | "right" }[]; rows: string[][]; totals?: string[] }[]; notes: string[];
+};
+export async function reportPdf(d: ReportDoc, b: Build = {}) {
+  const { ctx, done } = start({ ...b, title: d.title, cfg: d.config });
+  header(ctx, d.company, d.title.toUpperCase());
+  kv(ctx, [["Period", d.subtitle], ["Prepared by", d.generatedBy], ["Generated", new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC"]]);
+  doc_move(ctx);
+  for (const s of d.sections) {
+    ctx.doc.font("Helvetica-Bold").fontSize(10).fillColor("#111").text(t(ctx, s.heading), 48);
+    ctx.doc.moveDown(0.2);
+    const n = s.columns.length;
+    const first = n > 1 ? Math.min(180, Math.floor(499 / n) + 40) : 499;
+    const rest = n > 1 ? Math.floor((499 - first) / (n - 1)) : 0;
+    const cols = s.columns.map((c, i) => ({ label: c.label, align: c.align, width: i === 0 ? first : rest }));
+    if (s.rows.length === 0) ctx.doc.font("Helvetica").fontSize(9).fillColor("#555").text("Nothing to show.", 48);
+    else table(ctx, cols, s.rows, { totalRow: s.totals });
+    ctx.doc.moveDown(0.8);
+  }
+  for (const note of d.notes) ctx.doc.font("Helvetica").fontSize(8.5).fillColor("#555").text(t(ctx, note), 48, undefined, { width: 499 });
+  footer(ctx, d.company);
+  return done();
+}

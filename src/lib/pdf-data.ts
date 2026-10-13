@@ -129,3 +129,8 @@ export async function loadVoucherDoc(db: PrismaClient, p: { organizationId: stri
 }
 
 export { DEFAULT_DOC_CONFIG };
+
+// Letterhead and document look for a generated report (uses the statement style settings)
+export async function loadReportLetterhead(db: PrismaClient, organizationId: string) {
+  return { company: await liveCompany(db, organizationId), config: (await getDocConfig(db, organizationId, "STATEMENT")).config };
+}
