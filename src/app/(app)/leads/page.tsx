@@ -12,9 +12,9 @@ import { createLead } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function Leads({ searchParams }: { searchParams: Promise<{ error?: string; dup?: string; q?: string; stage?: string; new?: string; page?: string; campaign?: string; from?: string; to?: string; src?: string }> }) {
+export default async function Leads({ searchParams }: { searchParams: Promise<{ error?: string; dup?: string; q?: string; stage?: string; new?: string; page?: string; campaign?: string; source?: string; from?: string; to?: string; src?: string }> }) {
   const user = await requirePermission("crm.view");
-  const { error, dup, q, stage, new: isNew, page, campaign, from, to, src } = await searchParams;
+  const { error, dup, q, stage, new: isNew, page, campaign, source, from, to, src } = await searchParams;
   const range = parseRange(from, to);
   const created = rangeFilter(range);
   const pg = paging(page);
@@ -26,6 +26,7 @@ export default async function Leads({ searchParams }: { searchParams: Promise<{ 
     ...base,
     ...(stage ? { stageId: stage } : {}),
     ...(campaign ? { campaignId: campaign } : {}),
+    ...(source ? { leadSourceId: source } : {}),
     ...(created ? { createdAt: created } : {}),
     ...(search ? { AND: [{ OR: [{ name: { contains: esc(search), mode: "insensitive" as const } }, { company: { contains: esc(search), mode: "insensitive" as const } }, { email: { contains: esc(search), mode: "insensitive" as const } }, { phone: { contains: search } }] }] } : {}),
   };
@@ -39,7 +40,7 @@ export default async function Leads({ searchParams }: { searchParams: Promise<{ 
   ]);
   const counts = new Map(stageCounts.map((c) => [c.stageId, c._count]));
   const total = stageCounts.reduce((n, c) => n + c._count, 0);
-  const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ stage, campaign, from: range.from, to: range.to, src, q: search, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/leads${t ? `?${t}` : ""}`; };
+  const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ stage, campaign, source, from: range.from, to: range.to, src, q: search, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/leads${t ? `?${t}` : ""}`; };
   const campaignName = new Map(campaigns.map((c) => [c.id, c.name]));
   return (
     <div className="space-y-6">
