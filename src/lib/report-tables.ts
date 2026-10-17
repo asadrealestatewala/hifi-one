@@ -5,6 +5,8 @@ import { tableCsv } from "./crm-contacts";
 import { loadLeadsReport } from "./leads-report";
 import { summarize } from "./monitoring";
 import { AGING_BUCKETS, buildBalanceSheet, buildIncomeStatement, groupByCurrency, loadBalances, loadCashMovement, loadPayablesAging, loadReceivablesAging, type Line } from "./statements";
+import { performance } from "./campaign-performance";
+import { projectProgress } from "./project-rules";
 import { salesTaxReport } from "./tax";
 
 export type ReportColumn = { label: string; align?: "left" | "right" };
@@ -21,6 +23,8 @@ export const REPORTS = {
   tax: { title: "Sales Tax", permission: "reports.view" },
   leads: { title: "Leads Report", permission: "crm.view" },
   workforce: { title: "Workforce Time and Activity", permission: "monitoring.view_team" },
+  campaign: { title: "Campaign Performance", permission: "campaigns.view" },
+  campaign_client: { title: "Campaign Report for the Client", permission: "campaigns.view" },
 } as const;
 export type ReportKey = keyof typeof REPORTS;
 export const isReportKey = (k: string | null | undefined): k is ReportKey => !!k && k in REPORTS;
@@ -29,7 +33,7 @@ const n2 = (v: { toString(): string } | number) => Number(v.toString()).toFixed(
 const money = [{ label: "Code" }, { label: "Account" }, { label: "Amount", align: "right" as const }];
 const lines = (ls: Line[]) => ls.map((l) => [l.code, l.name, n2(l.amount)]);
 
-export type ReportParams = { organizationId: string; from: string; to: string; leadWhere?: Prisma.LeadWhereInput; departmentId?: string };
+export type ReportParams = { organizationId: string; from: string; to: string; leadWhere?: Prisma.LeadWhereInput; departmentId?: string; campaignId?: string };
 
 export async function buildReport(db: PrismaClient, key: ReportKey, p: ReportParams): Promise<ReportTable> {
   const period = `${p.from} to ${p.to}`;
@@ -100,6 +104,29 @@ export async function buildReport(db: PrismaClient, key: ReportKey, p: ReportPar
       rows: people.map((x) => { const s = by.get(x.id); return [x.name, x.department?.name ?? "", String(s?.attendanceMinutes ?? 0), String(s?.breakMinutes ?? 0), String(s?.activeMinutes ?? 0), String(s?.idleMinutes ?? 0), String(s?.screenshots ?? 0), String(s?.correctedMinutes ?? 0)]; }),
     });
     r.notes.push("Figures are context, not a verdict. Only people who accepted the monitoring policy are recorded.");
+  }
+  else if (key === "campaign" || key === "campaign_client") {
+    const c = p.campaignId ? await db.campaign.findFirst({ where: { id: p.campaignId, organizationId: p.organizationId }, include: { category: { select: { name: true } } } }) : null;
+    if (!c) { r.notes.push("Campaign not found."); return r; }
+    r.title = `${key === "campaign" ? "Campaign performance" : "Campaign report"}: ${c.name}`;
+    const perf = await performance(db, p.organizationId, c.id, { from: p.from, to: p.to });
+    const fig = (f: { currency: string; amount: number }[]) => f.map((x) => `${n2(x.amount)} ${x.currency}`).join("; ") || "none";
+    const projects = await db.project.findMany({ where: { organizationId: p.organizationId, campaignId: c.id }, select: { id: true, number: true, name: true, status: true, tasks: { select: { status: true, completedAt: true, parentId: true } } }, orderBy: { number: "asc" } });
+    const deliverables = await db.deliverable.findMany({ where: { organizationId: p.organizationId, campaignId: c.id, status: { not: "DRAFT" } }, orderBy: { createdAt: "desc" }, take: 30 });
+    const start = new Date(`${p.from}T00:00:00.000Z`), end = new Date(`${p.to}T23:59:59.999Z`);
+    const doneInPeriod = projects.reduce((n, pr) => n + pr.tasks.filter((t) => t.completedAt && t.completedAt >= start && t.completedAt <= end).length, 0);
+    const overview: string[][] = [["Campaign", `${c.name}${c.code ? ` (${c.code})` : ""}`], ["Category", c.category?.name ?? "Not set"], ["Status", c.status.toLowerCase()], ["Period", `${p.from} to ${p.to}`], ["Leads generated", String(perf.leads)], ["Leads won", String(perf.won)], ["Conversion", perf.conversion === null ? "n/a" : `${perf.conversion}%`], ["Tasks completed in the period", String(doneInPeriod)]];
+    if (key === "campaign") overview.push(["Spend entered", fig(perf.spend)], ["Won deal value", fig(perf.wonValue)], ["Cost per lead", fig(perf.costPerLead)], ["Cost per won lead", fig(perf.costPerWon)], ["Return on spend", perf.roi.map((x) => `${x.percent}% (${x.currency})`).join("; ") || "n/a"], ["Impressions", String(perf.impressions)], ["Clicks", String(perf.clicks)], ["Click-through rate", perf.ctr === null ? "n/a" : `${perf.ctr}%`], ["Results reported", String(perf.results)]);
+    r.sections.push({ heading: "Summary", columns: [{ label: "Measure" }, { label: "Value", align: "right" }], rows: overview });
+    if (c.description) r.sections.push({ heading: "About", columns: [{ label: "Description" }], rows: [[c.description], ...(c.objectives ? [[`Objectives: ${c.objectives}`]] : [])] });
+    if (key === "campaign") {
+      r.sections.push({ heading: "Spend by platform", columns: [{ label: "Platform" }, { label: "Currency" }, { label: "Spend", align: "right" }, { label: "Impressions", align: "right" }, { label: "Clicks", align: "right" }, { label: "Results", align: "right" }], rows: perf.byPlatform.map((b) => [b.platform, b.currency, n2(b.amount), String(b.impressions), String(b.clicks), String(b.results)]) });
+      const entries = await db.campaignSpend.findMany({ where: { organizationId: p.organizationId, campaignId: c.id, date: { gte: p.from, lte: p.to } }, orderBy: { date: "asc" } });
+      r.sections.push({ heading: "Spend entries", columns: [{ label: "Date" }, { label: "Platform" }, { label: "Amount", align: "right" }, { label: "Currency" }, { label: "Note" }], rows: entries.map((e) => [e.date, e.platform, n2(e.amount), e.currency, e.note ?? ""]) });
+      r.notes.push("Spend, impressions, clicks and results are entered by hand; no advertising account is connected. Leads and wins come from the CRM.");
+    }
+    r.sections.push({ heading: "Projects", columns: [{ label: "Project" }, { label: "Status" }, { label: "Progress", align: "right" }, { label: "Open tasks", align: "right" }], rows: projects.map((pr) => [`${pr.number} ${pr.name}`, pr.status.toLowerCase(), `${projectProgress(pr.tasks)}%`, String(pr.tasks.filter((t) => !t.parentId && t.status !== "DONE").length)]) });
+    r.sections.push({ heading: "Deliverables", columns: [{ label: "Deliverable" }, { label: "Version", align: "right" }, { label: "Status" }, { label: "Decided" }], rows: deliverables.map((d) => [d.title, String(d.version), d.status.toLowerCase().replace(/_/g, " "), d.decidedAt?.toISOString().slice(0, 10) ?? ""]) });
   }
   return r;
 }

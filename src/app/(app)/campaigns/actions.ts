@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
+import { SpendError, addSpend, deleteSpend } from "@/lib/campaign-performance";
 import { CampaignError, linkProject, saveCampaignRecord, setCampaignArchived, setCampaignClients, setCampaignTeam } from "@/lib/campaigns";
 import { db } from "@/lib/db";
 import { notifyMany } from "@/lib/notifications";
@@ -73,4 +74,23 @@ export async function campaignLinksAction(formData: FormData): Promise<void> {
   }
   revalidatePath(`/campaigns/${id}`);
   redirect(`/campaigns/${id}?msg=${encodeURIComponent("Saved.")}`);
+}
+
+export async function spendAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("campaigns.manage");
+  const id = s(formData, "id");
+  try {
+    if (s(formData, "op") === "delete") {
+      await deleteSpend(db, { organizationId: user.organizationId, id: s(formData, "spendId") });
+      await audit(user, { action: "campaign.spend_delete", entity: "Campaign", entityId: id, after: { spendId: s(formData, "spendId") } });
+    } else {
+      const e = await addSpend(db, { organizationId: user.organizationId, campaignId: id, actorId: user.id, date: s(formData, "date"), platform: s(formData, "platform"), amount: s(formData, "amount"), currency: s(formData, "currency") || "USD", impressions: s(formData, "impressions"), clicks: s(formData, "clicks"), results: s(formData, "results"), note: s(formData, "note") });
+      await audit(user, { action: "campaign.spend_add", entity: "Campaign", entityId: id, after: { spendId: e.id, amount: e.amount.toString(), currency: e.currency, platform: e.platform } });
+    }
+  } catch (e) {
+    if (e instanceof SpendError) fail(`/campaigns/${id}`, e.message);
+    throw e;
+  }
+  revalidatePath(`/campaigns/${id}`);
+  redirect(`/campaigns/${id}?msg=${encodeURIComponent("Saved.")}#performance`);
 }

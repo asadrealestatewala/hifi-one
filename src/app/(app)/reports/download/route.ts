@@ -25,13 +25,13 @@ export async function GET(req: Request) {
   const org = user.organizationId;
   const table = await buildReport(db, key, {
     organizationId: org, from, to, departmentId: sp.get("dept") || undefined,
-    leadWhere: key === "leads" ? leadScope(user) : undefined,
+    leadWhere: key === "leads" ? leadScope(user) : undefined, campaignId: sp.get("campaign") || undefined,
   });
   if (key === "workforce") {
     const ids = (await db.user.findMany({ where: { organizationId: org, userType: "EMPLOYEE", active: true }, select: { id: true } })).map((u) => u.id);
     await logReportAccess(db, { organizationId: org, viewerId: user.id, subjectIds: ids });
   }
-  await audit(user, { action: "report.download", entity: "Report", entityId: key, after: { format, from, to } });
+  await audit(user, { action: "report.download", entity: "Report", entityId: key, after: { format, from, to, campaign: sp.get("campaign") || undefined } });
   const name = `${key}-${from}-to-${to}`;
   if (format === "csv") {
     return new Response("﻿" + reportCsv(table), { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="${name}.csv"`, "cache-control": "no-store" } });

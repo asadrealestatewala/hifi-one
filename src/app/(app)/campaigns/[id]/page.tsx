@@ -2,15 +2,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import { campaignMetrics } from "@/lib/campaigns";
+import { performance } from "@/lib/campaign-performance";
+import { parseRange } from "@/lib/date-range";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
-import { ConfirmButton, Notice, Stat, StatusBadge, SubmitButton } from "@/components/ui";
+import { ConfirmButton, DateRangeForm, DownloadButtons, Notice, Stat, StatusBadge, SubmitButton } from "@/components/ui";
 import CampaignFields from "../CampaignFields";
-import { campaignLinksAction, updateCampaignAction } from "../actions";
+import { campaignLinksAction, spendAction, updateCampaignAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function CampaignPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; msg?: string }> }) {
+export default async function CampaignPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; msg?: string; from?: string; to?: string }> }) {
   const user = await requirePermission("campaigns.view");
   const { id } = await params;
   const sp = await searchParams;
@@ -30,6 +32,12 @@ export default async function CampaignPage({ params, searchParams }: { params: P
     user.permissions.has("crm.view_all") ? db.lead.findMany({ where: { organizationId: org, campaignId: c.id }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, name: true, number: true, stage: { select: { name: true } } } }) : Promise.resolve([]),
   ]);
   const deliverables = await db.deliverable.findMany({ where: { organizationId: org, campaignId: c.id }, orderBy: { createdAt: "desc" }, take: 8, select: { id: true, title: true, status: true, version: true, projectId: true } });
+  const range = parseRange(sp.from, sp.to);
+  const perf = await performance(db, org, c.id, range);
+  const spendRows = await db.campaignSpend.findMany({ where: { organizationId: org, campaignId: c.id, ...(range.from || range.to ? { date: { ...(range.from ? { gte: range.from } : {}), ...(range.to ? { lte: range.to } : {}) } } : {}) }, orderBy: [{ date: "desc" }, { id: "asc" }], take: 50 });
+  const today = new Date().toISOString().slice(0, 10);
+  const monthFrom = `${today.slice(0, 7)}-01`;
+  const money = (f: { currency: string; amount: number }[]) => f.map((x) => formatMoney(x.amount, x.currency)).join(" · ") || "none";
   const m = metrics.get(c.id)!;
   const members = new Set(c.members.map((x) => x.userId));
   const linkedClients = new Set(c.clients.map((x) => x.clientId));
@@ -113,6 +121,41 @@ export default async function CampaignPage({ params, searchParams }: { params: P
           {deliverables.length === 0 ? <p className="text-xs text-muted">None yet. Add them inside a linked project; clients approve them in their portal.</p> : <ul className="text-sm">{deliverables.map((d) => <li key={d.id} className="flex items-center justify-between border-t border-border py-1 first:border-0"><Link className="hover:underline" href={`/projects/${d.projectId}#deliverables`}>{d.title} <span className="text-xs text-muted">v{d.version}</span></Link><StatusBadge status={d.status} /></li>)}</ul>}
         </section>
       </div>
+
+      <section id="performance" className="card space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">Performance</h2>
+          <span className="flex flex-wrap items-center gap-2"><DownloadButtons report="campaign" params={{ campaign: c.id, from: range.from ?? monthFrom, to: range.to ?? today }} /><DownloadButtons report="campaign_client" params={{ campaign: c.id, from: range.from ?? monthFrom, to: range.to ?? today }} /></span></div>
+        <p className="text-xs text-muted">First pair: internal report with spend. Second pair: client report without any spend or budget, to send to the client. Both cover the dates chosen below (this month by default).</p>
+        <DateRangeForm from={range.from} to={range.to} hidden={{}} label="Show" />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat label="Spend entered" value={<span className="text-lg">{money(perf.spend)}</span>} />
+          <Stat label="Leads" value={perf.leads} hint={perf.conversion === null ? undefined : `${perf.won} won · ${perf.conversion}%`} href={user.permissions.has("crm.view") ? `/leads?campaign=${c.id}${range.from ? `&from=${range.from}` : ""}${range.to ? `&to=${range.to}` : ""}` : undefined} />
+          <Stat label="Cost per lead" value={<span className="text-lg">{money(perf.costPerLead)}</span>} hint={perf.costPerWon.length ? `${money(perf.costPerWon)} per win` : undefined} />
+          <Stat label="Won deal value" value={<span className="text-lg">{money(perf.wonValue)}</span>} hint={perf.roi.length ? `return ${perf.roi.map((x) => `${x.percent}% ${x.currency}`).join(", ")}` : undefined} />
+        </div>
+        {(perf.impressions > 0 || perf.clicks > 0 || perf.results > 0) && <p className="text-sm text-muted">{perf.impressions.toLocaleString()} impressions · {perf.clicks.toLocaleString()} clicks{perf.ctr !== null && ` (${perf.ctr}% click-through)`} · {perf.results.toLocaleString()} results reported</p>}
+        {perf.byPlatform.length > 0 && <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="px-3 py-2">Platform</th><th className="pr-3 text-right">Spend</th><th className="pr-3 text-right">Clicks</th><th className="pr-3 text-right">Results</th></tr></thead><tbody>{perf.byPlatform.map((b) => <tr key={b.platform + b.currency} className="border-t border-border"><td className="px-3 py-1.5">{b.platform}</td><td className="pr-3 text-right tabular-nums">{formatMoney(b.amount, b.currency)}</td><td className="pr-3 text-right tabular-nums">{b.clicks}</td><td className="pr-3 text-right tabular-nums">{b.results}</td></tr>)}</tbody></table></div>}
+        <p className="text-xs text-muted">Spend, impressions, clicks and results are entered by hand below; no advertising account is connected. Leads and wins come from the CRM.</p>
+        <div>
+          <h3 className="mb-1 text-sm font-semibold">Spend entries</h3>
+          {spendRows.length === 0 ? <p className="text-sm text-muted">No spend entered for these dates.</p> : <ul className="text-sm">{spendRows.map((e) => <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-border py-1.5 first:border-0"><span>{e.date} · {e.platform}{e.note && <span className="text-muted"> · {e.note}</span>}</span><span className="flex items-center gap-3">{formatMoney(e.amount, e.currency)}{canManage && <form action={spendAction}><input type="hidden" name="id" value={c.id} /><input type="hidden" name="op" value="delete" /><input type="hidden" name="spendId" value={e.id} /><ConfirmButton className="text-xs text-muted underline" title="Delete this spend entry?" message="The entry is removed from this campaign's figures." confirmLabel="Delete">Delete</ConfirmButton></form>}</span></li>)}</ul>}
+        </div>
+        {canManage && (
+          <details><summary className="cursor-pointer text-sm text-primary">Add spend</summary>
+            <form action={spendAction} className="mt-2 grid gap-2 sm:grid-cols-3">
+              <input type="hidden" name="id" value={c.id} />
+              <div><label className="label" htmlFor="sp-date">Date</label><input id="sp-date" name="date" type="date" max={today} defaultValue={today} required className="input" /></div>
+              <div><label className="label" htmlFor="sp-plat">Platform</label><input id="sp-plat" name="platform" required maxLength={40} placeholder="Meta, Google, TikTok, Print" className="input" /></div>
+              <div className="grid grid-cols-[1fr_5.5rem] gap-2"><div><label className="label" htmlFor="sp-amt">Amount</label><input id="sp-amt" name="amount" inputMode="decimal" required className="input" /></div><div><label className="label" htmlFor="sp-cur">Currency</label><select id="sp-cur" name="currency" defaultValue={c.currency} className="input">{["PKR", "USD", "AED", "GBP"].map((x) => <option key={x}>{x}</option>)}</select></div></div>
+              <div><label className="label" htmlFor="sp-imp">Impressions</label><input id="sp-imp" name="impressions" inputMode="numeric" className="input" /></div>
+              <div><label className="label" htmlFor="sp-clk">Clicks</label><input id="sp-clk" name="clicks" inputMode="numeric" className="input" /></div>
+              <div><label className="label" htmlFor="sp-res">Results</label><input id="sp-res" name="results" inputMode="numeric" className="input" /></div>
+              <div className="sm:col-span-3"><label className="label" htmlFor="sp-note">Note</label><input id="sp-note" name="note" maxLength={300} className="input" /></div>
+              <SubmitButton className="btn-ghost">Add spend</SubmitButton>
+            </form>
+          </details>
+        )}
+      </section>
 
       {canManage && (
         <form action={updateCampaignAction} className="card space-y-4">
