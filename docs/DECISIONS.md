@@ -40,10 +40,17 @@ Newest last. Each entry: what was decided, why, and what it costs.
 33. **Client comments live in `TaskComment` with `internal = false`.** One table, one thread per task; the portal reads only non-internal comments on client-visible tasks of the signed-in client.
 34. **Menu labels follow the business words:** "Customers" (was Client Accounts) and "Vendors" (was Vendor Directory); the record type is still `Client` in the database.
 
+35. **Scheduled work uses the database as the lock.** One `JobRun` row per organization, job and day, plus a partial unique index allowing one RUNNING row, so any number of schedulers (button, command line, hosted cron, the optional in-process timer) are safe. A session advisory lock was rejected because connection pooling can release it from another connection. Closes the earlier open question about scheduling.
+36. **Public endpoints are keyed or tokened, rate limited and answer uniformly.** `/api/jobs/run` needs `JOBS_TOKEN`; `/api/leads/capture` needs a per-source key whose hash is stored and shown once; `/sign/<token>` stores only the token hash. Lead capture answers alike for new and repeated leads.
+37. **E-signature is a simple electronic signature.** It records typed name, optional drawing, time, address, browser and the fingerprint of the text. It does not verify identity. The text is frozen when sent and signing refuses if it no longer matches.
+38. **Uploads fail closed when a scanner is configured.** With `CLAMAV_HOST` set, an unreachable scanner refuses the upload; with none set, files are stored and labelled not scanned. No simulated "clean".
+39. **Time approval is informational.** Profitability counts all logged time; a rejection starts a conversation instead of silently changing costs. Nobody decides on their own hours.
+40. **Client reports never carry spend.** The `campaign_client` report is built from a separate section list, tested to contain no spend, budget or cost words.
+
 ## Open questions
 
 - Success feedback: `?ok=` query flag (current, visible in the address) or a short-lived flash cookie read by the layout?
-- Scheduled work (subscription billing, commission accrual, reminders, monitoring purge): an in-process scheduler, an OS task, or a hosted cron calling a guarded route? Affects deployment (`docs/DEPLOYMENT.md`).
+- Scheduled work: decided (35), all three ways exist. Which one to use in production is a deployment choice (`docs/DEPLOYMENT.md`).
 - Should commission accrue at payment time (inside `recordPayment`) instead of by batch, and should payroll pay approved commissions as the reference does?
 - Inline `"use server"` actions in pages vs `actions.ts` per module: standardise on `actions.ts` for new work?
 

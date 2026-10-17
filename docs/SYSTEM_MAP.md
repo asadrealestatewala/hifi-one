@@ -19,6 +19,8 @@ Verified against the repository on 2026-10-13 (commit `5f3e9d8`). If the code an
 
 Commands are listed in `CLAUDE.md`.
 
+Added 2026-10-17 (see `docs/AUTOMATION_AND_GROWTH.md`): staff routes `/settings/jobs`, `/support`, `/support/[id]`, `/settings/lead-sources`, `/agreements`, `/agreements/[id]` (+ `/pdf`); portal routes `/portal/support`, `/portal/support/[id]`, `/portal/approvals`, `/vendor/documents`; public routes `/sign/[token]`, `POST /api/leads/capture`, `POST /api/jobs/run`; `src/instrumentation.ts` (optional scheduler). Services: `jobs`, `support`, `deliverables`, `lead-capture`, `campaign-performance`, `agreements`, `virus-scan`, `sort`, `saved-views`, `project-timeline`.
+
 ## Request path
 
 ```

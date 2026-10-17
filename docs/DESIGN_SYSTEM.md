@@ -84,4 +84,6 @@ These are the standards new and touched screens must meet. Components marked *pl
 | Errors | Friendly message, retry, link home, reference code; never the error text | `ErrorView` via `error.tsx` in `(app)`, `portal`, `vendor`; `not-found.tsx` at the root and in `(app)` |
 | Dialogs and panels | Escape closes, focus moves into the panel, close button labelled | `Drawer` (focus handling to add) |
 
+Added 2026-10-17: `SortTh` (sortable table header with `aria-sort`, address-driven, `src/lib/sort.ts`), `SavedViews` (personal saved filters on a list), `CommandPalette` (Ctrl K, in the shell), `ProjectTimeline` (Gantt bars with text alternatives). The `SIGNED` status uses the success tone.
+
 Tokens stay as listed at the top (brand red, violet primary, navy sidebar). If a tone is missing (for example an info blue or tinted backgrounds for status), add a token to `globals.css` and record it in `docs/DECISIONS.md`; do not adopt the reference's teal palette or font.

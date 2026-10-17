@@ -73,6 +73,18 @@ A clocked-in person starts a browser screen share themselves; the dock saves a s
 
 ## External integration contracts
 
+### Added 2026-10-17 (details in `docs/AUTOMATION_AND_GROWTH.md`)
+
+| Fact | Owner | Flows to |
+|---|---|---|
+| Daily job outcome | `JobRun` via `runJobs` | Scheduled Jobs page; each job calls the owning service (billing, commissions, expiry, reminders, retention) and notifies |
+| Support request and thread | `src/lib/support.ts` | client portal (own client only), staff queue, notifications both ways |
+| Deliverable and its decisions | `src/lib/deliverables.ts` | project page, client Approvals, project team notifications |
+| Website lead | `captureLead` (`lead-capture.ts`) | Leads (source, UTM, campaign), round robin assignee notification, campaign performance |
+| Campaign spend | `campaign-performance.ts` | campaign page, internal and client reports; leads and wins come from the CRM, never copied |
+| Agreement and signature | `src/lib/agreements.ts` | agreement pages, PDF, creator notification; vendor files in `StoredFile` (`VENDOR_DOC`) feed the `document_expiry` job |
+| Logged time review | `decideTime` (`project-finance.ts`) | project time list, notification to the person; profitability unchanged |
+
 | Integration | State | Contract |
 |---|---|---|
 | SMTP | needs credentials | sending is a no-op with "not configured" shown |

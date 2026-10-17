@@ -71,6 +71,7 @@ Hifi One is one connected agency ERP. For each feature identify its source of tr
 | `docs/MODULE_STATUS.md` | What is done, partial, missing; known defects; test gaps |
 | `docs/DECISIONS.md` | Decisions with rationale; open questions |
 | `docs/REFERENCE_ERP_AUDIT.md` | Comparison with the reference ERP and the prioritised task list |
+| `docs/AUTOMATION_AND_GROWTH.md` | Scheduled jobs, support and approvals, lead capture, campaign performance, agreements and e-signature, virus scanning, command palette, saved views, timeline |
 | `docs/ROLES.md`, `SECURITY.md`, `DEPLOYMENT.md`, `MONITORING.md`, `MEETINGS.md` | Generated role matrix and operational detail |
 | `docs/spec.md`, `roadmap.md`, `GAP_ANALYSIS.md`, `ERP_AUDIT.md`, `ERP_BLUEPRINT.md` | Owner's specification and earlier audits (history; the files above win where they differ) |
 

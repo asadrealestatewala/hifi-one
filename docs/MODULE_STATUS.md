@@ -1,6 +1,6 @@
 # Module status
 
-Last checked against the code and the test run (2026-10-13): 748 automated tests in 52 files passing, `tsc` and `eslint` clean, production build succeeds. "Done" = works end to end, persisted, permission-checked, tested. "Partial" says what is missing. "Not built" = nothing exists. "Needs outside setup" = built, but cannot be verified without credentials or software that this machine lacks.
+Last checked against the code and the test run (2026-10-17): 905 automated tests in 72 files passing, `tsc` and `eslint` clean, production build succeeds. "Done" = works end to end, persisted, permission-checked, tested. "Partial" says what is missing. "Not built" = nothing exists. "Needs outside setup" = built, but cannot be verified without credentials or software that this machine lacks.
 
 Master prompt section in brackets.
 
@@ -24,7 +24,7 @@ Master prompt section in brackets.
 - **Projects and tasks (done, tested):** Projects and Tasks tabs; task list across projects with assignee, status, priority, project, due and search filters; notifications for being added to a project, task assignment and reassignment, review or done, project status changes, comments and @mentions (members of the project only).
 - **Customer and vendor (done, checked in browser):** customer page tabs (overview, billing, projects, campaigns, portal access); vendor page tabs (overview, work, bills and ledger, portal access); client portal Projects with shared tasks and messages to the team; staff can share a comment with the client; vendor portal Profile with editable contact details; Updates pages in both portals.
 - **UI consistency pass:** 32 page headers moved to `PageHeader`, 59 inline alert boxes to `Notice`, avatar alt-text bug fixed. A crawl of 98 pages found no server errors, no literal "undefined" or "NaN", one `h1` per page, labelled controls and no horizontal overflow at 375 px on the pages tried.
-- **Not built:** support tickets or chat in the portals, vendor document uploads and compliance expiry, client approval of project deliverables beyond content approval, task comments by email.
+- **Not built:** chat in the portals, task comments by email. (Support requests, vendor documents with expiry and deliverable approvals were added on 2026-10-17.)
 
 ## Staff directory, sign-in and campaigns (2026-10-13, see `docs/STAFF_AND_CAMPAIGNS.md`)
 - **Done (tested, and checked in a browser):** staff directory with search, status chips, department and role filters, campaign and project filters, paging, CSV export without CNIC; add, edit, deactivate, mark exited, archive and restore with confirmation and audit; duplicate email, number and name detection; CNIC restricted; verification marks; setup links; sign-in by email or phone with the password; forgot-password page; CMO, COO, HR Coordinator and AI Developer Intern roles; campaigns with codes, shared categories, owner, team, clients, linked projects and leads, archive; campaigns in My tasks; clickable dashboard cards and bars with filters carried to the list; date filters on leads and payments; idempotent `npm run seed:initial` (run twice on the development database: 9 staff, 3 campaigns, no duplicates).
@@ -72,6 +72,16 @@ Master prompt section in brackets.
 - **Done:** server-side guards enforced by a test, org isolation, two-step verification (required per role), session handling, audit log, rate limits on sign-in and guest meeting entry, security headers, backup and restore scripts.
 - **Open:** content policy allows inline scripts; no third-party security review; no end-to-end browser tests.
 
+## Automation, client service and growth (2026-10-17, see `docs/AUTOMATION_AND_GROWTH.md`)
+- **Scheduled jobs (done, tested):** seven daily jobs (retainer billing drafts, commissions, quotation and contract expiry, invoice reminders, task reminders, monitoring retention, document expiry), idempotent per organization and day, run from `/settings/jobs`, `npm run jobs:run`, `POST /api/jobs/run` (`JOBS_TOKEN`) or the optional in-process scheduler (`JOBS_AUTORUN=1`). Not run unattended on a server yet.
+- **Client support and deliverable approvals (done, tested):** portal support requests with staff queue, replies, internal notes and assignment; project deliverables sent to the client for approval or changes, with decision history and notifications. In-app notifications only.
+- **Website lead capture (done, tested):** keyed public endpoint with website allow-list, honeypot, rate limits, de-duplication, round robin assignment and UTM tracking; source filter on Leads. Not tried from a real website.
+- **Campaign performance (done, tested):** hand-entered spend, cost per lead and win, return on spend per currency, internal and client-safe reports (CSV and PDF). No ad account is connected.
+- **Agreements with e-signature (done, tested):** templates, frozen and hashed text, one-time signing link, typed or drawn signature with evidence, decline, PDF; vendor compliance documents with expiry in the staff and vendor screens. A simple electronic signature, not identity-verified; email delivery of the link is not built.
+- **Virus scanning (partial):** ClamAV boundary done and tested against a fake daemon; with no daemon configured files are honestly labelled not scanned. Not tried against a real ClamAV.
+- **Smaller wins (done, tested):** Ctrl K command palette, sortable columns on clients, invoices and leads, saved views on clients and invoices, project timeline, manager review of logged time.
+- **Intentionally not built this round:** going live (hosting, HTTPS, domain) and email, WhatsApp or SMS notifications.
+
 ## Other
 - **Meetings (built-in video):** done for up to 8 people, screen sharing, chat, guest links, waiting room. Not verified with real cameras across networks; no recording.
 - **UI shell [2, 3]:** design system documented; the top tab strip and the sidebar level card were removed on request; navigation is the sidebar only (see `docs/ERP_AUDIT.md`, finding 1).
@@ -84,7 +94,7 @@ Found by comparing with the reference ERP; evidence in `docs/REFERENCE_ERP_AUDIT
 - **Action safety (done for the listed actions).** `ConfirmButton` guards Cancel invoice and commission Void (both require a reason, kept in the audit log), Write off, Cancel voucher, Delete screenshot, Revoke device, Cancel meeting, Archive contacts, Delete department, Delete role. Slide-over forms show "Saving…" and cannot submit twice. Other plain forms still have no pending state.
 - **Shared UI under-used.** About 70 pages still hand-roll the header and tables; bring each onto the kit when touched.
 - **Notifications (done).** `src/lib/events.ts`: lead assigned, contacts assigned, invoice issued (client portal), payment received (sales owner and client), portal quote accepted or declined (quote author), payroll paid (each employee), vendor bill approved, rejected or paid (vendor portal). Tested in `events.integration.test.ts`. Not checked in a browser.
-- **Batch jobs by button.** Commission accrual and subscription billing run on demand; payroll ignores approved commissions.
+- **Batch jobs (done 2026-10-17).** Commission accrual, subscription billing, reminders, expiry and retention now run daily through the scheduled jobs; payroll still ignores approved commissions.
 - **Exports** only for contacts.
 - **CI (added, not yet run).** `.github/workflows/ci.yml` runs tsc, eslint, vitest with a Postgres service, and the build. The repository has no remote yet, so it has never run. No browser tests.
 
