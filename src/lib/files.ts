@@ -5,19 +5,29 @@ import type { PrismaClient } from "@prisma/client";
 import { authorizeOwner, type FileActor, OWNER_TYPES } from "./file-access";
 import { FileError, validateUpload } from "./file-validation";
 import { newStorageKey, type StorageProvider } from "./storage";
+import { scannerFromEnv, type Scanner } from "./virus-scan";
 
 export { FileError };
 
 export async function saveFile(
   db: PrismaClient,
   storage: StorageProvider,
-  p: { actor: FileActor; ownerType: string; ownerId: string; name: string; bytes: Buffer; category?: string; expiresOn?: string },
+  p: { actor: FileActor; ownerType: string; ownerId: string; name: string; bytes: Buffer; category?: string; expiresOn?: string; scanner?: Scanner | null },
 ) {
   if (!(OWNER_TYPES as readonly string[]).includes(p.ownerType)) throw new FileError("Unknown record type.");
   // Authorization first: nothing is read or stored for someone who may not add files here
   if (!(await authorizeOwner(db, p.actor, p.ownerType, p.ownerId, "upload"))) throw new FileError("You cannot add files to this record.");
   if (p.expiresOn && !/^\d{4}-\d{2}-\d{2}$/.test(p.expiresOn)) throw new FileError("Enter a valid expiry date.");
   const { contentType, filename } = validateUpload(p.name, p.bytes);
+  // Scan before anything is stored. No scanner configured: the file is saved and honestly marked UNSCANNED. Scanner configured but down: refuse.
+  const scanner = p.scanner === undefined ? scannerFromEnv() : p.scanner;
+  let scanStatus = "UNSCANNED";
+  if (scanner) {
+    let result;
+    try { result = await scanner(p.bytes); } catch { throw new FileError("The file could not be checked for viruses right now, so it was not saved. Try again shortly."); }
+    if (result.status === "INFECTED") throw new FileError("This file was blocked: the virus scanner found something harmful in it.");
+    scanStatus = "CLEAN";
+  }
   const storageKey = newStorageKey();
   await storage.put(storageKey, p.bytes);
   try {
@@ -25,7 +35,7 @@ export async function saveFile(
       data: {
         organizationId: p.actor.organizationId, ownerType: p.ownerType, ownerId: p.ownerId, filename, contentType, size: p.bytes.length,
         sha256: crypto.createHash("sha256").update(p.bytes).digest("hex"), storageKey, category: p.category?.trim() || null, expiresOn: p.expiresOn || null,
-        uploadedById: p.actor.id,
+        uploadedById: p.actor.id, scanStatus,
       },
     });
   } catch (e) {

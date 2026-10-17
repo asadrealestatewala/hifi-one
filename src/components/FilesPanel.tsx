@@ -38,7 +38,7 @@ export default async function FilesPanel({
                   <a className="underline font-medium" href={link} target="_blank" rel="noopener">{f.filename}</a>
                   <span className="text-xs text-muted"> · {kb(f.size)}{f.category && ` · ${f.category}`}{f.expiresOn && ` · expires ${f.expiresOn}`}</span>
                   {expired && <strong className="ml-2 text-xs text-brand">Expired</strong>}
-                  <span className="text-[11px] text-muted"> · not virus-scanned</span>
+                  <span className="text-[11px] text-muted"> · {f.scanStatus === "CLEAN" ? "virus-checked" : "not virus-scanned"}</span>
                 </span>
                 {(canDeleteAny || (canUpload && f.uploadedById === user.id)) && (
                   <form action={deleteFileAction}>
