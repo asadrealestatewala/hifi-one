@@ -84,6 +84,7 @@ export const NAV: NavGroup[] = [
     { href: "/settings/tax-rates", label: "Tax Rates", permission: "settings.company.view" },
     { href: "/settings/email", label: "Email", permission: "settings.company.view" },
     { href: "/settings/monitoring", label: "Monitoring Policy", permission: "monitoring.configure" },
+    { href: "/settings/jobs", label: "Scheduled Jobs", permission: "jobs.run" },
     { href: "/audit-logs", label: "Audit Logs", permission: "audit.view" },
     { href: "/settings/security", label: "Security Checklist", permission: "audit.view" },
   ] },

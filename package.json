@@ -12,6 +12,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "roles:sync": "tsx scripts/sync-roles.mts",
     "seed:initial": "tsx scripts/seed-initial.mts",
+    "jobs:run": "tsx scripts/run-jobs.mts",
     "backup:check": "node scripts/check-backup.mjs",
     "serve": "next build && next start -p 3000",
     "monitoring:purge": "tsx scripts/purge-monitoring.mts",

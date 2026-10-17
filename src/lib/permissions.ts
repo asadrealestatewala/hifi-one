@@ -85,6 +85,7 @@ export const PERMISSIONS = {
   "finance.post": "Create and issue invoices, record payments",
   "campaigns.view": "View campaigns, their teams, clients and linked projects",
   "campaigns.manage": "Create, edit, assign and archive campaigns",
+  "jobs.run": "See scheduled jobs and run them now",
 } as const;
 
 export type PermissionKey = keyof typeof PERMISSIONS;
@@ -116,7 +117,7 @@ export const ROLE_DEFS: RoleDef[] = [
   { key: "AI_ENGINEER", name: "AI Engineer", permissions: ["dashboard.view", "projects.view", "tasks.edit"] },
   { key: "INTERN", name: "Intern", permissions: ["dashboard.view", "projects.view", "tasks.edit"] },
   { key: "CMO", name: "Chief Marketing Officer", permissions: ["dashboard.view", "dashboard.executive", "crm.view", "crm.view_all", "crm.edit", "catalog.view", "catalog.edit", "clients.view", "projects.view", "projects.view_all", "campaigns.view", "campaigns.manage", "hr.view", "quotes.view", "contracts.view", "content.view", "content.manage", "content.publish", "leave.approve"] },
-  { key: "COO", name: "Chief Operating Officer", permissions: ["dashboard.view", "dashboard.executive", "crm.view", "crm.view_all", "catalog.view", "clients.view", "projects.view", "projects.view_all", "projects.manage", "tasks.edit", "campaigns.view", "campaigns.manage", "hr.view", "leave.approve", "attendance.view_all", "content.view", "vendors.view", "budget.view"] },
+  { key: "COO", name: "Chief Operating Officer", permissions: ["dashboard.view", "dashboard.executive", "crm.view", "crm.view_all", "catalog.view", "clients.view", "projects.view", "projects.view_all", "projects.manage", "tasks.edit", "campaigns.view", "campaigns.manage", "jobs.run", "hr.view", "leave.approve", "attendance.view_all", "content.view", "vendors.view", "budget.view"] },
   { key: "HR_COORDINATOR", name: "HR Coordinator", permissions: ["dashboard.view", "hr.view", "hr.manage", "hr.view_sensitive", "leave.approve", "attendance.view_all"] },
   { key: "AI_DEVELOPER_INTERN", name: "AI Developer Intern", permissions: ["dashboard.view", "projects.view", "tasks.edit"] },
   { key: "CLIENT", name: "Client", permissions: [] },

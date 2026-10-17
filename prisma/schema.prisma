@@ -354,6 +354,11 @@ model Lead {
   expectedCloseDate String? // YYYY-MM-DD
   tags           String[]  @default([])
   campaignId     String?
+  leadSourceId   String?   // the website form or webhook that captured it
+  utmSource      String?
+  utmMedium      String?
+  utmCampaign    String?
+  landingUrl     String?
   lastContactAt  DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -1442,11 +1447,16 @@ model TimeEntry {
   hours          Decimal  @db.Decimal(5, 2)
   note           String?
   hourlyCost     Decimal? @db.Decimal(10, 2) // the member's cost rate when the time was logged, so later rate changes never rewrite history
+  approval       String   @default("PENDING") // PENDING | APPROVED | REJECTED (informational: profitability counts all entries)
+  approvedById   String?
+  approvedAt     DateTime?
+  approvalNote   String?
   createdAt      DateTime @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, workDate])
+  @@index([organizationId, approval])
   @@index([userId, workDate])
 }
 
@@ -1991,4 +2001,166 @@ model UserPreference {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, key])
+}
+
+
+// ---------- Scheduled jobs ----------
+model JobRun {
+  id             String    @id @default(cuid())
+  organizationId String
+  key            String    // subscription_billing | commission_accrual | expiry_sweep | invoice_reminders | task_reminders | monitoring_purge | document_expiry
+  trigger        String    @default("SCHEDULE") // SCHEDULE | MANUAL | SCRIPT
+  runDate        String    // company-local day, so a job runs once a day
+  status         String    @default("RUNNING") // RUNNING | OK | FAILED
+  summary        String?
+  error          String?
+  startedAt      DateTime  @default(now())
+  finishedAt     DateTime?
+  startedById    String?
+
+  @@index([organizationId, key, startedAt])
+}
+
+// ---------- Client support ----------
+model SupportRequest {
+  id             String    @id @default(cuid())
+  organizationId String
+  number         String    // SUP-0001
+  clientId       String
+  createdById    String    // the portal user who raised it (or staff on their behalf)
+  subject        String
+  status         String    @default("OPEN") // OPEN | IN_PROGRESS | WAITING_CLIENT | RESOLVED | CLOSED
+  priority       String    @default("NORMAL") // NORMAL | HIGH | URGENT
+  assigneeId     String?
+  projectId      String?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  messages SupportMessage[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, status])
+  @@index([clientId, status])
+  @@index([assigneeId])
+}
+
+model SupportMessage {
+  id        String   @id @default(cuid())
+  requestId String
+  authorId  String
+  body      String
+  internal  Boolean  @default(false) // internal notes are never shown to the client
+  createdAt DateTime @default(now())
+
+  request SupportRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+}
+
+// ---------- Deliverables and client approval ----------
+model Deliverable {
+  id             String    @id @default(cuid())
+  organizationId String
+  projectId      String
+  campaignId     String?
+  title          String
+  description    String?
+  link           String?   // where the client can see the proof (design, document, staging site)
+  status         String    @default("DRAFT") // DRAFT | PENDING | APPROVED | CHANGES_REQUESTED
+  version        Int       @default(1)
+  requestedAt    DateTime?
+  requestedById  String?
+  decidedAt      DateTime?
+  decidedById    String?   // the portal user who decided
+  decisionNote   String?
+  createdById    String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([projectId, status])
+  @@index([organizationId, status])
+  @@index([campaignId])
+}
+
+// ---------- Lead capture ----------
+model LeadSource {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  keyHash        String    @unique // only the hash of the public key is stored; the key is shown once
+  campaignId     String?
+  assignMode     String    @default("ROUND_ROBIN") // NONE | FIXED | ROUND_ROBIN
+  assigneeIds    String[]  @default([])
+  rrIndex        Int       @default(0)
+  allowedOrigins String?   // comma separated; empty means any website may post with the key
+  active         Boolean   @default(true)
+  leadCount      Int       @default(0)
+  lastLeadAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([organizationId, name])
+}
+
+// ---------- Campaign spend ----------
+model CampaignSpend {
+  id             String   @id @default(cuid())
+  organizationId String
+  campaignId     String
+  date           String   // YYYY-MM-DD
+  platform       String   // free text such as Meta, Google, TikTok, Print
+  amount         Decimal  @db.Decimal(14, 2)
+  currency       String
+  impressions    Int?
+  clicks         Int?
+  results        Int?
+  note           String?
+  enteredById    String
+  createdAt      DateTime @default(now())
+
+  @@index([campaignId, date])
+  @@index([organizationId, date])
+}
+
+// ---------- Agreements and e-signature ----------
+model DocumentTemplate {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  kind           String   @default("CONTRACT") // CONTRACT | PROPOSAL | NDA | OTHER
+  body           String   // text with {{placeholders}}
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, name])
+}
+
+model Agreement {
+  id             String    @id @default(cuid())
+  organizationId String
+  number         String    // AGR-0001
+  title          String
+  body           String    // the final text the signer sees
+  bodyHash       String    // sha256 of the text at the moment it was sent; the signature is bound to it
+  clientId       String?
+  vendorId       String?
+  templateId     String?
+  status         String    @default("DRAFT") // DRAFT | SENT | SIGNED | DECLINED | VOID
+  tokenHash      String?   @unique
+  tokenExpiresAt DateTime?
+  signerName     String?
+  signerEmail    String?
+  signedAt       DateTime?
+  signedIp       String?
+  signedUserAgent String?
+  signatureImage String?   // small PNG data URL drawn by the signer (optional)
+  declineReason  String?
+  sentAt         DateTime?
+  createdById    String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([organizationId, number])
+  @@index([organizationId, status])
 }
