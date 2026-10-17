@@ -87,7 +87,7 @@ export function Notice({ kind, children }: { kind: "error" | "ok"; children: Rea
 
 // ---------- shared list-screen pieces ----------
 const STATUS_TONE: Record<string, keyof typeof TONES> = {
-  ACTIVE: "success", PAID: "success", APPROVED: "success", ACCEPTED: "success", COMPLETED: "success", POSTED: "success", LIVE: "success", CUSTOMER: "success", WON: "success", ISSUED: "primary", SENT: "primary", SCHEDULED: "primary", PARTIALLY_PAID: "warning",
+  ACTIVE: "success", SIGNED: "success", PAID: "success", APPROVED: "success", ACCEPTED: "success", COMPLETED: "success", POSTED: "success", LIVE: "success", CUSTOMER: "success", WON: "success", ISSUED: "primary", SENT: "primary", SCHEDULED: "primary", PARTIALLY_PAID: "warning",
   DRAFT: "neutral", PENDING: "warning", ON_HOLD: "warning", SUBMITTED: "warning", UNDER_REVIEW: "warning", OVERDUE: "danger", CANCELLED: "danger", REJECTED: "danger", DECLINED: "danger", ENDED: "neutral", TERMINATED: "danger", EXPIRED: "neutral", CREDITED: "neutral", INVOICED: "success", INACTIVE: "warning", ARCHIVED: "neutral", EXITED: "neutral",
 };
 export const statusTone = (s: string): keyof typeof TONES => STATUS_TONE[s.toUpperCase().replace(/ /g, "_")] ?? "neutral";

@@ -5,19 +5,20 @@ import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { vendorLedger } from "@/lib/vendors";
 import { Badge, Chips, Empty, StatusBadge } from "@/components/ui";
+import FilesPanel from "@/components/FilesPanel";
 import { changeStatus } from "./actions";
 import VendorInviteForm from "./VendorInviteForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function VendorPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
+export default async function VendorPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; fileError?: string; fileOk?: string }> }) {
   const user = await requirePermission("vendors.view");
   const { id } = await params;
   const sp = await searchParams;
   const v = await db.vendor.findFirst({ where: { id, organizationId: user.organizationId } });
   if (!v) notFound();
   const canManage = user.permissions.has("vendors.manage");
-  const TABS: [string, string][] = [["overview", "Overview"], ["work", "Work"], ["billing", "Bills and ledger"], ...(canManage ? [["portal", "Portal access"] as [string, string]] : [])];
+  const TABS: [string, string][] = [["overview", "Overview"], ["work", "Work"], ["billing", "Bills and ledger"], ["documents", "Documents"], ...(canManage ? [["portal", "Portal access"] as [string, string]] : [])];
   const tab = TABS.some(([k]) => k === sp.tab) ? sp.tab! : "overview";
   const tabHref = (k: string) => (k === "overview" ? `/vendors/${v.id}` : `/vendors/${v.id}?tab=${k}`);
   const [ledger, workOrders, portalUsers, applications, bills] = await Promise.all([
@@ -86,6 +87,8 @@ export default async function VendorPage({ params, searchParams }: { params: Pro
           </section>
         </>
       )}
+
+      {tab === "documents" && <FilesPanel user={user} ownerType="VENDOR_DOC" ownerId={v.id} returnTo={`/vendors/${v.id}?tab=documents`} title="Compliance documents" withCategory withExpiry flash={{ fileError: sp.fileError, fileOk: sp.fileOk }} />}
 
       {tab === "portal" && canManage && (
         <>

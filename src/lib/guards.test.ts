@@ -25,7 +25,7 @@ const AREAS: { prefix: string; guard: RegExp; label: string }[] = [
 ];
 
 // Pages that are intentionally public or only redirect
-const PUBLIC = new Set(["page.tsx", "login/page.tsx", "login/verify/page.tsx", "login/forgot/page.tsx", "forbidden/page.tsx", "invite/[token]/page.tsx", "setup/page.tsx", "reset/[token]/page.tsx", "join/[token]/page.tsx"]);
+const PUBLIC = new Set(["page.tsx", "login/page.tsx", "login/verify/page.tsx", "login/forgot/page.tsx", "forbidden/page.tsx", "invite/[token]/page.tsx", "setup/page.tsx", "reset/[token]/page.tsx", "join/[token]/page.tsx", "sign/[token]/page.tsx"]);
 
 // Pages that only need a signed-in employee because they show the caller's own data and check
 // record ownership or permissions themselves. Everything else in (app) must call requirePermission.
@@ -76,7 +76,7 @@ function actionBodies(src: string): { name: string; body: string }[] {
 
 // Pre-sign-in screens. Each is protected by something else: a password, a code, an emailed or handed-over secret token, or the one-time empty-system check.
 // join/[token] is the guest entrance to a meeting: protected by the secret in the link, the host's waiting room and a rate limit.
-const PUBLIC_ACTIONS = new Set(["login/page.tsx", "login/verify/page.tsx", "login/forgot/page.tsx", "invite/[token]/page.tsx", "setup/page.tsx", "reset/[token]/page.tsx", "join/[token]/page.tsx"]);
+const PUBLIC_ACTIONS = new Set(["login/page.tsx", "login/verify/page.tsx", "login/forgot/page.tsx", "invite/[token]/page.tsx", "setup/page.tsx", "reset/[token]/page.tsx", "join/[token]/page.tsx", "sign/[token]/page.tsx"]);
 
 describe("every server action checks the caller", () => {
   for (const f of files.filter((x) => /\.(tsx?|ts)$/.test(x) && !x.endsWith(".test.ts"))) {

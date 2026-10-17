@@ -2,7 +2,7 @@
 // and returns null when the record does not exist or is not theirs. Free of Next.js imports.
 import type { PrismaClient } from "@prisma/client";
 import { clientStatement } from "./accounting";
-import { DEFAULT_DOC_CONFIG, mergeConfig, type Bank, type Company, type CreditNoteDoc, type DocConfig, type InvoiceDoc, type PayslipDoc, type ReceiptDoc, type QuoteDoc, type StatementDoc, type VoucherDoc } from "./pdf";
+import { DEFAULT_DOC_CONFIG, mergeConfig, type Bank, type Company, type CreditNoteDoc, type DocConfig, type InvoiceDoc, type PayslipDoc, type ReceiptDoc, type QuoteDoc, type AgreementDoc, type StatementDoc, type VoucherDoc } from "./pdf";
 
 type Json = Record<string, unknown> | null | undefined;
 
@@ -133,4 +133,18 @@ export { DEFAULT_DOC_CONFIG };
 // Letterhead and document look for a generated report (uses the statement style settings)
 export async function loadReportLetterhead(db: PrismaClient, organizationId: string) {
   return { company: await liveCompany(db, organizationId), config: (await getDocConfig(db, organizationId, "STATEMENT")).config };
+}
+
+// The agreement as sent (and, once signed, with its signature record). Staff only: signers get the text on the signing page.
+export async function loadAgreementDoc(db: PrismaClient, p: { organizationId: string; agreementId: string }): Promise<AgreementDoc | null> {
+  const a = await db.agreement.findFirst({ where: { id: p.agreementId, organizationId: p.organizationId } });
+  if (!a) return null;
+  const [client, vendor] = await Promise.all([
+    a.clientId ? db.client.findFirst({ where: { id: a.clientId, organizationId: p.organizationId }, select: { name: true } }) : null,
+    a.vendorId ? db.vendor.findFirst({ where: { id: a.vendorId, organizationId: p.organizationId }, select: { name: true } }) : null,
+  ]);
+  return {
+    number: a.number, title: a.title, body: a.body, status: a.status, company: await liveCompany(db, p.organizationId), config: (await getDocConfig(db, p.organizationId, "QUOTE")).config,
+    counterparty: client?.name ?? vendor?.name ?? null, sentAt: a.sentAt, signedAt: a.signedAt, signerName: a.signerName, signedIp: a.signedIp, bodyHash: a.bodyHash, signatureImage: a.signatureImage, declineReason: a.declineReason,
+  };
 }

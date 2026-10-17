@@ -386,3 +386,39 @@ export async function reportPdf(d: ReportDoc, b: Build = {}) {
   footer(ctx, d.company);
   return done();
 }
+
+// ---- Agreement (the text as sent, plus the signature block once signed) ----
+export type AgreementDoc = {
+  number: string; title: string; body: string; status: string; company: Company; config: DocConfig; counterparty: string | null;
+  sentAt: Date | null; signedAt: Date | null; signerName: string | null; signedIp: string | null; bodyHash: string; signatureImage: string | null;
+  declineReason: string | null;
+};
+export async function agreementPdf(d: AgreementDoc, b: Build = {}) {
+  const { ctx, done } = start({ ...b, title: d.title, cfg: d.config });
+  const { doc } = ctx;
+  header(ctx, d.company, "AGREEMENT", d.number, d.status);
+  doc.font("Helvetica-Bold").fontSize(13).fillColor("#111").text(t(ctx, d.title), 48);
+  doc.moveDown(0.3);
+  kv(ctx, [["With", d.counterparty], ["Sent", d.sentAt ? fmtDate(d.sentAt) : null]]);
+  doc_move(ctx);
+  doc.font("Helvetica").fontSize(10).fillColor("#111").text(t(ctx, d.body), 48, doc.y, { width: 499, align: "left" });
+  doc.moveDown(1.2);
+  if (doc.y > 640) doc.addPage();
+  doc.moveTo(48, doc.y).lineTo(547, doc.y).strokeColor("#ddd").stroke();
+  doc.moveDown(0.6);
+  if (d.status === "SIGNED" && d.signedAt) {
+    doc.font("Helvetica-Bold").fontSize(10).fillColor("#111").text("Electronic signature", 48);
+    doc.moveDown(0.3);
+    const m = d.signatureImage?.match(/^data:image\/png;base64,(.+)$/);
+    if (m) { try { doc.image(Buffer.from(m[1], "base64"), 48, doc.y, { fit: [220, 70] }); doc.moveDown(5); } catch { /* an unreadable drawing is skipped; the typed name below still stands */ } }
+    kv(ctx, [["Signed by (typed name)", d.signerName], ["Signed at", d.signedAt.toISOString().slice(0, 16).replace("T", " ") + " UTC"], ["Network address", d.signedIp], ["Fingerprint of the signed text (SHA-256)", d.bodyHash]], 48, 499);
+    doc.font("Helvetica").fontSize(8).fillColor("#666").text("This is a simple electronic signature recorded by Hifi One. It shows who opened the one-time link and the exact text they agreed to.", 48, doc.y, { width: 499 });
+  } else if (d.status === "DECLINED") {
+    doc.font("Helvetica-Bold").fontSize(10).fillColor("#b91c1c").text("Declined by the signer", 48);
+    if (d.declineReason) doc.font("Helvetica").fontSize(10).fillColor("#111").text(t(ctx, d.declineReason), 48, undefined, { width: 499 });
+  } else {
+    doc.font("Helvetica").fontSize(10).fillColor("#b45309").text(d.status === "VOID" ? "This agreement was voided." : "Not signed yet.", 48);
+  }
+  footer(ctx, d.company);
+  return done();
+}

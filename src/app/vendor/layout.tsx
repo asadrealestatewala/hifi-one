@@ -27,6 +27,7 @@ export default async function VendorLayout({ children }: { children: React.React
             <Link href="/vendor/work" className="hover:underline">Work & bills</Link>
             <Link href="/vendor/ledger" className="hover:underline">Statement</Link>
             <Link href="/vendor/profile" className="hover:underline">Profile</Link>
+            <Link href="/vendor/documents" className="hover:underline">Documents</Link>
             <Link href="/vendor/notifications" className="hover:underline">Updates{unread > 0 && ` (${unread})`}</Link>
             <form action={signOut}><button className="underline">Sign out</button></form>
           </nav>
