@@ -5,6 +5,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { createDraftInvoice, LedgerError } from "./accounting";
 import { dec, round2 } from "./ledger-math";
+import { notify } from "./notifications";
 
 export class ProjectError extends Error {}
 type Db = PrismaClient;
@@ -114,7 +115,25 @@ export async function deleteTime(db: Db, p: { organizationId: string; entryId: s
   const e = await db.timeEntry.findFirst({ where: { id: p.entryId, organizationId: p.organizationId } });
   if (!e) throw new ProjectError("Time entry not found.");
   if (e.userId !== p.actorId && !p.isManager) throw new ProjectError("You can only remove your own time.");
+  if (e.approval === "APPROVED" && !p.isManager) throw new ProjectError("Approved time can only be removed by a project manager.");
   await db.timeEntry.delete({ where: { id: e.id } });
+}
+
+// A manager approves or rejects logged time. Nobody decides on their own hours. This is a review step: profitability still counts every
+// entry (a rejected entry is a conversation with the person, who can remove it or log it again), so the figures never silently change.
+export async function decideTime(db: Db, p: { organizationId: string; entryId: string; approverId: string; decision: "APPROVED" | "REJECTED"; note?: string }) {
+  if (p.decision !== "APPROVED" && p.decision !== "REJECTED") throw new ProjectError("Choose approve or reject.");
+  const note = p.note?.trim().slice(0, 300) || null;
+  if (p.decision === "REJECTED" && !note) throw new ProjectError("Say why the time is rejected, so the person can fix it.");
+  const e = await db.timeEntry.findFirst({ where: { id: p.entryId, organizationId: p.organizationId } });
+  if (!e) throw new ProjectError("Time entry not found.");
+  if (e.userId === p.approverId) throw new ProjectError("You cannot approve or reject your own time.");
+  await db.timeEntry.update({ where: { id: e.id }, data: { approval: p.decision, approvedById: p.approverId, approvedAt: new Date(), approvalNote: note } });
+  await notify(db, e.userId, {
+    kind: "time.decided", title: p.decision === "APPROVED" ? `Your ${e.hours.toString()} h on ${e.workDate} was approved` : `Your ${e.hours.toString()} h on ${e.workDate} was rejected`,
+    body: note ?? undefined, link: `/projects/${e.projectId}`, dedupeKey: `time-decided:${e.id}:${p.decision}:${Date.now()}`,
+  });
+  return { ...e, approval: p.decision };
 }
 
 // ---------- profitability ----------

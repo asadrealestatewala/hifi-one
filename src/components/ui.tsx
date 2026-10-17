@@ -190,3 +190,16 @@ export function PanelForm({ action, closeTo, submit, error, hint, children }: { 
     </form>
   );
 }
+
+// A table header that sorts by its column. Clicking toggles ascending and descending; the page returns to 1.
+export function SortTh({ label, field, sort, hrefFor, className = "pr-4" }: { label: string; field: string; sort: { key: string; dir: "asc" | "desc" }; hrefFor: (over: Record<string, string | undefined>) => string; className?: string }) {
+  const active = sort.key === field;
+  const next = active && sort.dir === "asc" ? "desc" : "asc";
+  return (
+    <th className={className} aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}>
+      <Link href={hrefFor({ sort: field, dir: next, page: undefined })} className="inline-flex items-center gap-1 whitespace-nowrap hover:text-foreground" title={`Sort by ${label.toLowerCase()}`}>
+        {label}<span aria-hidden className={active ? "text-primary" : "opacity-30"}>{active ? (sort.dir === "asc" ? "▲" : "▼") : "↕"}</span>
+      </Link>
+    </th>
+  );
+}

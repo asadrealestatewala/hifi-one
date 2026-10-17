@@ -5,16 +5,19 @@ import { db } from "@/lib/db";
 import { leadScope } from "@/lib/leads";
 import { formatMoney } from "@/lib/money";
 import { parseRange, rangeFilter, rangeLabel } from "@/lib/date-range";
-import { AppliedFilters, Badge, DateRangeForm, Chips, Empty, NewButton, PageHeader, Pager, PanelForm, SearchBox, Stat } from "@/components/ui";
+import { AppliedFilters, Badge, DateRangeForm, Chips, Empty, NewButton, PageHeader, Pager, PanelForm, SearchBox, SortTh, Stat } from "@/components/ui";
 import { paging } from "@/lib/paging";
+import { orderFor, parseSort } from "@/lib/sort";
 import Drawer from "@/components/ui/Drawer";
 import { createLead } from "./actions";
 
 export const dynamic = "force-dynamic";
+const SORTS = { name: { field: "name" }, value: { field: "dealValue", nullable: true }, followup: { field: "nextFollowUp", nullable: true }, created: { field: "createdAt" } };
 
-export default async function Leads({ searchParams }: { searchParams: Promise<{ error?: string; dup?: string; q?: string; stage?: string; new?: string; page?: string; campaign?: string; source?: string; from?: string; to?: string; src?: string }> }) {
+export default async function Leads({ searchParams }: { searchParams: Promise<{ error?: string; dup?: string; q?: string; stage?: string; new?: string; page?: string; campaign?: string; source?: string; from?: string; to?: string; src?: string; sort?: string; dir?: string }> }) {
   const user = await requirePermission("crm.view");
-  const { error, dup, q, stage, new: isNew, page, campaign, source, from, to, src } = await searchParams;
+  const { error, dup, q, stage, new: isNew, page, campaign, source, from, to, src, sort: sortRaw, dir: dirRaw } = await searchParams;
+  const sort = parseSort(sortRaw, dirRaw, Object.keys(SORTS), { key: "created", dir: "desc" });
   const range = parseRange(from, to);
   const created = rangeFilter(range);
   const pg = paging(page);
@@ -31,7 +34,7 @@ export default async function Leads({ searchParams }: { searchParams: Promise<{ 
     ...(search ? { AND: [{ OR: [{ name: { contains: esc(search), mode: "insensitive" as const } }, { company: { contains: esc(search), mode: "insensitive" as const } }, { email: { contains: esc(search), mode: "insensitive" as const } }, { phone: { contains: search } }] }] } : {}),
   };
   const [leads, matched, dueNow, campaigns, stages, stageCounts] = await Promise.all([
-    db.lead.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: pg.skip, take: pg.take, include: { stage: true } }),
+    db.lead.findMany({ where, orderBy: orderFor(sort, SORTS), skip: pg.skip, take: pg.take, include: { stage: true } }),
     db.lead.count({ where }),
     db.lead.count({ where: { ...base, nextFollowUp: { lt: new Date() } } }),
     db.campaign.findMany({ where: { organizationId: user.organizationId }, orderBy: { name: "asc" }, select: { id: true, name: true, status: true, archivedAt: true } }),
@@ -40,7 +43,7 @@ export default async function Leads({ searchParams }: { searchParams: Promise<{ 
   ]);
   const counts = new Map(stageCounts.map((c) => [c.stageId, c._count]));
   const total = stageCounts.reduce((n, c) => n + c._count, 0);
-  const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ stage, campaign, source, from: range.from, to: range.to, src, q: search, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/leads${t ? `?${t}` : ""}`; };
+  const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ stage, campaign, source, from: range.from, to: range.to, src, q: search, sort: sortRaw && sort.key === sortRaw ? sort.key : undefined, dir: sortRaw && sort.key === sortRaw ? sort.dir : undefined, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/leads${t ? `?${t}` : ""}`; };
   const campaignName = new Map(campaigns.map((c) => [c.id, c.name]));
   return (
     <div className="space-y-6">
@@ -71,7 +74,7 @@ export default async function Leads({ searchParams }: { searchParams: Promise<{ 
       {leads.length === 0 ? <Empty title={search ? "No leads match your search" : "No leads yet"}>{canEdit ? "Add your first lead below." : "Leads you own will appear here."}</Empty> : (
         <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">
-            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="px-4 py-2.5">Lead</th><th className="pr-4">Stage</th><th className="pr-4">Score</th><th className="pr-4">Campaign</th><th className="pr-4">Value</th><th className="pr-4">Last contact</th><th className="pr-4">Next follow-up</th></tr></thead>
+            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><SortTh label="Lead" field="name" sort={sort} hrefFor={href} className="px-4 py-2.5" /><th className="pr-4">Stage</th><th className="pr-4">Score</th><th className="pr-4">Campaign</th><SortTh label="Value" field="value" sort={sort} hrefFor={href} /><th className="pr-4">Last contact</th><SortTh label="Next follow-up" field="followup" sort={sort} hrefFor={href} /></tr></thead>
             <tbody>
               {leads.map((l) => {
                 const sc = leadScore(l);

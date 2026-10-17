@@ -1,9 +1,10 @@
 import Link from "next/link";
+import { StatusBadge } from "@/components/ui";
 import { redirect } from "next/navigation";
 import { audit, requirePermission, type SessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
-import { ProjectError, addMilestone, assignTaskToMilestone, billMilestone, deleteTime, logTime, projectProfitability, setMemberRate, setMilestoneStatus } from "@/lib/project-finance";
+import { ProjectError, addMilestone, assignTaskToMilestone, billMilestone, decideTime, deleteTime, logTime, projectProfitability, setMemberRate, setMilestoneStatus } from "@/lib/project-finance";
 import { projectScope } from "@/lib/projects";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -58,6 +59,10 @@ async function timeAction(formData: FormData) {
     if (op === "log") {
       const e = await logTime(db, { organizationId: user.organizationId, projectId, userId: user.id, taskId: s("taskId") || null, workDate: s("workDate"), hours: s("hours").trim(), note: s("note"), today: today() });
       await audit(user, { action: "time.log", entity: "TimeEntry", entityId: e.id, after: { hours: e.hours.toString(), workDate: e.workDate } });
+    } else if (op === "approve" || op === "reject") {
+      await requirePermission("projects.manage");
+      const e = await decideTime(db, { organizationId: user.organizationId, entryId: s("entryId"), approverId: user.id, decision: op === "approve" ? "APPROVED" : "REJECTED", note: s("note") });
+      await audit(user, { action: op === "approve" ? "time.approve" : "time.reject", entity: "TimeEntry", entityId: e.id, after: { note: s("note") || null } });
     } else if (op === "delete") {
       await deleteTime(db, { organizationId: user.organizationId, entryId: s("entryId"), actorId: user.id, isManager: user.permissions.has("projects.manage"), today: today() });
       await audit(user, { action: "time.delete", entity: "TimeEntry", entityId: s("entryId") });
@@ -167,11 +172,21 @@ export default async function ProjectDepth({ user, projectId, closed }: { user: 
         )}
         {myEntries.length === 0 ? <p className="text-sm text-muted">No time logged{canManage ? "" : " by you"} yet.</p> : (
           <table className="w-full text-sm">
-            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-1 pr-3">Date</th><th className="pr-3">Who</th><th className="pr-3 text-right">Hours</th><th>Note</th><th></th></tr></thead>
+            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-1 pr-3">Date</th><th className="pr-3">Who</th><th className="pr-3 text-right">Hours</th><th className="pr-3">Note</th><th className="pr-3">Review</th><th></th></tr></thead>
             <tbody>
               {myEntries.map((e) => (
                 <tr key={e.id} className="border-t border-border transition hover:bg-hover/50">
-                  <td className="py-1 pr-3">{e.workDate}</td><td className="pr-3">{nameOf.get(e.userId) ?? "Unknown"}</td><td className="pr-3 text-right">{e.hours.toString()}</td><td>{e.note}</td>
+                  <td className="py-1 pr-3">{e.workDate}</td><td className="pr-3">{nameOf.get(e.userId) ?? "Unknown"}</td><td className="pr-3 text-right">{e.hours.toString()}</td><td className="pr-3">{e.note}</td>
+                  <td className="pr-3"><StatusBadge status={e.approval} />{e.approvalNote && <div className="text-xs text-muted">{e.approvalNote}</div>}
+                    {canManage && e.userId !== user.id && !closed && (
+                      <form action={timeAction} className="mt-1 flex flex-wrap items-center gap-1">
+                        <input type="hidden" name="projectId" value={projectId} /><input type="hidden" name="entryId" value={e.id} />
+                        <input name="note" maxLength={300} placeholder="Reason (needed to reject)" aria-label="Reason" className="input !w-40 !py-0.5 text-xs" />
+                        {e.approval !== "APPROVED" && <button name="op" value="approve" className="text-xs text-success underline">Approve</button>}
+                        {e.approval !== "REJECTED" && <button name="op" value="reject" className="text-xs text-brand underline">Reject</button>}
+                      </form>
+                    )}
+                  </td>
                   <td className="text-right">{(e.userId === user.id || canManage) && !closed && <form action={timeAction}><input type="hidden" name="projectId" value={projectId} /><input type="hidden" name="op" value="delete" /><input type="hidden" name="entryId" value={e.id} /><button className="underline text-xs">Remove</button></form>}</td>
                 </tr>
               ))}

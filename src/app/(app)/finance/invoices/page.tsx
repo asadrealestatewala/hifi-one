@@ -5,8 +5,11 @@ import { audit, requirePermission } from "@/lib/auth";
 import { createDraftInvoice, LedgerError } from "@/lib/accounting";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
-import { Chips, Empty, NewButton, Notice, PageHeader, Pager, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import { Chips, Empty, NewButton, Notice, PageHeader, Pager, SearchBox, SortTh, Stat, StatusBadge } from "@/components/ui";
+import { orderFor, parseSort } from "@/lib/sort";
 import { paging } from "@/lib/paging";
+import SavedViews from "@/components/SavedViews";
+import { loadViews } from "@/lib/saved-views";
 import Drawer from "@/components/ui/Drawer";
 import InvoiceForm from "./InvoiceForm";
 
@@ -48,7 +51,8 @@ async function createInvoice(formData: FormData) {
   redirect(`/finance/invoices/${id}`);
 }
 
-type SP = { error?: string; status?: string; q?: string; new?: string; page?: string };
+type SP = { error?: string; status?: string; q?: string; new?: string; page?: string; sort?: string; dir?: string; viewError?: string };
+const SORTS = { number: { field: "number", nullable: true }, due: { field: "dueDate", nullable: true }, total: { field: "total" }, created: { field: "createdAt" } };
 const STATUSES = ["DRAFT", "ISSUED", "PARTIALLY_PAID", "PAID", "OVERDUE", "CANCELLED"];
 
 export default async function Invoices({ searchParams }: { searchParams: Promise<SP> }) {
@@ -64,8 +68,10 @@ export default async function Invoices({ searchParams }: { searchParams: Promise
     ...(q ? { OR: [{ number: { contains: q, mode: "insensitive" as const } }, { client: { name: { contains: q, mode: "insensitive" as const } } }] } : {}),
   };
   const pg = paging(sp.page);
+  const views = await loadViews(db, user.id, "invoices");
+  const sort = parseSort(sp.sort, sp.dir, Object.keys(SORTS), { key: "created", dir: "desc" });
   const [invoices, matched, counts, clients, rates] = await Promise.all([
-    db.invoice.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: pg.skip, take: pg.take, include: { client: true } }),
+    db.invoice.findMany({ where, orderBy: orderFor(sort, SORTS), skip: pg.skip, take: pg.take, include: { client: true } }),
     db.invoice.count({ where }),
     db.invoice.groupBy({ by: ["status"], where: { organizationId: org }, _count: true }),
     sp.new && canPost ? db.client.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true, currency: true } }) : Promise.resolve([]),
@@ -77,7 +83,7 @@ export default async function Invoices({ searchParams }: { searchParams: Promise
   const open = await db.invoice.findMany({ where: { organizationId: org, status: { in: ["ISSUED", "PARTIALLY_PAID", "OVERDUE"] as never } }, select: { total: true, amountPaid: true, creditedAmount: true, currency: true } });
   const owed = new Map<string, ReturnType<typeof open[number]["total"]["sub"]>>();
   for (const i of open) { const v = i.total.sub(i.amountPaid).sub(i.creditedAmount); const c = owed.get(i.currency); owed.set(i.currency, c ? c.add(v) : v); }
-  const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ status: status === "all" ? undefined : status, q, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/finance/invoices${t ? `?${t}` : ""}`; };
+  const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ status: status === "all" ? undefined : status, q, sort: sp.sort && sort.key === sp.sort ? sort.key : undefined, dir: sp.sort && sort.key === sp.sort ? sort.dir : undefined, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/finance/invoices${t ? `?${t}` : ""}`; };
 
   return (
     <div className="space-y-5">
@@ -93,11 +99,12 @@ export default async function Invoices({ searchParams }: { searchParams: Promise
         <SearchBox q={q} placeholder="Search number or client" hidden={{ status: status === "all" ? undefined : status }} />
         <Chips current={status} items={[{ key: "all", label: "All", count: total, href: href({ status: undefined }) }, ...STATUSES.map((s) => ({ key: s, label: s.toLowerCase().replace("_", " ").replace(/^./, (c) => c.toUpperCase()), count: count.get(s) ?? 0, href: href({ status: s }) }))]} />
       </div>
+      <SavedViews list="invoices" views={views} current={{ q, status: status === "all" ? undefined : status, sort: sp.sort && sort.key === sp.sort ? sort.key : undefined, dir: sp.sort && sort.key === sp.sort ? sort.dir : undefined }} error={sp.viewError} />
       {invoices.length === 0 ? <Empty title={q || status !== "all" ? "No invoices match" : "No invoices yet"}>{canPost ? "Create the first one with New invoice." : "Invoices will appear here."}</Empty> : (
         <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">
             <thead className="bg-hover/60 text-left text-xs text-muted">
-              <tr><th className="px-4 py-2.5">Number</th><th className="pr-4">Client</th><th className="pr-4">Status</th><th className="pr-4">Due</th><th className="pr-4 text-right">Total</th><th className="pr-4 text-right">Outstanding</th></tr>
+              <tr><SortTh label="Number" field="number" sort={sort} hrefFor={href} className="px-4 py-2.5" /><th className="pr-4">Client</th><th className="pr-4">Status</th><SortTh label="Due" field="due" sort={sort} hrefFor={href} /><SortTh label="Total" field="total" sort={sort} hrefFor={href} className="pr-4 text-right" /><th className="pr-4 text-right">Outstanding</th></tr>
             </thead>
             <tbody>
               {invoices.map((i) => (

@@ -9,6 +9,7 @@ import { addMember, createTask, setProjectStatus } from "../actions";
 import ProjectDepth from "./ProjectDepth";
 import ProjectMeetings from "./ProjectMeetings";
 import Deliverables from "./Deliverables";
+import ProjectTimeline from "./ProjectTimeline";
 import TaskBoard from "./TaskBoard";
 import TaskDetail from "./TaskDetail";
 import Drawer from "@/components/ui/Drawer";
@@ -48,6 +49,7 @@ export default async function ProjectPage({
   const outsiders = new Map((await db.user.findMany({ where: { id: { in: comments.map((c) => c.authorId).filter((a) => !nameOf.has(a)) } }, select: { id: true, name: true, clientId: true } })).map((u) => [u.id, u]));
   const top = project.tasks.filter((t) => !t.parentId);
   const byId = new Map(project.tasks.map((t) => [t.id, t]));
+  const milestones = (await db.milestone.findMany({ where: { projectId: project.id }, select: { name: true, dueDate: true } })).map((m) => ({ name: m.name, dueDate: m.dueDate ? String(m.dueDate).slice(0, 10) : null }));
   const closed = project.status === "COMPLETED" || project.status === "CANCELLED";
   return (
     <div className="space-y-6">
@@ -85,6 +87,9 @@ export default async function ProjectPage({
       <ProjectDepth user={user} projectId={project.id} closed={closed} />
       <Deliverables projectId={project.id} organizationId={user.organizationId} canManage={canManage} hasClient={Boolean(project.clientId)} closed={closed} msg={msg} />
       {user.permissions.has("meetings.use") && <ProjectMeetings projectId={project.id} organizationId={user.organizationId} closed={closed} />}
+
+      <ProjectTimeline projectId={project.id} today={new Date().toISOString().slice(0, 10)} projectStart={project.startDate} deadline={project.deadline} milestones={milestones}
+        tasks={top.map((t) => ({ id: t.id, title: t.title, status: t.status, createdAt: t.createdAt, dueDate: t.dueDate, completedAt: t.completedAt, assignee: t.assigneeId ? nameOf.get(t.assigneeId) ?? null : null }))} />
 
       <TaskBoard
         key={project.tasks.map((t) => `${t.id}:${t.status}:${t.blockedBy.join("")}`).join(",")}
