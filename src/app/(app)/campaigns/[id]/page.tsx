@@ -29,6 +29,7 @@ export default async function CampaignPage({ params, searchParams }: { params: P
     canManage ? db.project.findMany({ where: { organizationId: org, campaignId: null, status: { in: ["ACTIVE", "ON_HOLD"] } }, orderBy: { number: "asc" }, select: { id: true, number: true, name: true } }) : Promise.resolve([]),
     user.permissions.has("crm.view_all") ? db.lead.findMany({ where: { organizationId: org, campaignId: c.id }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, name: true, number: true, stage: { select: { name: true } } } }) : Promise.resolve([]),
   ]);
+  const deliverables = await db.deliverable.findMany({ where: { organizationId: org, campaignId: c.id }, orderBy: { createdAt: "desc" }, take: 8, select: { id: true, title: true, status: true, version: true, projectId: true } });
   const m = metrics.get(c.id)!;
   const members = new Set(c.members.map((x) => x.userId));
   const linkedClients = new Set(c.clients.map((x) => x.clientId));
@@ -108,7 +109,8 @@ export default async function CampaignPage({ params, searchParams }: { params: P
         <section className="card space-y-2">
           <h2 className="font-semibold">Latest leads</h2>
           {recentLeads.length === 0 ? <p className="text-sm text-muted">{user.permissions.has("crm.view_all") ? "No leads tagged with this campaign yet. Tag a lead with its campaign on the lead page." : "Lead details are visible to sales managers."}</p> : <ul className="text-sm">{recentLeads.map((l) => <li key={l.id}><Link className="hover:underline" href={`/leads/${l.id}`}>{l.name}</Link> <span className="text-xs text-muted">L-{l.number} · {l.stage.name}</span></li>)}</ul>}
-          <p className="text-xs text-muted">Deliverables are tracked as content items and tasks in the linked projects; there is no separate deliverable record yet.</p>
+          <h3 className="pt-2 text-sm font-semibold">Deliverables</h3>
+          {deliverables.length === 0 ? <p className="text-xs text-muted">None yet. Add them inside a linked project; clients approve them in their portal.</p> : <ul className="text-sm">{deliverables.map((d) => <li key={d.id} className="flex items-center justify-between border-t border-border py-1 first:border-0"><Link className="hover:underline" href={`/projects/${d.projectId}#deliverables`}>{d.title} <span className="text-xs text-muted">v{d.version}</span></Link><StatusBadge status={d.status} /></li>)}</ul>}
         </section>
       </div>
 

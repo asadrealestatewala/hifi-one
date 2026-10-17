@@ -8,6 +8,7 @@ import { projectProgress } from "@/lib/project-rules";
 import { addMember, createTask, setProjectStatus } from "../actions";
 import ProjectDepth from "./ProjectDepth";
 import ProjectMeetings from "./ProjectMeetings";
+import Deliverables from "./Deliverables";
 import TaskBoard from "./TaskBoard";
 import TaskDetail from "./TaskDetail";
 import Drawer from "@/components/ui/Drawer";
@@ -21,10 +22,10 @@ export const dynamic = "force-dynamic";
 export default async function ProjectPage({
   params,
   searchParams,
-}: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; task?: string; fileError?: string; fileOk?: string }> }) {
+}: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; msg?: string; task?: string; fileError?: string; fileOk?: string }> }) {
   const user = await requirePermission("projects.view");
   const { id } = await params;
-  const { error, task: taskId, fileError, fileOk } = await searchParams;
+  const { error, msg, task: taskId, fileError, fileOk } = await searchParams;
   const project = await db.project.findFirst({
     where: { id, ...projectScope(user) },
     include: { members: true, tasks: { orderBy: { createdAt: "asc" } } },
@@ -82,6 +83,7 @@ export default async function ProjectPage({
       {project.scope && <section className="card text-sm whitespace-pre-line">{project.scope}</section>}
 
       <ProjectDepth user={user} projectId={project.id} closed={closed} />
+      <Deliverables projectId={project.id} organizationId={user.organizationId} canManage={canManage} hasClient={Boolean(project.clientId)} closed={closed} msg={msg} />
       {user.permissions.has("meetings.use") && <ProjectMeetings projectId={project.id} organizationId={user.organizationId} closed={closed} />}
 
       <TaskBoard

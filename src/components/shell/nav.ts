@@ -26,6 +26,7 @@ export const NAV: NavGroup[] = [
     { href: "/services", label: "Service Catalog", permission: "catalog.view" },
     { href: "/clients", label: "Customers", permission: "clients.view" },
     { href: "/contracts", label: "Contracts", permission: "contracts.view" },
+    { href: "/support", label: "Support Requests", permission: "support.view" },
     { href: "/finance/subscriptions", label: "Subscriptions", permission: "finance.view" },
     { href: "/finance/invoices", label: "Invoices", permission: "finance.view" },
     { href: "/finance/payments", label: "Payments & Receipts", permission: "finance.view" },
