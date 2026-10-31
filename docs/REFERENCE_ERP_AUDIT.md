@@ -89,7 +89,7 @@ Express routes, SQLite, JWT, `localStorage`-only state, PKR integer money, Asia/
 | 4 | Small UI kit, 73 pages with hand-rolled headers, 53 with hand-rolled tables, 64 inline alerts | Verified | Visual drift, slower and inconsistent new screens |
 | 5 | Notifications missing on lead assignment, payments, invoice issue, portal quote decisions, payroll, vendor bills | Verified | Modules feel disconnected; work is missed |
 | 6 | No CI, no browser or HTTP-level flow tests | Verified | Regressions found by hand |
-| 7 | Commission accrual and subscription billing are manual batches; payroll ignores commissions | Verified (code), effect Probable | Lagging numbers, double handling |
+| 7 | Commission accrual and subscription billing are manual batches; payroll ignores commissions (since 2026-10-17 both run as daily jobs; since 2026-10-31 payroll pays approved commissions, decision 42) | Verified (code), effect Probable | Lagging numbers, double handling |
 | 8 | Export only on contacts | Verified | Users copy data by hand |
 | 9 | Inline server actions in 56 pages | Verified | Audit and notify steps skipped inconsistently |
 | 10 | Real-world behaviour of mail, video across networks, drag and drop | Unknown | Not testable on this machine |

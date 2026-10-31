@@ -38,6 +38,7 @@ export default async function Payslip({ params }: { params: Promise<{ id: string
           {row("Basic salary", item.basic)}
           {row("Allowances", item.allowance)}
           {Number(item.bonus) > 0 && row("Bonus", item.bonus)}
+          {Number(item.commission) > 0 && row("Commissions and approved bonuses", item.commission)}
           {Number(item.unpaidDeduction) > 0 && row(`Unpaid leave (${item.unpaidDays.toString()} of ${item.workingDays} working days)`, item.unpaidDeduction, true)}
           {row("Gross pay", item.gross)}
           {row(`Tax withheld (${item.taxPercent.toString()}%)`, item.tax, true)}

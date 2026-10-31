@@ -809,6 +809,8 @@ model PayrollItem {
   basic           Decimal @db.Decimal(14, 2)
   allowance       Decimal @db.Decimal(14, 2)
   bonus           Decimal @default(0) @db.Decimal(14, 2)
+  commission      Decimal @default(0) @db.Decimal(14, 2) // approved commissions and bonuses paid through this run (already expensed when approved)
+  commissionTax   Decimal @default(0) @db.Decimal(14, 2) // tax withheld on that part; included in `tax`
   unpaidDeduction Decimal @db.Decimal(14, 2)
   gross           Decimal @db.Decimal(14, 2)
   taxPercent      Decimal @db.Decimal(5, 2)
@@ -1580,10 +1582,12 @@ model CommissionEntry {
   paidById         String?
   paidAt           DateTime?
   paymentEntryId   String?
+  payrollRunId     String?   // set while the entry is being paid through a payroll run
   createdAt        DateTime  @default(now())
 
   @@index([organizationId, status])
   @@index([userId, createdAt])
+  @@index([payrollRunId])
 }
 
 // What people asked the assistant and which data it read, for audit. Answers are not stored: they are rebuilt from live data when asked again.

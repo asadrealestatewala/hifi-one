@@ -29,8 +29,8 @@ Rule: a screen never computes a stored total itself, and a total is never copied
 4. `issueInvoice` posts Dr receivable / Cr revenue (`sourceType INVOICE`); `cancelInvoice` posts a reversal.
 5. `recordPayment` allocates FIFO (`PaymentAllocation`), excess becomes an advance; row locks and idempotency key.
 6. Credit notes and write-offs reduce the balance by reversal entries (`bookkeeping.ts`).
-7. Commissions: `accrueCommissions` (`commissions.ts:37`) creates `CommissionEntry` per allocation (unique `allocationId`), then approve → pay, each posting a journal.
-- **Gap:** step 7 runs from a button, not when a payment is recorded. Payroll does not include approved commissions.
+7. Commissions: `accrueCommissions` (`commissions.ts:37`) creates `CommissionEntry` per allocation (unique `allocationId`), then approve → pay, each posting a journal. Approved entries in a payroll run's currency are claimed by the draft run (`CommissionEntry.payrollRunId`), taxed on the payslip, cleared from the payroll payable when the run posts and marked paid when the run is paid (`payroll.ts`); the rest are paid by hand on the commissions screen.
+- **Gap:** step 7 runs as a daily job, not when a payment is recorded.
 - Notifications (`src/lib/events.ts`): lead assigned; portal quote decision to the quote author; invoice issued to client portal users; payment received to the sales owner and client portal users.
 
 ### Retainers

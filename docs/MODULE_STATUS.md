@@ -32,7 +32,7 @@ Master prompt section in brackets.
 - **Not verified:** the forgot-password email (needs SMTP).
 
 ## HR [8]
-- **Done:** employee profiles with restricted sensitive fields, attendance with breaks and HR correction, leave with balances and approvals, payroll runs with separation of duties and payslips, assets and assignment, employee documents with expiry, offices and departments.
+- **Done:** employee profiles with restricted sensitive fields, attendance with breaks and HR correction, leave with balances and approvals, payroll runs with separation of duties and payslips, approved commissions and bonuses paid through payroll (done 2026-10-31, tested at data level; run page, payslip and PDF not checked in a browser), assets and assignment, employee documents with expiry, offices and departments.
 - **Not built:** shifts, holidays calendar, onboarding and offboarding, training, performance reviews, recruitment, loans.
 
 ## Workfolio-style monitoring [9] (called Workfolio in the menu)
@@ -94,7 +94,7 @@ Found by comparing with the reference ERP; evidence in `docs/REFERENCE_ERP_AUDIT
 - **Action safety (done for the listed actions).** `ConfirmButton` guards Cancel invoice and commission Void (both require a reason, kept in the audit log), Write off, Cancel voucher, Delete screenshot, Revoke device, Cancel meeting, Archive contacts, Delete department, Delete role. Slide-over forms (`PanelForm`), file uploads (`FilesPanel`) and the profile photo form show a pending label and cannot submit twice. Other hand-written forms still have no pending state.
 - **Shared UI under-used.** About 70 pages still hand-roll the header and tables; bring each onto the kit when touched.
 - **Notifications (done).** `src/lib/events.ts`: lead assigned, contacts assigned, invoice issued (client portal), payment received (sales owner and client), portal quote accepted or declined (quote author), payroll paid (each employee), vendor bill approved, rejected or paid (vendor portal). Tested in `events.integration.test.ts`. Not checked in a browser.
-- **Batch jobs (done 2026-10-17).** Commission accrual, subscription billing, reminders, expiry and retention now run daily through the scheduled jobs; payroll still ignores approved commissions.
+- **Batch jobs (done 2026-10-17).** Commission accrual, subscription billing, reminders, expiry and retention now run daily through the scheduled jobs.
 - **Exports (done 2026-10-31 for the paged lists).** CSV for contacts, staff, invoices, payments, leads, quotes, expenses and the audit log, each with the filters on screen and the list's permission. The six new ones stream every matching row (no cap, `src/lib/lists.ts`, tested in `lists.integration.test.ts`); contacts and staff still stop at 5,000 rows. Not checked in a browser.
 - **CI (added, not yet run).** `.github/workflows/ci.yml` runs tsc, eslint, vitest with a Postgres service, and the build. The repository has no remote yet, so it has never run. No browser tests.
 

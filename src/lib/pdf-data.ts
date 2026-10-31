@@ -105,7 +105,7 @@ export async function loadPayslipDoc(db: PrismaClient, p: { organizationId: stri
   const [user, profile] = await Promise.all([db.user.findUnique({ where: { id: item.userId } }), db.employeeProfile.findUnique({ where: { userId: item.userId } })]);
   return {
     period: item.run.period, currency: item.run.currency, status: item.run.status, employee: { name: user?.name ?? "", employeeNo: profile?.employeeNo, designation: profile?.designation },
-    basic: item.basic.toString(), allowance: item.allowance.toString(), bonus: item.bonus.toString(), unpaidDeduction: item.unpaidDeduction.toString(), unpaidDays: item.unpaidDays.toString(),
+    basic: item.basic.toString(), allowance: item.allowance.toString(), bonus: item.bonus.toString(), commission: item.commission.toString(), unpaidDeduction: item.unpaidDeduction.toString(), unpaidDays: item.unpaidDays.toString(),
     workingDays: item.workingDays, gross: item.gross.toString(), taxPercent: item.taxPercent.toString(), tax: item.tax.toString(), net: item.net.toString(),
     company: await liveCompany(db, p.organizationId), config: (await getDocConfig(db, p.organizationId, "PAYSLIP")).config,
   };

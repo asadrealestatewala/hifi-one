@@ -3,10 +3,10 @@ import { notFound, redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { LedgerError } from "@/lib/ledger-math";
-import { PayrollError, approveRun, payRun, postRun, setBonus } from "@/lib/payroll";
+import { PayrollError, approveRun, deleteDraftRun, payRun, postRun, refreshRunCommissions, setBonus } from "@/lib/payroll";
 import { formatMoney } from "@/lib/money";
 import { payrollPaid } from "@/lib/events";
-import { Notice } from "@/components/ui";
+import { ConfirmButton, Notice } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +22,28 @@ async function bonus(formData: FormData) {
   try {
     await setBonus(db, { organizationId: user.organizationId, runId, userId: String(formData.get("userId")), bonus: String(formData.get("bonus") || "0") });
     await audit(user, { action: "payroll.set_bonus", entity: "PayrollRun", entityId: runId, after: { userId: String(formData.get("userId")) } });
+  } catch (e) {
+    if (isKnown(e)) fail(runId, (e as Error).message);
+    throw e;
+  }
+  redirect(`/payroll/${runId}`);
+}
+
+// Draft only: pick up newly approved commissions, or throw the draft away (its commissions go back to waiting).
+async function draftOp(formData: FormData) {
+  "use server";
+  const user = await requirePermission("payroll.manage");
+  const runId = String(formData.get("runId"));
+  const op = String(formData.get("op"));
+  try {
+    if (op === "refresh") {
+      const r = await refreshRunCommissions(db, { organizationId: user.organizationId, runId });
+      await audit(user, { action: "payroll.refresh_commissions", entity: "PayrollRun", entityId: runId, after: r });
+    } else if (op === "delete") {
+      const r = await deleteDraftRun(db, { organizationId: user.organizationId, runId });
+      await audit(user, { action: "payroll.delete_draft", entity: "PayrollRun", entityId: runId, before: { period: r.period, currency: r.currency }, after: { releasedCommissions: r.released } });
+      redirect("/payroll");
+    }
   } catch (e) {
     if (isKnown(e)) fail(runId, (e as Error).message);
     throw e;
@@ -66,6 +88,7 @@ export default async function RunPage({ params, searchParams }: { params: Promis
   const m = (v: number) => formatMoney(v, currency);
   const draft = run.status === "DRAFT";
   const can = (p: Parameters<typeof user.permissions.has>[0]) => user.permissions.has(p);
+  const hasCommission = items.some((i) => Number(i.commission) > 0);
   return (
     <div className="space-y-6">
       <Link href="/payroll" className="text-sm text-muted hover:underline">← All payroll runs</Link>
@@ -75,7 +98,7 @@ export default async function RunPage({ params, searchParams }: { params: Promis
         <table className="w-full text-sm">
           <thead className="bg-hover/60 text-left text-xs text-muted"><tr>
             <th className="py-2 pr-3">Employee</th><th className="pr-3 text-right">Basic</th><th className="pr-3 text-right">Allowance</th><th className="pr-3 text-right">Bonus</th>
-            <th className="pr-3 text-right">Unpaid leave</th><th className="pr-3 text-right">Gross</th><th className="pr-3 text-right">Tax</th><th className="text-right">Net</th></tr></thead>
+            {hasCommission && <th className="pr-3 text-right">Commission</th>}<th className="pr-3 text-right">Unpaid leave</th><th className="pr-3 text-right">Gross</th><th className="pr-3 text-right">Tax</th><th className="text-right">Net</th></tr></thead>
           <tbody>
             {run.items.map((i) => (
               <tr key={i.id} className="border-t border-border transition hover:bg-hover/50">
@@ -90,11 +113,12 @@ export default async function RunPage({ params, searchParams }: { params: Promis
                     </form>
                   ) : m(Number(i.bonus))}
                 </td>
+                {hasCommission && <td className="pr-3 text-right">{Number(i.commission) > 0 ? m(Number(i.commission)) : "—"}</td>}
                 <td className="pr-3 text-right">−{m(Number(i.unpaidDeduction))} <span className="text-xs text-muted">({i.unpaidDays.toString()}d)</span></td>
                 <td className="pr-3 text-right">{m(Number(i.gross))}</td><td className="pr-3 text-right">{m(Number(i.tax))}</td><td className="text-right font-semibold">{m(Number(i.net))}</td>
               </tr>
             ))}
-            <tr className="border-t-2 border-border font-bold"><td className="py-2">Total</td><td /><td /><td /><td />
+            <tr className="border-t-2 border-border font-bold"><td className="py-2">Total</td><td /><td /><td />{hasCommission && <td className="pr-3 text-right">{m(sum((i) => i.commission))}</td>}<td />
               <td className="pr-3 text-right">{m(sum((i) => i.gross))}</td><td className="pr-3 text-right">{m(sum((i) => i.tax))}</td><td className="text-right">{m(sum((i) => i.net))}</td></tr>
           </tbody>
         </table>
@@ -102,7 +126,13 @@ export default async function RunPage({ params, searchParams }: { params: Promis
       <section className="card space-y-3">
         <h2 className="font-semibold">Workflow</h2>
         <p className="text-sm text-muted">Draft, then approved by a different person (the run is then frozen), then posted to the ledger, then salary payment recorded.</p>
+        <p className="text-sm text-muted">Approved commissions and bonuses in {run.currency} are paid through the run and taxed at each person&apos;s rate. They were booked as a cost when approved, so posting does not book them again.</p>
         <div className="flex flex-wrap gap-2">
+          {draft && can("payroll.manage") && (<>
+            <form action={draftOp}><input type="hidden" name="runId" value={run.id} /><input type="hidden" name="op" value="refresh" /><button className="btn-ghost">Refresh commissions</button></form>
+            <form action={draftOp}><input type="hidden" name="runId" value={run.id} /><input type="hidden" name="op" value="delete" />
+              <ConfirmButton title="Delete this draft run?" message="The draft and its payslips are removed. Its commissions and bonuses go back to waiting for payment. You can make the run again." confirmLabel="Delete draft">Delete draft</ConfirmButton></form>
+          </>)}
           {run.status === "DRAFT" && can("payroll.approve") && (
             <form action={step}><input type="hidden" name="runId" value={run.id} /><button name="step" value="approve" className="btn">Approve run</button></form>
           )}

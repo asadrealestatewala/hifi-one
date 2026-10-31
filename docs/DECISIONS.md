@@ -47,11 +47,12 @@ Newest last. Each entry: what was decided, why, and what it costs.
 39. **Time approval is informational.** Profitability counts all logged time; a rejection starts a conversation instead of silently changing costs. Nobody decides on their own hours.
 40. **Client reports never carry spend.** The `campaign_client` report is built from a separate section list, tested to contain no spend, budget or cost words.
 41. **One list engine, no client table component.** Paged lists stay server components: `src/lib/list-params.ts` parses the address, `src/lib/lists.ts` owns each list's filter (permission and record scope included) and its CSV export, and the kit's `Pager`, `SortTh`, `SearchBox`, `Chips` and `ExportLink` render it. A column-config `DataTable` was not added because rows mix links, badges and money per list; the shared parts are the filter and the controls. Exports stream every matching row in batches (no cap) and leave out sensitive fields (CNIC, bank details, audit before/after values, IP addresses). `csvCell` now leaves plain numbers (including negatives) unprefixed so amounts stay summable; anything else starting with `= + - @` still gets an apostrophe.
+42. **Payroll pays approved commissions and bonuses.** A payroll run claims each person's `APPROVED` `CommissionEntry` rows in the run currency that no run holds yet (`payrollRunId`), adds them to gross as `PayrollItem.commission`, and withholds tax at the person's salary rate into `commissionTax` (included in `tax`; salary and commission are rounded separately so salary tax is unchanged). They were expensed at approval, so posting debits the payroll payable for that part instead of the expense account; paying the run marks them `PAID` with the run's payment entry. A claimed entry cannot be paid by hand; refreshing or deleting a draft run releases it. Entries for people with no salary structure in that currency stay on the commissions screen to be paid by hand. Before this, approved commissions were only paid by hand and were not taxed.
 
 ## Open questions
 
 - Success feedback: `?ok=` query flag (current, visible in the address) or a short-lived flash cookie read by the layout?
 - Scheduled work: decided (35), all three ways exist. Which one to use in production is a deployment choice (`docs/DEPLOYMENT.md`).
-- Should commission accrue at payment time (inside `recordPayment`) instead of by batch, and should payroll pay approved commissions as the reference does?
+- Should commission accrue at payment time (inside `recordPayment`) instead of by the daily batch? (Payroll paying approved commissions: decided, 42.)
 - Inline `"use server"` actions in pages vs `actions.ts` per module: standardise on `actions.ts` for new work?
 

@@ -88,7 +88,7 @@ export default async function Commissions({ searchParams }: { searchParams: Prom
   return (
     <div className="space-y-6 max-w-4xl">
       <PageHeader title="Commissions and bonuses" actions={<form action={manage}><input type="hidden" name="op" value="accrue" /><button className="btn">Work out new commissions</button></form>} />
-      <p className="text-sm text-muted">A salesperson earns a percentage of the revenue (before tax) on money actually received from clients they converted, one commission per payment. Approval books the cost; paying it settles the liability. Nobody can approve their own payout.</p>
+      <p className="text-sm text-muted">A salesperson earns a percentage of the revenue (before tax) on money actually received from clients they converted, one commission per payment. Approval books the cost; paying it settles the liability. Approved entries are paid with the next payroll run in the same currency, or here by hand if they are not in a run. Nobody can approve their own payout.</p>
       {sp.msg && <Notice kind="ok">{sp.msg}</Notice>}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
 
@@ -106,7 +106,8 @@ export default async function Commissions({ searchParams }: { searchParams: Prom
                   <td className="space-y-1">
                     {e.status === "EARNED" && canApprove && <form action={decide}><input type="hidden" name="entryId" value={e.id} /><input type="hidden" name="op" value="approve" /><button className="underline text-xs">{e.userId === user.id ? "Approve (not your own)" : "Approve"}</button></form>}
                     {e.status === "EARNED" && <form action={manage}><input type="hidden" name="entryId" value={e.id} /><input type="hidden" name="op" value="void" /><ConfirmButton className="underline text-xs" title="Void this commission?" message="The person will not be paid this amount. It cannot be restored; a new bonus would be needed." confirmLabel="Void" reason>Void</ConfirmButton></form>}
-                    {e.status === "APPROVED" && canPay && (
+                    {e.status === "APPROVED" && e.payrollRunId && <p className="text-xs text-muted">Being paid through payroll</p>}
+                    {e.status === "APPROVED" && !e.payrollRunId && canPay && (
                       <form action={decide} className="flex gap-1"><input type="hidden" name="entryId" value={e.id} /><input type="hidden" name="op" value="pay" />
                         <select name="bankAccountId" aria-label="Pay from" className="input !py-0.5 text-xs">{banks.filter((b) => b.currency === e.currency).map((b) => <option key={b.id} value={b.id}>{b.internalName}</option>)}</select>
                         <button className="btn !py-0.5 text-xs">Mark paid</button></form>

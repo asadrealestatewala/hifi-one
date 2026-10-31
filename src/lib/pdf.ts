@@ -320,7 +320,7 @@ export async function statementPdf(d: StatementDoc, b: Build = {}) {
 // ---- Payslip ----
 export type PayslipDoc = {
   period: string; currency: string; status: string; employee: { name: string; employeeNo?: string | null; designation?: string | null };
-  basic: string; allowance: string; bonus: string; unpaidDeduction: string; unpaidDays: string; workingDays: number; gross: string; taxPercent: string; tax: string; net: string;
+  basic: string; allowance: string; bonus: string; commission?: string; unpaidDeduction: string; unpaidDays: string; workingDays: number; gross: string; taxPercent: string; tax: string; net: string;
   company: Company; config: DocConfig;
 };
 export async function payslipPdf(d: PayslipDoc, b: Build = {}) {
@@ -331,6 +331,7 @@ export async function payslipPdf(d: PayslipDoc, b: Build = {}) {
   const m = (v: string) => pdfMoney(v, d.currency);
   const rows: string[][] = [["Basic salary", m(d.basic)], ["Allowances", m(d.allowance)]];
   if (Number(d.bonus) > 0) rows.push(["Bonus", m(d.bonus)]);
+  if (d.commission && Number(d.commission) > 0) rows.push(["Commissions and approved bonuses", m(d.commission)]);
   if (Number(d.unpaidDeduction) > 0) rows.push([`Unpaid leave (${d.unpaidDays} of ${d.workingDays} working days)`, `-${m(d.unpaidDeduction)}`]);
   rows.push(["Gross pay", m(d.gross)], [`Tax withheld (${d.taxPercent}%)`, `-${m(d.tax)}`]);
   table(ctx, [{ label: "Item", width: 349 }, { label: "Amount", width: 150, align: "right" }], rows, { totalRow: ["Net pay", m(d.net)] });
