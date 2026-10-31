@@ -83,7 +83,7 @@ Master prompt section in brackets.
 - **Intentionally not built this round:** going live (hosting, HTTPS, domain) and email, WhatsApp or SMS notifications.
 
 ## Other
-- **Public website (`/site`, 2026-11-01):** snapshot of hifimarketing.co with self-hosted assets (see `docs/SYSTEM_MAP.md`). Partial: the contact form does nothing yet (wire to `/api/leads/capture`); blog and job openings are a point-in-time copy (job "posted N months ago" text is frozen); job applications go to the PHP site; the Tawk.to chat widget is blocked by the CSP; two Unsplash photos on the careers page were already missing on the live site. `/` serves it to signed-out visitors (signed-in staff go to the dashboard).
+- **Public website (`/site`, 2026-11-01):** snapshot of hifimarketing.co with self-hosted assets (see `docs/SYSTEM_MAP.md`). Partial: the contact form does nothing yet (wire to `/api/leads/capture`); blog and job openings are a point-in-time copy (job "posted N months ago" text is frozen); "Apply" and applicant sign-up open the contact page (no online applications); the Tawk.to chat widget is blocked by the CSP; two Unsplash photos on the careers page were already missing on the live site. `/` serves it to signed-out visitors (signed-in staff go to the dashboard).
 - **Meetings (built-in video):** done for up to 8 people, screen sharing, chat, guest links, waiting room. Not verified with real cameras across networks; no recording.
 - **UI shell [2, 3]:** design system documented; the top tab strip and the sidebar level card were removed on request; navigation is the sidebar only (see `docs/ERP_AUDIT.md`, finding 1).
 

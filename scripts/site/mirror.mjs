@@ -111,8 +111,9 @@ async function rewriteRef(ref, pageUrl) {
     const p = abs.pathname.replace(/^\/+/, "");
     const key = p.endsWith(".php") || p === "" ? p + (abs.search && /^(blog|job-detail)\.php$/.test(p) ? abs.search : "") : null;
     if (key !== null) {
-      // Applicant accounts and job applications live on the PHP site; the ERP has no applicant sign-in
-      if (p === "register.php" || (p === "login.php" && abs.search)) return abs.href.replace("www.", "");
+      // The PHP site (applicant accounts, job applications) is retired and the ERP has no applicant sign-in,
+      // so applying and signing up go to the contact page
+      if (p === "register.php" || (p === "login.php" && abs.search)) return "/site/contact";
       const route = ROUTE_OF[key];
       if (route) return route + abs.hash;
       log.failed.push([abs.href, "page link without a route"]);
