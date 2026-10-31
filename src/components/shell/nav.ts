@@ -53,6 +53,7 @@ export const NAV: NavGroup[] = [
   ] },
   { id: "people", title: "People & HR", icon: "users", items: [
     { href: "/hr/employees", label: "Staff Directory", permission: "hr.view" },
+    { href: "/hr/applications", label: "Job Applications", permission: "hr.view" },
     { href: "/hr/attendance", label: "Attendance (all)", permission: "attendance.view_all" },
     { href: "/payroll", label: "Payroll", permission: "payroll.view" },
     { href: "/hr/monitoring", label: "Workfolio", permission: "monitoring.view_team" },

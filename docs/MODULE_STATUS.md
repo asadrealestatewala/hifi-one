@@ -83,7 +83,7 @@ Master prompt section in brackets.
 - **Intentionally not built this round:** going live (hosting, HTTPS, domain) and email, WhatsApp or SMS notifications.
 
 ## Other
-- **Public website (`/site`, 2026-11-01):** snapshot of hifimarketing.co with self-hosted assets (see `docs/SYSTEM_MAP.md`). Partial: the contact form does nothing yet (wire to `/api/leads/capture`); blog and job openings are a point-in-time copy (job "posted N months ago" text is frozen); "Apply" and applicant sign-up open the contact page (no online applications); two Unsplash photos on the careers page were already missing on the live site. `/` serves it to signed-out visitors (signed-in staff go to the dashboard).
+- **Public website (`/`, `/site`, rebuilt 2026-11-01):** Next.js pages with shared layout and content files (see `docs/SYSTEM_MAP.md`). Done: contact form creates CRM leads; job applications with CV reach HR at `/hr/applications` with notifications; sitemap, robots, canonical links, Open Graph and JSON-LD; dark mode shared with the ERP. Partial: open roles and news posts are edited in `src/app/(site)/_content/` (no admin screen yet); job pages have no JobPosting structured data because the original posting dates are unknown.
 - **Meetings (built-in video):** done for up to 8 people, screen sharing, chat, guest links, waiting room. Not verified with real cameras across networks; no recording.
 - **UI shell [2, 3]:** design system documented; the top tab strip and the sidebar level card were removed on request; navigation is the sidebar only (see `docs/ERP_AUDIT.md`, finding 1).
 

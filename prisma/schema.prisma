@@ -2168,3 +2168,30 @@ model Agreement {
   @@unique([organizationId, number])
   @@index([organizationId, status])
 }
+
+// ---------- Job applications (from the careers pages of the public website) ----------
+// The roles themselves are listed on the website (src/app/(site)/_content/jobs.ts); an application keeps the role's id and
+// title as they were when the person applied. The CV is a StoredFile with ownerType JOB_APPLICATION (cvFileId).
+model JobApplication {
+  id             String    @id @default(cuid())
+  organizationId String
+  jobId          Int
+  jobTitle       String
+  name           String
+  email          String
+  phone          String
+  profileUrl     String?
+  coverNote      String?
+  cvFileId       String?
+  status         String    @default("NEW") // NEW | REVIEWING | SHORTLISTED | INTERVIEW | OFFERED | HIRED | REJECTED
+  notes          String?   // HR's own notes, never shown to the applicant
+  submissions    Int       @default(1) // the same person applying again for the same role updates this record
+  sourceUrl      String?
+  reviewedById   String?
+  reviewedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([organizationId, jobId, email])
+  @@index([organizationId, status, createdAt])
+}
