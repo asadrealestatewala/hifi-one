@@ -2,10 +2,13 @@
 // Each job still runs once a day per organization and is guarded by the database, so several servers or restarts are safe.
 // Use the /api/jobs/run endpoint or `npm run jobs:run` instead when the host stops idle servers.
 export async function register() {
-  if (process.env.NEXT_RUNTIME !== "nodejs" || process.env.JOBS_AUTORUN !== "1") return;
-  const { db } = await import("./lib/db");
-  const { runJobs } = await import("./lib/jobs");
-  const tick = () => { void runJobs(db, { trigger: "SCHEDULE" }).catch((e) => console.error("Scheduled jobs failed", e)); };
-  setTimeout(tick, 60_000);
-  setInterval(tick, 15 * 60_000);
+  // The imports stay inside this block so the edge bundle drops them (storage uses node:crypto).
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    if (process.env.JOBS_AUTORUN !== "1") return;
+    const { db } = await import("./lib/db");
+    const { runJobs } = await import("./lib/jobs");
+    const tick = () => { void runJobs(db, { trigger: "SCHEDULE" }).catch((e) => console.error("Scheduled jobs failed", e)); };
+    setTimeout(tick, 60_000);
+    setInterval(tick, 15 * 60_000);
+  }
 }
