@@ -361,7 +361,6 @@ select.hs-input { appearance: none; padding-right: 40px; background-image: url("
 .hs-socials a:hover { border-color: var(--hs-primary); }
 .hs-footer-bottom { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding-top: 24px; padding-bottom: 24px; margin-top: 40px; border-top: 1px solid var(--hs-border); }
 .hs-footer-bottom p { margin: 0; font-size: 14px; color: var(--hs-muted); }
-.hs-footer-bottom a { color: var(--hs-primary); font-weight: 600; }
 @media (max-width: 900px) { .hs-footer-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 520px) { .hs-footer-grid { grid-template-columns: 1fr; } }
 
