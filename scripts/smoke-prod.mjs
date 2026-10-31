@@ -51,6 +51,15 @@ ok(/noindex/i.test(signBody) || /noindex/i.test(sign.headers.get("x-robots-tag")
 ok(/no-store/.test(sign.headers.get("cache-control") ?? ""), "the signing page is not cached");
 ok(sign.headers.get("x-permitted-cross-domain-policies") === "none", "X-Permitted-Cross-Domain-Policies: none");
 
+// The domain's front page is the public website for anyone signed out (see src/lib/home.ts); it must never be cached,
+// because the same address sends staff to the dashboard
+const home = await get("/");
+const homeBody = await home.text();
+ok((home.status === 200 && /<title>[^<]*HIFI/i.test(homeBody)) || firstRun, `/ shows the website to a signed-out visitor (status ${home.status})`);
+ok(firstRun || /no-store/.test(home.headers.get("cache-control") ?? ""), "/ is not cached");
+const site = await get("/site/contact");
+ok(site.status === 200, `/site/contact answers 200 (got ${site.status})`);
+
 const setup = await get("/setup");
 ok([200, 307, 308, 302, 303].includes(setup.status), `/setup is reachable or closed (status ${setup.status})`);
 

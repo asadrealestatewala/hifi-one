@@ -46,6 +46,21 @@ Users receive a one-time link to set their own password (email is not connected,
 
 Terminate HTTPS at a reverse proxy or the platform and forward to the Node process. Pass `X-Forwarded-For` and `X-Forwarded-Proto` (the sign-in rate limiter and invitation links use them). The application sends HSTS, so HTTPS must be working before you go live.
 
+## Serving hifimarketing.co (website and ERP on one domain)
+
+Production runs on the VPS behind hifimarketing.co (DNS pointed there on 2026-10-31; nginx 1.24 with a Let's Encrypt certificate for hifimarketing.co and www already answered on 443): `.github/workflows/deploy.yml` deploys every push to `main` into `/var/www/hifi-one` and restarts it with pm2 (`hifi-one`, port 3000). `/` shows the public website to visitors and sends signed-in staff to `/dashboard`. Steps to put the domain on it (run on the VPS as root or with sudo; each is safe to repeat):
+
+1. **Check the app is up:** `pm2 ls` shows `hifi-one` online; `curl -sI http://127.0.0.1:3000/site` returns 200.
+2. **DNS (Namecheap → Domain List → hifimarketing.co → Advanced DNS):** an `A` record for `@` and one for `www` pointing at the VPS IP; remove the old records that point at the PHP host. Optional `AAAA` records if the VPS has IPv6. Wait until `nslookup hifimarketing.co` returns the VPS IP.
+3. **nginx:** `apt install nginx`, copy `deploy/nginx/hifimarketing.co.conf` to `/etc/nginx/sites-available/`, link it into `sites-enabled`, remove `sites-enabled/default` if it is the stock page, then `nginx -t && systemctl reload nginx`.
+4. **Firewall:** allow 80 and 443 (`ufw allow 'Nginx Full'`); keep 3000 and the database closed to the internet.
+5. **HTTPS:** `apt install certbot python3-certbot-nginx`, then `certbot --nginx -d hifimarketing.co -d www.hifimarketing.co --redirect`. Renewal runs from certbot's timer; `certbot renew --dry-run` checks it.
+6. **App environment:** set `APP_URL=https://hifimarketing.co` in the app's environment file and `pm2 restart hifi-one --update-env`.
+7. **First-run setup:** until a user exists, `/` and `/login` send every visitor to `/setup` (protected by `SETUP_TOKEN`), so the website is not shown. Complete setup at `https://hifimarketing.co/setup`, then remove `SETUP_TOKEN` from the environment and restart.
+8. **Check:** `node scripts/smoke-prod.mjs https://hifimarketing.co` (it also checks that `/` serves the website uncached), then open `/` signed out (website) and `/login` (ERP sign-in).
+
+The old PHP site (job applications, applicant accounts, its client portal) stops being reachable once DNS moves; the website copy sends those visitors to the contact page.
+
 ## Updating
 
 1. Take a database backup (see below).
