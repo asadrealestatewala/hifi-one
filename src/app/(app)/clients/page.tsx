@@ -3,8 +3,12 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { Avatar, Chips, Empty, NewButton, PageHeader, PanelForm, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import { Avatar, Chips, Empty, NewButton, PageHeader, Pager, PanelForm, SearchBox, SortTh, Stat, StatusBadge } from "@/components/ui";
+import { paging } from "@/lib/paging";
+import { orderFor, parseSort } from "@/lib/sort";
 import Drawer from "@/components/ui/Drawer";
+import SavedViews from "@/components/SavedViews";
+import { loadViews } from "@/lib/saved-views";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +45,8 @@ async function createClient(formData: FormData) {
   redirect(`/clients/${client.id}`);
 }
 
-type SP = { error?: string; q?: string; show?: string; new?: string };
+type SP = { error?: string; q?: string; show?: string; new?: string; page?: string; sort?: string; dir?: string; viewError?: string };
+const SORTS = { name: { field: "name" }, country: { field: "country", nullable: true }, currency: { field: "currency" } };
 
 export default async function Clients({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requirePermission("clients.view");
@@ -50,31 +55,35 @@ export default async function Clients({ searchParams }: { searchParams: Promise<
   const canEdit = user.permissions.has("clients.edit");
   const show = sp.show === "inactive" ? "inactive" : sp.show === "all" ? "all" : "active";
   const q = sp.q?.trim();
-  const [clients, active, inactive] = await Promise.all([
-    db.client.findMany({
-      where: { organizationId: org, ...(show === "all" ? {} : { active: show === "active" }), ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { email: { contains: q, mode: "insensitive" } }, { code: { contains: q, mode: "insensitive" } }] } : {}) },
-      orderBy: { name: "asc" }, take: 300,
-    }),
+  const pg = paging(sp.page);
+  const views = await loadViews(db, user.id, "clients");
+  const sort = parseSort(sp.sort, sp.dir, Object.keys(SORTS), { key: "name", dir: "asc" });
+  const where = { organizationId: org, ...(show === "all" ? {} : { active: show === "active" }), ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" as const } }, { email: { contains: q, mode: "insensitive" as const } }, { code: { contains: q, mode: "insensitive" as const } }] } : {}) };
+  const [clients, matched, currencies, active, inactive] = await Promise.all([
+    db.client.findMany({ where, orderBy: orderFor(sort, SORTS), skip: pg.skip, take: pg.take }),
+    db.client.count({ where }),
+    db.client.groupBy({ by: ["currency"], where: { organizationId: org, active: true }, orderBy: { currency: "asc" } }),
     db.client.count({ where: { organizationId: org, active: true } }),
     db.client.count({ where: { organizationId: org, active: false } }),
   ]);
-  const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ show: show === "active" ? undefined : show, q, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/clients${t ? `?${t}` : ""}`; };
+  const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ show: show === "active" ? undefined : show, q, sort: sp.sort && sort.key === sp.sort ? sort.key : undefined, dir: sp.sort && sort.key === sp.sort ? sort.dir : undefined, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/clients${t ? `?${t}` : ""}`; };
   return (
     <div className="space-y-5">
       <PageHeader title="Client accounts" subtitle="Who you bill, in which currency and on what terms." actions={canEdit ? <NewButton href={href({ new: "1" })}>Add client</NewButton> : undefined} />
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Active clients" value={active} />
         <Stat label="Inactive" value={inactive} />
-        <Stat label="Billing currencies" value={[...new Set(clients.map((c) => c.currency))].join(" · ") || "None"} />
+        <Stat label="Billing currencies" value={currencies.map((c) => c.currency).join(" · ") || "None"} />
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <SearchBox q={q} placeholder="Search name, email or code" hidden={{ show: show === "active" ? undefined : show }} />
         <Chips current={show} items={[{ key: "active", label: "Active", count: active, href: href({ show: undefined }) }, { key: "inactive", label: "Inactive", count: inactive, href: href({ show: "inactive" }) }, { key: "all", label: "All", count: active + inactive, href: href({ show: "all" }) }]} />
       </div>
+      <SavedViews list="clients" views={views} current={{ q, show: show === "active" ? undefined : show, sort: sp.sort && sort.key === sp.sort ? sort.key : undefined, dir: sp.sort && sort.key === sp.sort ? sort.dir : undefined }} error={sp.viewError} />
       {clients.length === 0 ? <Empty title={q ? "No clients match" : "No clients yet"}>{canEdit ? "Add your first client, or convert a won lead." : "Clients will appear here."}</Empty> : (
         <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">
-            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="px-4 py-2.5">Client</th><th className="pr-4">Email</th><th className="pr-4">Country</th><th className="pr-4">Currency</th><th className="pr-4">Terms</th><th className="pr-4">Status</th></tr></thead>
+            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><SortTh label="Client" field="name" sort={sort} hrefFor={href} className="px-4 py-2.5" /><th className="pr-4">Email</th><SortTh label="Country" field="country" sort={sort} hrefFor={href} /><SortTh label="Currency" field="currency" sort={sort} hrefFor={href} /><th className="pr-4">Terms</th><th className="pr-4">Status</th></tr></thead>
             <tbody>
               {clients.map((c) => (
                 <tr key={c.id} className="border-t border-border transition hover:bg-hover/50">
@@ -88,6 +97,7 @@ export default async function Clients({ searchParams }: { searchParams: Promise<
               ))}
             </tbody>
           </table>
+          <Pager page={pg.page} size={pg.size} total={matched} href={(n) => href({ page: n > 1 ? String(n) : undefined })} />
         </div>
       )}
       {canEdit && sp.new && (

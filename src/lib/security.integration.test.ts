@@ -48,7 +48,7 @@ describe("first-run setup", () => {
     org = (await db.organization.findFirstOrThrow()).id;
     const u = await db.user.findFirstOrThrow({ include: { roles: { include: { role: { include: { permissions: true } } } } } });
     admin = u.id;
-    adminEmail = u.email;
+    adminEmail = u.email!;
     expect(["ada@test.example", "other@test.example"]).toContain(u.email); // whichever of the two simultaneous setups won
     expect(await bcrypt.compare(input.password, u.passwordHash)).toBe(true);
     expect(u.roles[0].role.key).toBe("SUPER_ADMIN");
@@ -143,7 +143,7 @@ describe("password reset links", () => {
     await db.session.create({ data: { userId, expiresAt: new Date(Date.now() + 3600_000) } });
     const t1 = await createResetLink(db, { organizationId: org, userId, createdById: admin });
     const t2 = await createResetLink(db, { organizationId: org, userId, createdById: admin });
-    expect(await resetInfo(db, t1)).toEqual({ email: "rae@test.example" });
+    expect(await resetInfo(db, t1)).toEqual({ email: "rae@test.example", who: "rae@test.example" });
     expect(await resetInfo(db, "bogus")).toBeNull();
     await expect(consumeReset(db, { token: t1, password: "short" })).rejects.toThrow(/10 characters/);
     const results = await Promise.allSettled([1, 2].map(() => consumeReset(db, { token: t1, password: "a-brand-new-password" })));

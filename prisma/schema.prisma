@@ -58,7 +58,10 @@ model Department {
 model User {
   id             String    @id @default(cuid())
   organizationId String
-  email          String    @unique
+  email          String?   @unique // official email; optional because some staff have none yet (never invented)
+  phone          String?   @unique // registered contact number in E.164 (+923001234567); can be used to sign in
+  emailVerifiedAt DateTime? // set when the person proves they receive mail there, or an administrator confirms it
+  phoneVerifiedAt DateTime? // set when an administrator confirms the number (no SMS provider is configured)
   name           String
   passwordHash   String
   active         Boolean   @default(true)
@@ -88,6 +91,8 @@ model User {
   roles        UserRole[]
   sessions     Session[]
   auditLogs    AuditLog[]
+  campaigns    CampaignMember[]
+  employeeProfile EmployeeProfile?
 
   @@index([organizationId])
 }
@@ -253,7 +258,8 @@ model ServiceCategory {
   sortOrder      Int      @default(0)
   active         Boolean  @default(true)
 
-  plans ServicePlan[]
+  plans     ServicePlan[]
+  campaigns Campaign[]
 
   @@unique([organizationId, name])
 }
@@ -348,6 +354,11 @@ model Lead {
   expectedCloseDate String? // YYYY-MM-DD
   tags           String[]  @default([])
   campaignId     String?
+  leadSourceId   String?   // the website form or webhook that captured it
+  utmSource      String?
+  utmMedium      String?
+  utmCampaign    String?
+  landingUrl     String?
   lastContactAt  DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -415,6 +426,7 @@ model Client {
   invites  ClientInvite[]
 
   @@unique([organizationId, name])
+  campaigns CampaignClient[]
 }
 
 model Account {
@@ -571,9 +583,11 @@ model Project {
   budgetAmount   Decimal? @db.Decimal(14, 2)
   currency       String   @default("USD")
   scope          String?
+  campaignId     String? // the campaign this project delivers, if any
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  campaign Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   members ProjectMember[]
   tasks   Task[]
   milestones Milestone[]
@@ -678,8 +692,12 @@ model EmployeeProfile {
   fatherName     String?
   identityNumber String?
   bankDetails    String?
-  status         String   @default("ACTIVE") // ACTIVE | EXITED
+  status         String   @default("ACTIVE") // ACTIVE | INACTIVE | EXITED
   exitDate       DateTime?
+  notes          String? // internal HR notes, visible to hr.view
+  archivedAt     DateTime? // archived records leave the directory but keep all history
+
+  user User @relation(fields: [userId], references: [id])
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -791,6 +809,8 @@ model PayrollItem {
   basic           Decimal @db.Decimal(14, 2)
   allowance       Decimal @db.Decimal(14, 2)
   bonus           Decimal @default(0) @db.Decimal(14, 2)
+  commission      Decimal @default(0) @db.Decimal(14, 2) // approved commissions and bonuses paid through this run (already expensed when approved)
+  commissionTax   Decimal @default(0) @db.Decimal(14, 2) // tax withheld on that part; included in `tax`
   unpaidDeduction Decimal @db.Decimal(14, 2)
   gross           Decimal @db.Decimal(14, 2)
   taxPercent      Decimal @db.Decimal(5, 2)
@@ -1429,11 +1449,16 @@ model TimeEntry {
   hours          Decimal  @db.Decimal(5, 2)
   note           String?
   hourlyCost     Decimal? @db.Decimal(10, 2) // the member's cost rate when the time was logged, so later rate changes never rewrite history
+  approval       String   @default("PENDING") // PENDING | APPROVED | REJECTED (informational: profitability counts all entries)
+  approvedById   String?
+  approvedAt     DateTime?
+  approvalNote   String?
   createdAt      DateTime @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, workDate])
+  @@index([organizationId, approval])
   @@index([userId, workDate])
 }
 
@@ -1557,10 +1582,12 @@ model CommissionEntry {
   paidById         String?
   paidAt           DateTime?
   paymentEntryId   String?
+  payrollRunId     String?   // set while the entry is being paid through a payroll run
   createdAt        DateTime  @default(now())
 
   @@index([organizationId, status])
   @@index([userId, createdAt])
+  @@index([payrollRunId])
 }
 
 // What people asked the assistant and which data it read, for audit. Answers are not stored: they are rebuilt from live data when asked again.
@@ -1592,8 +1619,49 @@ model Campaign {
   notes          String?
   createdById    String?
   createdAt      DateTime @default(now())
+  code           String? // CMP-0001, from NumberSequence "CAMPAIGN"
+  categoryId     String? // the shared business category list (ServiceCategory)
+  description    String?
+  objectives     String?
+  ownerId        String?
+  archivedAt     DateTime?
+  updatedAt      DateTime? @updatedAt
+
+  category ServiceCategory? @relation(fields: [categoryId], references: [id])
+  members  CampaignMember[]
+  clients  CampaignClient[]
+  projects Project[]
 
   @@unique([organizationId, name])
+  @@unique([organizationId, code])
+  @@index([organizationId, categoryId])
+}
+
+// Staff assigned to a campaign (their workload). One row per person per campaign.
+model CampaignMember {
+  campaignId String
+  userId     String
+  role       String?
+  addedAt    DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, userId])
+  @@index([userId])
+}
+
+// Client accounts a campaign is run for. Links to the canonical Client record.
+model CampaignClient {
+  campaignId String
+  clientId   String
+  addedAt    DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, clientId])
+  @@index([clientId])
 }
 
 // Saved filters over leads. Private to the owner unless shared with everyone who can open the Leads screen.
@@ -1937,4 +2005,166 @@ model UserPreference {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, key])
+}
+
+
+// ---------- Scheduled jobs ----------
+model JobRun {
+  id             String    @id @default(cuid())
+  organizationId String
+  key            String    // subscription_billing | commission_accrual | expiry_sweep | invoice_reminders | task_reminders | monitoring_purge | document_expiry
+  trigger        String    @default("SCHEDULE") // SCHEDULE | MANUAL | SCRIPT
+  runDate        String    // company-local day, so a job runs once a day
+  status         String    @default("RUNNING") // RUNNING | OK | FAILED
+  summary        String?
+  error          String?
+  startedAt      DateTime  @default(now())
+  finishedAt     DateTime?
+  startedById    String?
+
+  @@index([organizationId, key, startedAt])
+}
+
+// ---------- Client support ----------
+model SupportRequest {
+  id             String    @id @default(cuid())
+  organizationId String
+  number         String    // SUP-0001
+  clientId       String
+  createdById    String    // the portal user who raised it (or staff on their behalf)
+  subject        String
+  status         String    @default("OPEN") // OPEN | IN_PROGRESS | WAITING_CLIENT | RESOLVED | CLOSED
+  priority       String    @default("NORMAL") // NORMAL | HIGH | URGENT
+  assigneeId     String?
+  projectId      String?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  messages SupportMessage[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, status])
+  @@index([clientId, status])
+  @@index([assigneeId])
+}
+
+model SupportMessage {
+  id        String   @id @default(cuid())
+  requestId String
+  authorId  String
+  body      String
+  internal  Boolean  @default(false) // internal notes are never shown to the client
+  createdAt DateTime @default(now())
+
+  request SupportRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+}
+
+// ---------- Deliverables and client approval ----------
+model Deliverable {
+  id             String    @id @default(cuid())
+  organizationId String
+  projectId      String
+  campaignId     String?
+  title          String
+  description    String?
+  link           String?   // where the client can see the proof (design, document, staging site)
+  status         String    @default("DRAFT") // DRAFT | PENDING | APPROVED | CHANGES_REQUESTED
+  version        Int       @default(1)
+  requestedAt    DateTime?
+  requestedById  String?
+  decidedAt      DateTime?
+  decidedById    String?   // the portal user who decided
+  decisionNote   String?
+  createdById    String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([projectId, status])
+  @@index([organizationId, status])
+  @@index([campaignId])
+}
+
+// ---------- Lead capture ----------
+model LeadSource {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  keyHash        String    @unique // only the hash of the public key is stored; the key is shown once
+  campaignId     String?
+  assignMode     String    @default("ROUND_ROBIN") // NONE | FIXED | ROUND_ROBIN
+  assigneeIds    String[]  @default([])
+  rrIndex        Int       @default(0)
+  allowedOrigins String?   // comma separated; empty means any website may post with the key
+  active         Boolean   @default(true)
+  leadCount      Int       @default(0)
+  lastLeadAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([organizationId, name])
+}
+
+// ---------- Campaign spend ----------
+model CampaignSpend {
+  id             String   @id @default(cuid())
+  organizationId String
+  campaignId     String
+  date           String   // YYYY-MM-DD
+  platform       String   // free text such as Meta, Google, TikTok, Print
+  amount         Decimal  @db.Decimal(14, 2)
+  currency       String
+  impressions    Int?
+  clicks         Int?
+  results        Int?
+  note           String?
+  enteredById    String
+  createdAt      DateTime @default(now())
+
+  @@index([campaignId, date])
+  @@index([organizationId, date])
+}
+
+// ---------- Agreements and e-signature ----------
+model DocumentTemplate {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  kind           String   @default("CONTRACT") // CONTRACT | PROPOSAL | NDA | OTHER
+  body           String   // text with {{placeholders}}
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, name])
+}
+
+model Agreement {
+  id             String    @id @default(cuid())
+  organizationId String
+  number         String    // AGR-0001
+  title          String
+  body           String    // the final text the signer sees
+  bodyHash       String    // sha256 of the text at the moment it was sent; the signature is bound to it
+  clientId       String?
+  vendorId       String?
+  templateId     String?
+  status         String    @default("DRAFT") // DRAFT | SENT | SIGNED | DECLINED | VOID
+  tokenHash      String?   @unique
+  tokenExpiresAt DateTime?
+  signerName     String?
+  signerEmail    String?
+  signedAt       DateTime?
+  signedIp       String?
+  signedUserAgent String?
+  signatureImage String?   // small PNG data URL drawn by the signer (optional)
+  declineReason  String?
+  sentAt         DateTime?
+  createdById    String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([organizationId, number])
+  @@index([organizationId, status])
 }

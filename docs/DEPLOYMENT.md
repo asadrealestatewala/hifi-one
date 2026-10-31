@@ -82,6 +82,13 @@ Serve Hifi One over HTTPS (browsers block camera, microphone and screen capture 
 
 Off until `ANTHROPIC_API_KEY` is set. When on, a person's question and the figures needed to answer it are sent to Anthropic's API; tell staff this (the page says so). The assistant only reads, only through tools that re-check the person's permissions, and every question is logged (who, what, which data sources, outcome; answers are not stored). Each person is limited to 20 questions an hour. Set a spending limit on the API key in the provider console.
 
+## Scheduled jobs, scanning and backups (added 2026-10-17)
+
+- **Jobs.** Pick one: (a) set `JOBS_AUTORUN=1` on an always-on server; (b) a daily OS task or container cron running `npm run jobs:run`; (c) a hosted scheduler calling `POST /api/jobs/run` with `Authorization: Bearer $JOBS_TOKEN` (token at least 24 characters). Running them twice in a day is safe. Check the Scheduled Jobs page after the first night.
+- **Virus scanning.** Run ClamAV (`clamd`) reachable from the app and set `CLAMAV_HOST` (and `CLAMAV_PORT` if not 3310). If it goes down, uploads are refused until it is back. Without it, files are saved and labelled not scanned.
+- **What to back up.** The database (agreements, signatures, lead sources, job history, saved views, support threads) and the upload folder (vendor documents, deliverable files and attachments). Both are needed for a restore; see below.
+- Run `node scripts/smoke-prod.mjs <url>` after every deployment: it now also checks the jobs endpoint, lead capture, signing links and the new pages.
+
 ## Backup verification
 
 A backup nobody has checked is a hope. Schedule this after your backup job and alert on a non-zero exit:

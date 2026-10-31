@@ -29,7 +29,7 @@ if (!dev) {
   ok(/max-age=\d{7,}/.test(h.get("strict-transport-security") ?? ""), "Strict-Transport-Security with a long max-age");
 }
 
-for (const p of ["/dashboard", "/finance/invoices", "/users", "/settings/security", "/roles", "/audit-logs", "/payroll"]) {
+for (const p of ["/dashboard", "/finance/invoices", "/users", "/settings/security", "/roles", "/audit-logs", "/payroll", "/agreements", "/support", "/settings/jobs", "/settings/lead-sources", "/portal/support", "/portal/approvals", "/vendor/documents"]) {
   const r = await get(p);
   const to = r.headers.get("location") ?? "";
   ok([301, 302, 303, 307, 308].includes(r.status) && /\/login/.test(to), `${p} sends a signed-out visitor to the login page`);
@@ -38,6 +38,19 @@ for (const p of ["/api/files/x?t=y", "/api/calendar/0123456789abcdef0123456789ab
   const r = await get(p);
   ok([302, 303, 307, 404].includes(r.status), `${p} gives nothing away (status ${r.status})`);
 }
+// Public endpoints added for automation, lead capture and signing: they must refuse strangers and leak nothing
+const jobs = await get("/api/jobs/run", { method: "POST" });
+ok([401, 404, 429].includes(jobs.status), `/api/jobs/run refuses a caller without the token (status ${jobs.status})`);
+const lead = await get("/api/leads/capture", { method: "POST", headers: { "content-type": "application/json", "x-lead-key": "not-a-real-key" }, body: JSON.stringify({ name: "Smoke Test" }) });
+const leadBody = await lead.text();
+ok([400, 401, 403, 404, 429].includes(lead.status) && !/postgres|prisma|stack/i.test(leadBody), `/api/leads/capture rejects an unknown key without detail (status ${lead.status})`);
+const sign = await get("/sign/" + "x".repeat(43));
+const signBody = await sign.text();
+ok(sign.status === 200 && /no longer valid|not valid any more/i.test(signBody), "a made-up signing link says it is not valid");
+ok(/noindex/i.test(signBody) || /noindex/i.test(sign.headers.get("x-robots-tag") ?? ""), "the signing page asks search engines not to index it");
+ok(/no-store/.test(sign.headers.get("cache-control") ?? ""), "the signing page is not cached");
+ok(sign.headers.get("x-permitted-cross-domain-policies") === "none", "X-Permitted-Cross-Domain-Policies: none");
+
 const setup = await get("/setup");
 ok([200, 307, 308, 302, 303].includes(setup.status), `/setup is reachable or closed (status ${setup.status})`);
 

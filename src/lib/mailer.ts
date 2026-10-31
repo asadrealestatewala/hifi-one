@@ -57,6 +57,7 @@ export const HOURLY_LIMIT = 60;
 
 export async function sendEmail(db: Db, p: {
   organizationId: string; to: string; subject: string; text: string; attachment?: Attachment; relatedType?: string; relatedId?: string; actorId?: string; now?: Date;
+  storedText?: string; // what the outbox keeps instead of `text`, for messages that carry a secret link
 }) {
   const to = cleanAddress(p.to);
   const subject = oneLine(p.subject).slice(0, 200);
@@ -66,7 +67,7 @@ export async function sendEmail(db: Db, p: {
   if ((await db.emailMessage.count({ where: { organizationId: p.organizationId, createdAt: { gte: since } } })) >= HOURLY_LIMIT) {
     throw new MailError(`Email limit reached (${HOURLY_LIMIT} per hour). Try again later.`);
   }
-  const base = { organizationId: p.organizationId, toEmail: to, subject, body: p.text, attachmentName: p.attachment?.filename ?? null, relatedType: p.relatedType ?? null, relatedId: p.relatedId ?? null, createdById: p.actorId ?? null };
+  const base = { organizationId: p.organizationId, toEmail: to, subject, body: p.storedText ?? p.text, attachmentName: p.attachment?.filename ?? null, relatedType: p.relatedType ?? null, relatedId: p.relatedId ?? null, createdById: p.actorId ?? null };
   const t = transport();
   if (!t) return db.emailMessage.create({ data: { ...base, status: "NOT_CONFIGURED", error: "No mail account is connected. Nothing was sent." } });
   const from = override ? "test@example.invalid" : mailConfig().from!;

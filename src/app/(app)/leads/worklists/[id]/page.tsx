@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { paging } from "@/lib/paging";
+import { Notice, Pager } from "@/components/ui";
 import { WorklistError, convertRow, setRowStatus, worklistMetrics } from "@/lib/worklists";
 
 export const dynamic = "force-dynamic";
@@ -27,24 +29,27 @@ async function act(formData: FormData) {
 
 const LABEL = (s: string) => s.replace(/_/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
 
-export default async function WorklistPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; summary?: string; skipped?: string; status?: string }> }) {
+export default async function WorklistPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; summary?: string; skipped?: string; status?: string; page?: string }> }) {
   const user = await requirePermission("crm.view");
   const { id } = await params;
-  const { error, summary, skipped, status } = await searchParams;
+  const { error, summary, skipped, status, page } = await searchParams;
+  const pg = paging(page);
   const wl = await db.worklist.findFirst({ where: { id, organizationId: user.organizationId } });
   if (!wl) notFound();
   const canEdit = user.permissions.has("crm.edit");
-  const [rows, m] = await Promise.all([
-    db.worklistRow.findMany({ where: { worklistId: id, ...(status ? { status } : {}) }, orderBy: { rowNumber: "asc" }, take: 500 }),
+  const rowWhere = { worklistId: id, ...(status ? { status } : {}) };
+  const [rows, matched, m] = await Promise.all([
+    db.worklistRow.findMany({ where: rowWhere, orderBy: [{ rowNumber: "asc" }, { id: "asc" }], skip: pg.skip, take: pg.take }),
+    db.worklistRow.count({ where: rowWhere }),
     worklistMetrics(db, id),
   ]);
   return (
     <div className="space-y-6">
       <Link href="/leads/worklists" className="text-sm text-muted hover:underline">← All worklists</Link>
       <h1 className="text-2xl font-semibold tracking-tight">{wl.name} <span className="text-base font-normal text-muted">{wl.source}</span></h1>
-      {summary && <p className="text-sm bg-green-600/10 text-green-700 rounded-lg px-3 py-2">{summary}</p>}
+      {summary && <Notice kind="ok">{summary}</Notice>}
       {skipped && <pre className="card text-xs whitespace-pre-wrap">Skipped rows (not imported):{"\n"}{skipped}</pre>}
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      {error && <Notice kind="error">{error}</Notice>}
       <div className="grid gap-3 sm:grid-cols-5">
         {([["Records", m.total], ["Processed", m.processed], ["Still to do", m.remaining], ["Do not contact", m.doNotContact], ["CRM leads generated", m.leadsGenerated]] as [string, number][]).map(([k, v]) => (
           <div key={k} className="card"><p className="text-xs font-semibold text-muted">{k}</p><p className="text-2xl font-bold">{v}</p></div>
@@ -80,7 +85,7 @@ export default async function WorklistPage({ params, searchParams }: { params: P
             ))}
           </tbody>
         </table>
-        {rows.length === 500 && <p className="text-xs text-muted mt-2">Showing the first 500 rows. Use the filters to narrow down.</p>}
+        <Pager page={pg.page} size={pg.size} total={matched} href={(n) => { const p = new URLSearchParams(); if (status) p.set("status", status); if (n > 1) p.set("page", String(n)); const t = p.toString(); return `/leads/worklists/${id}${t ? `?${t}` : ""}`; }} />
       </div>
     </div>
   );

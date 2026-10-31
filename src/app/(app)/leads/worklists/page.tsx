@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { WorklistError, addSuppression, importWorklist, worklistMetrics } from "@/lib/worklists";
+import { Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -54,9 +55,8 @@ export default async function Worklists({ searchParams }: { searchParams: Promis
   const suppressed = await db.suppressedContact.count({ where: { organizationId: user.organizationId } });
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Prospecting Worklists</h1>
-      <p className="text-sm text-muted">Raw outreach lists live here, apart from the CRM, so unqualified records never inflate lead numbers. A row becomes a lead only when you convert it. Only legally sourced contacts belong in a worklist; respect local outreach and privacy rules.</p>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      <PageHeader title="Prospecting Worklists" subtitle="Raw outreach lists live here, apart from the CRM, so unqualified records never inflate lead numbers. A row becomes a lead only when you convert it. Only legally sourced contacts belong in a worklist; respect local outreach and privacy rules." />
+      {error && <Notice kind="error">{error}</Notice>}
       <div className="card overflow-x-auto">
         {lists.length === 0 ? <p className="text-sm text-muted">No worklists yet.</p> : (
           <table className="w-full text-sm">

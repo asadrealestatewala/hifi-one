@@ -33,7 +33,7 @@ export async function searchAll(db: Db, who: Who, raw: string): Promise<Group[]>
     add("Projects", async () => (await db.project.findMany({ where: { organizationId: org, AND: [scope, { OR: [{ name: like }, { number: like }] }] }, take: LIMIT, orderBy: { createdAt: "desc" } })).map((p) => ({ label: p.name, sub: `${p.number} · ${p.status.toLowerCase().replace("_", " ")}`, href: `/projects/${p.id}` })));
   }
   if (has("vendors.view")) add("Vendors", async () => (await db.vendor.findMany({ where: { organizationId: org, OR: [{ name: like }, { code: like }] }, take: LIMIT })).map((v) => ({ label: v.name, sub: v.code ?? undefined, href: `/vendors/${v.id}` })));
-  if (has("users.view")) add("People", async () => (await db.user.findMany({ where: { organizationId: org, userType: "EMPLOYEE", OR: [{ name: like }, { email: like }] }, take: LIMIT, orderBy: { name: "asc" } })).map((u) => ({ label: u.name, sub: u.email, href: `/users/${u.id}` })));
+  if (has("users.view")) add("People", async () => (await db.user.findMany({ where: { organizationId: org, userType: "EMPLOYEE", OR: [{ name: like }, { email: like }, { phone: like }] }, take: LIMIT, orderBy: { name: "asc" } })).map((u) => ({ label: u.name, sub: u.email ?? u.phone ?? undefined, href: `/users/${u.id}` })));
 
   return (await Promise.all(groups)).filter((g) => g.hits.length > 0);
 }

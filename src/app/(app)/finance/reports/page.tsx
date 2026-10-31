@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Chips, PageHeader } from "@/components/ui";
+import { Chips, DownloadButtons, PageHeader } from "@/components/ui";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
@@ -205,7 +205,7 @@ export default async function Reports({ searchParams }: { searchParams: Promise<
 
   return (
     <div className="space-y-6">
-      <div className="print:hidden"><PageHeader title="Financial reports" subtitle="Every figure comes from the ledger, per currency." actions={<PrintButton />} /></div>
+      <div className="print:hidden"><PageHeader title="Financial reports" subtitle="Every figure comes from the ledger, per currency." actions={<>{["pl", "bs", "cash", "aging", "ap", "tax"].includes(type) && <DownloadButtons report={type} params={{ from, to }} />}<PrintButton /></>} /></div>
       <div className="print:hidden"><Chips current={type} items={TABS.map(([k, label]) => ({ key: k, label, href: q(k) }))} /></div>
       {type !== "aging" && type !== "ap" && type !== "bs" && type !== "cbs" && (() => {
         const now = new Date(), y = now.getUTCFullYear(), m = now.getUTCMonth();

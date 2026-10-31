@@ -50,6 +50,38 @@ export async function portalProjects(db: PrismaClient, clientId: string) {
   });
 }
 
+// One project of this client with its client-visible tasks and the comments shared with the client (never internal ones).
+export async function portalProject(db: PrismaClient, clientId: string, projectId: string) {
+  const project = await db.project.findFirst({
+    where: { id: projectId, clientId, status: { not: "CANCELLED" } },
+    select: { id: true, number: true, name: true, status: true, deadline: true, scope: true, tasks: { select: { id: true, status: true, title: true, clientVisible: true, dueDate: true, parentId: true } } },
+  });
+  if (!project) return null;
+  const done = project.tasks.filter((t) => t.status === "DONE").length;
+  const visible = project.tasks.filter((t) => t.clientVisible && !t.parentId);
+  const comments = await db.taskComment.findMany({ where: { taskId: { in: visible.map((t) => t.id) }, internal: false }, orderBy: { createdAt: "asc" } });
+  const authors = new Map((await db.user.findMany({ where: { id: { in: [...new Set(comments.map((c) => c.authorId))] } }, select: { id: true, name: true, clientId: true } })).map((u) => [u.id, u]));
+  return {
+    id: project.id, number: project.number, name: project.name, status: project.status, deadline: project.deadline, scope: project.scope,
+    progress: project.tasks.length ? Math.round((done / project.tasks.length) * 100) : 0,
+    tasks: visible.map((t) => ({
+      id: t.id, title: t.title, status: t.status, dueDate: t.dueDate,
+      comments: comments.filter((c) => c.taskId === t.id).map((c) => ({ id: c.id, body: c.body, at: c.createdAt, author: authors.get(c.authorId)?.name ?? "Hifi team", mine: authors.get(c.authorId)?.clientId === clientId })),
+    })),
+  };
+}
+
+// A client comment on a task. The task must be in one of this client's projects and marked client-visible; the comment is
+// shared (not internal), so staff see it marked as from the client.
+export async function portalAddComment(db: PrismaClient, p: { clientId: string; userId: string; taskId: string; body: string }) {
+  const body = p.body.trim();
+  if (!body) throw new LedgerError("Write a message first.");
+  if (body.length > 2000) throw new LedgerError("The message is too long.");
+  const task = await db.task.findFirst({ where: { id: p.taskId, clientVisible: true, project: { clientId: p.clientId, status: { not: "CANCELLED" } } }, select: { id: true } });
+  if (!task) throw new LedgerError("Task not found.");
+  return db.taskComment.create({ data: { taskId: task.id, authorId: p.userId, body, internal: false } });
+}
+
 const hash = (token: string) => crypto.createHash("sha256").update(token).digest("hex");
 
 export async function createInvite(db: PrismaClient, p: { organizationId: string; clientId: string; email: string; createdById: string }) {

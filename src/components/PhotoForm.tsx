@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { removePhotoAction, uploadPhotoAction } from "@/app/(app)/me/profile/actions";
+import SubmitButton from "@/components/ui/SubmitButton";
 
 // Pick a picture, see it straight away, then save. The server checks type, size and contents again.
 export default function PhotoForm({ userId, returnTo, hasPhoto }: { userId: string; returnTo: string; hasPhoto: boolean }) {
@@ -27,7 +28,7 @@ export default function PhotoForm({ userId, returnTo, hasPhoto }: { userId: stri
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={preview} alt="Preview of the new picture" className="h-14 w-14 rounded-full object-cover" />
-            <button className="btn">Save picture</button>
+            <SubmitButton>Save picture</SubmitButton>
             <button type="button" className="btn-ghost" onClick={() => { setPreview(null); form.current?.reset(); }}>Cancel</button>
           </div>
         )}

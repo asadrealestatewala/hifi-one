@@ -303,13 +303,15 @@ export async function ingestAgent(db: Db, d: { organizationId: string; userId: s
 const isPng = (b: Buffer) => b.length > 8 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
 const isJpeg = (b: Buffer) => b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
 
-export async function storeScreenshot(db: Db, storage: StorageProvider, d: { organizationId: string; userId: string; deviceId: string }, p: { bytes: Buffer; capturedAt?: Date; now?: Date }) {
+export async function storeScreenshot(db: Db, storage: StorageProvider, d: { organizationId: string; userId: string; deviceId: string | null }, p: { bytes: Buffer; capturedAt?: Date; now?: Date; requireSession?: boolean }) {
   const now = p.now ?? new Date();
   const policy = await gate(db, d.organizationId, d.userId);
   if (!policy.screenshots) throw new MonitorError("Screenshots are not enabled in the policy.");
   if (!withinSchedule(policy, now)) throw new MonitorError("Outside working hours: screenshots are not accepted.");
   const open = await db.workSession.findFirst({ where: { userId: d.userId, endedAt: null }, include: { breaks: { where: { endedAt: null } } } });
   if (open?.breaks.length) throw new MonitorError("You are on a break: screenshots are not accepted.");
+  // A browser screen share only counts while the person is clocked in; nothing is captured outside a work session
+  if (p.requireSession && !open) throw new MonitorError("Clock in before sharing your screen: snapshots are only taken during a work session.");
   if (p.bytes.length > MAX_SHOT_BYTES || p.bytes.length < 200) throw new MonitorError("That image is the wrong size.");
   const type = isPng(p.bytes) ? "image/png" : isJpeg(p.bytes) ? "image/jpeg" : null;
   if (!type) throw new MonitorError("Only PNG or JPEG images are accepted.");
@@ -360,4 +362,43 @@ export async function purgeMonitoring(db: Db, storage: StorageProvider, now = ne
 export async function logReportAccess(db: Db, p: { organizationId: string; viewerId: string; subjectIds: string[] }) {
   const others = p.subjectIds.filter((id) => id !== p.viewerId);
   if (others.length) await db.monitoringAccess.createMany({ data: others.map((subjectId) => ({ organizationId: p.organizationId, viewerId: p.viewerId, subjectId, what: "REPORT" })) });
+}
+
+
+// ---------- Workfolio screen sharing from the browser ----------
+// The person chooses what to share in their own browser (the browser asks every time and shows its own sharing indicator),
+// the page takes a snapshot every `screenshotIntervalMin` minutes while they are clocked in, and the server applies the same
+// rules as for the desktop agent. Nothing is captured unless the person is sharing.
+export type DockState = {
+  available: boolean; reason: string | null; intervalMin: number; sessionId: string | null; onBreak: boolean; inWorkingHours: boolean;
+  lastSnapshotAt: string | null; nextDueAt: string | null;
+};
+export async function dockState(db: Db, d: { organizationId: string; userId: string }, now = new Date()): Promise<DockState> {
+  const policy = await getPolicy(db, d.organizationId);
+  const accepted = policy.enabled && (await hasAccepted(db, d.userId, policy.version));
+  const base = { intervalMin: policy.screenshotIntervalMin, sessionId: null as string | null, onBreak: false, inWorkingHours: withinSchedule(policy, now), lastSnapshotAt: null as string | null, nextDueAt: null as string | null };
+  if (!policy.enabled || !policy.screenshots) return { ...base, available: false, reason: "Screen snapshots are switched off." };
+  if (!accepted) return { ...base, available: false, reason: "Accept the monitoring policy in My Workfolio first." };
+  const open = await db.workSession.findFirst({ where: { userId: d.userId, endedAt: null }, include: { breaks: { where: { endedAt: null } } } });
+  if (!open) return { ...base, available: false, reason: "Clock in to start your work session." };
+  const last = await db.screenshot.findFirst({ where: { userId: d.userId, deletedAt: null }, orderBy: { capturedAt: "desc" }, select: { capturedAt: true } });
+  const next = last ? new Date(last.capturedAt.getTime() + policy.screenshotIntervalMin * 60_000) : now;
+  return { ...base, available: true, reason: null, sessionId: open.id, onBreak: open.breaks.length > 0, lastSnapshotAt: last?.capturedAt.toISOString() ?? null, nextDueAt: (next < now ? now : next).toISOString() };
+}
+
+export const storeBrowserScreenshot = (db: Db, storage: StorageProvider, d: { organizationId: string; userId: string }, bytes: Buffer, now?: Date) =>
+  storeScreenshot(db, storage, { ...d, deviceId: null }, { bytes, requireSession: true, now });
+
+// Who is clocked in right now, and how recently each person's screen was captured, for the Workfolio overview.
+export async function liveStatus(db: Db, organizationId: string, userIds: string[], now = new Date()) {
+  const [sessions, shots] = await Promise.all([
+    db.workSession.findMany({ where: { organizationId, userId: { in: userIds }, endedAt: null }, include: { breaks: { where: { endedAt: null } } } }),
+    db.screenshot.groupBy({ by: ["userId"], where: { organizationId, userId: { in: userIds }, deletedAt: null }, _max: { capturedAt: true } }),
+  ]);
+  const lastShot = new Map(shots.map((x) => [x.userId, x._max.capturedAt]));
+  return new Map(userIds.map((id) => {
+    const open = sessions.find((x) => x.userId === id);
+    const stale = open ? now.getTime() - open.lastBeatAt.getTime() > STALE_MS : false;
+    return [id, { state: !open ? "OFFLINE" : stale ? "STALE" : open.breaks.length ? "BREAK" : "WORKING", since: open?.startedAt ?? null, lastSnapshotAt: lastShot.get(id) ?? null }] as const;
+  }));
 }

@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { decryptSecret, otpauthUri } from "@/lib/totp";
 import SecurityPanel from "./SecurityPanel";
+import { Notice } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export default async function Security({ searchParams }: { searchParams: Promise
     // Setup was started but not confirmed: show the same secret again so the user can finish
     try {
       const secret = decryptSecret(row.totpSecretEnc, process.env.SESSION_SECRET ?? "");
-      pending = { secret, qr: await QRCode.toDataURL(otpauthUri(secret, row.email), { width: 200, margin: 1 }) };
+      pending = { secret, qr: await QRCode.toDataURL(otpauthUri(secret, row.email ?? row.phone ?? row.name), { width: 200, margin: 1 }) };
     } catch {
       pending = null;
     }
@@ -24,7 +25,7 @@ export default async function Security({ searchParams }: { searchParams: Promise
   return (
     <div className="max-w-xl space-y-4">
       <h1 className="text-2xl font-semibold tracking-tight">Account security</h1>
-      {(required || (user.mfaRequired && !user.totpEnabled)) && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">Your role requires two-step verification. Turn it on below to continue; nothing else in the system opens until you do.</p>}
+      {(required || (user.mfaRequired && !user.totpEnabled)) && <Notice kind="error">Your role requires two-step verification. Turn it on below to continue; nothing else in the system opens until you do.</Notice>}
       <SecurityPanel enabled={row.totpEnabled} pending={pending} remaining={remaining} />
     </div>
   );

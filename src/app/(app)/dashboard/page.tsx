@@ -21,21 +21,21 @@ import { Bars, CardPanel, FlowChart, Row, money } from "./parts";
 export const dynamic = "force-dynamic";
 
 type SP = { tab?: string; period?: string; cur?: string };
-const TABS = [["overview", "Overview", "home"], ["leads", "Leads & sales", "target"], ["finance", "Finance", "wallet"], ["people", "People", "users"], ["assets", "Assets", "layers"]] as const;
+const TABS = [["overview", "Overview", "home"], ["leads", "Leads & sales", "target"], ["campaigns", "Campaigns", "chart"], ["finance", "Finance", "wallet"], ["people", "People", "users"], ["assets", "Assets", "layers"]] as const;
 
 export default async function Dashboard({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requirePermission("dashboard.view");
   const sp = await searchParams;
   const org = user.organizationId;
   const has = (p: string) => user.permissions.has(p as never);
-  const canLeads = has("crm.view"), canFinance = has("finance.view"), canPeople = has("hr.view") || has("attendance.view_all"), canAssets = has("assets.view");
+  const canCampaigns = has("campaigns.view"), canLeads = has("crm.view"), canFinance = has("finance.view"), canPeople = has("hr.view") || has("attendance.view_all"), canAssets = has("assets.view");
   const canPL = has("reports.view") || has("dashboard.executive");
   const profile = await db.companyProfile.findFirst({ where: { organizationId: org, isDefault: true } });
   const now = new Date();
   const today = now.toLocaleDateString("en-CA", { timeZone: profile?.timezone ?? "UTC" });
   const period = isPeriod(sp.period) ? sp.period : "month";
   const range = periodRange(period, today);
-  const visibleTabs = TABS.filter(([k]) => k === "overview" || (k === "leads" && canLeads) || (k === "finance" && canFinance) || (k === "people" && canPeople) || (k === "assets" && canAssets));
+  const visibleTabs = TABS.filter(([k]) => k === "overview" || (k === "leads" && canLeads) || (k === "campaigns" && canCampaigns) || (k === "finance" && canFinance) || (k === "people" && canPeople) || (k === "assets" && canAssets));
   const tab = visibleTabs.some(([k]) => k === sp.tab) ? sp.tab! : "overview";
   const leadWhere = canLeads ? leadScope(user) : null;
 
@@ -63,6 +63,36 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <LeadsReport r={report} owners={new Map(staff.map((s) => [s.id, s.name]))} from={range.from} to={range.to} />
       </div>
     );
+  } else if (tab === "campaigns" && canCampaigns) {
+    const live = { organizationId: org, archivedAt: null };
+    const [byStatus, byCat, cats, mine, projects, openTasks, campaignLeads, newCampaignLeads] = await Promise.all([
+      db.campaign.groupBy({ by: ["status"], where: live, _count: true }),
+      db.campaign.groupBy({ by: ["categoryId"], where: live, _count: true }),
+      db.serviceCategory.findMany({ where: { organizationId: org }, select: { id: true, name: true } }),
+      db.campaignMember.count({ where: { userId: user.id, campaign: live } }),
+      db.project.count({ where: { organizationId: org, campaign: live } }),
+      db.task.count({ where: { status: { not: "DONE" }, project: { organizationId: org, campaign: live } } }),
+      leadWhere ? db.lead.count({ where: { ...leadWhere, campaignId: { not: null } } }) : Promise.resolve(null),
+      leadWhere ? db.lead.count({ where: { ...leadWhere, campaignId: { not: null }, createdAt: { gte: new Date(`${range.from}T00:00:00.000Z`), lte: new Date(`${range.to}T23:59:59.999Z`) } } }) : Promise.resolve(null),
+    ]);
+    const catName = new Map(cats.map((c) => [c.id, c.name]));
+    const n = new Map(byStatus.map((x) => [x.status, x._count]));
+    const total = byStatus.reduce((a, x) => a + x._count, 0);
+    body = (
+      <div className="space-y-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <Stat label="Campaigns" value={total} href="/campaigns?from=dashboard" />
+          <Stat label="Active" value={n.get("ACTIVE") ?? 0} href="/campaigns?status=ACTIVE&from=dashboard" />
+          <Stat label="My campaigns" value={mine} href="/campaigns?member=me&from=dashboard" />
+          <Stat label="Linked projects" value={projects} hint={`${openTasks} open task${openTasks === 1 ? "" : "s"}`} href={has("projects.view") ? "/projects?campaign=linked&from=dashboard" : undefined} />
+          {campaignLeads !== null && <Stat label="Leads from campaigns" value={campaignLeads} hint={`${newCampaignLeads} new ${PERIODS[period].toLowerCase()}`} href={`/leads?from=${range.from}&to=${range.to}&src=dashboard`} />}
+        </div>
+        <div className="grid gap-5 lg:grid-cols-2">
+          <section className="card space-y-3"><h3 className="font-semibold">Campaigns by category</h3>{byCat.length === 0 ? <p className="text-sm text-muted">No campaigns yet.</p> : <Bars rows={byCat.sort((a, b) => b._count - a._count).map((c) => ({ label: c.categoryId ? catName.get(c.categoryId) ?? "Unknown" : "No category", value: c._count, href: c.categoryId ? `/campaigns?category=${c.categoryId}&from=dashboard` : undefined }))} />}</section>
+          <section className="card space-y-3"><h3 className="font-semibold">Campaigns by status</h3>{byStatus.length === 0 ? <p className="text-sm text-muted">No campaigns yet.</p> : <Bars rows={byStatus.sort((a, b) => b._count - a._count).map((c) => ({ label: c.status.charAt(0) + c.status.slice(1).toLowerCase(), value: c._count, href: `/campaigns?status=${c.status}&from=dashboard` }))} />}</section>
+        </div>
+      </div>
+    );
   } else if (tab === "finance" && canFinance) {
     const [pl, ex, flow] = await Promise.all([canPL ? loadProfitAndLoss(db, org, range) : [], loadExecutiveDashboard(db, org), loadFlow(db, org, today)]);
     const cur = flow.find((f) => f.currency === sp.cur) ?? flow[0];
@@ -87,8 +117,15 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     );
   } else if (tab === "people" && canPeople) {
     const monthStart = today.slice(0, 7);
+    const live = { organizationId: org, status: "ACTIVE", archivedAt: null };
+    const [byDept, byDesignation, departments] = await Promise.all([
+      db.user.groupBy({ by: ["departmentId"], where: { organizationId: org, userType: "EMPLOYEE", employeeProfile: { is: live } }, _count: true }),
+      db.employeeProfile.groupBy({ by: ["designation"], where: live, _count: true }),
+      db.department.findMany({ where: { organizationId: org }, select: { id: true, name: true } }),
+    ]);
+    const deptName = new Map(departments.map((d) => [d.id, d.name]));
     const [profiles, present, onLeave, pending, joiners, bdays, users] = await Promise.all([
-      db.employeeProfile.count({ where: { organizationId: org, status: "ACTIVE" } }),
+      db.employeeProfile.count({ where: live }),
       db.attendanceRecord.findMany({ where: { workDate: today }, select: { userId: true } }),
       db.leaveRequest.findMany({ where: { status: "APPROVED", startDate: { lte: today }, endDate: { gte: today }, leaveType: { organizationId: org } }, select: { userId: true } }),
       db.leaveRequest.count({ where: { status: "PENDING", leaveType: { organizationId: org } } }),
@@ -101,29 +138,42 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     body = (
       <div className="space-y-5">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Stat label="Active staff" value={profiles} /><Stat label="Present today" value={presentToday} /><Stat label="Not marked" value={att.attendance?.count ?? "n/a"} hint="no attendance today" />
-          <Stat label="On leave today" value={onLeave.length} /><Stat label="Leave to approve" value={pending} />
+          <Stat label="Active staff" value={profiles} href={has("hr.view") ? "/hr/employees?status=ACTIVE&from=dashboard" : undefined} /><Stat label="Present today" value={presentToday} href={has("attendance.view_all") ? "/hr/attendance" : undefined} /><Stat label="Not marked" value={att.attendance?.count ?? "n/a"} hint="no attendance today" href={has("attendance.view_all") ? "/hr/attendance" : undefined} />
+          <Stat label="On leave today" value={onLeave.length} href={has("leave.approve") ? "/me/leave" : undefined} /><Stat label="Leave to approve" value={pending} href={has("leave.approve") ? "/me/leave" : undefined} />
         </div>
         <div className="grid gap-5 lg:grid-cols-2">
           <section className="card"><h3 className="mb-1 font-semibold">Birthdays this month</h3>{bdays.length === 0 ? <p className="py-4 text-sm text-muted">None recorded for this month.</p> : bdays.sort((a, b) => (a.dateOfBirth ?? "").slice(8).localeCompare((b.dateOfBirth ?? "").slice(8))).map((b) => <div key={b.userId} className="flex items-center justify-between border-b border-border py-2 text-sm last:border-0"><span className="flex items-center gap-2"><Avatar name={nm.get(b.userId) ?? "?"} userId={b.userId} size={26} />{nm.get(b.userId)}</span><span className="text-muted">{b.dateOfBirth!.slice(8)} {new Date(today + "T00:00:00Z").toLocaleDateString(undefined, { month: "short", timeZone: "UTC" })}</span></div>)}</section>
           <section className="card"><h3 className="mb-1 font-semibold">New joiners, last 30 days</h3>{joiners.length === 0 ? <p className="py-4 text-sm text-muted">No new joiners.</p> : joiners.map((j) => <div key={j.userId} className="flex items-center justify-between border-b border-border py-2 text-sm last:border-0"><span className="flex items-center gap-2"><Avatar name={nm.get(j.userId) ?? "?"} userId={j.userId} size={26} />{nm.get(j.userId)}</span><span className="text-muted">{j.designation} · {j.joinDate?.toLocaleDateString()}</span></div>)}</section>
         </div>
-        <div className="flex gap-2"><Link href="/hr/employees" className="btn-ghost">Employees</Link>{has("attendance.view_all") && <Link href="/hr/attendance" className="btn-ghost">Attendance</Link>}<Link href="/me/leave" className="btn-ghost">Leave</Link></div>
+        {has("hr.view") && (
+          <div className="grid gap-5 lg:grid-cols-2">
+            <section className="card space-y-3"><h3 className="font-semibold">Active staff by department</h3>{byDept.length === 0 ? <p className="text-sm text-muted">No active staff.</p> : <Bars rows={byDept.sort((a, b) => b._count - a._count).map((d) => ({ label: d.departmentId ? deptName.get(d.departmentId) ?? "Unknown" : "No department", value: d._count, href: d.departmentId ? `/hr/employees?status=ACTIVE&dep=${d.departmentId}&from=dashboard` : undefined }))} />}</section>
+            <section className="card space-y-3"><h3 className="font-semibold">Active staff by designation</h3>{byDesignation.length === 0 ? <p className="text-sm text-muted">No active staff.</p> : <Bars rows={byDesignation.sort((a, b) => b._count - a._count).slice(0, 10).map((d) => ({ label: d.designation ?? "Not set", value: d._count, href: d.designation ? `/hr/employees?status=ACTIVE&designation=${encodeURIComponent(d.designation)}&from=dashboard` : undefined }))} />}</section>
+          </div>
+        )}
+        <div className="flex gap-2"><Link href="/hr/employees" className="btn-ghost">Staff directory</Link>{has("attendance.view_all") && <Link href="/hr/attendance" className="btn-ghost">Attendance</Link>}<Link href="/me/leave" className="btn-ghost">Leave</Link></div>
       </div>
     );
   } else if (tab === "assets" && canAssets) {
-    const [assets, staff] = await Promise.all([db.asset.findMany({ where: { organizationId: org }, orderBy: { createdAt: "desc" }, take: 500 }), db.user.findMany({ where: { organizationId: org, userType: "EMPLOYEE" }, select: { id: true, name: true } })]);
-    const active = assets.filter((a) => a.status === "ACTIVE");
-    const cost = new Map<string, number>();
-    for (const a of active) cost.set(a.currency, (cost.get(a.currency) ?? 0) + Number(a.cost));
+    // Every figure is an aggregate over all assets; only the six most recent are loaded as rows
+    const activeWhere = { organizationId: org, status: "ACTIVE" as const };
+    const [assets, staff, activeCount, assignedCount, costRows, catRows] = await Promise.all([
+      db.asset.findMany({ where: { organizationId: org }, orderBy: { createdAt: "desc" }, take: 6 }),
+      db.user.findMany({ where: { organizationId: org, userType: "EMPLOYEE" }, select: { id: true, name: true } }),
+      db.asset.count({ where: activeWhere }),
+      db.asset.count({ where: { ...activeWhere, assignedToId: { not: null } } }),
+      db.asset.groupBy({ by: ["currency"], where: activeWhere, _sum: { cost: true } }),
+      db.asset.groupBy({ by: ["category"], where: activeWhere, _count: true }),
+    ]);
+    const cost = new Map(costRows.map((r) => [r.currency, r._sum.cost ?? 0]));
     const nm = new Map(staff.map((s) => [s.id, s.name]));
     const byCat = new Map<string, number>();
-    for (const a of active) byCat.set(a.category || "Uncategorised", (byCat.get(a.category || "Uncategorised") ?? 0) + 1);
+    for (const r of catRows) byCat.set(r.category || "Uncategorised", (byCat.get(r.category || "Uncategorised") ?? 0) + r._count);
     body = (
       <div className="space-y-5">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="Active assets" value={active.length} /><Stat label="Assigned to people" value={active.filter((a) => a.assignedToId).length} /><Stat label="In stock" value={active.filter((a) => !a.assignedToId).length} hint="not assigned" />
-          <Stat label="Purchase cost" value={<span className="text-lg">{[...cost].map(([c, v]) => formatMoney(v.toFixed(2), c)).join(" · ") || "0"}</span>} />
+          <Stat label="Active assets" value={activeCount} href="/assets" /><Stat label="Assigned to people" value={assignedCount} href="/assets" /><Stat label="In stock" value={activeCount - assignedCount} hint="not assigned" href="/assets" />
+          <Stat label="Purchase cost" value={<span className="text-lg">{[...cost].map(([c, v]) => formatMoney(v, c)).join(" · ") || "0"}</span>} />
         </div>
         <div className="grid gap-5 lg:grid-cols-2">
           <section className="card space-y-3"><h3 className="font-semibold">By category</h3>{byCat.size === 0 ? <p className="text-sm text-muted">No assets registered.</p> : <Bars rows={[...byCat].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([label, value]) => ({ label, value }))} />}</section>
@@ -195,9 +245,9 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           <PeriodSelect value={period} light />
         </div>
         <div className="relative mt-6 grid gap-3 sm:grid-cols-3">
-          {canFinance && <div className="rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur"><p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">Collected</p><p className="mt-1 text-2xl font-semibold tabular-nums">{hero.collected.length ? hero.collected.slice(0, 2).map((m) => `${m.currency} ${Math.round(Number(m.amount)).toLocaleString()}`).join(" · ") : "0"}</p><p className="text-xs text-white/70">{PERIODS[period].toLowerCase()}</p></div>}
-          {canFinance && <div className="rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur"><p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">Overdue</p><p className="mt-1 text-2xl font-semibold tabular-nums">{hero.overdue.count}</p><p className="truncate text-xs text-white/70">{hero.overdue.amounts.length ? money(hero.overdue.amounts) : "nothing overdue"}</p></div>}
-          {canLeads && <div className="rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur"><p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">New leads</p><p className="mt-1 text-2xl font-semibold tabular-nums">{hero.leads.fresh}</p><p className="text-xs text-white/70">{hero.leads.total} in total</p></div>}
+          {canFinance && <Link href={`/finance/payments?from=${range.from}&to=${range.to}&src=dashboard`} className="block rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur transition hover:bg-white/20 focus-visible:outline-white"><p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">Collected</p><p className="mt-1 text-2xl font-semibold tabular-nums">{hero.collected.length ? hero.collected.slice(0, 2).map((m) => `${m.currency} ${Math.round(Number(m.amount)).toLocaleString()}`).join(" · ") : "0"}</p><p className="text-xs text-white/70">{PERIODS[period].toLowerCase()}</p></Link>}
+          {canFinance && <Link href={"/finance/reports?type=aging"} className="block rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur transition hover:bg-white/20 focus-visible:outline-white"><p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">Overdue</p><p className="mt-1 text-2xl font-semibold tabular-nums">{hero.overdue.count}</p><p className="truncate text-xs text-white/70">{hero.overdue.amounts.length ? money(hero.overdue.amounts) : "nothing overdue"}</p></Link>}
+          {canLeads && <Link href={`/leads?from=${range.from}&to=${range.to}&src=dashboard`} className="block rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur transition hover:bg-white/20 focus-visible:outline-white"><p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">New leads</p><p className="mt-1 text-2xl font-semibold tabular-nums">{hero.leads.fresh}</p><p className="text-xs text-white/70">{hero.leads.total} in total</p></Link>}
         </div>
       </section>
 

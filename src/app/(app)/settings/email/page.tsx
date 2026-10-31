@@ -2,6 +2,7 @@ import { testEmailAction } from "@/app/email/actions";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isConfigured, mailConfig } from "@/lib/mailer";
+import { Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -16,10 +17,9 @@ export default async function EmailSettings({ searchParams }: { searchParams: Pr
   const log = await db.emailMessage.findMany({ where: { organizationId: user.organizationId }, orderBy: { createdAt: "desc" }, take: 40 });
   return (
     <div className="space-y-5 max-w-3xl">
-      <h1 className="text-2xl font-semibold tracking-tight">Email</h1>
-      <p className="text-sm text-muted">Outgoing email uses any SMTP mail account (Google Workspace, Microsoft 365, SendGrid, Mailgun, Amazon SES and others). The login is set by the person who runs the server, in environment settings, not on this screen, so it can never be read from here.</p>
-      {sp.ok && <p className="text-sm bg-green-600/10 text-green-700 rounded-lg px-3 py-2">{sp.ok}</p>}
-      {sp.error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{sp.error}</p>}
+      <PageHeader title="Email" subtitle="Outgoing email uses any SMTP mail account (Google Workspace, Microsoft 365, SendGrid, Mailgun, Amazon SES and others). The login is set by the person who runs the server, in environment settings, not on this screen, so it can never be read from here." />
+      {sp.ok && <Notice kind="ok">{sp.ok}</Notice>}
+      {sp.error && <Notice kind="error">{sp.error}</Notice>}
       <section className="card space-y-2 text-sm">
         <h2 className="font-semibold">Connection</h2>
         <p>Status: <strong className={connected ? "text-green-700" : "text-amber-600"}>{connected ? "Settings found (not yet proven until a test succeeds)" : "Not connected"}</strong></p>

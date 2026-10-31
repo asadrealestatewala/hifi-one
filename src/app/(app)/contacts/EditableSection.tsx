@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 import Icon from "@/components/shell/Icon";
 import { updateContactSectionAction, type SectionName } from "./actions";
+import { Notice } from "@/components/ui";
 
 // One block of the contact page. Shows the details; the pencil turns the block into a small form that saves on its own,
 // so each part of a contact is added or amended in place without leaving the page.
@@ -31,7 +32,7 @@ export default function EditableSection({ contactId, section, title, canEdit, vi
       </div>
       {editing ? (
         <form onSubmit={submit} className="space-y-3 rounded-2xl border border-primary/30 bg-surface p-4 shadow-sm [animation:fade_.15s_ease-out]">
-          {error && <p role="alert" className="rounded-lg bg-brand/10 px-3 py-2 text-sm text-brand">{error}</p>}
+          {error && <Notice kind="error">{error}</Notice>}
           {children}
           <div className="flex justify-end gap-2"><button type="button" className="btn-ghost" onClick={() => { setEditing(false); setError(""); }} disabled={pending}>Cancel</button><button className="btn" disabled={pending}>{pending ? "Saving…" : "Save"}</button></div>
         </form>

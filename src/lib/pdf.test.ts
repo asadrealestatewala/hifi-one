@@ -74,6 +74,9 @@ describe("documents", () => {
     expect(st).toContain("ACCOUNT STATEMENT"); expect(st).toContain("USD 2,410.93"); expect(st).toContain("Credit held on account: USD 50.00");
     const ps = pdfPlainText(await payslipPdf({ period: "2026-10", currency: "PKR", status: "PAID", employee: { name: "Demo Designer", employeeNo: "E-0001" }, basic: "110000", allowance: "10000", bonus: "0", unpaidDeduction: "0", unpaidDays: "0", workingDays: 22, gross: "120000", taxPercent: "5", tax: "6000", net: "114000", company, config: DEFAULT_DOC_CONFIG }, { compress: false }));
     expect(ps).toContain("PAYSLIP 2026-10"); expect(ps).toContain("PKR 114,000.00"); expect(ps).toContain("Confidential");
+    expect(ps).not.toContain("Commissions"); // a zero commission line is left out
+    const pc = pdfPlainText(await payslipPdf({ period: "2026-11", currency: "PKR", status: "PAID", employee: { name: "Demo Designer" }, basic: "110000", allowance: "10000", bonus: "0", commission: "12000", unpaidDeduction: "0", unpaidDays: "0", workingDays: 22, gross: "132000", taxPercent: "5", tax: "6600", net: "125400", company, config: DEFAULT_DOC_CONFIG }, { compress: false }));
+    expect(pc).toContain("Commissions and approved bonuses"); expect(pc).toContain("PKR 12,000.00"); expect(pc).toContain("PKR 125,400.00");
     const vc = pdfPlainText(await voucherPdf({ number: "VCH-000001", date: "2026-10-12", status: "APPROVED", currency: "PKR", amount: "800", payee: "Ad Platform Ltd", description: "Facebook ads", category: "6000 Marketing Expense", submittedBy: "Sam", reviewedBy: "Rae", approvedBy: "Lee", company, config: DEFAULT_DOC_CONFIG }, { compress: false }));
     expect(vc).toContain("EXPENSE VOUCHER"); expect(vc).toContain("PKR 800.00"); expect(vc).toContain("Approved by");
   });

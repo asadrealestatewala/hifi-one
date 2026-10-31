@@ -2,10 +2,11 @@
 
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
-import { CrmError, cleanFilters, deleteSmartList, logActivity, saveCampaign, saveSmartList, setTarget, verifyActivity } from "@/lib/crm";
+import { CrmError, cleanFilters, deleteSmartList, logActivity, saveSmartList, setTarget, verifyActivity } from "@/lib/crm";
 import { ensureContactForLead, mirrorLeadActivity } from "@/lib/crm-contacts";
 import { db } from "@/lib/db";
 import { leadScope } from "@/lib/leads";
+import { leadAssigned } from "@/lib/events";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "");
 const flash = (to: string, kind: "error" | "msg", m: string) => redirect(`${to}${to.includes("?") ? "&" : "?"}${kind}=${encodeURIComponent(m)}`);
@@ -60,6 +61,7 @@ export async function updateLeadDetails(formData: FormData) {
   });
   await ensureContactForLead(db, id);
   await audit(user, { action: "lead.update", entity: "Lead", entityId: id, before, after: { city: t("city"), campaignId, assignedToId: reassign, tags } });
+  if (reassign !== lead.assignedToId) await leadAssigned(db, { organizationId: user.organizationId, leadId: id, toUserId: reassign, byUserId: user.id });
   redirect(`${back}?saved=1`);
 }
 
@@ -116,17 +118,3 @@ export async function deleteListAction(formData: FormData) {
   redirect("/leads/lists");
 }
 
-export async function saveCampaignAction(formData: FormData) {
-  const user = await requirePermission("crm.view_all");
-  try {
-    const id = await saveCampaign(db, {
-      organizationId: user.organizationId, id: s(formData, "id") || undefined, name: s(formData, "name"), channel: s(formData, "channel"), status: s(formData, "status"),
-      budget: s(formData, "budget").trim() || null, currency: s(formData, "currency"), startDate: s(formData, "startDate") || null, endDate: s(formData, "endDate") || null, notes: s(formData, "notes"), actorId: user.id,
-    });
-    await audit(user, { action: "campaign.save", entity: "Campaign", entityId: id, after: { name: s(formData, "name"), status: s(formData, "status") } });
-  } catch (e) {
-    if (e instanceof CrmError) return flash("/campaigns", "error", e.message);
-    throw e;
-  }
-  redirect("/campaigns?msg=Saved");
-}

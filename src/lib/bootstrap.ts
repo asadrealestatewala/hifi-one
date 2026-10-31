@@ -46,6 +46,8 @@ export const LEAVE_TYPES: [string, number, boolean][] = [["Annual", 14, true], [
 // Permissions are global. Roles are per organization; with overwrite the system roles are reset to the
 // definitions in code (used by the development seed). A real installation keeps edits made in the Roles screen.
 export async function syncPermissionsAndRoles(db: Db, organizationId: string, opts: { overwrite: boolean; requireMfaForSensitive?: boolean }) {
+  const known = new Set((await db.permission.findMany({ select: { key: true } })).map((p) => p.key));
+  const introduced = Object.keys(PERMISSIONS).filter((k) => !known.has(k));
   for (const [key, description] of Object.entries(PERMISSIONS)) {
     await db.permission.upsert({ where: { key }, update: { description }, create: { key, description } });
   }
@@ -54,8 +56,13 @@ export async function syncPermissionsAndRoles(db: Db, organizationId: string, op
     const existing = await db.role.findUnique({ where: { organizationId_key: { organizationId, key: def.key } } });
     const role = existing ?? (await db.role.create({ data: { organizationId, key: def.key, name: def.name, isSystem: true, requireMfa: Boolean(opts.requireMfaForSensitive) && (SENSITIVE_ROLE_KEYS as readonly string[]).includes(def.key) } }));
     if (existing && !opts.overwrite) {
-      // New permissions that Super Admin should always hold are added even without overwrite
-      if (def.permissions !== "ALL") continue;
+      // A permission that did not exist before this sync is granted to the existing roles whose definition in code
+      // includes it, once; after that the Roles screen owns the role. Super Admin always gets everything.
+      if (def.permissions !== "ALL") {
+        const add = introduced.filter((k) => (def.permissions as string[]).includes(k)).map((k) => ({ roleId: role.id, permissionId: permId.get(k)! }));
+        if (add.length) await db.rolePermission.createMany({ data: add, skipDuplicates: true });
+        continue;
+      }
     }
     const keys = def.permissions === "ALL" ? ALL_PERMISSIONS : def.permissions;
     await db.rolePermission.deleteMany({ where: { roleId: role.id } });

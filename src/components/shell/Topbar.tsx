@@ -22,15 +22,9 @@ export default function Topbar({ unread, quick, canSearch, onMenu }: {
   const [menu, setMenu] = useState<"" | "quick">("");
   const [dark, setDark] = useState(false);
   const box = useRef<HTMLDivElement>(null);
-  const search = useRef<HTMLInputElement>(null);
   useClickAway(box, () => setMenu(""));
 
   useEffect(() => { setDark(document.documentElement.dataset.theme === "dark"); }, []);
-  useEffect(() => {
-    const k = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); search.current?.focus(); } };
-    window.addEventListener("keydown", k);
-    return () => window.removeEventListener("keydown", k);
-  }, []);
 
   const flip = () => {
     const next = dark ? "light" : "dark";
@@ -46,7 +40,7 @@ export default function Topbar({ unread, quick, canSearch, onMenu }: {
       {canSearch && (
         <form action="/search" role="search" className="relative hidden max-w-md flex-1 sm:block">
           <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-          <input ref={search} name="q" aria-label="Search everything" placeholder="Search clients, leads, invoices…" autoComplete="off"
+          <input name="q" aria-label="Search everything" placeholder="Search clients, leads, invoices…" autoComplete="off"
             className="h-9 w-full rounded-lg border border-transparent bg-hover pl-9 pr-14 text-sm outline-none transition focus:border-primary focus:bg-surface focus:ring-2 focus:ring-primary/20" />
           <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-border bg-surface px-1.5 py-0.5 text-[10px] text-muted">Ctrl K</kbd>
         </form>

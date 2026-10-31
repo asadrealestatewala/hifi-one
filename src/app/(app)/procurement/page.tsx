@@ -7,6 +7,8 @@ import {
 } from "@/lib/vendors";
 import { formatMoney } from "@/lib/money";
 import FilesPanel from "@/components/FilesPanel";
+import { vendorBillChanged } from "@/lib/events";
+import { Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -51,15 +53,18 @@ async function act(formData: FormData) {
     } else if (op === "approve_bill") {
       await approveBill(db, { organizationId: o, id, approverId: user.id, expenseAccountId: String(formData.get("expenseAccountId")) });
       await audit(user, { action: "vendor_bill.approve", entity: "VendorBill", entityId: id });
+      await vendorBillChanged(db, { organizationId: o, billId: id });
     } else if (op === "reject_bill") {
       await rejectBill(db, { organizationId: o, id, note: String(formData.get("note") ?? "") });
       await audit(user, { action: "vendor_bill.reject", entity: "VendorBill", entityId: id });
+      await vendorBillChanged(db, { organizationId: o, billId: id });
     } else if (op === "post_bill") {
       await postBill(db, { organizationId: o, id, actorId: user.id });
       await audit(user, { action: "vendor_bill.post", entity: "VendorBill", entityId: id });
     } else if (op === "pay_bill") {
       await payBill(db, { organizationId: o, id, bankAccountId: String(formData.get("bankAccountId")), actorId: user.id });
       await audit(user, { action: "vendor_bill.pay", entity: "VendorBill", entityId: id });
+      await vendorBillChanged(db, { organizationId: o, billId: id });
     }
   } catch (e) {
     if (e instanceof VendorError || e instanceof LedgerError) redirect(`/procurement?error=${encodeURIComponent(e.message)}`);
@@ -91,9 +96,8 @@ export default async function Procurement({ searchParams }: { searchParams: Prom
   ]);
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-semibold tracking-tight">Procurement</h1>
-      <p className="text-sm text-muted">Applying never awards work. Each step needs a person: approve the application, issue the work order, accept the delivery, approve the bill, post it, then pay.</p>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      <PageHeader title="Procurement" subtitle="Applying never awards work. Each step needs a person: approve the application, issue the work order, accept the delivery, approve the bill, post it, then pay." />
+      {error && <Notice kind="error">{error}</Notice>}
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Outsourcing opportunities</h2>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import LineItems, { type PlanOpt, type TaxPreset } from "@/components/ui/LineItems";
+import { Notice } from "@/components/ui";
 
 type ClientOpt = { id: string; name: string; currency: string };
 const CURRENCIES = ["PKR", "USD", "AED", "GBP"];
@@ -11,7 +12,7 @@ export default function QuoteForm({ action, clients, plans, taxPresets, closeTo,
   return (
     <form action={action} className="flex h-full flex-col">
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
-        {error && <p role="alert" className="rounded-lg bg-brand/10 px-3 py-2 text-sm text-brand">{error}</p>}
+        {error && <Notice kind="error">{error}</Notice>}
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
             <label className="label" htmlFor="clientId">Client</label>

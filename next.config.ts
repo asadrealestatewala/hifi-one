@@ -22,6 +22,8 @@ const nextConfig: NextConfig = {
   experimental: { serverActions: { bodySizeLimit: "16mb" } },
   async headers() {
     return [
+      // One-time links and the pages behind them must never be cached by a browser or a proxy
+      { source: "/sign/:path*", headers: [{ key: "Cache-Control", value: "no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       {
         source: "/:path*",
         headers: [
@@ -30,6 +32,8 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(self), microphone=(self), display-capture=(self), geolocation=(), payment=()" },
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
+          { key: "X-DNS-Prefetch-Control", value: "off" },
           ...(isProd
             ? [
                 { key: "Content-Security-Policy", value: csp },

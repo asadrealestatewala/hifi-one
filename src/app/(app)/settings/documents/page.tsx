@@ -3,6 +3,7 @@ import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { DEFAULT_DOC_CONFIG, mergeConfig, type DocConfig } from "@/lib/pdf";
 import { DOC_TYPES, getDocConfig, type DocType } from "@/lib/pdf-data";
+import { Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -44,12 +45,12 @@ export default async function DocumentSettings({ searchParams }: { searchParams:
   const configs = await Promise.all(DOC_TYPES.map(async (t) => [t, await getDocConfig(db, user.organizationId, t)] as const));
   return (
     <div className="space-y-6 max-w-3xl">
-      <h1 className="text-2xl font-semibold tracking-tight">Document templates</h1>
+      <PageHeader title="Document templates" />
       <p className="text-sm text-muted">
         Choose which company details appear on each kind of PDF and add footer text. Company name, addresses, phone numbers and bank details come from Company Settings and Bank Accounts.
         <strong> Invoices keep the details and template they were issued with</strong>, so changing a template or the company profile never alters an invoice already sent. Receipts, statements, payslips and vouchers use the current template and company profile.
       </p>
-      {saved && <p className="text-sm bg-green-600/10 text-green-700 rounded-lg px-3 py-2">Saved {TITLES[saved as DocType] ?? saved}.</p>}
+      {saved && <Notice kind="ok">Saved {TITLES[saved as DocType] ?? saved}.</Notice>}
       {configs.map(([type, { config, version }]) => (
         <div key={type} className="card space-y-3">
         <form action={save} className="space-y-3">

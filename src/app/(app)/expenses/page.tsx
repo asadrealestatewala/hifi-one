@@ -5,6 +5,9 @@ import { db } from "@/lib/db";
 import { ExpenseError, submitVoucher } from "@/lib/expenses";
 import { formatMoney } from "@/lib/money";
 import { notifyPermission } from "@/lib/notifications";
+import { listHref } from "@/lib/list-params";
+import { EXPENSE_STATUSES as STATUSES, expenseParams, expenseScope, expenseWhere } from "@/lib/lists";
+import { Chips, Empty, ExportLink, Notice, PageHeader, Pager, StatusBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -29,15 +32,21 @@ async function submit(formData: FormData) {
   redirect(`/expenses/${id}`);
 }
 
-export default async function Expenses({ searchParams }: { searchParams: Promise<{ error?: string; status?: string }> }) {
+
+export default async function Expenses({ searchParams }: { searchParams: Promise<{ error?: string; status?: string; page?: string }> }) {
   const user = await requirePermission("self.expense");
-  const { error, status } = await searchParams;
+  const sp = await searchParams;
+  const error = sp.error;
+  const lp = expenseParams(sp);
+  const status = lp.status;
   const all = user.permissions.has("expenses.view");
-  const [vouchers, accounts, budgets, projects, people] = await Promise.all([
-    db.expenseVoucher.findMany({
-      where: { organizationId: user.organizationId, ...(all ? {} : { submittedById: user.id }), ...(status ? { status } : {}) },
-      orderBy: { createdAt: "desc" }, take: 200,
-    }),
+  const pg = lp.page;
+  const mine = expenseScope(user);
+  const where = expenseWhere(user, lp);
+  const [vouchers, matched, counts, accounts, budgets, projects, people] = await Promise.all([
+    db.expenseVoucher.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: pg.skip, take: pg.take }),
+    db.expenseVoucher.count({ where }),
+    db.expenseVoucher.groupBy({ by: ["status"], where: mine, _count: true }),
     db.account.findMany({ where: { organizationId: user.organizationId, active: true, type: { in: ["OPEX", "DIRECT_COST", "OTHER_EXPENSE"] } }, orderBy: { code: "asc" } }),
     db.budget.findMany({ where: { organizationId: user.organizationId }, orderBy: { name: "asc" } }),
     user.permissions.has("projects.view") ? db.project.findMany({ where: { organizationId: user.organizationId }, orderBy: { number: "asc" } }) : Promise.resolve([]),
@@ -45,36 +54,32 @@ export default async function Expenses({ searchParams }: { searchParams: Promise
   ]);
   const name = new Map(people.map((p) => [p.id, p.name]));
   const today = new Date().toISOString().slice(0, 10);
+  const count = new Map(counts.map((c) => [c.status as string, c._count]));
+  const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ status, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/expenses${t ? `?${t}` : ""}`; };
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Expense Vouchers</h1>
-      <p className="text-sm text-muted">{all ? "All vouchers in the organization." : "Your vouchers."} Approved spending is committed against its budget; posting records the expense; only payment moves cash.</p>
-      {all && (
-        <nav aria-label="Status filter" className="flex flex-wrap gap-1">
-          {["", "SUBMITTED", "UNDER_REVIEW", "APPROVED", "POSTED", "PAID", "REJECTED"].map((s) => (
-            <Link key={s} href={s ? `/expenses?status=${s}` : "/expenses"} className={`btn-ghost ${(status ?? "") === s ? "!bg-navy !text-white" : ""}`}>{s ? s.replace("_", " ") : "All"}</Link>
-          ))}
-        </nav>
-      )}
-      <div className="card overflow-x-auto">
-        {vouchers.length === 0 ? <p className="text-sm text-muted">No vouchers.</p> : (
+      <PageHeader title="Expense Vouchers" subtitle={`${all ? "All vouchers in the organization." : "Your vouchers."} Approved spending is committed against its budget; posting records the expense; only payment moves cash.`} actions={<ExportLink href={listHref("/expenses/export", { status })} />} />
+      <Chips current={status ?? "all"} items={[{ key: "all", label: "All", count: counts.reduce((n, c) => n + c._count, 0), href: href({ status: undefined }) }, ...STATUSES.map((s) => ({ key: s, label: s.toLowerCase().replace("_", " ").replace(/^./, (c) => c.toUpperCase()), count: count.get(s) ?? 0, href: href({ status: s }) }))]} />
+      {vouchers.length === 0 ? <Empty title={status ? "No vouchers with this status" : "No vouchers yet"}>Submit one with the form below.</Empty> : (
+      <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">
-            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">Number</th><th className="pr-4">Date</th><th className="pr-4">Payee</th><th className="pr-4">By</th><th className="pr-4 text-right">Amount</th><th>Status</th></tr></thead>
+            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="px-4 py-2.5">Number</th><th className="pr-4">Date</th><th className="pr-4">Payee</th><th className="pr-4">By</th><th className="pr-4 text-right">Amount</th><th>Status</th></tr></thead>
             <tbody>
               {vouchers.map((v) => (
                 <tr key={v.id} className="border-t border-border transition hover:bg-hover/50">
-                  <td className="py-2 pr-4"><Link className="underline font-medium" href={`/expenses/${v.id}`}>{v.number}</Link></td>
+                  <td className="px-4 py-3"><Link className="font-medium hover:underline" href={`/expenses/${v.id}`}>{v.number}</Link></td>
                   <td className="pr-4">{v.date}</td><td className="pr-4">{v.payee}</td><td className="pr-4">{name.get(v.submittedById)}</td>
-                  <td className="pr-4 text-right">{formatMoney(v.amount, v.currency)}</td><td>{v.status.replace("_", " ")}</td>
+                  <td className="pr-4 text-right tabular-nums">{formatMoney(v.amount, v.currency)}</td><td className="pr-4"><StatusBadge status={v.status} /></td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
+          <Pager page={pg.page} size={pg.size} total={matched} href={(n) => href({ page: n > 1 ? String(n) : undefined })} />
       </div>
+      )}
       <form action={submit} className="card grid gap-4 sm:grid-cols-2">
         <h2 className="font-semibold sm:col-span-2">Submit a voucher</h2>
-        {error && <p role="alert" className="sm:col-span-2 text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+        {error && <div className="sm:col-span-2"><Notice kind="error">{error}</Notice></div>}
         <div><label className="label" htmlFor="payee">Payee</label><input id="payee" name="payee" required className="input" /></div>
         <div><label className="label" htmlFor="date">Expense date</label><input id="date" name="date" type="date" defaultValue={today} required className="input" /></div>
         <div className="sm:col-span-2"><label className="label" htmlFor="description">Description</label><input id="description" name="description" required className="input" /></div>

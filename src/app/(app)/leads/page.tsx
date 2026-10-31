@@ -4,36 +4,37 @@ import { leadScore } from "@/lib/crm";
 import { db } from "@/lib/db";
 import { leadScope } from "@/lib/leads";
 import { formatMoney } from "@/lib/money";
-import { Badge, Chips, Empty, NewButton, PageHeader, PanelForm, SearchBox, Stat } from "@/components/ui";
+import { rangeLabel } from "@/lib/date-range";
+import { AppliedFilters, Badge, DateRangeForm, Chips, Empty, ExportLink, NewButton, PageHeader, Pager, PanelForm, SearchBox, SortTh, Stat } from "@/components/ui";
+import { orderFor } from "@/lib/sort";
+import { listHref } from "@/lib/list-params";
+import { LEAD_SORTS, leadParams, leadWhere } from "@/lib/lists";
 import Drawer from "@/components/ui/Drawer";
 import { createLead } from "./actions";
 
 export const dynamic = "force-dynamic";
-
-export default async function Leads({ searchParams }: { searchParams: Promise<{ error?: string; dup?: string; q?: string; stage?: string; new?: string }> }) {
+export default async function Leads({ searchParams }: { searchParams: Promise<{ error?: string; dup?: string; q?: string; stage?: string; new?: string; page?: string; campaign?: string; source?: string; from?: string; to?: string; src?: string; sort?: string; dir?: string }> }) {
   const user = await requirePermission("crm.view");
-  const { error, dup, q, stage, new: isNew } = await searchParams;
+  const { error, dup, q, stage, new: isNew, page, campaign, source, from, to, src, sort: sortRaw, dir: dirRaw } = await searchParams;
+  const lp = leadParams({ q, stage, campaign, source, from, to, page, sort: sortRaw, dir: dirRaw });
+  const sort = lp.sort;
+  const range = lp.range;
+  const pg = lp.page;
   const canEdit = user.permissions.has("crm.edit");
-  const search = q?.trim();
-  const esc = (s: string) => s.replace(/[\\%_]/g, (c) => "\\" + c);
+  const search = lp.q;
   const base = leadScope(user);
-  const [leads, campaigns, stages, stageCounts] = await Promise.all([
-    db.lead.findMany({
-      where: {
-        ...base,
-        ...(stage ? { stageId: stage } : {}),
-        ...(search ? { AND: [{ OR: [{ name: { contains: esc(search), mode: "insensitive" } }, { company: { contains: esc(search), mode: "insensitive" } }, { email: { contains: esc(search), mode: "insensitive" } }, { phone: { contains: search } }] }] } : {}),
-      },
-      orderBy: { createdAt: "desc" }, take: 200, include: { stage: true },
-    }),
-    db.campaign.findMany({ where: { organizationId: user.organizationId, status: { in: ["ACTIVE", "PLANNED"] } }, orderBy: { name: "asc" } }),
+  const where = leadWhere(user, lp);
+  const [leads, matched, dueNow, campaigns, stages, stageCounts] = await Promise.all([
+    db.lead.findMany({ where, orderBy: orderFor(sort, LEAD_SORTS), skip: pg.skip, take: pg.take, include: { stage: true } }),
+    db.lead.count({ where }),
+    db.lead.count({ where: { ...base, nextFollowUp: { lt: new Date() } } }),
+    db.campaign.findMany({ where: { organizationId: user.organizationId }, orderBy: { name: "asc" }, select: { id: true, name: true, status: true, archivedAt: true } }),
     db.pipelineStage.findMany({ where: { organizationId: user.organizationId }, orderBy: { sortOrder: "asc" }, select: { id: true, name: true } }),
     db.lead.groupBy({ by: ["stageId"], where: base, _count: true }),
   ]);
   const counts = new Map(stageCounts.map((c) => [c.stageId, c._count]));
   const total = stageCounts.reduce((n, c) => n + c._count, 0);
-  const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ stage, q: search, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/leads${t ? `?${t}` : ""}`; };
-  const dueNow = leads.filter((l) => l.nextFollowUp && l.nextFollowUp < new Date()).length;
+  const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ stage, campaign, source, from: range.from, to: range.to, src, q: search, sort: sortRaw && sort.key === sortRaw ? sort.key : undefined, dir: sortRaw && sort.key === sortRaw ? sort.dir : undefined, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/leads${t ? `?${t}` : ""}`; };
   const campaignName = new Map(campaigns.map((c) => [c.id, c.name]));
   return (
     <div className="space-y-6">
@@ -43,23 +44,29 @@ export default async function Leads({ searchParams }: { searchParams: Promise<{ 
         actions={<>
           <Link href="/leads/lists" className="btn-ghost">Smart lists</Link>
           <Link href="/pipeline" className="btn-ghost">Board</Link>
+          <ExportLink href={listHref("/leads/export", { stage, campaign, source, from: range.from, to: range.to, q: search, sort: lp.sortChosen ? sort.key : undefined, dir: lp.sortChosen ? sort.dir : undefined })} />
           {canEdit && <NewButton href={href({ new: "1" })}>Add lead</NewButton>}
         </>}
       />
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Leads" value={total} />
-        <Stat label="Follow-ups overdue" value={dueNow} hint="in the list below" />
+        <Stat label="Follow-ups overdue" value={dueNow} hint="across all your leads" />
         <Stat label="Stages" value={stages.length} />
       </div>
+      <AppliedFilters items={[
+        ...(campaign ? [{ label: `Campaign: ${campaignName.get(campaign) ?? "unknown"}`, removeHref: href({ campaign: undefined }) }] : []),
+        ...(range.from || range.to ? [{ label: `Created ${rangeLabel(range)}`, removeHref: href({ from: undefined, to: undefined }) }] : []),
+      ]} clearHref="/leads" backHref={src === "dashboard" ? "/dashboard" : campaign ? `/campaigns/${campaign}` : undefined} backLabel={src === "dashboard" ? "Back to dashboard" : "Back to the campaign"} />
       <div className="flex flex-wrap items-center gap-3">
-        <SearchBox q={search} placeholder="Search name, company, email, phone" hidden={{ stage }} />
+        <SearchBox q={search} placeholder="Search name, company, email, phone" hidden={{ stage, campaign, from: range.from, to: range.to, src }} />
+        <DateRangeForm from={range.from} to={range.to} label="Created" hidden={{ stage, campaign, q: search, src }} />
         <Chips current={stage ?? "all"} items={[{ key: "all", label: "All", count: total, href: href({ stage: undefined }) }, ...stages.map((st) => ({ key: st.id, label: st.name, count: counts.get(st.id) ?? 0, href: href({ stage: st.id }) }))]} />
       </div>
 
       {leads.length === 0 ? <Empty title={search ? "No leads match your search" : "No leads yet"}>{canEdit ? "Add your first lead below." : "Leads you own will appear here."}</Empty> : (
         <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">
-            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="px-4 py-2.5">Lead</th><th className="pr-4">Stage</th><th className="pr-4">Score</th><th className="pr-4">Campaign</th><th className="pr-4">Value</th><th className="pr-4">Last contact</th><th className="pr-4">Next follow-up</th></tr></thead>
+            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><SortTh label="Lead" field="name" sort={sort} hrefFor={href} className="px-4 py-2.5" /><th className="pr-4">Stage</th><th className="pr-4">Score</th><th className="pr-4">Campaign</th><SortTh label="Value" field="value" sort={sort} hrefFor={href} /><th className="pr-4">Last contact</th><SortTh label="Next follow-up" field="followup" sort={sort} hrefFor={href} /></tr></thead>
             <tbody>
               {leads.map((l) => {
                 const sc = leadScore(l);
@@ -78,6 +85,7 @@ export default async function Leads({ searchParams }: { searchParams: Promise<{ 
               })}
             </tbody>
           </table>
+          <Pager page={pg.page} size={pg.size} total={matched} href={(n) => href({ page: n > 1 ? String(n) : undefined })} />
         </div>
       )}
 
@@ -92,7 +100,7 @@ export default async function Leads({ searchParams }: { searchParams: Promise<{ 
             <div><label className="label" htmlFor="priority">Priority</label><select id="priority" name="priority" className="input" defaultValue="MEDIUM">{["LOW", "MEDIUM", "HIGH"].map((c) => <option key={c}>{c}</option>)}</select></div>
             <div><label className="label" htmlFor="preferredContact">Preferred contact</label><select id="preferredContact" name="preferredContact" className="input" defaultValue=""><option value="">No preference</option>{["CALL", "WHATSAPP", "EMAIL", "SMS"].map((c) => <option key={c} value={c}>{c.toLowerCase()}</option>)}</select></div>
             <div><label className="label" htmlFor="expectedCloseDate">Expected closing date</label><input id="expectedCloseDate" name="expectedCloseDate" type="date" className="input" /></div>
-            <div><label className="label" htmlFor="campaignId">Campaign</label><select id="campaignId" name="campaignId" className="input" defaultValue=""><option value="">None</option>{campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+            <div><label className="label" htmlFor="campaignId">Campaign</label><select id="campaignId" name="campaignId" className="input" defaultValue=""><option value="">None</option>{campaigns.filter((c) => !c.archivedAt && ["ACTIVE", "PLANNED"].includes(c.status)).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
             <div><label className="label" htmlFor="tags">Tags (comma separated)</label><input id="tags" name="tags" className="input" /></div>
             {dup && <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" name="confirmDuplicate" value="1" /> Create anyway, I have checked the existing lead</label>}
             </div>

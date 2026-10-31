@@ -59,15 +59,17 @@ export function FlowChart({ data, currency }: { data: { month: string; collected
 }
 
 // Horizontal bars, one per row, scaled to the largest.
-export function Bars({ rows, tone = "primary" }: { rows: { label: ReactNode; value: number; note?: ReactNode }[]; tone?: "primary" | "success" | "danger" }) {
+// Horizontal bars. A row with `href` is a link to the filtered list it counts.
+export function Bars({ rows, tone = "primary" }: { rows: { label: ReactNode; value: number; note?: ReactNode; href?: string }[]; tone?: "primary" | "success" | "danger" }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
   const bg = { primary: "bg-primary", success: "bg-success", danger: "bg-brand" }[tone];
   return (
     <ul className="space-y-2.5">
-      {rows.map((r, i) => (
-        <li key={i} className="text-sm"><div className="mb-1 flex items-center justify-between gap-3"><span className="truncate">{r.label}</span><span className="shrink-0 text-xs text-muted">{r.note ?? r.value}</span></div>
-          <div className="h-2 overflow-hidden rounded-full bg-hover"><div className={`h-full rounded-full ${bg} transition-all duration-700`} style={{ width: `${Math.max(2, (r.value / max) * 100)}%` }} /></div></li>
-      ))}
+      {rows.map((r, i) => {
+        const inner = <><div className="mb-1 flex items-center justify-between gap-3"><span className="truncate">{r.label}</span><span className="shrink-0 text-xs text-muted">{r.note ?? r.value}</span></div>
+          <div className="h-2 overflow-hidden rounded-full bg-hover"><div className={`h-full rounded-full ${bg} transition-all duration-700`} style={{ width: `${Math.max(2, (r.value / max) * 100)}%` }} /></div></>;
+        return <li key={i} className="text-sm">{r.href ? <Link href={r.href} className="block rounded-lg p-1 -m-1 hover:bg-hover/60">{inner}</Link> : inner}</li>;
+      })}
     </ul>
   );
 }

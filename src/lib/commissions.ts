@@ -3,7 +3,8 @@
 // Each payment allocation can earn at most one commission (database-unique), and only payments made after the rule
 // was set count, so changing a rate never rewrites history. Payout is a two-step approval by someone other than the
 // earner, and both steps are journal entries: approval accrues the cost (Dr commissions expense, Cr payroll payable),
-// payment settles it (Dr payroll payable, Cr bank).
+// payment settles it (Dr payroll payable, Cr bank), either here or through a payroll run in the same currency
+// (src/lib/payroll.ts), which claims the entry so it can only be paid once.
 import type { PrismaClient } from "@prisma/client";
 import { postJournal } from "./accounting";
 import { dec, LedgerError, round2 } from "./ledger-math";
@@ -122,6 +123,7 @@ export async function payEntry(db: Db, p: { organizationId: string; entryId: str
     const e = await tx.commissionEntry.findFirst({ where: { id: p.entryId, organizationId: p.organizationId } });
     if (!e) throw new CommissionError("Entry not found.");
     if (e.status !== "APPROVED") throw new CommissionError(`This entry is ${e.status.toLowerCase()} and cannot be paid.`);
+    if (e.payrollRunId) throw new CommissionError("This entry is being paid through a payroll run. Delete or refresh that draft run to pay it here instead.");
     const bank = await tx.bankAccount.findFirst({ where: { id: p.bankAccountId, organizationId: p.organizationId, active: true } });
     if (!bank?.ledgerAccountId) throw new CommissionError("Choose an active bank account linked to the ledger.");
     if (bank.currency !== e.currency) throw new CommissionError(`This entry is in ${e.currency}; pay it from a ${e.currency} account.`);

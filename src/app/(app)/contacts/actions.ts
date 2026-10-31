@@ -5,6 +5,8 @@ import { audit, requirePermission } from "@/lib/auth";
 import { ContactError, bulkUpdate, contactScope, createContact, findDuplicates, logContactActivity, mergeContacts, openOpportunityFor, setContactParent, updateContact, type BulkAction, type ContactInput, type Entry } from "@/lib/crm-contacts";
 import { db } from "@/lib/db";
 import { MailError, sendEmail } from "@/lib/mailer";
+import { contactsAssigned } from "@/lib/events";
+import { randomUUID } from "node:crypto";
 
 export type FormState = { error?: string; duplicates?: { id: string; name: string; email: string | null; phone: string | null }[]; fieldHint?: string };
 
@@ -103,7 +105,7 @@ export async function quickUpdateAction(contactId: string, field: "phone" | "ema
     if (field === "phone") { const list = (cur.phones as unknown as Entry[]).slice(); list[0] = { type: list[0]?.type ?? "WORK", value }; await updateContact(db, { organizationId: who.organizationId, id: contactId, actorId: user.id, patch: { phones: value.trim() ? list : list.slice(1) } }); }
     else if (field === "email") { const list = (cur.emails as unknown as Entry[]).slice(); list[0] = { type: list[0]?.type ?? "WORK", value }; await updateContact(db, { organizationId: who.organizationId, id: contactId, actorId: user.id, patch: { emails: value.trim() ? list : list.slice(1) } }); }
     else if (field === "category") await updateContact(db, { organizationId: who.organizationId, id: contactId, actorId: user.id, patch: { category: value } });
-    else { if (!user.permissions.has("crm.view_all")) return { ok: false, error: "Only managers can reassign contacts." }; await bulkUpdate(db, who, { ids: [contactId], action: "ASSIGN", value }); }
+    else { if (!user.permissions.has("crm.view_all")) return { ok: false, error: "Only managers can reassign contacts." }; await bulkUpdate(db, who, { ids: [contactId], action: "ASSIGN", value }); await contactsAssigned(db, { toUserId: value, byUserId: user.id, count: 1, batchKey: randomUUID() }); }
     await audit(user, { action: "contact.quick_update", entity: "Contact", entityId: contactId, after: { field } });
     return { ok: true };
   } catch (e) {
@@ -120,6 +122,7 @@ export async function bulkAction(formData: FormData) {
   try {
     const n = await bulkUpdate(db, { id: user.id, organizationId: user.organizationId, permissions: user.permissions }, { ids, action, value: s(formData, "value") });
     await audit(user, { action: `contact.bulk_${action.toLowerCase()}`, entity: "Contact", after: { count: n } });
+    if (action === "ASSIGN") await contactsAssigned(db, { toUserId: s(formData, "value"), byUserId: user.id, count: n, batchKey: randomUUID() });
     redirect(`${back}${back.includes("?") ? "&" : "?"}msg=${encodeURIComponent(`${n} contact${n === 1 ? "" : "s"} updated.`)}`);
   } catch (e) {
     if (e instanceof ContactError) redirect(`${back}${back.includes("?") ? "&" : "?"}error=${encodeURIComponent(e.message)}`);

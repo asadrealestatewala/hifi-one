@@ -4,6 +4,7 @@ import { approveManualJournal, createManualJournal, rejectManualJournal, reverse
 import { db } from "@/lib/db";
 import { LedgerError } from "@/lib/ledger-math";
 import { formatMoney } from "@/lib/money";
+import { Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -67,9 +68,9 @@ export default async function Journals({ searchParams }: { searchParams: Promise
   const today = new Date().toISOString().slice(0, 10);
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Manual Journal Entries</h1>
+      <PageHeader title="Manual Journal Entries" />
       <p className="text-sm text-muted">Prepared by one person and posted by another. Control accounts (receivables, payables, customer advances) are closed to manual entries: use invoices, payments, credit notes and refunds. {lock && <>Books are closed through <strong>{lock.lockedThrough}</strong>.</>}</p>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      {error && <Notice kind="error">{error}</Notice>}
 
       <section className="card space-y-2">
         <h2 className="font-semibold">Entries</h2>

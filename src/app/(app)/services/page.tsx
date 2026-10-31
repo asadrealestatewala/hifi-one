@@ -5,6 +5,7 @@ import { audit, requirePermission } from "@/lib/auth";
 import { CatalogError, INTERVALS, createCategory, createPlan } from "@/lib/catalog";
 import { db } from "@/lib/db";
 import { CURRENCIES, formatMoney } from "@/lib/money";
+import { Notice } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -98,7 +99,7 @@ export default async function Services({ searchParams }: { searchParams: Promise
           ))}
         </nav>
       </div>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      {error && <Notice kind="error">{error}</Notice>}
       <nav aria-label="Categories" className="flex flex-wrap gap-2">
         {categories.map((c) => (
           <Link key={c.id} href={q(c.id, currency)} className={`btn-ghost ${c.id === selected?.id ? "!bg-navy !text-white" : ""}`}>

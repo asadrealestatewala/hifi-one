@@ -3,6 +3,7 @@ import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { FxError, addRate, getBaseCurrency, rateOn, setBaseCurrency } from "@/lib/fx";
 import { CURRENCIES } from "@/lib/money";
+import { Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -50,13 +51,13 @@ export default async function ExchangeRates({ searchParams }: { searchParams: Pr
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <h1 className="text-2xl font-semibold tracking-tight">Exchange rates</h1>
+      <PageHeader title="Exchange rates" />
       <p className="text-sm text-muted">
         Rates convert other currencies into the base currency for consolidated reports. Each entry says how many {base} one unit of the currency is worth from a given date.
         Entries are never edited: to correct a rate, add a new entry for the same date. Invoices, payments and the ledger always stay in their own currency.
       </p>
-      {sp.saved && <p className="text-sm bg-green-600/10 text-green-700 rounded-lg px-3 py-2">Saved.</p>}
-      {sp.error && <p role="alert" className="text-sm bg-brand/10 text-brand rounded-lg px-3 py-2">{sp.error}</p>}
+      {sp.saved && <Notice kind="ok">Saved.</Notice>}
+      {sp.error && <Notice kind="error">{sp.error}</Notice>}
 
       <section className="card space-y-2">
         <h2 className="font-semibold">Rates in force today (1 unit = ? {base})</h2>

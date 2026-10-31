@@ -46,7 +46,7 @@ export async function beginMfaSetup(db: Db, userId: string, appSecret: string) {
   if (user.totpEnabled) throw new MfaError("Two-step verification is already on.");
   const secret = generateSecret();
   await db.user.update({ where: { id: userId }, data: { totpSecretEnc: encryptSecret(secret, appSecret), totpLastStep: null } });
-  return { secret, uri: otpauthUri(secret, user.email) };
+  return { secret, uri: otpauthUri(secret, user.email ?? user.phone ?? user.name) };
 }
 
 // Step 2: the first valid code turns it on and returns the recovery codes, which are shown once.

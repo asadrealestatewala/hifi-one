@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { limiter } from "@/lib/rate-limit";
 import { LedgerError } from "@/lib/ledger-math";
 import { acceptInvite, inviteInfo } from "@/lib/portal";
+import { Notice } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,7 @@ export default async function Invite({ params, searchParams }: { params: Promise
         ) : (
           <form action={accept} className="space-y-4">
             <p className="text-sm">Create your login for <strong>{info.clientName}</strong> ({info.email}).</p>
-            {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+            {error && <Notice kind="error">{error}</Notice>}
             <input type="hidden" name="token" value={token} />
             <div><label className="label" htmlFor="name">Your name</label><input id="name" name="name" required className="input" /></div>
             <div><label className="label" htmlFor="password">Password (10+ characters)</label><input id="password" name="password" type="password" required minLength={10} autoComplete="new-password" className="input" /></div>

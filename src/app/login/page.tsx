@@ -3,18 +3,18 @@ import { redirect } from "next/navigation";
 import { getSessionUser, login } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { needsSetup } from "@/lib/bootstrap";
+import { Notice } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 async function signIn(formData: FormData) {
   "use server";
-  const email = String(formData.get("email") ?? "");
+  const identifier = String(formData.get("identifier") ?? "");
   const password = String(formData.get("password") ?? "");
-  const result = await login(email, password);
+  const result = await login(identifier, password);
   if (!result.ok) redirect(`/login?error=${encodeURIComponent(result.error)}`);
   if (result.mfa) redirect("/login/verify");
-  const u = await db.user.findUnique({ where: { email: email.trim().toLowerCase() }, select: { userType: true } });
-  redirect(u?.userType === "CLIENT" ? "/portal" : u?.userType === "VENDOR" ? "/vendor" : "/dashboard");
+  redirect(result.userType === "CLIENT" ? "/portal" : result.userType === "VENDOR" ? "/vendor" : "/dashboard");
 }
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
@@ -39,10 +39,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <div className="flex items-center gap-3 lg:hidden"><Image src="/logo.png" alt="Hifi One" width={40} height={40} className="rounded-xl" /><span className="text-lg font-semibold">Hifi One</span></div>
           <div className="space-y-1"><h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1><p className="text-sm text-muted">Sign in to continue.</p></div>
           {notice && <p className="rounded-lg bg-success/10 px-3 py-2 text-sm text-success">{notice}</p>}
-          {error && <p role="alert" className="rounded-lg bg-brand/10 px-3 py-2 text-sm text-brand">{error}</p>}
-          <div><label className="label" htmlFor="email">Email</label><input id="email" name="email" type="email" required autoComplete="username" className="input" /></div>
+          {error && <Notice kind="error">{error}</Notice>}
+          <div><label className="label" htmlFor="identifier">Email or phone number</label><input id="identifier" name="identifier" type="text" inputMode="email" required autoComplete="username" placeholder="you@company.com or +923001234567" className="input" /></div>
           <div><label className="label" htmlFor="password">Password</label><input id="password" name="password" type="password" required autoComplete="current-password" className="input" /></div>
           <button className="btn w-full !py-2.5">Sign in</button>
+          <p className="text-center text-sm"><a href="/login/forgot" className="text-primary underline">Forgot your password?</a></p>
         </form>
       </section>
     </main>

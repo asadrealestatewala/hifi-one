@@ -8,27 +8,31 @@ import { projectProgress } from "@/lib/project-rules";
 import { addMember, createTask, setProjectStatus } from "../actions";
 import ProjectDepth from "./ProjectDepth";
 import ProjectMeetings from "./ProjectMeetings";
+import Deliverables from "./Deliverables";
+import ProjectTimeline from "./ProjectTimeline";
 import TaskBoard from "./TaskBoard";
 import TaskDetail from "./TaskDetail";
 import Drawer from "@/components/ui/Drawer";
 import Avatar from "@/components/ui/Avatar";
 import FilesPanel from "@/components/FilesPanel";
 import { openBlockers } from "@/lib/task-rules";
+import { Notice } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProjectPage({
   params,
   searchParams,
-}: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; task?: string; fileError?: string; fileOk?: string }> }) {
+}: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; msg?: string; task?: string; fileError?: string; fileOk?: string }> }) {
   const user = await requirePermission("projects.view");
   const { id } = await params;
-  const { error, task: taskId, fileError, fileOk } = await searchParams;
+  const { error, msg, task: taskId, fileError, fileOk } = await searchParams;
   const project = await db.project.findFirst({
     where: { id, ...projectScope(user) },
     include: { members: true, tasks: { orderBy: { createdAt: "asc" } } },
   });
   if (!project) notFound();
+  const projectCampaign = project.campaignId ? await db.campaign.findFirst({ where: { id: project.campaignId, organizationId: user.organizationId }, select: { id: true, name: true } }) : null;
   const canManage = user.permissions.has("projects.manage");
   const canMove = user.permissions.has("tasks.edit");
   const orgUsers = await db.user.findMany({
@@ -41,16 +45,20 @@ export default async function ProjectPage({
   const progress = projectProgress(project.tasks);
   const open = taskId ? project.tasks.find((t) => t.id === taskId) ?? null : null;
   const comments = open ? await db.taskComment.findMany({ where: { taskId: open.id }, orderBy: { createdAt: "asc" }, take: 100 }) : [];
+  // Comment authors can also be the client's portal users, who are not in the staff list
+  const outsiders = new Map((await db.user.findMany({ where: { id: { in: comments.map((c) => c.authorId).filter((a) => !nameOf.has(a)) } }, select: { id: true, name: true, clientId: true } })).map((u) => [u.id, u]));
   const top = project.tasks.filter((t) => !t.parentId);
   const byId = new Map(project.tasks.map((t) => [t.id, t]));
+  const milestones = (await db.milestone.findMany({ where: { projectId: project.id }, select: { name: true, dueDate: true } })).map((m) => ({ name: m.name, dueDate: m.dueDate ? String(m.dueDate).slice(0, 10) : null }));
   const closed = project.status === "COMPLETED" || project.status === "CANCELLED";
   return (
     <div className="space-y-6">
       <Link href="/projects" className="text-sm text-muted hover:underline">← All projects</Link>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      {error && <Notice kind="error">{error}</Notice>}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{project.name} <span className="text-muted text-base font-normal">{project.number}</span></h1>
+          {projectCampaign && <p className="text-sm text-muted">Campaign: {user.permissions.has("campaigns.view") ? <Link className="hover:underline" href={`/campaigns/${projectCampaign.id}`}>{projectCampaign.name}</Link> : projectCampaign.name}</p>}
           <p className="text-sm text-muted">
             {client ? client.name : "Internal project"} · {project.status.replace("_", " ")} · Manager: {nameOf.get(project.managerId) ?? "Unknown"}
             {project.deadline && ` · Due ${project.deadline.toLocaleDateString()}`}
@@ -77,7 +85,11 @@ export default async function ProjectPage({
       {project.scope && <section className="card text-sm whitespace-pre-line">{project.scope}</section>}
 
       <ProjectDepth user={user} projectId={project.id} closed={closed} />
+      <Deliverables projectId={project.id} organizationId={user.organizationId} canManage={canManage} hasClient={Boolean(project.clientId)} closed={closed} msg={msg} />
       {user.permissions.has("meetings.use") && <ProjectMeetings projectId={project.id} organizationId={user.organizationId} closed={closed} />}
+
+      <ProjectTimeline projectId={project.id} today={new Date().toISOString().slice(0, 10)} projectStart={project.startDate} deadline={project.deadline} milestones={milestones}
+        tasks={top.map((t) => ({ id: t.id, title: t.title, status: t.status, createdAt: t.createdAt, dueDate: t.dueDate, completedAt: t.completedAt, assignee: t.assigneeId ? nameOf.get(t.assigneeId) ?? null : null }))} />
 
       <TaskBoard
         key={project.tasks.map((t) => `${t.id}:${t.status}:${t.blockedBy.join("")}`).join(",")}
@@ -140,7 +152,7 @@ export default async function ProjectPage({
             subtasks={project.tasks.filter((t) => t.parentId === open.id).map((t) => ({ id: t.id, title: t.title, status: t.status }))}
             candidates={project.tasks.filter((t) => t.id !== open.id && t.parentId !== open.id && open.parentId !== t.id).map((t) => ({ id: t.id, title: t.title }))}
             members={project.members.map((m) => ({ id: m.userId, name: nameOf.get(m.userId) ?? "Unknown" }))}
-            comments={comments.map((c) => ({ id: c.id, authorId: c.authorId, author: nameOf.get(c.authorId) ?? "Former staff", body: c.body, at: c.createdAt.toLocaleString() }))}
+            comments={comments.map((c) => ({ id: c.id, authorId: c.authorId, author: nameOf.get(c.authorId) ?? outsiders.get(c.authorId)?.name ?? "Former staff", body: c.body, at: c.createdAt.toLocaleString(), shared: !c.internal, fromClient: Boolean(outsiders.get(c.authorId)?.clientId) }))}
             canManage={(canManage || project.managerId === user.id) && !closed} canMoveSubtasks={canMove && !closed && (canManage || project.managerId === user.id || open.assigneeId === user.id)} canComment={canMove}
           >
             <FilesPanel user={user} ownerType="TASK" ownerId={open.id} returnTo={`/projects/${project.id}?task=${open.id}`} title="Files" flash={{ fileError, fileOk }} />

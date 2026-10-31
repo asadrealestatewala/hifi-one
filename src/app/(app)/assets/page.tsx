@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { LedgerError } from "@/lib/ledger-math";
 import { AssetError, registerAsset, runDepreciation } from "@/lib/assets";
 import { formatMoney } from "@/lib/money";
+import { Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -57,10 +58,9 @@ export default async function Assets({ searchParams }: { searchParams: Promise<{
   const month = new Date().toISOString().slice(0, 7);
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Fixed Assets</h1>
-      <p className="text-sm text-muted">Purchases here are capitalised, not expensed. Straight-line depreciation starts in the month of purchase. Items below your capitalisation threshold belong in expense vouchers; a threshold setting is not built yet.</p>
-      {done && <p className="text-sm bg-green-600/10 text-green-700 rounded-lg px-3 py-2">Depreciation posted ({done} asset-months). Running it again only adds missing months.</p>}
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      <PageHeader title="Fixed Assets" subtitle="Purchases here are capitalised, not expensed. Straight-line depreciation starts in the month of purchase. Items below your capitalisation threshold belong in expense vouchers; a threshold setting is not built yet." />
+      {done && <Notice kind="ok">Depreciation posted ({done} asset-months). Running it again only adds missing months.</Notice>}
+      {error && <Notice kind="error">{error}</Notice>}
       <div className="card overflow-x-auto">
         {assets.length === 0 ? <p className="text-sm text-muted">No assets yet.</p> : (
           <table className="w-full text-sm">

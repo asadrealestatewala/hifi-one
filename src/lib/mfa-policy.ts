@@ -7,7 +7,7 @@ export type MfaFacts = { userType: string; totpEnabled: boolean; mfaRequired: bo
 export const needsMfaSetup = (u: MfaFacts) => u.userType === "EMPLOYEE" && u.mfaRequired && !u.totpEnabled;
 
 // Roles that handle money, people data or system access. New installations require two-step verification for these by default.
-export const SENSITIVE_ROLE_KEYS = ["SUPER_ADMIN", "CEO", "FINANCE_MANAGER", "ACCOUNTANT", "HR_MANAGER"] as const;
+export const SENSITIVE_ROLE_KEYS = ["SUPER_ADMIN", "CEO", "FINANCE_MANAGER", "ACCOUNTANT", "HR_MANAGER", "HR_COORDINATOR"] as const;
 
 export type SecurityFinding = { id: string; level: "ok" | "warn" | "fail"; title: string; detail: string };
 

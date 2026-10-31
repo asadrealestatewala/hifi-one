@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { completeMfaLogin, getSessionUser } from "@/lib/auth";
+import { Notice } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ export default async function Verify({ searchParams }: { searchParams: Promise<{
             <p className="text-xs text-muted">Enter the 6-digit code from your authenticator app</p>
           </div>
         </div>
-        {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+        {error && <Notice kind="error">{error}</Notice>}
         <div>
           <label className="label" htmlFor="code">Code or recovery code</label>
           <input id="code" name="code" required autoComplete="one-time-code" inputMode="text" autoFocus className="input" />

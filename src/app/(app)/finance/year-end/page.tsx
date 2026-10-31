@@ -3,6 +3,7 @@ import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { YearEndError, closeYear, previewYearEnd } from "@/lib/year-end";
+import { Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -30,10 +31,9 @@ export default async function YearEnd({ searchParams }: { searchParams: Promise<
   const ended = `${year}-12-31` < new Date().toISOString().slice(0, 10);
   return (
     <div className="space-y-5 max-w-3xl">
-      <h1 className="text-2xl font-semibold tracking-tight">Year-End Close</h1>
-      <p className="text-sm text-muted">Closing a year brings every revenue, cost and expense account back to zero and moves the profit or loss into Retained Earnings, one entry per currency, dated 31 December. Profit and loss reports for that year still show its results. Years must be closed in order, and a year can only be closed once it has ended.</p>
-      {sp.done && <p className="text-sm bg-green-600/10 text-green-700 rounded-lg px-3 py-2">Year {year} is closed.</p>}
-      {sp.error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{sp.error}</p>}
+      <PageHeader title="Year-End Close" subtitle="Closing a year brings every revenue, cost and expense account back to zero and moves the profit or loss into Retained Earnings, one entry per currency, dated 31 December. Profit and loss reports for that year still show its results. Years must be closed in order, and a year can only be closed once it has ended." />
+      {sp.done && <Notice kind="ok">Year {year} is closed.</Notice>}
+      {sp.error && <Notice kind="error">{sp.error}</Notice>}
       <form className="card flex flex-wrap items-end gap-3">
         <div><label className="label" htmlFor="year">Year</label><input id="year" name="year" type="number" min={2000} max={2100} defaultValue={year} className="input !w-28" /></div>
         <button className="btn-ghost">Preview</button>

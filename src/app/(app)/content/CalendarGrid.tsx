@@ -8,6 +8,7 @@ import { PLATFORM_META, POST_TYPE_LABEL } from "@/lib/content-rules";
 import { reschedulePostAction } from "./actions";
 import { PlatformDot } from "./PostForm";
 import { STATUS_STYLE } from "./status-style";
+import { Notice } from "@/components/ui";
 
 export type CalItem = { id: string; title: string; date: string; time: string | null; status: string; platforms: string[]; postType: string; client: string | null; assignee: string | null; assigneeId: string | null };
 
@@ -47,7 +48,7 @@ export default function CalendarGrid({ month, today, items: initial, canManage, 
 
   return (
     <div className="space-y-2">
-      {error && <p role="alert" className="rounded-lg bg-brand/10 px-3 py-2 text-sm text-brand">{error}</p>}
+      {error && <Notice kind="error">{error}</Notice>}
       <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
         <div className="min-w-[720px]">
           <div className="grid grid-cols-7 border-b border-border bg-hover/60 text-center text-xs font-medium text-muted">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => <div key={d} className="py-2">{d}</div>)}</div>

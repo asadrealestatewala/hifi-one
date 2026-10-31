@@ -2,6 +2,7 @@ import { requirePermission } from "@/lib/auth";
 import { statementFor } from "@/lib/commissions";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
+import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,7 @@ export default async function MyCommissions() {
   const s = await statementFor(db, user.organizationId, user.id);
   return (
     <div className="space-y-5 max-w-3xl">
-      <h1 className="text-2xl font-semibold tracking-tight">My commissions</h1>
+      <PageHeader title="My commissions" />
       {s.totals.size === 0 ? <div className="card text-sm text-muted">Nothing yet. Commissions appear here after clients you converted pay their invoices and a rate is set for you.</div> : (
         <div className="grid gap-3 sm:grid-cols-3">
           {[...s.totals].map(([cur, t]) => (

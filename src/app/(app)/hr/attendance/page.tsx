@@ -2,7 +2,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { PageHeader, Stat } from "@/components/ui";
+import { Notice, PageHeader, Stat } from "@/components/ui";
 import { HrError, correctClockOut } from "@/lib/hr";
 import { fmtMinutes, workedMinutes } from "@/lib/hr-rules";
 
@@ -44,7 +44,7 @@ export default async function HrAttendance({ searchParams }: { searchParams: Pro
         <Stat label="Records shown" value={recent.length} hint="most recent 60" />
         <Stat label="People" value={people.length} />
       </div>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      {error && <Notice kind="error">{error}</Notice>}
       <section className="card space-y-2">
         <h2 className="font-semibold">Open sessions</h2>
         <p className="text-xs text-muted">A session left open is never closed automatically. Enter the real clock-out time and a reason to correct it; the correction is recorded against your name.</p>

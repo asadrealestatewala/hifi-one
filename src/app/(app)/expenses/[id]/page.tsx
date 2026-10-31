@@ -7,6 +7,7 @@ import { ExpenseError, approveVoucher, budgetStatus, cancelVoucher, payVoucher, 
 import { formatMoney } from "@/lib/money";
 import { notify, notifyPermission } from "@/lib/notifications";
 import FilesPanel from "@/components/FilesPanel";
+import { ConfirmButton, Notice } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,7 @@ export default async function VoucherPage({ params, searchParams }: { params: Pr
   return (
     <div className="space-y-4 max-w-3xl">
       <Link href="/expenses" className="text-sm text-muted hover:underline">← All vouchers</Link>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      {error && <Notice kind="error">{error}</Notice>}
       <article className="card space-y-3">
         <div className="flex justify-end"><a className="btn-ghost" href={`/expenses/${v.id}/voucher`} target="_blank" rel="noopener">Voucher PDF</a></div>
         <h1 className="text-xl font-bold">{v.number} <span className="text-base font-normal text-muted">{v.status.replace("_", " ")}</span></h1>
@@ -92,7 +93,7 @@ export default async function VoucherPage({ params, searchParams }: { params: Pr
       <FilesPanel user={user} ownerType="EXPENSE" ownerId={v.id} returnTo={`/expenses/${v.id}`} title="Receipts and supporting documents" flash={{ fileError, fileOk }} />
       <div className="card flex flex-wrap items-end gap-2">
         {v.status === "SUBMITTED" && can("expenses.review") && !mine && <form action={step}>{f("review")}<button className="btn">Take into review</button></form>}
-        {v.status === "SUBMITTED" && mine && <form action={step}>{f("cancel")}<button className="btn-ghost">Cancel voucher</button></form>}
+        {v.status === "SUBMITTED" && mine && <form action={step}>{f("cancel")}<ConfirmButton title="Cancel this voucher?" message="It is withdrawn and cannot be approved later; submit a new one if needed." confirmLabel="Cancel voucher">Cancel voucher</ConfirmButton></form>}
         {v.status === "UNDER_REVIEW" && can("expenses.approve") && !mine && (
           <form action={step} className="flex gap-2 items-end">{f("approve")}
             <input name="note" placeholder="Reason (needed if over budget)" aria-label="Approval note" className="input w-64" />

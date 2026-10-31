@@ -3,6 +3,8 @@ import { audit, requireClientUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { SalesError, decideQuote, expireQuotes } from "@/lib/sales";
+import { quoteDecided } from "@/lib/events";
+import { Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +16,7 @@ async function decide(formData: FormData) {
   try {
     await decideQuote(db, { organizationId: user.organizationId, quoteId: id, decision, byUserId: user.id, via: "PORTAL", clientId: user.clientId, note: String(formData.get("note") ?? ""), today: new Date().toISOString().slice(0, 10) });
     await audit(user, { action: `quote.${decision.toLowerCase()}`, entity: "Quote", entityId: id });
+    await quoteDecided(db, { organizationId: user.organizationId, quoteId: id });
   } catch (e) {
     if (e instanceof SalesError) redirect(`/portal/quotes?error=${encodeURIComponent(e.message)}`);
     throw e;
@@ -29,9 +32,9 @@ export default async function PortalQuotes({ searchParams }: { searchParams: Pro
   const quotes = await db.quote.findMany({ where: { organizationId: user.organizationId, clientId: user.clientId, status: { notIn: ["DRAFT", "CANCELLED"] } }, orderBy: { createdAt: "desc" }, include: { lines: true } });
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight">Quotations</h1>
-      {sp.done && <p className="text-sm bg-green-600/10 text-green-700 rounded-lg px-3 py-2">Thank you. Your response has been recorded.</p>}
-      {sp.error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{sp.error}</p>}
+      <PageHeader title="Quotations" />
+      {sp.done && <Notice kind="ok">Thank you. Your response has been recorded.</Notice>}
+      {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {quotes.length === 0 && <div className="card text-sm text-muted">No quotations yet.</div>}
       {quotes.map((q) => (
         <section key={q.id} className="card space-y-2">

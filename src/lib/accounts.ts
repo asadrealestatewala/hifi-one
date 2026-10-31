@@ -46,8 +46,8 @@ export async function createResetLink(db: PrismaClient, p: { organizationId: str
 export async function resetInfo(db: PrismaClient, token: string) {
   const t = await db.passwordResetToken.findUnique({ where: { tokenHash: hash(token) } });
   if (!t || t.usedAt || t.expiresAt < new Date()) return null;
-  const u = await db.user.findUnique({ where: { id: t.userId }, select: { email: true, active: true } });
-  return u?.active ? { email: u.email } : null;
+  const u = await db.user.findUnique({ where: { id: t.userId }, select: { email: true, phone: true, name: true, active: true } });
+  return u?.active ? { email: u.email, who: u.email ?? u.phone ?? u.name } : null;
 }
 
 export async function consumeReset(db: PrismaClient, p: { token: string; password: string }) {
@@ -59,7 +59,9 @@ export async function consumeReset(db: PrismaClient, p: { token: string; passwor
     await tx.$queryRaw`SELECT id FROM "PasswordResetToken" WHERE id = ${found.id} FOR UPDATE`;
     const t = await tx.passwordResetToken.findUniqueOrThrow({ where: { id: found.id } });
     if (t.usedAt || t.expiresAt < new Date()) throw new AccountError("This reset link was already used or has expired.");
-    const user = await tx.user.update({ where: { id: t.userId }, data: { passwordHash, mustChangePassword: false, failedLogins: 0, lockedUntil: null } });
+    // A link the person asked for themselves only ever goes to their email, so using it proves they receive mail there
+    const selfRequested = t.createdById === t.userId;
+    const user = await tx.user.update({ where: { id: t.userId }, data: { passwordHash, mustChangePassword: false, failedLogins: 0, lockedUntil: null, ...(selfRequested ? { emailVerifiedAt: new Date() } : {}) } });
     await tx.passwordResetToken.updateMany({ where: { userId: t.userId, usedAt: null }, data: { usedAt: new Date() } }); // every outstanding link dies with this one
     await tx.session.updateMany({ where: { userId: t.userId, revokedAt: null }, data: { revokedAt: new Date() } });
     return user;

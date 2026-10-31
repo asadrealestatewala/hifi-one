@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { ProjectError, addMilestone, assignTaskToMilestone, billMilestone, deleteTime, logTime, projectProfitability, setMemberRate, setMilestoneStatus } from "./project-finance";
+import { ProjectError, addMilestone, assignTaskToMilestone, billMilestone, decideTime, deleteTime, logTime, projectProfitability, setMemberRate, setMilestoneStatus } from "./project-finance";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
 const db = new PrismaClient({ datasourceUrl: url });
@@ -8,7 +8,7 @@ let org: string, other: string, client: string, project: string, internal: strin
 const TODAY = "2026-10-11";
 
 beforeAll(async () => {
-  await db.$executeRawUnsafe('TRUNCATE "TimeEntry","Milestone","Task","ProjectMember","Project","VendorBill","WorkOrder","Vendor","ExpenseVoucher","InvoiceLine","Invoice","NumberSequence","Client","Organization" CASCADE');
+  await db.$executeRawUnsafe('TRUNCATE "Notification","TimeEntry","Milestone","Task","ProjectMember","Project","VendorBill","WorkOrder","Vendor","ExpenseVoucher","InvoiceLine","Invoice","NumberSequence","Client","Organization" CASCADE');
   org = (await db.organization.create({ data: { name: "Proj Org" } })).id;
   other = (await db.organization.create({ data: { name: "Other" } })).id;
   client = (await db.client.create({ data: { organizationId: org, name: "Acme", currency: "USD" } })).id;
@@ -84,6 +84,33 @@ describe("time", () => {
     await expect(deleteTime(db, { organizationId: org, entryId: e.id, actorId: "someone", isManager: false, today: TODAY })).rejects.toThrow(/your own/);
     await deleteTime(db, { organizationId: org, entryId: e.id, actorId: "mgr", isManager: true, today: TODAY });
     expect(await db.timeEntry.count({ where: { id: e.id } })).toBe(0);
+  });
+});
+
+describe("time approval", () => {
+  const log = () => logTime(db, { organizationId: org, projectId: project, userId: "dev", workDate: "2026-07-01", hours: "3", today: TODAY });
+
+  it("lets a manager approve or reject, never their own hours, and tells the person", async () => {
+    const e = await log();
+    expect(e.approval).toBe("PENDING");
+    await expect(decideTime(db, { organizationId: org, entryId: e.id, approverId: "dev", decision: "APPROVED" })).rejects.toThrow(/your own/);
+    await expect(decideTime(db, { organizationId: org, entryId: e.id, approverId: "mgr", decision: "REJECTED" })).rejects.toThrow(/Say why/);
+    await expect(decideTime(db, { organizationId: other, entryId: e.id, approverId: "mgr", decision: "APPROVED" })).rejects.toThrow(/not found/);
+    await decideTime(db, { organizationId: org, entryId: e.id, approverId: "mgr", decision: "REJECTED", note: "Wrong project" });
+    expect(await db.timeEntry.findUniqueOrThrow({ where: { id: e.id } })).toMatchObject({ approval: "REJECTED", approvedById: "mgr", approvalNote: "Wrong project" });
+    await decideTime(db, { organizationId: org, entryId: e.id, approverId: "mgr", decision: "APPROVED" });
+    expect((await db.timeEntry.findUniqueOrThrow({ where: { id: e.id } })).approval).toBe("APPROVED");
+    expect(await db.notification.count({ where: { userId: "dev", kind: "time.decided" } })).toBe(2);
+  });
+
+  it("keeps approved time out of the owner's reach, and does not change profitability", async () => {
+    const e = await log();
+    const before = await projectProfitability(db, org, project);
+    await decideTime(db, { organizationId: org, entryId: e.id, approverId: "mgr", decision: "REJECTED", note: "Check hours" });
+    expect((await projectProfitability(db, org, project)).labour).toEqual(before.labour);
+    await decideTime(db, { organizationId: org, entryId: e.id, approverId: "mgr", decision: "APPROVED" });
+    await expect(deleteTime(db, { organizationId: org, entryId: e.id, actorId: "dev", isManager: false, today: TODAY })).rejects.toThrow(/project manager/);
+    await deleteTime(db, { organizationId: org, entryId: e.id, actorId: "mgr", isManager: true, today: TODAY });
   });
 });
 

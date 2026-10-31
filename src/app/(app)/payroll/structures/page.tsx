@@ -4,6 +4,7 @@ import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PayrollError, setSalaryStructure } from "@/lib/payroll";
 import { formatMoney } from "@/lib/money";
+import { Notice } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,7 @@ export default async function Structures({ searchParams }: { searchParams: Promi
     <div className="space-y-6">
       <Link href="/payroll" className="text-sm text-muted hover:underline">← Payroll</Link>
       <h1 className="text-2xl font-semibold tracking-tight">Salary structures</h1>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      {error && <Notice kind="error">{error}</Notice>}
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">Employee</th><th className="pr-4">Effective</th><th className="pr-4 text-right">Basic</th><th className="pr-4 text-right">Allowance</th><th className="text-right">Tax %</th></tr></thead>

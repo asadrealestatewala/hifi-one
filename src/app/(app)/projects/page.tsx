@@ -4,19 +4,22 @@ import { db } from "@/lib/db";
 import { projectScope } from "@/lib/projects";
 import { projectProgress } from "@/lib/project-rules";
 import { createProject } from "./actions";
-import { Avatar, Chips, Empty, NewButton, PageHeader, PanelForm, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import { AppliedFilters, Avatar, Chips, Empty, NewButton, PageHeader, PanelForm, SearchBox, Stat, StatusBadge } from "@/components/ui";
 import Drawer from "@/components/ui/Drawer";
 import { isOverdue } from "@/lib/project-rules";
+import TasksView from "./TasksView";
 
 export const dynamic = "force-dynamic";
 
 const STATUSES = ["ACTIVE", "ON_HOLD", "COMPLETED", "CANCELLED"];
-type SP = { error?: string; status?: string; q?: string; new?: string };
+type SP = { error?: string; status?: string; q?: string; new?: string; campaign?: string; from?: string; view?: string; who?: string; tstatus?: string; priority?: string; project?: string; due?: string; page?: string };
 
 export default async function Projects({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requirePermission("projects.view");
   const sp = await searchParams;
   const canManage = user.permissions.has("projects.manage");
+  const tabs = <Chips current={sp.view === "tasks" ? "tasks" : "projects"} items={[{ key: "projects", label: "Projects", href: "/projects" }, { key: "tasks", label: "Tasks", href: "/projects?view=tasks" }]} />;
+  if (sp.view === "tasks") return <TasksView user={user} sp={sp} tabs={tabs} />;
   const status = STATUSES.includes(sp.status ?? "") ? sp.status! : "all";
   const q = sp.q?.trim();
   const [all, clients] = await Promise.all([
@@ -26,19 +29,24 @@ export default async function Projects({ searchParams }: { searchParams: Promise
   const clientName = new Map(clients.map((c) => [c.id, c.name]));
   const count = (s: string) => all.filter((p) => p.status === s).length;
   const lateTasks = all.filter((p) => p.status === "ACTIVE").reduce((n, p) => n + p.tasks.filter((t) => isOverdue(t)).length, 0);
-  const projects = all.filter((p) => (status === "all" || p.status === status) && (!q || `${p.name} ${p.number} ${p.clientId ? clientName.get(p.clientId) ?? "" : "internal"}`.toLowerCase().includes(q.toLowerCase())));
-  const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ status: status === "all" ? undefined : status, q, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/projects${t ? `?${t}` : ""}`; };
+  // ?campaign=linked shows projects that belong to any campaign; ?campaign=<id> one campaign's projects
+  const camp = sp.campaign;
+  const campaignName = camp && camp !== "linked" ? (await db.campaign.findFirst({ where: { id: camp, organizationId: user.organizationId }, select: { name: true } }))?.name ?? "unknown" : null;
+  const projects = all.filter((p) => (!camp || (camp === "linked" ? p.campaignId !== null : p.campaignId === camp)) && (status === "all" || p.status === status) && (!q || `${p.name} ${p.number} ${p.clientId ? clientName.get(p.clientId) ?? "" : "internal"}`.toLowerCase().includes(q.toLowerCase())));
+  const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ status: status === "all" ? undefined : status, q, campaign: camp, from: sp.from, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/projects${t ? `?${t}` : ""}`; };
   return (
     <div className="space-y-5">
       <PageHeader title="Projects" subtitle="Delivery work, progress and deadlines in one place." actions={canManage ? <NewButton href={href({ new: "1" })}>New project</NewButton> : undefined} />
+      {tabs}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Active" value={count("ACTIVE")} />
-        <Stat label="On hold" value={count("ON_HOLD")} />
-        <Stat label="Completed" value={count("COMPLETED")} />
-        <Stat label="Overdue tasks" value={lateTasks} hint="across active projects" />
+        <Stat label="Active" value={count("ACTIVE")} href={href({ status: "ACTIVE" })} />
+        <Stat label="On hold" value={count("ON_HOLD")} href={href({ status: "ON_HOLD" })} />
+        <Stat label="Completed" value={count("COMPLETED")} href={href({ status: "COMPLETED" })} />
+        <Stat label="Overdue tasks" value={lateTasks} hint="across active projects" href="/projects?view=tasks&who=all&due=overdue" />
       </div>
+      <AppliedFilters items={camp ? [{ label: camp === "linked" ? "Linked to a campaign" : `Campaign: ${campaignName}`, removeHref: href({ campaign: undefined }) }] : []} clearHref="/projects" backHref={sp.from === "dashboard" ? "/dashboard?tab=campaigns" : undefined} />
       <div className="flex flex-wrap items-center gap-3">
-        <SearchBox q={q} placeholder="Search project, number or client" hidden={{ status: status === "all" ? undefined : status }} />
+        <SearchBox q={q} placeholder="Search project, number or client" hidden={{ status: status === "all" ? undefined : status, campaign: camp, from: sp.from }} />
         <Chips current={status} items={[{ key: "all", label: "All", count: all.length, href: href({ status: undefined }) }, ...STATUSES.map((s) => ({ key: s, label: s.toLowerCase().replace("_", " ").replace(/^./, (c) => c.toUpperCase()), count: count(s), href: href({ status: s }) }))]} />
       </div>
       {projects.length === 0 ? <Empty title={q || status !== "all" ? "No projects match" : "No projects yet"}>{canManage ? "Start one with New project." : "Projects you work on will appear here."}</Empty> : (

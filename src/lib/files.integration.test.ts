@@ -50,7 +50,7 @@ beforeAll(async () => {
   const mkContent = (title: string, status: string) => db.contentItem.create({ data: { organizationId: org, clientId: acme, platform: "INSTAGRAM", title, copy: "c", status, createdById: "author" } });
   draft = (await mkContent("Draft", "DRAFT")).id;
   inReview = (await mkContent("In review", "CLIENT_REVIEW")).id;
-  empUser = "emp-user-1";
+  empUser = (await db.user.create({ data: { id: "emp-user-1", organizationId: org, name: "Emp One", email: "emp-user-1@files.test", passwordHash: "x" } })).id;
   await db.employeeProfile.create({ data: { organizationId: org, userId: empUser, employeeNo: "E-1" } });
 });
 afterAll(async () => {

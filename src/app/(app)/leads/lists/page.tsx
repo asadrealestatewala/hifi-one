@@ -4,7 +4,8 @@ import { SYSTEM_LISTS, buildLeadWhere, cleanFilters, leadScore, visibleLists, ty
 import { db } from "@/lib/db";
 import { leadScope } from "@/lib/leads";
 import { formatMoney } from "@/lib/money";
-import { Badge, Empty, Notice, PageHeader } from "@/components/ui";
+import { Badge, Empty, Notice, PageHeader, Pager } from "@/components/ui";
+import { paging } from "@/lib/paging";
 import { deleteListAction, saveListAction } from "../crm-actions";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,10 @@ export default async function SmartLists({ searchParams }: { searchParams: Promi
     ? cleanFilters({ q: one("q"), stageNames: [sp.stageNames].flat().filter(Boolean), source: one("source"), campaignId: one("campaignId"), assignedTo: one("assignedTo"), tag: one("tag"), priority: one("priority"), minValue: one("minValue"), followUp: one("followUp"), noContactDays: one("noContactDays"), openOnly: one("openOnly") === "on" })
     : {};
   const hasList = Boolean(sys || mine || adhoc);
-  const leads = hasList ? await db.lead.findMany({ where: buildLeadWhere(filters, { userId: user.id, scope: leadScope(user) }), orderBy: [{ nextFollowUp: "asc" }, { createdAt: "desc" }], take: 200, include: { stage: true } }) : [];
+  const pg = paging(one("page"));
+  const listWhere = buildLeadWhere(filters, { userId: user.id, scope: leadScope(user) });
+  const [leads, matched] = hasList ? await Promise.all([db.lead.findMany({ where: listWhere, orderBy: [{ nextFollowUp: "asc" }, { createdAt: "desc" }, { id: "asc" }], skip: pg.skip, take: pg.take, include: { stage: true } }), db.lead.count({ where: listWhere })]) : [[], 0];
+  const pageHref = (n: number) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries(sp)) if (k !== "page" && k !== "error") for (const x of [v].flat()) if (x) p.append(k, x); if (n > 1) p.set("page", String(n)); return `/leads/lists?${p.toString()}`; };
   const title = sys?.name ?? mine?.name ?? (adhoc ? "Custom filter" : "Choose a list");
 
   return (
@@ -94,8 +98,8 @@ export default async function SmartLists({ searchParams }: { searchParams: Promi
 
           {hasList && (
             <section className="card overflow-x-auto">
-              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2"><h2 className="font-semibold">{title}</h2><span className="text-xs text-muted">{leads.length} lead{leads.length === 1 ? "" : "s"}{describe(filters) && ` · ${describe(filters)}`}</span></div>
-              {leads.length === 0 ? <Empty title="No leads match">Nothing in your view fits this list right now.</Empty> : (
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2"><h2 className="font-semibold">{title}</h2><span className="text-xs text-muted">{matched} lead{matched === 1 ? "" : "s"}{describe(filters) && ` · ${describe(filters)}`}</span></div>
+              {leads.length === 0 ? <Empty title="No leads match">Nothing in your view fits this list right now.</Empty> : (<>
                 <table className="w-full text-sm">
                   <thead className="text-left"><tr><th className="py-2 pr-4">Lead</th><th className="pr-4">Stage</th><th className="pr-4">Score</th><th className="pr-4">Value</th><th className="pr-4">Last contact</th><th>Next follow-up</th></tr></thead>
                   <tbody>{leads.map((l) => {
@@ -112,7 +116,8 @@ export default async function SmartLists({ searchParams }: { searchParams: Promi
                     );
                   })}</tbody>
                 </table>
-              )}
+                <Pager page={pg.page} size={pg.size} total={matched} href={pageHref} />
+              </>)}
             </section>
           )}
         </div>

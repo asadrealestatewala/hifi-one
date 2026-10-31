@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
-import { Badge, Empty, Notice, PageHeader } from "@/components/ui";
+import { Badge, ConfirmButton, Empty, Notice, PageHeader } from "@/components/ui";
 import { db } from "@/lib/db";
 import { MonitorError, deleteScreenshot } from "@/lib/monitoring";
 import { defaultStorage } from "@/lib/storage";
@@ -53,7 +53,7 @@ export default async function Screenshots({ searchParams }: { searchParams: Prom
             <a href={`/api/screenshots/${s.id}`} target="_blank" rel="noopener"><img src={`/api/screenshots/${s.id}`} alt={`Screenshot of ${name.get(s.userId) ?? "an employee"} at ${s.capturedAt.toLocaleString()}`} loading="lazy" className="aspect-video w-full rounded-lg border border-border object-cover" /></a>
             <figcaption className="flex items-center justify-between"><span>{name.get(s.userId)} · {s.capturedAt.toLocaleString()}</span>{s.disputed && <Badge tone="warning">flagged</Badge>}</figcaption>
             {s.disputeNote && <p className="rounded-lg bg-hover p-2">{s.disputeNote}</p>}
-            <form action={remove}><input type="hidden" name="id" value={s.id} /><button className="underline text-muted hover:text-brand">Delete</button></form>
+            <form action={remove}><input type="hidden" name="id" value={s.id} /><ConfirmButton className="underline text-muted hover:text-brand" title="Delete this screenshot?" message="The image is removed permanently. The deletion is logged." confirmLabel="Delete">Delete</ConfirmButton></form>
           </figure>
         ))}</div>
       )}

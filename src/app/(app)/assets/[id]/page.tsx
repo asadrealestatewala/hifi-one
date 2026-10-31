@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { LedgerError } from "@/lib/ledger-math";
 import { AssetError, assetValue, assignAsset, disposeAsset } from "@/lib/assets";
 import { formatMoney } from "@/lib/money";
+import { Notice } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -60,7 +61,7 @@ export default async function AssetPage({ params, searchParams }: { params: Prom
     <div className="space-y-6">
       <Link href="/assets" className="text-sm text-muted hover:underline">← All assets</Link>
       <h1 className="text-2xl font-semibold tracking-tight">{a.name} <span className="text-base font-normal text-muted">{a.number} · {a.status.toLowerCase()}</span></h1>
-      {error && <p role="alert" className="text-sm text-brand bg-brand/10 rounded-lg px-3 py-2">{error}</p>}
+      {error && <Notice kind="error">{error}</Notice>}
       <section className="card grid grid-cols-3 gap-y-1 text-sm max-w-2xl">
         {([["Category", a.category], ["Serial number", a.serialNumber], ["Supplier", a.supplier], ["Purchased", a.purchaseDate], ["Cost", formatMoney(a.cost, a.currency)],
           ["Salvage value", formatMoney(a.salvageValue, a.currency)], ["Useful life", `${a.usefulLifeMonths} months`], ["Accumulated depreciation", formatMoney(v.accumulated, a.currency)],

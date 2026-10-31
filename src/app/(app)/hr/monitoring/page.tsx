@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
-import { Badge, Empty, Notice, PageHeader, Stat } from "@/components/ui";
+import { Badge, DownloadButtons, Empty, Notice, PageHeader, Stat } from "@/components/ui";
+import { liveStatus } from "@/lib/monitoring";
 import { db } from "@/lib/db";
 import { MonitorError, decideCorrection, getPolicy, logReportAccess, summarize } from "@/lib/monitoring";
 
@@ -44,13 +45,30 @@ export default async function Monitoring({ searchParams }: { searchParams: Promi
   const names = new Map((await db.user.findMany({ where: { id: { in: pending.map((c) => c.userId) } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
   const tot = rows.reduce((a, r) => ({ att: a.att + r.attendanceMinutes, act: a.act + r.activeMinutes, idle: a.idle + r.idleMinutes }), { att: 0, act: 0, idle: 0 });
   const canShots = user.permissions.has("monitoring.screenshots");
+  const live = await liveStatus(db, org, people.map((p) => p.id));
+  const working = people.filter((p) => ["WORKING", "BREAK"].includes(live.get(p.id)?.state ?? "")).length;
+  const ago = (d: Date | null | undefined) => { if (!d) return "none yet"; const m = Math.round((Date.now() - d.getTime()) / 60000); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
   const missing = people.filter((p) => accepted.has(p.id) && (by.get(p.id)?.attendanceMinutes ?? 0) === 0).length;
   return (
     <div className="space-y-6">
-      <PageHeader title="Workforce activity" subtitle="Time and activity reported by people who have accepted the policy. These are context, not a verdict: weigh them with task delivery, quality reviews and agreed targets."
-        actions={<>{user.permissions.has("monitoring.configure") && <Link href="/settings/monitoring" className="btn-ghost">Policy &amp; devices</Link>}{canShots && <Link href="/hr/monitoring/screenshots" className="btn-ghost">Screenshots</Link>}</>} />
+      <PageHeader title="Workfolio" subtitle="Time and activity reported by people who have accepted the policy. These are context, not a verdict: weigh them with task delivery, quality reviews and agreed targets."
+        actions={<>{user.permissions.has("monitoring.configure") && <Link href="/settings/monitoring" className="btn-ghost">Policy &amp; devices</Link>}{canShots && <Link href="/hr/monitoring/screenshots" className="btn-ghost">Screenshots</Link>}<DownloadButtons report="workforce" params={{ from, to, dept: sp.dept }} /></>} />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {!policy.enabled && <Notice kind="error">Monitoring is switched off, so there is nothing new to report.</Notice>}
+
+      <section className="card !p-0" aria-labelledby="live-now">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3"><h2 id="live-now" className="font-semibold">Working now <span className="font-normal text-muted">· {working} of {people.length} clocked in</span></h2><span className="text-xs text-muted">Refreshes when you reload. Snapshots come only from people who chose to share their screen.</span></div>
+        <ul className="divide-y divide-border text-sm">
+          {people.map((p) => { const l = live.get(p.id)!; return (
+            <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
+              <span>{p.name}<span className="ml-2 text-xs text-muted">{p.department?.name ?? ""}</span></span>
+              <span className="flex items-center gap-3 text-xs text-muted">
+                <span>Last snapshot: {ago(l.lastSnapshotAt)}</span>
+                {l.state === "WORKING" ? <Badge tone="success">working</Badge> : l.state === "BREAK" ? <Badge tone="warning">on break</Badge> : l.state === "STALE" ? <Badge tone="warning">no signal</Badge> : <Badge>offline</Badge>}
+              </span>
+            </li>); })}
+        </ul>
+      </section>
 
       <form className="card flex flex-wrap items-end gap-3">
         <div><label className="label" htmlFor="from">From</label><input id="from" name="from" type="date" defaultValue={from} className="input" /></div>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import LineItems, { type TaxPreset } from "@/components/ui/LineItems";
+import { Notice } from "@/components/ui";
 
 type ClientOpt = { id: string; name: string; currency: string };
 
@@ -10,7 +11,7 @@ export default function InvoiceForm({ action, clients, taxPresets, closeTo, erro
   return (
     <form action={action} className="flex h-full flex-col">
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
-        {error && <p role="alert" className="rounded-lg bg-brand/10 px-3 py-2 text-sm text-brand">{error}</p>}
+        {error && <Notice kind="error">{error}</Notice>}
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="label" htmlFor="clientId">Client</label>

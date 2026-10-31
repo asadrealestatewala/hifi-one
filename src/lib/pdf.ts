@@ -320,7 +320,7 @@ export async function statementPdf(d: StatementDoc, b: Build = {}) {
 // ---- Payslip ----
 export type PayslipDoc = {
   period: string; currency: string; status: string; employee: { name: string; employeeNo?: string | null; designation?: string | null };
-  basic: string; allowance: string; bonus: string; unpaidDeduction: string; unpaidDays: string; workingDays: number; gross: string; taxPercent: string; tax: string; net: string;
+  basic: string; allowance: string; bonus: string; commission?: string; unpaidDeduction: string; unpaidDays: string; workingDays: number; gross: string; taxPercent: string; tax: string; net: string;
   company: Company; config: DocConfig;
 };
 export async function payslipPdf(d: PayslipDoc, b: Build = {}) {
@@ -331,6 +331,7 @@ export async function payslipPdf(d: PayslipDoc, b: Build = {}) {
   const m = (v: string) => pdfMoney(v, d.currency);
   const rows: string[][] = [["Basic salary", m(d.basic)], ["Allowances", m(d.allowance)]];
   if (Number(d.bonus) > 0) rows.push(["Bonus", m(d.bonus)]);
+  if (d.commission && Number(d.commission) > 0) rows.push(["Commissions and approved bonuses", m(d.commission)]);
   if (Number(d.unpaidDeduction) > 0) rows.push([`Unpaid leave (${d.unpaidDays} of ${d.workingDays} working days)`, `-${m(d.unpaidDeduction)}`]);
   rows.push(["Gross pay", m(d.gross)], [`Tax withheld (${d.taxPercent}%)`, `-${m(d.tax)}`]);
   table(ctx, [{ label: "Item", width: 349 }, { label: "Amount", width: 150, align: "right" }], rows, { totalRow: ["Net pay", m(d.net)] });
@@ -357,6 +358,68 @@ export async function voucherPdf(d: VoucherDoc, b: Build = {}) {
   };
   sign("Prepared by", d.submittedBy, 48); sign("Reviewed by", d.reviewedBy, 178); sign("Approved by", d.approvedBy, 308); sign("Paid by", d.paidBy, 438);
   ctx.doc.y = y + 60;
+  footer(ctx, d.company);
+  return done();
+}
+
+// ---- Generic report (any ReportTable: finance, leads, workforce) ----
+export type ReportDoc = {
+  title: string; subtitle: string; company: Company; config: DocConfig; generatedBy: string;
+  sections: { heading: string; columns: { label: string; align?: "left" | "right" }[]; rows: string[][]; totals?: string[] }[]; notes: string[];
+};
+export async function reportPdf(d: ReportDoc, b: Build = {}) {
+  const { ctx, done } = start({ ...b, title: d.title, cfg: d.config });
+  header(ctx, d.company, d.title.toUpperCase());
+  kv(ctx, [["Period", d.subtitle], ["Prepared by", d.generatedBy], ["Generated", new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC"]]);
+  doc_move(ctx);
+  for (const s of d.sections) {
+    ctx.doc.font("Helvetica-Bold").fontSize(10).fillColor("#111").text(t(ctx, s.heading), 48);
+    ctx.doc.moveDown(0.2);
+    const n = s.columns.length;
+    const first = n > 1 ? Math.min(180, Math.floor(499 / n) + 40) : 499;
+    const rest = n > 1 ? Math.floor((499 - first) / (n - 1)) : 0;
+    const cols = s.columns.map((c, i) => ({ label: c.label, align: c.align, width: i === 0 ? first : rest }));
+    if (s.rows.length === 0) ctx.doc.font("Helvetica").fontSize(9).fillColor("#555").text("Nothing to show.", 48);
+    else table(ctx, cols, s.rows, { totalRow: s.totals });
+    ctx.doc.moveDown(0.8);
+  }
+  for (const note of d.notes) ctx.doc.font("Helvetica").fontSize(8.5).fillColor("#555").text(t(ctx, note), 48, undefined, { width: 499 });
+  footer(ctx, d.company);
+  return done();
+}
+
+// ---- Agreement (the text as sent, plus the signature block once signed) ----
+export type AgreementDoc = {
+  number: string; title: string; body: string; status: string; company: Company; config: DocConfig; counterparty: string | null;
+  sentAt: Date | null; signedAt: Date | null; signerName: string | null; signedIp: string | null; bodyHash: string; signatureImage: string | null;
+  declineReason: string | null;
+};
+export async function agreementPdf(d: AgreementDoc, b: Build = {}) {
+  const { ctx, done } = start({ ...b, title: d.title, cfg: d.config });
+  const { doc } = ctx;
+  header(ctx, d.company, "AGREEMENT", d.number, d.status);
+  doc.font("Helvetica-Bold").fontSize(13).fillColor("#111").text(t(ctx, d.title), 48);
+  doc.moveDown(0.3);
+  kv(ctx, [["With", d.counterparty], ["Sent", d.sentAt ? fmtDate(d.sentAt) : null]]);
+  doc_move(ctx);
+  doc.font("Helvetica").fontSize(10).fillColor("#111").text(t(ctx, d.body), 48, doc.y, { width: 499, align: "left" });
+  doc.moveDown(1.2);
+  if (doc.y > 640) doc.addPage();
+  doc.moveTo(48, doc.y).lineTo(547, doc.y).strokeColor("#ddd").stroke();
+  doc.moveDown(0.6);
+  if (d.status === "SIGNED" && d.signedAt) {
+    doc.font("Helvetica-Bold").fontSize(10).fillColor("#111").text("Electronic signature", 48);
+    doc.moveDown(0.3);
+    const m = d.signatureImage?.match(/^data:image\/png;base64,(.+)$/);
+    if (m) { try { doc.image(Buffer.from(m[1], "base64"), 48, doc.y, { fit: [220, 70] }); doc.moveDown(5); } catch { /* an unreadable drawing is skipped; the typed name below still stands */ } }
+    kv(ctx, [["Signed by (typed name)", d.signerName], ["Signed at", d.signedAt.toISOString().slice(0, 16).replace("T", " ") + " UTC"], ["Network address", d.signedIp], ["Fingerprint of the signed text (SHA-256)", d.bodyHash]], 48, 499);
+    doc.font("Helvetica").fontSize(8).fillColor("#666").text("This is a simple electronic signature recorded by Hifi One. It shows who opened the one-time link and the exact text they agreed to.", 48, doc.y, { width: 499 });
+  } else if (d.status === "DECLINED") {
+    doc.font("Helvetica-Bold").fontSize(10).fillColor("#b91c1c").text("Declined by the signer", 48);
+    if (d.declineReason) doc.font("Helvetica").fontSize(10).fillColor("#111").text(t(ctx, d.declineReason), 48, undefined, { width: 499 });
+  } else {
+    doc.font("Helvetica").fontSize(10).fillColor("#b45309").text(d.status === "VOID" ? "This agreement was voided." : "Not signed yet.", 48);
+  }
   footer(ctx, d.company);
   return done();
 }

@@ -4,6 +4,7 @@ import { toFileActor } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { authorizeOwner } from "@/lib/file-access";
 import { listFiles, signDownload } from "@/lib/files";
+import SubmitButton from "@/components/ui/SubmitButton";
 
 const kb = (n: number) => (n >= 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
@@ -38,7 +39,7 @@ export default async function FilesPanel({
                   <a className="underline font-medium" href={link} target="_blank" rel="noopener">{f.filename}</a>
                   <span className="text-xs text-muted"> · {kb(f.size)}{f.category && ` · ${f.category}`}{f.expiresOn && ` · expires ${f.expiresOn}`}</span>
                   {expired && <strong className="ml-2 text-xs text-brand">Expired</strong>}
-                  <span className="text-[11px] text-muted"> · not virus-scanned</span>
+                  <span className="text-[11px] text-muted"> · {f.scanStatus === "CLEAN" ? "virus-checked" : "not virus-scanned"}</span>
                 </span>
                 {(canDeleteAny || (canUpload && f.uploadedById === user.id)) && (
                   <form action={deleteFileAction}>
@@ -58,7 +59,7 @@ export default async function FilesPanel({
             <input id={`file-${ownerType}`} name="file" type="file" required accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.mp4,.docx,.xlsx,.csv,.txt" className="input" /></div>
           {withCategory && <div><label className="label" htmlFor={`cat-${ownerType}`}>Type</label><input id={`cat-${ownerType}`} name="category" placeholder="Identity, Contract…" className="input !w-40" /></div>}
           {withExpiry && <div><label className="label" htmlFor={`exp-${ownerType}`}>Expires</label><input id={`exp-${ownerType}`} name="expiresOn" type="date" className="input" /></div>}
-          <button className="btn">Upload</button>
+          <SubmitButton pendingText="Uploading…">Upload</SubmitButton>
         </form>
       )}
     </section>
