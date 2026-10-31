@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HIFI Marketing & Technologies | About</title>
+  <link href="/site/vendor/google-fonts/css-13e74720.css" rel="stylesheet" />
+  <link rel="stylesheet" href="/site/vendor/font-awesome/6.0.0-beta3/css/all.min.css" />
+  <link rel="stylesheet" href="/site/css/style.css" />
+    <meta name="description" content="HIFI Marketing and Technologies is a global digital agency helping businesses grow with websites, marketing, automation and design." />
+    
+    <!-- ===== BROWSER TAB ICON (FAVICON) ===== -->
+    <link rel="icon" href="/site/images/fav-icon.png" type="image/png" />
+    <link rel="shortcut icon" href="/site/images/fav-icon.png" type="image/png" />
+    
+    <!-- Rest of head -->
+  <style>
+    /* ----- RESET & BASE – WHITE ----- */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #ffffff;
+      color: #1e1f2a;
+      line-height: 1.6;
+    }
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ----- HEADER – LIGHT ----- */
+    header {
+      background: #ffffff;
+      border-bottom: 1px solid #e9edf2;
+      padding: 16px 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.02);
+    }
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .logo {
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      color: #1e1f2a;
+      flex-shrink: 0;
+    }
+    .logo span {
+      color: #4a5cf5;
+    }
+    nav ul {
+      display: flex;
+      list-style: none;
+      gap: 28px;
+    }
+    nav ul li a {
+      font-weight: 600;
+      font-size: 15px;
+      color: #2c2f3a;
+      transition: color 0.2s;
+      padding: 6px 0;
+      border-bottom: 2px solid transparent;
+    }
+    nav ul li a:hover,
+    nav ul li a.active {
+      color: #4a5cf5;
+      border-bottom-color: #4a5cf5;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-left: auto;
+    }
+
+    .header-right .btn-primary {
+      background: #4a5cf5;
+      color: #fff;
+      padding: 10px 28px;
+      border-radius: 40px;
+      font-weight: 700;
+      font-size: 14px;
+      transition: 0.2s;
+      border: none;
+      box-shadow: 0 4px 12px rgba(74, 92, 245, 0.2);
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    .header-right .btn-primary:hover {
+      background: #3a4be0;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(74, 92, 245, 0.25);
+    }
+
+    .header-right .btn-logout {
+      background: transparent;
+      color: #dc3545;
+      padding: 8px 16px;
+      border-radius: 40px;
+      font-weight: 600;
+      font-size: 14px;
+      transition: 0.2s;
+      border: 1px solid #dc3545;
+      cursor: pointer;
+    }
+    .header-right .btn-logout:hover {
+      background: #dc3545;
+      color: #fff;
+    }
+
+    .header-right .user-name {
+      color: #1a1c26;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .header-right .user-name i {
+      color: #4a5cf5;
+      margin-right: 6px;
+    }
+
+    .header-right .admin-badge {
+      background: #4a5cf5;
+      color: #fff;
+      padding: 4px 12px;
+      border-radius: 40px;
+      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+    }
+
+    .hamburger {
+      display: none;
+      font-size: 26px;
+      cursor: pointer;
+      color: #1e1f2a;
+      background: none;
+      border: none;
+    }
+
+    /* ===== THEME TOGGLE ===== */
+    .theme-toggle {
+      position: relative;
+      width: 60px;
+      height: 32px;
+      background: #f0f3f8;
+      border-radius: 50px;
+      border: 2px solid #e9edf2;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      padding: 3px;
+      transition: 0.4s ease;
+      flex-shrink: 0;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.05);
+    }
+
+    .theme-toggle:hover {
+      border-color: #4a5cf5;
+      box-shadow: 0 0 20px rgba(74, 92, 245, 0.15);
+    }
+
+    .theme-toggle .toggle-track {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      border-radius: 50px;
+      background: #e9edf2;
+      transition: 0.4s ease;
+    }
+
+    body.dark-mode .theme-toggle .toggle-track {
+      background: #1e242c;
+    }
+
+    .theme-toggle .toggle-thumb {
+      position: relative;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+      z-index: 2;
+    }
+
+    body.dark-mode .theme-toggle .toggle-thumb {
+      transform: translateX(28px);
+      background: #4a5cf5;
+    }
+
+    .theme-toggle .toggle-thumb i {
+      font-size: 14px;
+      color: #4a5cf5;
+      transition: 0.4s ease;
+    }
+
+    body.dark-mode .theme-toggle .toggle-thumb i {
+      color: #ffffff;
+    }
+
+    .theme-toggle .toggle-icons {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 8px;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .theme-toggle .toggle-icons .icon-sun {
+      font-size: 13px;
+      color: #f59e0b;
+      opacity: 1;
+      transition: 0.4s ease;
+    }
+
+    .theme-toggle .toggle-icons .icon-moon {
+      font-size: 13px;
+      color: #6b7280;
+      opacity: 0.5;
+      transition: 0.4s ease;
+    }
+
+    body.dark-mode .theme-toggle .toggle-icons .icon-sun {
+      opacity: 0.5;
+    }
+
+    body.dark-mode .theme-toggle .toggle-icons .icon-moon {
+      opacity: 1;
+      color: #fbbf24;
+    }
+
+    /* ----- ABOUT – LIGHT (EXACTLY LIKE IMAGE) ----- */
+    #about {
+      padding: 120px 0 60px;
+      background: #ffffff;
+    }
+    .section-title {
+      font-size: 36px;
+      font-weight: 800;
+      text-align: center;
+      color: #1a1c26;
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+    .section-sub {
+      text-align: center;
+      color: #3d4452;
+      font-size: 17px;
+      margin-bottom: 40px;
+    }
+
+    .about-wrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 60px;
+      align-items: center;
+      margin-top: 20px;
+    }
+
+    /* ===== LEFT SIDE - Image with CREATE circle ===== */
+    .about-left {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .about-left-img {
+      width: 100%;
+      max-width: 500px;
+      height: 380px;
+      object-fit: cover;
+      border-radius: 20px;
+      border: 1px solid #e9edf2;
+      background: #f8fafc;
+      display: block;
+    }
+
+    /* CREATE Circle - Bottom Left Corner of Image */
+    .create-circle {
+      position: absolute;
+      bottom: -30px;
+      left: -30px;
+      width: 160px;
+      height: 160px;
+      border-radius: 50%;
+      background: #f8fafc;
+      border: 3px solid #4a5cf5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+      box-shadow: 0 8px 35px rgba(74, 92, 245, 0.15);
+      z-index: 10;
+    }
+
+    .create-circle .create-tag {
+      display: inline-block;
+      background: #4a5cf5;
+      color: #fff;
+      font-weight: 800;
+      font-size: 13px;
+      padding: 4px 16px;
+      border-radius: 40px;
+      letter-spacing: 2px;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+
+    .create-circle .idea-text {
+      font-size: 18px;
+      font-weight: 800;
+      color: #1a1c26;
+      line-height: 1.3;
+      letter-spacing: -0.3px;
+    }
+
+    .create-circle .idea-text .dot {
+      color: #4a5cf5;
+    }
+
+    /* ===== RIGHT SIDE - Our Story ===== */
+    .about-right {
+      padding: 20px 0;
+    }
+
+    .about-right h2 {
+      font-size: 32px;
+      font-weight: 800;
+      color: #1a1c26;
+      margin-bottom: 24px;
+      letter-spacing: -0.5px;
+      line-height: 1.2;
+    }
+
+    .about-story h3 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a1c26;
+      margin-bottom: 10px;
+    }
+
+    .about-story p {
+      color: #3d4452;
+      font-size: 16px;
+      line-height: 1.8;
+      margin-bottom: 30px;
+    }
+
+    .about-right-image-wrapper {
+      border-radius: 20px;
+      overflow: hidden;
+      border: 1px solid #e9edf2;
+      background: #f8fafc;
+      max-width: 100%;
+    }
+
+    .about-right-img {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* ===== DEVELOPER CREDIT ===== */
+    .developer-credit {
+      text-align: center;
+      padding: 20px 0 10px;
+      font-size: 13px;
+      color: #8a94a0;
+      border-top: 1px solid #e9edf2;
+      background: #f8fafc;
+    }
+
+    .developer-credit a {
+      color: #4a5cf5;
+      font-weight: 600;
+      transition: 0.2s;
+    }
+
+    .developer-credit a:hover {
+      color: #3a4be0;
+      text-decoration: underline;
+    }
+
+    body.dark-mode .developer-credit {
+      background: #0b0d10;
+      border-top-color: #1e242c;
+      color: #6b7a8a;
+    }
+
+    body.dark-mode .developer-credit a {
+      color: #6c7aff;
+    }
+
+    body.dark-mode .developer-credit a:hover {
+      color: #8a9aff;
+    }
+
+    /* ----- STATS – LIGHT ----- */
+    .stats-section {
+      padding: 40px 0 60px;
+      background: #ffffff;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+      margin: 30px auto 0;
+      max-width: 800px;
+    }
+    .stat-box {
+      background: #f8fafc;
+      border: 1px solid #e9edf2;
+      border-radius: 20px;
+      padding: 24px 12px;
+      text-align: center;
+    }
+    .stat-box .number {
+      font-size: 34px;
+      font-weight: 900;
+      color: #4a5cf5;
+    }
+    .stat-box .label {
+      color: #3d4452;
+      font-size: 14px;
+      margin-top: 4px;
+    }
+
+    /* ----- FOOTER – LIGHT ----- */
+    footer {
+      background: #f8fafc;
+      border-top: 1px solid #e9edf2;
+      padding: 32px 0 16px;
+      text-align: center;
+    }
+    footer .socials {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 12px;
+    }
+    footer .socials a {
+      color: #2c3442;
+      font-size: 20px;
+      transition: 0.2s;
+    }
+    footer .socials a:hover {
+      color: #4a5cf5;
+      transform: translateY(-2px);
+    }
+    footer p {
+      color: #4a5260;
+      font-size: 14px;
+    }
+
+    body.dark-mode footer {
+      background: #0b0d10;
+      border-top-color: #1e242c;
+    }
+
+    body.dark-mode footer .socials a {
+      color: #b0b8c5;
+    }
+
+    body.dark-mode footer .socials a:hover {
+      color: #6c7aff;
+    }
+
+    body.dark-mode footer p {
+      color: #6b7a8a;
+    }
+
+    /* ===== DARK MODE OVERRIDES ===== */
+    body.dark-mode {
+      background: #0b0d10;
+      color: #eaeef2;
+    }
+
+    body.dark-mode header {
+      background: #0b0d10;
+      border-bottom-color: #1e242c;
+    }
+
+    body.dark-mode .logo {
+      color: #eaeef2;
+    }
+
+    body.dark-mode nav ul li a {
+      color: #b0b8c5;
+    }
+
+    body.dark-mode nav ul li a:hover,
+    body.dark-mode nav ul li a.active {
+      color: #6c7aff;
+      border-bottom-color: #6c7aff;
+    }
+
+    body.dark-mode .header-right .user-name {
+      color: #eaeef2;
+    }
+
+    body.dark-mode #about {
+      background: #0b0d10;
+    }
+
+    body.dark-mode .section-title {
+      color: #eaeef2;
+    }
+
+    body.dark-mode .section-sub {
+      color: #b0b8c5;
+    }
+
+    body.dark-mode .about-right h2 {
+      color: #eaeef2;
+    }
+
+    body.dark-mode .about-story h3 {
+      color: #eaeef2;
+    }
+
+    body.dark-mode .about-story p {
+      color: #b0b8c5;
+    }
+
+    body.dark-mode .about-left-img {
+      border-color: #1e242c;
+    }
+
+    body.dark-mode .create-circle {
+      background: #14191f;
+      border-color: #6c7aff;
+    }
+
+    body.dark-mode .create-circle .idea-text {
+      color: #eaeef2;
+    }
+
+    body.dark-mode .about-right-image-wrapper {
+      border-color: #1e242c;
+      background: #14191f;
+    }
+
+    body.dark-mode .stats-section {
+      background: #0b0d10;
+    }
+
+    body.dark-mode .stat-box {
+      background: #14191f;
+      border-color: #1e242c;
+    }
+
+    body.dark-mode .stat-box .label {
+      color: #b0b8c5;
+    }
+
+    /* ----- RESPONSIVE ----- */
+    @media (max-width: 992px) {
+      .about-wrap {
+        grid-template-columns: 1fr;
+        gap: 50px;
+      }
+      .about-left {
+        order: 2;
+      }
+      .about-right {
+        order: 1;
+      }
+      .about-left-img {
+        max-width: 100%;
+        height: 300px;
+      }
+      .create-circle {
+        width: 140px;
+        height: 140px;
+        bottom: -20px;
+        left: -20px;
+      }
+      .create-circle .idea-text {
+        font-size: 16px;
+      }
+      .about-right-img {
+        height: 200px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      nav ul {
+        display: none;
+        flex-direction: column;
+        background: #ffffff;
+        padding: 20px;
+        width: 100%;
+        border-radius: 16px;
+        border: 1px solid #e9edf2;
+        gap: 12px;
+      }
+      nav ul.show {
+        display: flex;
+      }
+      .hamburger {
+        display: block;
+      }
+      .header-inner nav {
+        order: 3;
+        flex-basis: 100%;
+      }
+      .header-right .btn-primary {
+        display: none;
+      }
+      .section-title {
+        font-size: 28px;
+      }
+      .stats-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      .about-right h2 {
+        font-size: 26px;
+      }
+      .about-left-img {
+        height: 250px;
+      }
+      .create-circle {
+        width: 120px;
+        height: 120px;
+        bottom: -15px;
+        left: -15px;
+        padding: 14px;
+      }
+      .create-circle .idea-text {
+        font-size: 14px;
+      }
+      .create-circle .create-tag {
+        font-size: 11px;
+        padding: 3px 12px;
+      }
+      .about-right-img {
+        height: 170px;
+      }
+      .theme-toggle {
+        width: 52px;
+        height: 28px;
+      }
+      .theme-toggle .toggle-thumb {
+        width: 20px;
+        height: 20px;
+      }
+      body.dark-mode .theme-toggle .toggle-thumb {
+        transform: translateX(24px);
+      }
+      body.dark-mode nav ul {
+        background: #14191f;
+        border-color: #1e242c;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .stats-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .stat-box .number {
+        font-size: 28px;
+      }
+      .stat-box .label {
+        font-size: 12px;
+      }
+      .about-right h2 {
+        font-size: 22px;
+      }
+      .about-left-img {
+        height: 200px;
+      }
+      .create-circle {
+        width: 100px;
+        height: 100px;
+        bottom: -10px;
+        left: -10px;
+        padding: 10px;
+        border-width: 2px;
+      }
+      .create-circle .idea-text {
+        font-size: 12px;
+      }
+      .create-circle .create-tag {
+        font-size: 9px;
+        padding: 2px 10px;
+      }
+      .about-right-img {
+        height: 140px;
+      }
+      .theme-toggle {
+        width: 48px;
+        height: 26px;
+      }
+      .theme-toggle .toggle-thumb {
+        width: 18px;
+        height: 18px;
+      }
+      body.dark-mode .theme-toggle .toggle-thumb {
+        transform: translateX(22px);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div class="container header-inner">
+      <div class="logo">HIFI <span>Marketing & Technologies</span></div>
+      <nav>
+        <ul id="navMenu">
+          <li><a href="/site">Home</a></li>
+          <li><a href="/site/services">Services</a></li>
+          <li><a href="/site/about" class="active">About</a></li>
+          <li><a href="/site/team">Team</a></li>
+          <li><a href="/site/careers">Careers</a></li>
+          <li><a href="/site/contact">Contact</a></li>
+        </ul>
+      </nav>
+
+      <!-- ===== RIGHT SIDE: Theme Toggle + User Controls ===== -->
+      <div class="header-right">
+        <div class="theme-toggle" id="themeToggle" onclick="toggleTheme()">
+          <div class="toggle-track"></div>
+          <div class="toggle-icons">
+            <span class="icon-sun"><i class="fas fa-sun"></i></span>
+            <span class="icon-moon"><i class="fas fa-moon"></i></span>
+          </div>
+          <div class="toggle-thumb">
+            <i class="fas fa-adjust"></i>
+          </div>
+        </div>
+
+                  <a href="/login" class="btn-primary">Get Started</a>
+              </div>
+
+      <button class="hamburger" onclick="toggleMenu()">☰</button>
+    </div>
+  </header>
+
+  <!-- ABOUT -->
+  <section id="about">
+    <div class="container">
+      <h1 class="section-title">About Us</h1>
+      <p class="section-sub">Learn more about who we are and what we do</p>
+      <div class="about-wrap">
+        <!-- LEFT SIDE - Image with CREATE Circle -->
+        <div class="about-left">
+          <img src="/site/images/left.jpg" alt="Team work" class="about-left-img" />
+          <!-- CREATE Circle - Bottom Left Corner -->
+          <div class="create-circle">
+            <span class="create-tag">CREATE</span>
+            <p class="idea-text">Idea • Insight<br />Solution</p>
+          </div>
+        </div>
+
+        <!-- RIGHT SIDE - Our Story -->
+        <div class="about-right">
+          <h2>WE ARE LEADING DIGITAL TRANSFORMATION EXPERTS</h2>
+          <div class="about-story">
+            <h3>Our story</h3>
+            <p>At HIFI Marketing &amp; Technologies, we specialize in crafting custom digital solutions that drive real business growth. From innovative website design and development to strategic social media management, powerful CRM automation, and targeted digital advertising, we tailor our services to meet your unique business needs and deliver measurable results.</p>
+          </div>
+          <div class="about-right-image-wrapper">
+            <img src="/site/images/right.webp" alt="Digital transformation" class="about-right-img" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <section class="stats-section">
+    <div class="container">
+      <h2 class="section-title">Our Achievements</h2>
+      <p class="section-sub">Numbers that speak for themselves</p>
+      <div class="stats-grid">
+        <div class="stat-box"><div class="number">10+</div><div class="label">Years Experience</div></div>
+        <div class="stat-box"><div class="number">500+</div><div class="label">Projects Done</div></div>
+        <div class="stat-box"><div class="number">140+</div><div class="label">Happy Clients</div></div>
+        <div class="stat-box"><div class="number">98%</div><div class="label">Satisfied Clients</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="container">
+      <div class="socials">
+        <a href="https://www.facebook.com/hifimarketingglobal/"><i class="fab fa-facebook"></i></a>
+        <a href="https://www.instagram.com/hifi.marketing/"><i class="fab fa-instagram"></i></a>
+        <a href="https://www.linkedin.com/company/hifi-marketing-global"><i class="fab fa-linkedin"></i></a>
+      </div>
+      <p><a href="mailto:careers.asia@hifimarketing.co" style="color:#4a5cf5;font-weight:600;">careers.asia@hifimarketing.co</a> &nbsp;|&nbsp; <a href="tel:+923168080801" style="color:#4a5cf5;font-weight:600;">+92 316 8080801</a></p>
+      <p>&copy; 2026 HIFI Marketing &amp; Technologies. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <!-- ===== DEVELOPER CREDIT ===== -->
+  <div class="developer-credit">
+    <p>Developed by <a href="https://foryoumoazma.my.canva.site/fz-cube-tech">Muhammad Faizan</a></p>
+  </div>
+
+  <script src="/site/js/main.js"></script>
+  <script>
+    // ===== MOBILE MENU =====
+    function toggleMenu() {
+      const menu = document.getElementById('navMenu');
+      if (menu) {
+        menu.classList.toggle('show');
+        menu.classList.toggle('open');
+      }
+    }
+
+    document.querySelectorAll('#navMenu a').forEach(link => {
+      link.addEventListener('click', () => {
+        const menu = document.getElementById('navMenu');
+        if (menu) {
+          menu.classList.remove('show');
+          menu.classList.remove('open');
+        }
+      });
+    });
+
+    // ===== THEME TOGGLE =====
+    function toggleTheme() {
+      const body = document.body;
+      if (body) {
+        body.classList.toggle('dark-mode');
+        if (body.classList.contains('dark-mode')) {
+          localStorage.setItem('theme', 'dark');
+        } else {
+          localStorage.setItem('theme', 'light');
+        }
+      }
+    }
+
+    // ===== LOAD SAVED THEME =====
+    document.addEventListener('DOMContentLoaded', function() {
+      const savedTheme = localStorage.getItem('theme');
+      const body = document.body;
+      if (savedTheme === 'dark') {
+        body.classList.add('dark-mode');
+      }
+    });
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HIFI Marketing & Technologies | Services</title>
+  <link href="/site/vendor/google-fonts/css-13e74720.css" rel="stylesheet" />
+  <link rel="stylesheet" href="/site/vendor/font-awesome/6.0.0-beta3/css/all.min.css" />
+  <link rel="stylesheet" href="/site/css/style.css" />
+    <meta name="description" content="Websites, social media, CRM/ERP, paid ads and creative design from HIFI Marketing and Technologies. Website packages from AED 999 (one-time)." />
+    
+    <!-- ===== BROWSER TAB ICON (FAVICON) ===== -->
+    <link rel="icon" href="/site/images/fav-icon.png" type="image/png" />
+    <link rel="shortcut icon" href="/site/images/fav-icon.png" type="image/png" />
+    
+    <!-- Rest of head -->
+  <style>
+    /* ----- RESET & BASE – WHITE THEME ----- */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #ffffff;
+      color: #1e1f2a;
+      line-height: 1.6;
+    }
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ----- HEADER – LIGHT ----- */
+    header {
+      background: #ffffff;
+      border-bottom: 1px solid #e9edf2;
+      padding: 16px 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.02);
+    }
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .logo {
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      color: #1e1f2a;
+      flex-shrink: 0;
+    }
+    .logo span {
+      color: #4a5cf5;
+    }
+    nav ul {
+      display: flex;
+      list-style: none;
+      gap: 28px;
+    }
+    nav ul li a {
+      font-weight: 600;
+      font-size: 15px;
+      color: #2c2f3a;
+      transition: color 0.2s;
+      padding: 6px 0;
+      border-bottom: 2px solid transparent;
+    }
+    nav ul li a:hover,
+    nav ul li a.active {
+      color: #4a5cf5;
+      border-bottom-color: #4a5cf5;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-left: auto;
+    }
+
+    .header-right .btn-primary {
+      background: #4a5cf5;
+      color: #fff;
+      padding: 10px 28px;
+      border-radius: 40px;
+      font-weight: 700;
+      font-size: 14px;
+      transition: 0.2s;
+      border: none;
+      box-shadow: 0 4px 12px rgba(74, 92, 245, 0.2);
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    .header-right .btn-primary:hover {
+      background: #3a4be0;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(74, 92, 245, 0.25);
+    }
+
+    .header-right .btn-logout {
+      background: transparent;
+      color: #dc3545;
+      padding: 8px 16px;
+      border-radius: 40px;
+      font-weight: 600;
+      font-size: 14px;
+      transition: 0.2s;
+      border: 1px solid #dc3545;
+      cursor: pointer;
+    }
+    .header-right .btn-logout:hover {
+      background: #dc3545;
+      color: #fff;
+    }
+
+    .header-right .user-name {
+      color: #1a1c26;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .header-right .user-name i {
+      color: #4a5cf5;
+      margin-right: 6px;
+    }
+
+    .header-right .admin-badge {
+      background: #4a5cf5;
+      color: #fff;
+      padding: 4px 12px;
+      border-radius: 40px;
+      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+    }
+
+    .hamburger {
+      display: none;
+      font-size: 26px;
+      cursor: pointer;
+      color: #1e1f2a;
+      background: none;
+      border: none;
+    }
+
+    /* ===== THEME TOGGLE ===== */
+    .theme-toggle {
+      position: relative;
+      width: 60px;
+      height: 32px;
+      background: #f0f3f8;
+      border-radius: 50px;
+      border: 2px solid #e9edf2;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      padding: 3px;
+      transition: 0.4s ease;
+      flex-shrink: 0;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.05);
+    }
+
+    .theme-toggle:hover {
+      border-color: #4a5cf5;
+      box-shadow: 0 0 20px rgba(74, 92, 245, 0.15);
+    }
+
+    .theme-toggle .toggle-track {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      border-radius: 50px;
+      background: #e9edf2;
+      transition: 0.4s ease;
+    }
+
+    body.dark-mode .theme-toggle .toggle-track {
+      background: #1e242c;
+    }
+
+    .theme-toggle .toggle-thumb {
+      position: relative;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+      z-index: 2;
+    }
+
+    body.dark-mode .theme-toggle .toggle-thumb {
+      transform: translateX(28px);
+      background: #4a5cf5;
+    }
+
+    .theme-toggle .toggle-thumb i {
+      font-size: 14px;
+      color: #4a5cf5;
+      transition: 0.4s ease;
+    }
+
+    body.dark-mode .theme-toggle .toggle-thumb i {
+      color: #ffffff;
+    }
+
+    .theme-toggle .toggle-icons {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 8px;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .theme-toggle .toggle-icons .icon-sun {
+      font-size: 13px;
+      color: #f59e0b;
+      opacity: 1;
+      transition: 0.4s ease;
+    }
+
+    .theme-toggle .toggle-icons .icon-moon {
+      font-size: 13px;
+      color: #6b7280;
+      opacity: 0.5;
+      transition: 0.4s ease;
+    }
+
+    body.dark-mode .theme-toggle .toggle-icons .icon-sun {
+      opacity: 0.5;
+    }
+
+    body.dark-mode .theme-toggle .toggle-icons .icon-moon {
+      opacity: 1;
+      color: #fbbf24;
+    }
+
+    /* ----- SERVICES SECTION – LIGHT ----- */
+    #services {
+      padding: 120px 0 60px;
+      background: #ffffff;
+    }
+    .section-title {
+      font-size: 36px;
+      font-weight: 800;
+      text-align: center;
+      color: #1a1c26;
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+    .section-sub {
+      text-align: center;
+      color: #3d4452;
+      font-size: 17px;
+      margin-bottom: 40px;
+    }
+    .services-numbered {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .service-row {
+      position: relative;
+      background: #f8fafc;
+      border: 1px solid #e9edf2;
+      border-radius: 20px;
+      padding: 20px 60px 20px 30px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      transition: 0.25s;
+      cursor: default;
+      margin-bottom: 12px;
+    }
+    .service-row:hover {
+      background: #f0f3f8;
+      border-color: #d0d7e0;
+    }
+    .service-row .number {
+      font-size: 44px;
+      font-weight: 800;
+      color: #4a5cf5;
+      min-width: 80px;
+      opacity: 0.5;
+    }
+    .service-row .info {
+      flex: 1;
+      padding: 0 16px;
+    }
+    .service-row .info h3 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a1c26;
+      letter-spacing: -0.3px;
+    }
+    .service-row .info p {
+      color: #3d4452;
+      font-size: 14px;
+      margin-top: 2px;
+    }
+    .service-row .arrow {
+      font-size: 22px;
+      color: #4a5cf5;
+      font-weight: 300;
+      margin-right: 12px;
+    }
+    .service-row .expand-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 1px solid #d0d7e0;
+      color: #4a5cf5;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: 0.3s;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .service-row .expand-btn:hover {
+      background: #4a5cf5;
+      color: #fff;
+      border-color: #4a5cf5;
+    }
+    .service-row .expand-btn.active {
+      background: #4a5cf5;
+      color: #fff;
+      border-color: #4a5cf5;
+      transform: rotate(45deg);
+    }
+    .service-content {
+      width: 100%;
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.5s ease, padding 0.3s ease;
+      padding: 0 20px 0 80px;
+    }
+    .service-content.open {
+      max-height: 400px;
+      padding: 16px 20px 20px 80px;
+    }
+    .service-content ul {
+      list-style: none;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 20px;
+    }
+    .service-content ul li {
+      color: #2c3442;
+      font-size: 14px;
+      padding: 4px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .service-content ul li::before {
+      content: "▸";
+      color: #4a5cf5;
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    /* ===== HOVER BOX – IMAGE PREVIEW ===== */
+    .hover-box {
+      position: fixed;
+      pointer-events: none;
+      z-index: 999;
+      background: #ffffff;
+      border: 1px solid #e9edf2;
+      border-radius: 16px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.12);
+      padding: 12px;
+      width: 220px;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      top: 0;
+      left: 0;
+    }
+    .hover-box.visible {
+      opacity: 1;
+    }
+    .hover-box img {
+      width: 100%;
+      height: 140px;
+      object-fit: cover;
+      border-radius: 10px;
+      background: #f0f3f8;
+    }
+    .hover-box .box-title {
+      font-weight: 700;
+      font-size: 15px;
+      color: #1a1c26;
+      margin-top: 8px;
+      padding: 0 4px;
+    }
+    .hover-box .box-desc {
+      font-size: 13px;
+      color: #4a5260;
+      padding: 0 4px 4px;
+      line-height: 1.4;
+    }
+
+    /* ----- PRICING – LIGHT (Fixed Alignment) ----- */
+    #pricing {
+      background: #f8fafc;
+      padding: 60px 0 70px;
+      border-top: 1px solid #e9edf2;
+    }
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 28px;
+      margin-top: 20px;
+      align-items: stretch;
+    }
+    .pricing-card {
+      background: #ffffff;
+      border: 1px solid #e9edf2;
+      border-radius: 24px;
+      padding: 32px 24px 24px;
+      text-align: center;
+      transition: 0.25s;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .pricing-card:hover {
+      transform: translateY(-6px);
+      border-color: #4a5cf5;
+      box-shadow: 0 12px 30px rgba(74, 92, 245, 0.08);
+    }
+    .pricing-card h3 {
+      font-size: 22px;
+      font-weight: 800;
+      color: #1a1c26;
+      margin-bottom: 8px;
+    }
+    .pricing-card .price {
+      font-size: 34px;
+      font-weight: 900;
+      color: #4a5cf5;
+      margin: 12px 0 4px;
+    }
+    .pricing-card .sub-text {
+      color: #4a5260;
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+    .pricing-card ul {
+      list-style: none;
+      margin: 0 0 24px 0;
+      text-align: left;
+      padding: 0 8px;
+      flex: 1;
+    }
+    .pricing-card ul li {
+      padding: 5px 0;
+      font-size: 14px;
+      color: #2c3442;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pricing-card ul li::before {
+      content: "✓";
+      color: #4a5cf5;
+      font-weight: 700;
+    }
+    .pricing-card .btn-primary {
+      background: #4a5cf5;
+      color: #fff;
+      padding: 10px 28px;
+      border-radius: 40px;
+      font-weight: 700;
+      font-size: 14px;
+      display: inline-block;
+      transition: 0.2s;
+      border: none;
+      box-shadow: 0 4px 12px rgba(74, 92, 245, 0.15);
+      margin-top: auto;
+      width: 100%;
+    }
+    .pricing-card .btn-primary:hover {
+      background: #3a4be0;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(74, 92, 245, 0.2);
+    }
+
+    /* ===== DEVELOPER CREDIT ===== */
+    .developer-credit {
+      text-align: center;
+      padding: 20px 0 10px;
+      font-size: 13px;
+      color: #8a94a0;
+      border-top: 1px solid #e9edf2;
+      background: #f8fafc;
+    }
+
+    .developer-credit a {
+      color: #4a5cf5;
+      font-weight: 600;
+      transition: 0.2s;
+    }
+
+    .developer-credit a:hover {
+      color: #3a4be0;
+      text-decoration: underline;
+    }
+
+    body.dark-mode .developer-credit {
+      background: #0b0d10;
+      border-top-color: #1e242c;
+      color: #6b7a8a;
+    }
+
+    body.dark-mode .developer-credit a {
+      color: #6c7aff;
+    }
+
+    body.dark-mode .developer-credit a:hover {
+      color: #8a9aff;
+    }
+
+    /* ----- FOOTER – LIGHT ----- */
+    footer {
+      background: #f8fafc;
+      border-top: 1px solid #e9edf2;
+      padding: 32px 0 16px;
+      text-align: center;
+    }
+    footer .socials {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 12px;
+    }
+    footer .socials a {
+      color: #2c3442;
+      font-size: 20px;
+      transition: 0.2s;
+    }
+    footer .socials a:hover {
+      color: #4a5cf5;
+      transform: translateY(-2px);
+    }
+    footer p {
+      color: #4a5260;
+      font-size: 14px;
+    }
+
+    body.dark-mode footer {
+      background: #0b0d10;
+      border-top-color: #1e242c;
+    }
+
+    body.dark-mode footer .socials a {
+      color: #b0b8c5;
+    }
+
+    body.dark-mode footer .socials a:hover {
+      color: #6c7aff;
+    }
+
+    body.dark-mode footer p {
+      color: #6b7a8a;
+    }
+
+    /* ===== DARK MODE OVERRIDES ===== */
+    body.dark-mode {
+      background: #0b0d10;
+      color: #eaeef2;
+    }
+
+    body.dark-mode header {
+      background: #0b0d10;
+      border-bottom-color: #1e242c;
+    }
+
+    body.dark-mode .logo {
+      color: #eaeef2;
+    }
+
+    body.dark-mode nav ul li a {
+      color: #b0b8c5;
+    }
+
+    body.dark-mode nav ul li a:hover,
+    body.dark-mode nav ul li a.active {
+      color: #6c7aff;
+      border-bottom-color: #6c7aff;
+    }
+
+    body.dark-mode .header-right .user-name {
+      color: #eaeef2;
+    }
+
+    body.dark-mode #services {
+      background: #0b0d10;
+    }
+
+    body.dark-mode .section-title {
+      color: #eaeef2;
+    }
+
+    body.dark-mode .section-sub {
+      color: #b0b8c5;
+    }
+
+    body.dark-mode .service-row {
+      background: #14191f;
+      border-color: #1e242c;
+    }
+
+    body.dark-mode .service-row:hover {
+      background: #1a2129;
+      border-color: #2a3340;
+    }
+
+    body.dark-mode .service-row .info h3 {
+      color: #eaeef2;
+    }
+
+    body.dark-mode .service-row .info p {
+      color: #b0b8c5;
+    }
+
+    body.dark-mode .service-row .expand-btn {
+      background: #1e242c;
+      border-color: #2a3340;
+      color: #6c7aff;
+    }
+
+    body.dark-mode .service-row .expand-btn:hover {
+      background: #4a5cf5;
+      color: #fff;
+    }
+
+    body.dark-mode .service-content ul li {
+      color: #b0b8c5;
+    }
+
+    body.dark-mode #pricing {
+      background: #0b0d10;
+      border-top-color: #1e242c;
+    }
+
+    body.dark-mode .pricing-card {
+      background: #14191f;
+      border-color: #1e242c;
+    }
+
+    body.dark-mode .pricing-card h3 {
+      color: #eaeef2;
+    }
+
+    body.dark-mode .pricing-card .sub-text {
+      color: #b0b8c5;
+    }
+
+    body.dark-mode .pricing-card ul li {
+      color: #b0b8c5;
+    }
+
+    body.dark-mode .hover-box {
+      background: #14191f;
+      border-color: #1e242c;
+    }
+
+    body.dark-mode .hover-box .box-title {
+      color: #eaeef2;
+    }
+
+    body.dark-mode .hover-box .box-desc {
+      color: #b0b8c5;
+    }
+
+    body.dark-mode .pricing-card .btn-primary {
+      background: #4a5cf5;
+    }
+
+    /* ----- RESPONSIVE ----- */
+    @media (max-width: 992px) {
+      .pricing-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 768px) {
+      nav ul {
+        display: none;
+        flex-direction: column;
+        background: #ffffff;
+        padding: 20px;
+        width: 100%;
+        border-radius: 16px;
+        border: 1px solid #e9edf2;
+        gap: 12px;
+      }
+      nav ul.show {
+        display: flex;
+      }
+      .hamburger {
+        display: block;
+      }
+      .header-inner nav {
+        order: 3;
+        flex-basis: 100%;
+      }
+      .header-right .btn-primary {
+        display: none;
+      }
+      .service-row {
+        padding: 16px 50px 16px 16px;
+      }
+      .service-row .number {
+        min-width: 50px;
+        font-size: 32px;
+      }
+      .service-content {
+        padding: 0 16px 0 16px;
+      }
+      .service-content.open {
+        padding: 12px 16px 16px 16px;
+      }
+      .service-content ul {
+        grid-template-columns: 1fr;
+      }
+      .service-row .expand-btn {
+        right: 12px;
+        width: 30px;
+        height: 30px;
+        font-size: 14px;
+      }
+      .section-title {
+        font-size: 28px;
+      }
+      .hover-box {
+        display: none !important;
+      }
+      .pricing-grid {
+        grid-template-columns: 1fr;
+        max-width: 400px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .theme-toggle {
+        width: 52px;
+        height: 28px;
+      }
+      .theme-toggle .toggle-thumb {
+        width: 20px;
+        height: 20px;
+      }
+      body.dark-mode .theme-toggle .toggle-thumb {
+        transform: translateX(24px);
+      }
+      body.dark-mode nav ul {
+        background: #14191f;
+        border-color: #1e242c;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .pricing-grid {
+        max-width: 100%;
+      }
+      .pricing-card {
+        padding: 24px 16px 20px;
+      }
+      .pricing-card h3 {
+        font-size: 19px;
+      }
+      .pricing-card .price {
+        font-size: 28px;
+      }
+      .pricing-card ul li {
+        font-size: 13px;
+      }
+      .theme-toggle {
+        width: 48px;
+        height: 26px;
+      }
+      .theme-toggle .toggle-thumb {
+        width: 18px;
+        height: 18px;
+      }
+      body.dark-mode .theme-toggle .toggle-thumb {
+        transform: translateX(22px);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div class="container header-inner">
+      <div class="logo">HIFI <span>Marketing & Technologies</span></div>
+      <nav>
+        <ul id="navMenu">
+          <li><a href="/site">Home</a></li>
+          <li><a href="/site/services" class="active">Services</a></li>
+          <li><a href="/site/about">About</a></li>
+          <li><a href="/site/team">Team</a></li>
+          <li><a href="/site/careers">Careers</a></li>
+          <li><a href="/site/contact">Contact</a></li>
+        </ul>
+      </nav>
+      
+      <!-- ===== RIGHT SIDE: Theme Toggle + User Controls ===== -->
+      <div class="header-right">
+        <div class="theme-toggle" id="themeToggle" onclick="toggleTheme()">
+          <div class="toggle-track"></div>
+          <div class="toggle-icons">
+            <span class="icon-sun"><i class="fas fa-sun"></i></span>
+            <span class="icon-moon"><i class="fas fa-moon"></i></span>
+          </div>
+          <div class="toggle-thumb">
+            <i class="fas fa-adjust"></i>
+          </div>
+        </div>
+
+                  <a href="/login" class="btn-primary">Get Started</a>
+              </div>
+
+      <button class="hamburger" onclick="toggleMenu()">☰</button>
+    </div>
+  </header>
+
+  <!-- SERVICES -->
+  <section id="services">
+    <div class="container">
+      <h1 class="section-title">EXPLORE WHAT WE CAN DO FOR YOU</h1>
+      <p class="section-sub">Hover over each service to see a preview, or click the <strong>+</strong> icon to expand</p>
+
+      <div class="services-numbered">
+        <!-- 01 -->
+        <div class="service-row" data-image="/site/images/faizan.avif" data-title="Websites" data-desc="Crafting engaging online experiences that convert visitors into loyal customers.">
+          <div class="number">01</div>
+          <div class="info"><h3>WEBSITES</h3><p>Crafting engaging online experiences</p></div>
+          <div class="arrow">→</div>
+          <button class="expand-btn" onclick="toggleService(this)"><i class="fas fa-plus"></i></button>
+          <div class="service-content">
+            <ul>
+              <li>Custom website design &amp; development</li>
+              <li>Responsive &amp; mobile-first approach</li>
+              <li>E-commerce solutions (WooCommerce, Shopify)</li>
+              <li>CMS integration (WordPress, Webflow)</li>
+              <li>Speed optimization &amp; performance tuning</li>
+              <li>SEO-friendly architecture</li>
+              <li>WhatsApp &amp; live chat integration</li>
+              <li>Ongoing maintenance &amp; support</li>
+            </ul>
+          </div>
+        </div>
+        <!-- 02 -->
+        <div class="service-row" data-image="/site/images/social.jpg" data-title="Social Media" data-desc="Elevate your brand's online presence with strategic content and community management.">
+          <div class="number">02</div>
+          <div class="info"><h3>SOCIAL MEDIA</h3><p>Elevate your brand's online presence</p></div>
+          <div class="arrow">→</div>
+          <button class="expand-btn" onclick="toggleService(this)"><i class="fas fa-plus"></i></button>
+          <div class="service-content">
+            <ul>
+              <li>Social media strategy &amp; planning</li>
+              <li>Content creation &amp; calendar management</li>
+              <li>Community engagement &amp; response</li>
+              <li>Paid social advertising (Meta, LinkedIn, TikTok)</li>
+              <li>Analytics &amp; performance reporting</li>
+              <li>Influencer marketing &amp; partnerships</li>
+              <li>Brand voice &amp; visual identity alignment</li>
+              <li>Instagram, Facebook, LinkedIn, Twitter, TikTok</li>
+            </ul>
+          </div>
+        </div>
+        <!-- 03 -->
+        <div class="service-row" data-image="/site/images/CRM.webp" data-title="CRM/ERP" data-desc="Streamline your processes and customer relationships with powerful automation tools.">
+          <div class="number">03</div>
+          <div class="info"><h3>CRM/ERP</h3><p>Streamline your processes and customer relationships</p></div>
+          <div class="arrow">→</div>
+          <button class="expand-btn" onclick="toggleService(this)"><i class="fas fa-plus"></i></button>
+          <div class="service-content">
+            <ul>
+              <li>Custom CRM development &amp; integration</li>
+              <li>Sales pipeline &amp; lead management</li>
+              <li>Email automation &amp; marketing campaigns</li>
+              <li>Customer data &amp; analytics</li>
+              <li>ERP system implementation</li>
+              <li>Inventory &amp; order management</li>
+              <li>HR &amp; payroll integration</li>
+              <li>Zoho, Salesforce, HubSpot, Odoo expertise</li>
+            </ul>
+          </div>
+        </div>
+        <!-- 04 -->
+        <div class="service-row" data-image="/site/images/Ads.webp" data-title="Ads Management" data-desc="Maximize your reach and ROI with data-driven advertising campaigns.">
+          <div class="number">04</div>
+          <div class="info"><h3>ADS MANAGEMENT</h3><p>Maximize your reach and ROI</p></div>
+          <div class="arrow">→</div>
+          <button class="expand-btn" onclick="toggleService(this)"><i class="fas fa-plus"></i></button>
+          <div class="service-content">
+            <ul>
+              <li>Google Ads (Search, Display, Shopping)</li>
+              <li>Meta Ads (Facebook &amp; Instagram)</li>
+              <li>LinkedIn Ads &amp; TikTok Ads</li>
+              <li>Retargeting &amp; remarketing campaigns</li>
+              <li>A/B testing &amp; conversion optimization</li>
+              <li>Keyword research &amp; audience targeting</li>
+              <li>Daily budget management &amp; bidding</li>
+              <li>Detailed ROI &amp; performance reporting</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section id="pricing">
+    <div class="container">
+      <h2 class="section-title">DIGITAL TRANSFORMATION PACKAGES</h2>
+      <p class="section-sub">One-time project pricing in AED — choose the plan that fits your business needs</p>
+      <div class="pricing-grid">
+        <!-- Card 1 -->
+        <div class="pricing-card">
+          <h3>Express Website</h3>
+          <div class="price">AED 999</div>
+          <p class="sub-text">Perfect for quick setup</p>
+          <ul>
+            <li>3–5 pages</li>
+            <li>Mobile responsive design</li>
+            <li>Basic SEO setup</li>
+            <li>WhatsApp integration</li>
+            <li>Delivery: 5–7 days</li>
+          </ul>
+          <a href="/site/contact" class="btn-primary">Get Started</a>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="pricing-card" style="border-color:#4a5cf5;">
+          <h3>Professional Website</h3>
+          <div class="price">AED 1499</div>
+          <p class="sub-text">Ideal for SMEs</p>
+          <ul>
+            <li>8–12 pages</li>
+            <li>Custom modern UI/UX</li>
+            <li>Blog or services module</li>
+            <li>On-page SEO</li>
+            <li>Speed optimization</li>
+            <li>WhatsApp + email automation</li>
+            <li>3 revisions</li>
+            <li>Delivery: 10–14 days</li>
+          </ul>
+          <a href="/site/contact" class="btn-primary">Get Started</a>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="pricing-card">
+          <h3>Premium Website</h3>
+          <div class="price">AED 2999</div>
+          <p class="sub-text">Enterprise-level clients</p>
+          <ul>
+            <li>Up to 30 pages / products</li>
+            <li>Full custom UI/UX</li>
+            <li>Payment gateway integration</li>
+            <li>Product management system</li>
+            <li>Advanced SEO setup</li>
+            <li>Speed + security optimization</li>
+            <li>Social pixel integration</li>
+            <li>Delivery: 20–30 days</li>
+            <li>Build on AI</li>
+            <li>1 Month Free Support</li>
+          </ul>
+          <a href="/site/contact" class="btn-primary">Get Started</a>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:30px;">
+        <p style="color:#4a5260;">Need a Custom Solution? <a href="/site/contact" style="color:#4a5cf5;font-weight:700;">Get Custom Quote →</a></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOVER BOX – Image Preview -->
+  <div class="hover-box" id="hoverBox">
+    <img id="hoverImage" src="" alt="Service preview" />
+    <div class="box-title" id="hoverTitle">Websites</div>
+    <div class="box-desc" id="hoverDesc">Crafting engaging online experiences that convert visitors into loyal customers.</div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="container">
+      <div class="socials">
+        <a href="https://www.facebook.com/hifimarketingglobal/"><i class="fab fa-facebook"></i></a>
+        <a href="https://www.instagram.com/hifi.marketing/"><i class="fab fa-instagram"></i></a>
+        <a href="https://www.linkedin.com/company/hifi-marketing-global"><i class="fab fa-linkedin"></i></a>
+      </div>
+      <p><a href="mailto:careers.asia@hifimarketing.co" style="color:#4a5cf5;font-weight:600;">careers.asia@hifimarketing.co</a> &nbsp;|&nbsp; <a href="tel:+923168080801" style="color:#4a5cf5;font-weight:600;">+92 316 8080801</a></p>
+      <p>&copy; 2026 HIFI Marketing &amp; Technologies. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <!-- ===== DEVELOPER CREDIT ===== -->
+  <div class="developer-credit">
+    <p>Developed by <a href="https://foryoumoazma.my.canva.site/fz-cube-tech">Muhammad Faizan</a></p>
+  </div>
+
+  <script src="/site/js/main.js"></script>
+  <script>
+    // ===== EXPAND/SHRINK SERVICE =====
+    function toggleService(btn) {
+      const row = btn.closest('.service-row');
+      const content = row.querySelector('.service-content');
+      const icon = btn.querySelector('i');
+      content.classList.toggle('open');
+      btn.classList.toggle('active');
+      icon.className = content.classList.contains('open') ? 'fas fa-minus' : 'fas fa-plus';
+    }
+
+    // ===== HOVER BOX – IMAGE PREVIEW =====
+    const hoverBox = document.getElementById('hoverBox');
+    const hoverImage = document.getElementById('hoverImage');
+    const hoverTitle = document.getElementById('hoverTitle');
+    const hoverDesc = document.getElementById('hoverDesc');
+
+    const serviceRows = document.querySelectorAll('.service-row');
+
+    serviceRows.forEach(row => {
+      row.addEventListener('mouseenter', function(e) {
+        const img = this.dataset.image || 'https://placehold.co/400x300/e9edf2/4a5cf5?text=HIFI+Digital';
+        const title = this.dataset.title || 'Service';
+        const desc = this.dataset.desc || 'Creative digital solutions';
+
+        hoverImage.src = img;
+        hoverTitle.textContent = title;
+        hoverDesc.textContent = desc;
+        hoverBox.classList.add('visible');
+        updateHoverBoxPosition(e);
+      });
+
+      row.addEventListener('mousemove', function(e) {
+        updateHoverBoxPosition(e);
+      });
+
+      row.addEventListener('mouseleave', function() {
+        hoverBox.classList.remove('visible');
+      });
+    });
+
+    function updateHoverBoxPosition(e) {
+      const offsetX = 18;
+      const offsetY = 18;
+      let left = e.clientX + offsetX;
+      let top = e.clientY + offsetY;
+
+      const boxWidth = 220;
+      if (left + boxWidth > window.innerWidth - 10) {
+        left = e.clientX - boxWidth - offsetX;
+      }
+      const boxHeight = 220;
+      if (top + boxHeight > window.innerHeight - 10) {
+        top = e.clientY - boxHeight - offsetY;
+      }
+
+      hoverBox.style.left = left + 'px';
+      hoverBox.style.top = top + 'px';
+    }
+
+    // ===== MOBILE MENU =====
+    function toggleMenu() {
+      const menu = document.getElementById('navMenu');
+      if (menu) {
+        menu.classList.toggle('show');
+        menu.classList.toggle('open');
+      }
+    }
+
+    document.querySelectorAll('#navMenu a').forEach(link => {
+      link.addEventListener('click', () => {
+        const menu = document.getElementById('navMenu');
+        if (menu) {
+          menu.classList.remove('show');
+          menu.classList.remove('open');
+        }
+      });
+    });
+
+    // ===== THEME TOGGLE =====
+    function toggleTheme() {
+      const body = document.body;
+      if (body) {
+        body.classList.toggle('dark-mode');
+        if (body.classList.contains('dark-mode')) {
+          localStorage.setItem('theme', 'dark');
+        } else {
+          localStorage.setItem('theme', 'light');
+        }
+      }
+    }
+
+    // ===== LOAD SAVED THEME =====
+    document.addEventListener('DOMContentLoaded', function() {
+      const savedTheme = localStorage.getItem('theme');
+      const body = document.body;
+      if (savedTheme === 'dark') {
+        body.classList.add('dark-mode');
+      }
+    });
+  </script>
+</body>
+</html>

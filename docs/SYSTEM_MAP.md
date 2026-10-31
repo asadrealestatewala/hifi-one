@@ -21,6 +21,16 @@ Commands are listed in `CLAUDE.md`.
 
 Added 2026-10-17 (see `docs/AUTOMATION_AND_GROWTH.md`): staff routes `/settings/jobs`, `/support`, `/support/[id]`, `/settings/lead-sources`, `/agreements`, `/agreements/[id]` (+ `/pdf`); portal routes `/portal/support`, `/portal/support/[id]`, `/portal/approvals`, `/vendor/documents`; public routes `/sign/[token]`, `POST /api/leads/capture`, `POST /api/jobs/run`; `src/instrumentation.ts` (optional scheduler). Services: `jobs`, `support`, `deliverables`, `lead-capture`, `campaign-performance`, `agreements`, `virus-scan`, `sort`, `saved-views`, `project-timeline`.
 
+Added 2026-11-01: public website at `/site` (see "Public website" below).
+
+## Public website (`/site`)
+
+A snapshot of the company site hifimarketing.co, served without sign-in and outside the ERP layout. Each page is the original HTML document in `src/app/site/_html/*.html`, returned by a static route handler (`src/app/site/**/route.ts` through `src/app/site/_lib/serve.ts`, all `force-static`), so the site's own CSS and scripts run unchanged and never mix with Tailwind or the theme script. Assets are self-hosted under `public/site/` (original `images/`, `uploads/`, `css/`, `js/`; Font Awesome, Google Fonts Inter and Unsplash photos under `public/site/vendor/`) because the production CSP is `default-src 'self'`.
+
+Routes: `/site`, `/site/services`, `/site/about`, `/site/team`, `/site/pricing`, `/site/careers`, `/site/careers/jobs`, `/site/careers/jobs/[id]` (one per job snapshot), `/site/blog`, `/site/blog/[id]`, `/site/contact`. Links to the PHP login go to `/login`, the client portal link to `/portal`. The website and the ERP share one domain: `/` (`src/app/route.ts`, rule in `src/lib/home.ts`) opens `/setup` on a new installation, sends a signed-in person to `/dashboard`, and otherwise returns the website home page itself (not cached, varies by cookie). Job applications and applicant sign-up still link to hifimarketing.co (the ERP has no applicant accounts). The contact form is not wired yet (TODO in the page).
+
+Refresh the snapshot: `node scripts/site/mirror.mjs <folder outside the repo>`, then `node scripts/site/install.mjs <that folder> .`, build, and `node scripts/site/check.mjs <base url> src/app/site/_html` (every page and asset must return 200). `src/lib/guards.test.ts` keeps `/site` free of database, session and write handlers.
+
 ## Request path
 
 ```
