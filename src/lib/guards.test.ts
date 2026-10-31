@@ -105,9 +105,27 @@ describe("every route handler checks the caller", () => {
   const PUBLIC_ROUTES = new Set(["api/health/route.ts", "api/calendar/[token]/route.ts", "api/agent/enroll/route.ts", "api/agent/policy/route.ts", "api/agent/ingest/route.ts", "api/agent/screenshot/route.ts", "api/jobs/run/route.ts", "api/leads/capture/route.ts", "api/meetings/[id]/events/route.ts", "api/meetings/[id]/signal/route.ts", "api/meetings/[id]/chat/route.ts", "api/meetings/[id]/admin/route.ts"]);
   for (const f of files.filter((x) => x.endsWith("/route.ts"))) {
     const r = rel(f);
-    if (PUBLIC_ROUTES.has(r)) continue;
+    // The public website (/site) only serves the static marketing snapshot; the test below keeps it that way
+    if (PUBLIC_ROUTES.has(r) || r.startsWith("site/")) continue;
     it(`${r} is guarded`, () => {
       expect(/require(Permission|User|ClientUser|VendorUser|Session)\(/.test(read(f)), `${r} must call a require* guard`).toBe(true);
+    });
+  }
+});
+
+describe("the public website", () => {
+  const siteFiles = files.filter((x) => rel(x).startsWith("site/") && /\.(ts|tsx)$/.test(x));
+  it("has no pages that would inherit the ERP layout", () => {
+    expect(siteFiles.filter((x) => x.endsWith("/page.tsx"))).toEqual([]);
+  });
+  for (const f of siteFiles) {
+    it(`${rel(f)} serves static pages only, without the database or a session`, () => {
+      const src = read(f);
+      expect(src).not.toMatch(/@\/lib\/(db|auth|session|guards)|prisma|cookies\(|headers\(/);
+      if (f.endsWith("/route.ts")) {
+        expect(src).toContain('dynamic = "force-static"');
+        expect(src).not.toMatch(/export (async )?function (POST|PUT|PATCH|DELETE)/);
+      }
     });
   }
 });

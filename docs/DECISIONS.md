@@ -55,4 +55,4 @@ Newest last. Each entry: what was decided, why, and what it costs.
 - Scheduled work: decided (35), all three ways exist. Which one to use in production is a deployment choice (`docs/DEPLOYMENT.md`).
 - Should commission accrue at payment time (inside `recordPayment`) instead of by the daily batch? (Payroll paying approved commissions: decided, 42.)
 - Inline `"use server"` actions in pages vs `actions.ts` per module: standardise on `actions.ts` for new work?
-
+43. **The public website is the original site's HTML, served by static route handlers under `/site`.** Rebuilding it in React would drift from the live look and mix its CSS with Tailwind and the ERP layout; serving each page as its own document keeps markup, styles and scripts faithful and needs no auth. Assets are self-hosted because of the CSP. Cost: pages are snapshots edited as HTML, and dynamic PHP parts (blog, job board, contact form, applicant accounts) are frozen, linked out or not yet wired. `scripts/site/` refreshes the snapshot.

@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Senior Data Scientist | HIFI Marketing & Technologies</title>
+    <link href="/site/vendor/google-fonts/css-41007c12.css" rel="stylesheet" />
+    <link rel="stylesheet" href="/site/vendor/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <link rel="stylesheet" href="/site/css/style.css" />
+        <!-- ===== BROWSER TAB ICON (FAVICON) ===== -->
+    <link rel="icon" href="/site/images/fav-icon.png" type="image/png" />
+    <link rel="shortcut icon" href="/site/images/fav-icon.png" type="image/png" />
+    
+    <!-- Rest of head -->
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #f0f2f5; color: #1e1f2a; line-height: 1.6; }
+        a { text-decoration: none; color: inherit; }
+        .container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+
+        /* ===== HEADER ===== */
+        header {
+            background: rgba(255,255,255,0.98);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid #e9edf2;
+            padding: 16px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+        }
+        .header-inner {
+            display: flex; align-items: center; justify-content: space-between;
+            flex-wrap: wrap; gap: 20px; max-width: 1200px; margin: 0 auto; padding: 0 24px;
+        }
+        .logo { font-size: 24px; font-weight: 900; color: #1e1f2a; flex-shrink: 0; }
+        .logo span { color: #4a5cf5; }
+        .header-right { display: flex; align-items: center; gap: 16px; }
+        .header-right .btn-primary {
+            background: #4a5cf5; color: #fff; padding: 10px 28px; border-radius: 40px;
+            font-weight: 700; font-size: 14px; transition: 0.2s; border: none;
+            box-shadow: 0 4px 12px rgba(74,92,245,0.2); cursor: pointer;
+        }
+        .header-right .btn-primary:hover { background: #3a4be0; transform: translateY(-2px); }
+        .header-right .btn-logout {
+            background: transparent; color: #dc3545; padding: 8px 20px; border-radius: 40px;
+            font-weight: 600; font-size: 14px; border: 1px solid #dc3545; cursor: pointer;
+            transition: 0.2s;
+        }
+        .header-right .btn-logout:hover { background: #dc3545; color: #fff; }
+        .header-right .user-name { font-weight: 600; font-size: 14px; color: #1a1c26; }
+        .header-right .user-name i { color: #4a5cf5; margin-right: 6px; }
+
+        /* ===== JOB DETAIL ===== */
+        .job-detail { padding: 30px 0 60px; }
+
+        .back-link {
+            display: inline-block; color: #4a5cf5; font-weight: 600; font-size: 14px;
+            margin-bottom: 16px; transition: 0.2s;
+        }
+        .back-link:hover { color: #3a4be0; }
+
+        .job-header {
+            background: #ffffff; border-radius: 16px; border: 1px solid #e9edf2;
+            padding: 32px 36px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }
+        .job-header h1 { font-size: 32px; font-weight: 800; color: #1a1c26; margin-bottom: 8px; }
+        .job-header .job-meta {
+            display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 15px; color: #4a5260;
+        }
+        .job-header .job-meta span { display: flex; align-items: center; gap: 6px; }
+        .job-header .job-meta i { color: #4a5cf5; width: 16px; }
+        .job-header .job-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+        .job-header .job-tags .tag {
+            font-size: 12px; font-weight: 600; padding: 4px 16px; border-radius: 20px;
+            background: #f0f3ff; color: #4a5cf5;
+        }
+        .job-header .job-tags .tag.location { background: #f0f3f8; color: #4a5260; }
+        .job-header .job-tags .tag.workplace { background: #e8f5e9; color: #2e7d32; }
+
+        /* ===== APPLY BUTTON - UNDER OVERVIEW ===== */
+        .apply-section {
+            background: #f8fafc; border-radius: 12px; padding: 24px 28px;
+            margin-top: 24px;
+            border: 2px solid #e9edf2;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        .apply-section .apply-info h3 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a1c26;
+            margin-bottom: 2px;
+        }
+        .apply-section .apply-info p {
+            font-size: 14px;
+            color: #4a5260;
+        }
+        .apply-section .apply-btn {
+            background: #4a5cf5; color: #fff; padding: 14px 40px; border-radius: 40px;
+            font-weight: 700; font-size: 16px; display: inline-block; transition: 0.3s;
+            border: none; box-shadow: 0 4px 20px rgba(74,92,245,0.2); cursor: pointer;
+        }
+        .apply-section .apply-btn:hover {
+            background: #3a4be0; transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(74,92,245,0.3);
+        }
+        .apply-section .apply-btn:disabled {
+            background: #8a94a0;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        .apply-section .apply-btn:disabled:hover {
+            transform: none;
+            box-shadow: none;
+        }
+        .apply-section .login-prompt {
+            color: #4a5260; font-size: 15px;
+        }
+        .apply-section .login-prompt a {
+            color: #4a5cf5; font-weight: 700;
+        }
+        .apply-section .login-prompt a:hover {
+            text-decoration: underline;
+        }
+        .apply-section .applied-badge {
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 8px 20px;
+            border-radius: 40px;
+            font-weight: 700;
+            font-size: 14px;
+            display: inline-block;
+        }
+        /* ===== TABS ===== */
+        .job-tabs {
+            display: flex; gap: 0; background: #ffffff; border-radius: 16px 16px 0 0;
+            border: 1px solid #e9edf2; border-bottom: none; overflow: hidden;
+        }
+        .job-tabs .tab-btn {
+            padding: 14px 32px; font-weight: 700; font-size: 15px; color: #4a5260;
+            background: transparent; border: none; cursor: pointer; transition: 0.3s;
+            position: relative; font-family: 'Inter', sans-serif;
+            flex: 1;
+        }
+        .job-tabs .tab-btn:hover { color: #1a1c26; }
+        .job-tabs .tab-btn.active {
+            color: #4a5cf5; background: #f8fafc;
+        }
+        .job-tabs .tab-btn.active::after {
+            content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+            width: 60%; height: 3px; background: #4a5cf5; border-radius: 3px 3px 0 0;
+        }
+
+        .tab-content {
+            background: #ffffff; border: 1px solid #e9edf2; border-radius: 0 0 16px 16px;
+            padding: 36px; margin-bottom: 24px;
+        }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+
+        .tab-pane h2 { font-size: 20px; font-weight: 700; color: #1a1c26; margin-bottom: 16px; }
+        .tab-pane p { color: #3d4452; font-size: 15px; line-height: 1.8; margin-bottom: 16px; }
+        .tab-pane ul { list-style: none; margin: 0 0 16px 0; }
+        .tab-pane ul li {
+            padding: 6px 0; font-size: 14px; color: #3d4452;
+            display: flex; align-items: flex-start; gap: 10px;
+        }
+        .tab-pane ul li i { color: #4a5cf5; margin-top: 4px; width: 18px; }
+
+        /* ===== APPLICATION FORM ===== */
+        .application-form .form-group { margin-bottom: 20px; }
+        .application-form label {
+            display: block; font-weight: 600; font-size: 14px; color: #1a1c26;
+            margin-bottom: 4px;
+        }
+        .application-form label .required { color: #dc3545; }
+        .application-form input,
+        .application-form select,
+        .application-form textarea {
+            width: 100%; padding: 12px 16px; border: 2px solid #e9edf2;
+            border-radius: 10px; font-size: 14px; background: #f8fafc;
+            transition: 0.3s; font-family: 'Inter', sans-serif;
+        }
+        .application-form input:focus,
+        .application-form select:focus,
+        .application-form textarea:focus {
+            border-color: #4a5cf5; outline: none; background: #ffffff;
+            box-shadow: 0 0 0 4px rgba(74,92,245,0.08);
+        }
+        .application-form textarea { min-height: 100px; resize: vertical; }
+        .application-form .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .application-form .file-upload-box {
+            background: #f8fafc; border: 2px dashed #e9edf2; border-radius: 12px;
+            padding: 30px; text-align: center; cursor: pointer; transition: 0.3s;
+        }
+        .application-form .file-upload-box:hover {
+            border-color: #4a5cf5; background: #f0f3ff;
+        }
+        .application-form .file-upload-box i { font-size: 32px; color: #4a5cf5; margin-bottom: 8px; }
+        .application-form .file-upload-box p { color: #4a5260; font-size: 14px; }
+        .application-form .file-upload-box .small { font-size: 12px; color: #8a94a0; }
+        .application-form .submit-btn {
+            background: #4a5cf5; color: #fff; padding: 14px 44px; border-radius: 40px;
+            font-weight: 700; font-size: 16px; border: none; cursor: pointer;
+            transition: 0.3s; box-shadow: 0 4px 20px rgba(74,92,245,0.2);
+        }
+        .application-form .submit-btn:hover {
+            background: #3a4be0; transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(74,92,245,0.3);
+        }
+
+        /* ===== DYNAMIC EDUCATION/EXPERIENCE ===== */
+        .dynamic-item {
+            background: #f8fafc;
+            border: 1px solid #e9edf2;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 12px;
+            position: relative;
+        }
+        .dynamic-item .remove-btn {
+            position: absolute;
+            top: 8px;
+            right: 12px;
+            background: transparent;
+            border: none;
+            color: #dc3545;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .dynamic-item .remove-btn:hover { color: #c82333; }
+        .dynamic-item input,
+        .dynamic-item textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #e9edf2;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #ffffff;
+            margin-bottom: 8px;
+            font-family: 'Inter', sans-serif;
+        }
+        .dynamic-item input:focus,
+        .dynamic-item textarea:focus {
+            border-color: #4a5cf5;
+            outline: none;
+        }
+        .dynamic-item textarea { min-height: 60px; resize: vertical; }
+
+        .add-btn {
+            padding: 8px 20px;
+            border: 2px solid #4a5cf5;
+            border-radius: 8px;
+            background: transparent;
+            color: #4a5cf5;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.3s;
+            font-size: 14px;
+        }
+        .add-btn:hover {
+            background: #4a5cf5;
+            color: #fff;
+        }
+
+        /* ===== DARK MODE ===== */
+        body.dark-mode {
+            background: #0b0d10; color: #eaeef2;
+        }
+        body.dark-mode header {
+            background: rgba(11,13,16,0.98); border-bottom-color: #1e242c;
+        }
+        body.dark-mode .logo { color: #eaeef2; }
+        body.dark-mode .header-right .user-name { color: #eaeef2; }
+        body.dark-mode .job-header {
+            background: #14191f; border-color: #1e242c;
+        }
+        body.dark-mode .job-header h1 { color: #eaeef2; }
+        body.dark-mode .job-header .job-meta { color: #b0b8c5; }
+        body.dark-mode .job-header .job-tags .tag { background: #1e242c; color: #6c7aff; }
+        body.dark-mode .job-header .job-tags .tag.location { background: #1e242c; color: #b0b8c5; }
+        body.dark-mode .job-tabs { background: #14191f; border-color: #1e242c; }
+        body.dark-mode .job-tabs .tab-btn { color: #b0b8c5; }
+        body.dark-mode .job-tabs .tab-btn:hover { color: #eaeef2; }
+        body.dark-mode .job-tabs .tab-btn.active { color: #6c7aff; background: #1a2129; }
+        body.dark-mode .tab-content { background: #14191f; border-color: #1e242c; }
+        body.dark-mode .tab-pane h2 { color: #eaeef2; }
+        body.dark-mode .tab-pane p { color: #b0b8c5; }
+        body.dark-mode .tab-pane ul li { color: #b0b8c5; }
+        body.dark-mode .apply-section {
+            background: #14191f; border-color: #1e242c;
+        }
+        body.dark-mode .apply-section .apply-info p { color: #b0b8c5; }
+        body.dark-mode .apply-section .login-prompt { color: #b0b8c5; }
+        body.dark-mode .application-form label { color: #eaeef2; }
+        body.dark-mode .application-form input,
+        body.dark-mode .application-form select,
+        body.dark-mode .application-form textarea {
+            background: #0b0d10; border-color: #1e242c; color: #eaeef2;
+        }
+        body.dark-mode .application-form input:focus,
+        body.dark-mode .application-form select:focus,
+        body.dark-mode .application-form textarea:focus {
+            background: #14191f; border-color: #4a5cf5;
+        }
+        body.dark-mode .application-form .file-upload-box {
+            background: #14191f; border-color: #1e242c;
+        }
+        body.dark-mode .application-form .file-upload-box:hover {
+            background: #1a2129; border-color: #4a5cf5;
+        }
+        body.dark-mode .dynamic-item {
+            background: #14191f; border-color: #1e242c;
+        }
+        body.dark-mode .dynamic-item input,
+        body.dark-mode .dynamic-item textarea {
+            background: #0b0d10; border-color: #1e242c; color: #eaeef2;
+        }
+        body.dark-mode .dynamic-item input:focus,
+        body.dark-mode .dynamic-item textarea:focus {
+            border-color: #4a5cf5;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 768px) {
+            .job-header { padding: 24px; }
+            .job-header h1 { font-size: 24px; }
+            .tab-content { padding: 24px; }
+            .job-tabs .tab-btn { padding: 12px 20px; font-size: 14px; }
+            .header-right .btn-primary { display: none; }
+            .application-form .form-row { grid-template-columns: 1fr; }
+            .apply-section { flex-direction: column; text-align: center; }
+            .apply-section .apply-btn { width: 100%; text-align: center; }
+        }
+        @media (max-width: 480px) {
+            .job-header { padding: 16px; }
+            .job-header h1 { font-size: 20px; }
+            .tab-content { padding: 16px; }
+            .job-tabs .tab-btn { padding: 10px 14px; font-size: 13px; }
+            .job-tabs .tab-btn.active::after { width: 40%; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== HEADER ===== -->
+    <header>
+        <div class="header-inner">
+            <div class="logo">HIFI <span>Marketing & Technologies</span></div>
+            <div class="header-right">
+                                    <a href="/login" style="color:#4a5cf5;font-weight:600;font-size:14px;">Login</a>
+                    <a href="https://hifimarketing.co/register.php" class="btn-primary">Get Started</a>
+                            </div>
+        </div>
+    </header>
+
+    <!-- ===== JOB DETAIL ===== -->
+    <section class="job-detail">
+        <div class="container">
+
+            <a href="/site/careers/jobs" class="back-link"><i class="fas fa-arrow-left"></i> Back to all jobs</a>
+
+            <!-- ===== JOB HEADER ===== -->
+            <div class="job-header">
+                <h1>Senior Data Scientist</h1>
+                <div class="job-meta">
+                    <span><i class="fas fa-building"></i> Data Science</span>
+                    <span><i class="fas fa-map-marker-alt"></i> Riyadh, Saudi Arabia</span>
+                    <span><i class="fas fa-clock"></i> Full-time</span>
+                </div>
+                <div class="job-tags">
+                    <span class="tag">Full-time</span>
+                    <span class="tag location"><i class="fas fa-map-marker-alt"></i> Riyadh, Saudi Arabia</span>
+                    <span class="tag workplace"><i class="fas fa-laptop"></i> On-site</span>
+                </div>
+            </div>
+
+            <!-- ===== TABS ===== -->
+            <div class="job-tabs">
+                <button class="tab-btn active" onclick="switchTab('overview')">OVERVIEW</button>
+                <button class="tab-btn " onclick="switchTab('application')">APPLICATION</button>
+            </div>
+
+            <div class="tab-content">
+
+                <!-- ===== OVERVIEW TAB ===== -->
+                <div class="tab-pane active" id="overview">
+                    <h2>Description</h2>
+                    <p>Senior Data Scientist with 5+ years experience.</p>
+
+                    
+                    
+                    <!-- ===== APPLY BUTTON - UNDER OVERVIEW ===== -->
+                    <div class="apply-section">
+                        <div class="apply-info">
+                            <h3>Senior Data Scientist</h3>
+                            <p>Riyadh, Saudi Arabia · Full-time</p>
+                        </div>
+
+                                                    <a href="https://hifimarketing.co/login.php?redirect=job-detail.php?id=7&tab=application" class="apply-btn">
+                                <i class="fas fa-sign-in-alt"></i> Login to Apply
+                            </a>
+                                            </div>
+                </div>
+
+               <!-- ===== APPLICATION TAB ===== -->
+<div class="tab-pane " id="application">
+    
+            <!-- Not Logged In -->
+        <h2>Apply for Senior Data Scientist</h2>
+        
+        <div style="background:#f8fafc;border-radius:16px;padding:40px;text-align:center;border:2px dashed #e9edf2;">
+            <i class="fas fa-lock" style="font-size:48px;color:#4a5cf5;margin-bottom:16px;"></i>
+            <h3 style="font-size:20px;font-weight:700;color:#1a1c26;margin-bottom:8px;">Login Required</h3>
+            <p style="color:#4a5260;max-width:400px;margin:0 auto 24px;">
+                Please login or create an account to apply for this job.
+            </p>
+            <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+                <a href="https://hifimarketing.co/login.php?redirect=job-detail.php?id=7&tab=application" class="apply-btn" style="background:#4a5cf5;color:#fff;padding:14px 40px;border-radius:40px;font-weight:700;font-size:16px;display:inline-block;transition:0.3s;border:none;box-shadow:0 4px 20px rgba(74,92,245,0.2);">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </a>
+                <a href="https://hifimarketing.co/register.php" style="background:transparent;color:#4a5cf5;padding:14px 40px;border-radius:40px;font-weight:700;font-size:16px;display:inline-block;border:2px solid #4a5cf5;">
+                    <i class="fas fa-user-plus"></i> Create Account
+                </a>
+            </div>
+        </div>
+    </div>
+            </div>
+
+        </div>
+    </section>
+
+    <script>
+        // ===== FILE UPLOAD - SHOW FILENAME =====
+function updateFileName(input) {
+    const fileDisplay = document.getElementById('fileNameDisplay');
+    const fileUploadBox = document.getElementById('fileUploadBox');
+    
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const fileSize = (file.size / 1024).toFixed(2); // KB
+        fileDisplay.innerHTML = `<i class="fas fa-file" style="color:#4a5cf5;"></i> ${file.name} (${fileSize} KB)`;
+        fileUploadBox.style.borderColor = '#4a5cf5';
+        fileUploadBox.style.background = '#f0f3ff';
+    } else {
+        fileDisplay.innerHTML = 'Supported formats: .pdf, .doc, .docx';
+        fileUploadBox.style.borderColor = '#e9edf2';
+        fileUploadBox.style.background = '#f8fafc';
+    }
+}
+        // ===== SWITCH TAB =====
+        function switchTab(tab) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', tab);
+            window.history.pushState({}, '', url);
+
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+
+            document.querySelector(`.tab-btn[onclick="switchTab('${tab}')"]`).classList.add('active');
+            document.getElementById(tab).classList.add('active');
+        }
+
+        // ===== ADD EDUCATION =====
+        let eduCount = 0;
+        function addEducation() {
+            eduCount++;
+            const container = document.getElementById('educationContainer');
+            const div = document.createElement('div');
+            div.className = 'dynamic-item';
+            div.id = 'edu-' + eduCount;
+            div.innerHTML = `
+                <button type="button" class="remove-btn" onclick="removeItem('edu-${eduCount}')">
+                    <i class="fas fa-times"></i>
+                </button>
+                <input type="text" name="education_title[]" placeholder="Degree / Certificate (e.g. BSc Computer Science)" />
+                <input type="text" name="education_institution[]" placeholder="Institution (e.g. MIT)" />
+                <input type="text" name="education_year[]" placeholder="Year (e.g. 2020-2024)" />
+            `;
+            container.appendChild(div);
+        }
+
+        // ===== ADD EXPERIENCE =====
+        let expCount = 0;
+        function addExperience() {
+            expCount++;
+            const container = document.getElementById('experienceContainer');
+            const div = document.createElement('div');
+            div.className = 'dynamic-item';
+            div.id = 'exp-' + expCount;
+            div.innerHTML = `
+                <button type="button" class="remove-btn" onclick="removeItem('exp-${expCount}')">
+                    <i class="fas fa-times"></i>
+                </button>
+                <input type="text" name="experience_title[]" placeholder="Job Title (e.g. Software Engineer)" />
+                <input type="text" name="experience_company[]" placeholder="Company (e.g. Google)" />
+                <input type="text" name="experience_year[]" placeholder="Year (e.g. 2020-2024)" />
+                <textarea name="experience_description[]" placeholder="Describe your responsibilities..."></textarea>
+            `;
+            container.appendChild(div);
+        }
+
+        // ===== REMOVE ITEM =====
+        function removeItem(id) {
+            const item = document.getElementById(id);
+            if (item) {
+                item.remove();
+            }
+        }
+
+        // ===== THEME TOGGLE =====
+        function toggleTheme() {
+            const body = document.body;
+            body.classList.toggle('dark-mode');
+            localStorage.setItem('theme', body.classList.contains('dark-mode') ? 'dark' : 'light');
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (localStorage.getItem('theme') === 'dark') {
+                document.body.classList.add('dark-mode');
+            }
+        });
+    </script>
+
+</body>
+</html>
