@@ -77,7 +77,6 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
         </div>
         <div className="hs-container hs-footer-bottom">
           <p>&copy; 2026 {COMPANY}. All rights reserved.</p>
-          <p>Developed by <a href="https://foryoumoazma.my.canva.site/fz-cube-tech" rel="noopener" target="_blank">Muhammad Faizan</a></p>
         </div>
       </footer>
     </div>
