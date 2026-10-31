@@ -9,7 +9,7 @@ import { ensureContactForLead } from "./crm-contacts";
 import { leadAssigned } from "./events";
 import { notifyMany, usersWithPermission } from "./notifications";
 
-export class CaptureError extends Error { constructor(message: string, readonly status = 400) { super(message); } }
+export class CaptureError extends Error { constructor(message: string, readonly status = 400, readonly field?: string) { super(message); } }
 type Db = PrismaClient;
 
 export const ASSIGN_MODES = ["NONE", "FIXED", "ROUND_ROBIN"] as const;
@@ -62,19 +62,29 @@ export async function captureLead(db: Db, p: { key: string; input: CaptureInput;
   const source = await db.leadSource.findUnique({ where: { keyHash: hash(p.key) } });
   if (!source || !source.active) throw new CaptureError("Unknown form.", 401);
   if (!originAllowed(parseOrigins(source.allowedOrigins), p.origin)) throw new CaptureError("This website is not allowed to send leads with this key.", 403);
+  return captureForSource(db, { source, input: p.input, now: p.now });
+}
+
+type Source = NonNullable<Awaited<ReturnType<Db["leadSource"]["findUnique"]>>>;
+
+// The shared part of every capture once the form is known: validation, de-duplication, round robin, the lead and its notifications.
+// The company's own website calls this directly with its built-in source (see site-forms.ts), so its page needs no key.
+export async function captureForSource(db: Db, p: { source: Source; input: CaptureInput; now?: Date }): Promise<CaptureResult> {
+  const source = p.source;
+  if (!source.active) throw new CaptureError("This form is not taking messages right now. Please email or call us instead.", 503);
   const i = p.input;
   // A hidden field real visitors never fill: bots that do get a normal-looking answer and nothing is stored
   if (cut(i.website_url ?? i.company_website, 200)) return { ok: true, duplicate: false };
   const name = cut(i.name ?? i.full_name, 120) || cut(i.first_name, 60) + (cut(i.last_name, 60) ? ` ${cut(i.last_name, 60)}` : "");
   const emailRaw = cut(i.email, 200);
   const email = emailRaw ? normalizeEmail(emailRaw) : null;
-  if (emailRaw && !email) throw new CaptureError("Enter a valid email address.");
+  if (emailRaw && !email) throw new CaptureError("Enter a valid email address.", 400, "email");
   const phoneRaw = cut(i.phone, 40);
   const phone = phoneRaw ? normalizePhone(phoneRaw) : null;
-  if (phoneRaw && !phone) throw new CaptureError("Enter a valid phone number.");
-  if (!email && !phone) throw new CaptureError("Give an email address or a phone number so we can reply.");
+  if (phoneRaw && !phone) throw new CaptureError("Enter a valid phone number.", 400, "phone");
+  if (!email && !phone) throw new CaptureError("Give an email address or a phone number so we can reply.", 400, "email");
   const leadName = name.trim() || (email ?? phone)!;
-  if (leadName.length < 2) throw new CaptureError("Enter your name.");
+  if (leadName.length < 2) throw new CaptureError("Enter your name.", 400, "name");
   const company = cut(i.company, 160) || null;
   const message = cut(i.message ?? i.notes, 2000) || null;
   const landing = cut(i.landing_url ?? i.page_url, 500);

@@ -11,7 +11,7 @@ export type FileActor = {
   permissions: ReadonlySet<string>;
 };
 
-export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC"] as const;
+export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION"] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 export type Mode = "read" | "upload" | "delete";
 
@@ -92,6 +92,14 @@ export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: 
     if (!k) return false;
     if (mode === "read") return has("contracts.view");
     return has("contracts.manage") && k.status !== "TERMINATED";
+  }
+
+  if (ownerType === "JOB_APPLICATION") {
+    // An applicant's CV from the careers page: HR reads it with hr.view and manages it with hr.manage. Applicants upload through
+    // the public apply form (job-applications.ts), never through a staff screen.
+    const app = await db.jobApplication.findFirst({ where: { id: ownerId, organizationId: a.organizationId }, select: { id: true } });
+    if (!app) return false;
+    return mode === "read" ? has("hr.view") : has("hr.manage");
   }
 
   if (ownerType === "EMPLOYEE") {

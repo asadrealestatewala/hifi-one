@@ -25,7 +25,7 @@ const AREAS: { prefix: string; guard: RegExp; label: string }[] = [
 ];
 
 // Pages that are intentionally public or only redirect
-const PUBLIC = new Set(["page.tsx", "login/page.tsx", "login/verify/page.tsx", "login/forgot/page.tsx", "forbidden/page.tsx", "invite/[token]/page.tsx", "setup/page.tsx", "reset/[token]/page.tsx", "join/[token]/page.tsx", "sign/[token]/page.tsx"]);
+const PUBLIC = new Set(["login/page.tsx", "login/verify/page.tsx", "login/forgot/page.tsx", "forbidden/page.tsx", "invite/[token]/page.tsx", "setup/page.tsx", "reset/[token]/page.tsx", "join/[token]/page.tsx", "sign/[token]/page.tsx"]);
 
 // Pages that only need a signed-in employee because they show the caller's own data and check
 // record ownership or permissions themselves. Everything else in (app) must call requirePermission.
@@ -35,7 +35,8 @@ describe("every protected page checks the caller", () => {
   const pages = files.filter((f) => f.endsWith("/page.tsx"));
   for (const f of pages) {
     const r = rel(f);
-    if (PUBLIC.has(r)) continue;
+    // The public website (route group "(site)") has its own rules, checked below
+    if (PUBLIC.has(r) || r.startsWith("(site)/")) continue;
     const area = AREAS.find((a) => r.startsWith(a.prefix));
     it(`${r} is guarded`, () => {
       expect(area, `${r} is outside every known area`).toBeDefined();
@@ -102,12 +103,11 @@ describe("every route handler checks the caller", () => {
   // The calendar feed is opened by calendar apps that cannot sign in; it is protected by a long secret address instead
   // and must resolve that secret through eventsForToken (which refuses unknown, switched-off and inactive-user tokens).
   // The desktop agent endpoints sign in with a device token instead of a browser session (see the agent test below).
-  // "/" is public by design: it shows visitors the website and only redirects staff (see home.test.ts)
-  const PUBLIC_ROUTES = new Set(["route.ts", "api/health/route.ts", "api/calendar/[token]/route.ts", "api/agent/enroll/route.ts", "api/agent/policy/route.ts", "api/agent/ingest/route.ts", "api/agent/screenshot/route.ts", "api/jobs/run/route.ts", "api/leads/capture/route.ts", "api/meetings/[id]/events/route.ts", "api/meetings/[id]/signal/route.ts", "api/meetings/[id]/chat/route.ts", "api/meetings/[id]/admin/route.ts"]);
+  // The website's contact and apply forms are public by design: same-site, rate limited and validated (see the website tests below)
+  const PUBLIC_ROUTES = new Set(["api/site/contact/route.ts", "api/site/apply/route.ts", "api/health/route.ts", "api/calendar/[token]/route.ts", "api/agent/enroll/route.ts", "api/agent/policy/route.ts", "api/agent/ingest/route.ts", "api/agent/screenshot/route.ts", "api/jobs/run/route.ts", "api/leads/capture/route.ts", "api/meetings/[id]/events/route.ts", "api/meetings/[id]/signal/route.ts", "api/meetings/[id]/chat/route.ts", "api/meetings/[id]/admin/route.ts"]);
   for (const f of files.filter((x) => x.endsWith("/route.ts"))) {
     const r = rel(f);
-    // The public website (/site) only serves the static marketing snapshot; the test below keeps it that way
-    if (PUBLIC_ROUTES.has(r) || r.startsWith("site/")) continue;
+    if (PUBLIC_ROUTES.has(r)) continue;
     it(`${r} is guarded`, () => {
       expect(/require(Permission|User|ClientUser|VendorUser|Session)\(/.test(read(f)), `${r} must call a require* guard`).toBe(true);
     });
@@ -115,20 +115,33 @@ describe("every route handler checks the caller", () => {
 });
 
 describe("the public website", () => {
-  const siteFiles = files.filter((x) => rel(x).startsWith("site/") && /\.(ts|tsx)$/.test(x));
-  it("has no pages that would inherit the ERP layout", () => {
-    expect(siteFiles.filter((x) => x.endsWith("/page.tsx"))).toEqual([]);
+  // Route group "(site)": "/" for visitors and every page under /site. Only "/" may read the session (to send staff to the ERP);
+  // every other website file is static content and must never touch the database, a session or write anything.
+  const siteFiles = files.filter((x) => rel(x).startsWith("(site)/") && /\.(ts|tsx)$/.test(x));
+  it("found the website pages", () => {
+    expect(siteFiles.filter((x) => x.endsWith("/page.tsx")).length).toBeGreaterThan(10);
   });
   for (const f of siteFiles) {
-    it(`${rel(f)} serves static pages only, without the database or a session`, () => {
+    if (rel(f) === "(site)/page.tsx") continue;
+    it(`${rel(f)} is static content, without the database or a session`, () => {
       const src = read(f);
-      expect(src).not.toMatch(/@\/lib\/(db|auth|session|guards)|prisma|cookies\(|headers\(/);
-      if (f.endsWith("/route.ts")) {
-        expect(src).toContain('dynamic = "force-static"');
-        expect(src).not.toMatch(/export (async )?function (POST|PUT|PATCH|DELETE)/);
-      }
+      expect(src).not.toMatch(/@\/lib\/(db|auth|session|guards)|prisma|cookies\(|headers\(|["']use server["']/);
+      expect(src).not.toMatch(/export const dynamic = "force-dynamic"/);
     });
   }
+  it('"/" only decides between setup, the ERP and the website', () => {
+    const src = read(path.join(root, "(site)/page.tsx"));
+    expect(src).toContain("homeDestination(");
+    expect(src).not.toMatch(/["']use server["']|export async function (POST|PUT|PATCH|DELETE)/);
+  });
+  it("the form endpoints only accept same-site, rate-limited submissions", () => {
+    for (const r of ["api/site/contact/route.ts", "api/site/apply/route.ts"]) {
+      const src = read(path.join(root, r));
+      expect(src, r).toContain("sameSite(req)");
+      expect(src, r).toMatch(/limiter\(/);
+      expect(src, r).not.toMatch(/export (async )?function (GET|PUT|PATCH|DELETE)/);
+    }
+  });
 });
 
 describe("the secret-address calendar feed", () => {

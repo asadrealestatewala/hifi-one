@@ -15,11 +15,11 @@ describe("the home address", () => {
     expect(homeDestination({ setupNeeded: true, signedIn: true })).toBe("/setup");
   });
   it("decides on the server from the real session and serves the website home page", () => {
-    const src = fs.readFileSync(path.resolve(__dirname, "../app/route.ts"), "utf8");
+    const src = fs.readFileSync(path.resolve(__dirname, "../app/(site)/page.tsx"), "utf8");
     expect(src).toContain("getSessionUser()");
     expect(src).toContain("needsSetup(db)");
     expect(src).toContain("homeDestination(");
-    expect(src).toContain('sitePage("index"');
+    expect(src).toContain("<Home />");
     expect(src).toContain('dynamic = "force-dynamic"');
   });
 });
