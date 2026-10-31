@@ -100,13 +100,23 @@ export function checkPassword(pw: string) {
   if (!/[a-z]/.test(pw) || !/[A-Z]/.test(pw) || !/\d/.test(pw)) throw new SetupError("Include upper case, lower case and a number.");
 }
 
+// Which setup token /setup must check, or undefined for none. The token is optional: it is checked only in production,
+// only when SETUP_TOKEN is set on the server, and only when the person typed one. Without it, the only guard is that
+// firstSetup refuses to run once any user exists, so whoever reaches /setup first on an empty database creates the admin.
+export function setupTokenToCheck(opts: { isProd: boolean; configured?: string; entered?: string }): string | undefined {
+  const configured = (opts.configured ?? "").trim();
+  const entered = (opts.entered ?? "").trim();
+  if (!opts.isProd || !configured || !entered) return undefined;
+  return configured;
+}
+
 // Creates the organization and the first Super Admin. Only works while the database has no users at all.
-// In production a setup token from the environment must also match, so a stranger who reaches the page first cannot take over.
+// When a setup token is passed in expectedToken (see setupTokenToCheck) it must also match.
 export async function firstSetup(
   db: PrismaClient,
   p: { companyName: string; adminName: string; adminEmail: string; password: string; timezone?: string; currency?: string; setupToken?: string; expectedToken?: string },
 ) {
-  if (p.expectedToken !== undefined && p.setupToken !== p.expectedToken) throw new SetupError("The setup token is not correct.");
+  if (p.expectedToken !== undefined && (p.setupToken ?? "").trim() !== p.expectedToken) throw new SetupError("The setup token is not correct.");
   const email = p.adminEmail.trim().toLowerCase();
   if (p.companyName.trim().length < 2) throw new SetupError("Enter the company name.");
   if (p.adminName.trim().length < 2) throw new SetupError("Enter the administrator's name.");

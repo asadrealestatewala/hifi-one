@@ -16,7 +16,7 @@ The local development database (`npm run db:start`) is for development only. Do 
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string, for example `postgresql://user:password@host:5432/hifi_one?sslmode=require` |
 | `SESSION_SECRET` | 32+ random characters used to sign session cookies. Generate: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Changing it signs everyone out. |
-| `SETUP_TOKEN` | Production only. 16+ random characters. Required to run first-run setup (see below). The setup page closes by itself once a user exists. |
+| `SETUP_TOKEN` | Optional, production only. If set, first-run setup checks it when it is entered; a blank field skips the check. The setup page closes by itself once a user exists. |
 | `STORAGE_DIR` | Folder for uploaded files (default `.data/files` next to the app). Use a persistent path outside the code, and back it up together with the database. |
 | `NODE_ENV` | `production` (set by `next start`). Turns on secure cookies, HSTS and the strict Content-Security-Policy. |
 
@@ -36,7 +36,7 @@ npm run start                  # serves on port 3000 (use -p to change)
 
 ### First-run setup
 
-On an empty database, open the site. It sends you to **/setup**, where you enter the company name, main currency, time zone and the first administrator (12+ character password with upper case, lower case and a digit). In production the page also asks for the `SETUP_TOKEN` from the server environment, so a stranger who finds the URL first cannot take over. Setup creates the roles, permissions, a starter chart of accounts, pipeline stages and leave types in one all-or-nothing step, and **the page closes permanently as soon as any user exists**.
+On an empty database, open the site. It sends you to **/setup**, where you enter the company name, main currency, time zone and the first administrator (12+ character password with upper case, lower case and a digit). The setup token is optional: if `SETUP_TOKEN` is set on the server the page shows a token field and checks any value entered there, but you can leave it blank. **Until setup is finished, whoever reaches `/setup` first can create the administrator account**, so complete setup immediately after the first deploy. Setup only ever runs on a database with no users, so it cannot add a second administrator or reset anything later. Setup creates the roles, permissions, a starter chart of accounts, pipeline stages and leave types in one all-or-nothing step, and **the page closes permanently as soon as any user exists**.
 
 After that: sign in, turn on two-step verification (Account security), then fill in Company Settings and bank accounts, create staff under Users, and tune roles under Roles & Permissions.
 
@@ -56,7 +56,7 @@ Production runs on the VPS behind hifimarketing.co (DNS pointed there on 2026-10
 4. **Firewall:** allow 80 and 443 (`ufw allow 'Nginx Full'`); keep 3000 and the database closed to the internet.
 5. **HTTPS:** `apt install certbot python3-certbot-nginx`, then `certbot --nginx -d hifimarketing.co -d www.hifimarketing.co --redirect`. Renewal runs from certbot's timer; `certbot renew --dry-run` checks it.
 6. **App environment:** set `APP_URL=https://hifimarketing.co` in the app's environment file and `pm2 restart hifi-one --update-env`.
-7. **First-run setup:** until a user exists, `/` and `/login` send every visitor to `/setup` (protected by `SETUP_TOKEN`), so the website is not shown. Complete setup at `https://hifimarketing.co/setup`, then remove `SETUP_TOKEN` from the environment and restart.
+7. **First-run setup:** until a user exists, `/` and `/login` send every visitor to `/setup`, so the website is not shown. Complete setup at `https://hifimarketing.co/setup` straight after the deploy (until then anyone who opens it can create the administrator). If you set `SETUP_TOKEN`, remove it afterwards and restart.
 8. **Check:** `node scripts/smoke-prod.mjs https://hifimarketing.co` (it also checks that `/` serves the website uncached), then open `/` signed out (website) and `/login` (ERP sign-in).
 
 The old PHP site (job applications, applicant accounts, its client portal) stops being reachable once DNS moves; the website copy sends those visitors to the contact page.
@@ -74,11 +74,11 @@ Never run `prisma migrate reset` or `prisma db push --force-reset` against a dat
 
 Do this on the real server (or an identical staging one) before anyone relies on the system.
 
-1. **Prepare the environment** from `.env.production.example`: strong database password, `SESSION_SECRET` (48+ random characters), `APP_URL` (https), `SETUP_TOKEN` (first run only), `STORAGE_DIR` on persistent storage.
+1. **Prepare the environment** from `.env.production.example`: strong database password, `SESSION_SECRET` (48+ random characters), `APP_URL` (https), `SETUP_TOKEN` (optional, first run only), `STORAGE_DIR` on persistent storage.
 2. **Run `node scripts/preflight.mjs`** with that environment. Fix every FAIL; read every WARN. It never prints secret values.
 3. **Start it** either with Docker (`docker compose up -d --build`, which uses the `Dockerfile` and `docker-compose.yml`) or directly (`npm ci && npx prisma migrate deploy && npm run build && npm start`). Put an HTTPS reverse proxy in front; do not expose port 3000 or the database to the internet.
 4. **Run `node scripts/smoke-prod.mjs https://your-address`.** It confirms the health check, the security headers (CSP, HSTS, framing, sniffing), that protected pages send a signed-out visitor to the login page, that files and the calendar feed give nothing away, and that repeated bad sign-ins never crash the server.
-5. **Run first-run setup** at `/setup` with the setup token, sign in, and complete two-step enrolment (the first administrator's role requires it). Then delete `SETUP_TOKEN` from the environment and restart.
+5. **Run first-run setup** at `/setup` right away (the setup token is optional), sign in, and complete two-step enrolment (the first administrator's role requires it). If you set `SETUP_TOKEN`, delete it from the environment and restart.
 6. **Create a second Super Admin**, turn on two-step verification for the sensitive roles, and read Settings > Security Checklist until nothing says Fix.
 7. **Prove backup and restore**: take a backup, restore it into a scratch database, sign in against it, then run `npm run backup:check` from your scheduler.
 8. Optional: connect email (Settings > Email) and the assistant (`ANTHROPIC_API_KEY`) and test each from its page.

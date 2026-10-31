@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { SetupError, firstSetup, needsSetup } from "@/lib/bootstrap";
+import { SetupError, firstSetup, needsSetup, setupTokenToCheck } from "@/lib/bootstrap";
 import { db } from "@/lib/db";
 import { limiter } from "@/lib/rate-limit";
 import { Notice } from "@/components/ui";
@@ -9,14 +9,13 @@ import { Notice } from "@/components/ui";
 export const dynamic = "force-dynamic";
 
 const isProd = process.env.NODE_ENV === "production";
-const expectedToken = () => (isProd ? process.env.SETUP_TOKEN ?? "" : undefined);
 
 async function setup(formData: FormData) {
   "use server";
   const ip = (await headers()).get("x-forwarded-for")?.split(",")[0].trim() ?? "local";
   if (!limiter("setup", 10, 10 * 60_000).take(ip)) redirect(`/setup?error=${encodeURIComponent("Too many attempts. Please wait a few minutes.")}`);
-  const expected = expectedToken();
-  if (expected !== undefined && expected.length < 16) redirect(`/setup?error=${encodeURIComponent("SETUP_TOKEN is not configured on the server (16+ characters required).")}`);
+  // The token is optional; firstSetup still refuses to run once any user exists
+  const expected = setupTokenToCheck({ isProd, configured: process.env.SETUP_TOKEN, entered: String(formData.get("token") ?? "") });
   if (String(formData.get("password")) !== String(formData.get("confirm"))) redirect(`/setup?error=${encodeURIComponent("The two passwords do not match.")}`);
   try {
     await firstSetup(db, {
@@ -40,7 +39,7 @@ export default async function Setup({ searchParams }: { searchParams: Promise<{ 
   // Once any user exists this page is closed for good
   if (!(await needsSetup(db))) redirect("/login");
   const { error } = await searchParams;
-  const tokenMissing = isProd && (process.env.SETUP_TOKEN ?? "").length < 16;
+  const tokenConfigured = isProd && (process.env.SETUP_TOKEN ?? "").trim().length > 0;
   return (
     <main className="min-h-screen grid place-items-center p-4">
       <form action={setup} className="card w-full max-w-lg space-y-4">
@@ -51,16 +50,17 @@ export default async function Setup({ searchParams }: { searchParams: Promise<{ 
             <p className="text-xs text-muted">Create your organization and the first administrator</p>
           </div>
         </div>
-        {tokenMissing && (
-          <Notice kind="error">
-            This server has no SETUP_TOKEN. Set a random value of 16 or more characters in the server environment and restart, so only you can run setup.
-          </Notice>
+        {isProd && (
+          <p className="rounded-lg bg-warning/10 px-3 py-2 text-sm text-warning">
+            Until setup is finished, anyone who opens this page can create the administrator account, so complete it now. The page closes for good once the first user exists.
+          </p>
         )}
         {error && <Notice kind="error">{error}</Notice>}
-        {isProd && (
+        {tokenConfigured && (
           <div>
-            <label className="label" htmlFor="token">Setup token (from the server environment)</label>
-            <input id="token" name="token" type="password" required className="input" />
+            <label className="label" htmlFor="token">Setup token (optional)</label>
+            <input id="token" name="token" type="password" autoComplete="off" className="input" />
+            <p className="text-xs text-muted mt-1">If you have the SETUP_TOKEN from the server environment, enter it and it will be checked. Otherwise leave this blank.</p>
           </div>
         )}
         <div><label className="label" htmlFor="companyName">Company name</label><input id="companyName" name="companyName" required className="input" /></div>
@@ -79,7 +79,7 @@ export default async function Setup({ searchParams }: { searchParams: Promise<{ 
           <div><label className="label" htmlFor="password">Password (12+ characters)</label><input id="password" name="password" type="password" required minLength={12} autoComplete="new-password" className="input" /></div>
           <div><label className="label" htmlFor="confirm">Repeat password</label><input id="confirm" name="confirm" type="password" required minLength={12} autoComplete="new-password" className="input" /></div>
         </div>
-        <button className="btn w-full" disabled={tokenMissing}>Create installation</button>
+        <button className="btn w-full">Create installation</button>
         <p className="text-xs text-muted">
           This creates roles, a starter chart of accounts, pipeline stages and leave types. Company address, bank accounts and other details are added afterwards in Company Settings.
           This page closes permanently once the first user exists.

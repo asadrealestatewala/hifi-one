@@ -110,7 +110,7 @@ Limits: Latin characters only in PDFs (other scripts show as ? with a notice; Ur
 ## First-run setup, user and role administration, password reset, two-step verification (done)
 
 Done, 32 automated tests (9 against RFC 6238 vectors) plus a full browser run on a brand-new empty database: the home page redirected to /setup, setup created the installation and the page then closed; two-step verification was turned on with a real QR code and key, sign-in stopped at the code page, a wrong code and a recovery code behaved correctly, and the dashboard was unreachable without a code; a staff user set their own password from a one-time link, the old link died, and the new accountant could not open Users, Roles or Setup; a custom role was created.
-- /setup: only on a system with no users; production also needs SETUP_TOKEN; all-or-nothing transaction; two setups at once create exactly one installation; audited
+- /setup: only on a system with no users; SETUP_TOKEN is optional (checked in production only when set and entered); all-or-nothing transaction; two setups at once create exactly one installation; audited
 - Two-step verification (authenticator app): encrypted secret, replay-proof codes, 8 one-time recovery codes, password needed to disable, administrators can reset
 - Password reset links; forced change of starting passwords for staff created by HR
 - Users screen: create, roles, deactivate, reset link, reset two-step. Roles screen: custom roles and a permission editor grouped by module

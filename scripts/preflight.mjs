@@ -33,9 +33,9 @@ if (!env.APP_URL) check("WARN", "APP_URL", "Not set. Set it to the public https:
 else if (!env.APP_URL.startsWith("https://")) check("FAIL", "APP_URL", "Must start with https:// in production.");
 else check("OK", "APP_URL", "https address set.");
 
-// First-run setup is locked behind a token in production
-if (!env.SETUP_TOKEN || env.SETUP_TOKEN.length < 16) check("WARN", "SETUP_TOKEN", "Not set (or under 16 characters). Needed only to run first-run setup on a new installation; the setup page closes by itself once a user exists. Remove it afterwards.");
-else check("OK", "SETUP_TOKEN", "Set. Remove it from the environment once setup is done.");
+// First-run setup: the token is optional; the page closes by itself once a user exists
+if (!env.SETUP_TOKEN) check("OK", "SETUP_TOKEN", "Not set (optional). Until first-run setup is done, anyone who reaches /setup can create the administrator, so complete setup right after deploying.");
+else check("OK", "SETUP_TOKEN", "Set. /setup checks it when entered. Remove it from the environment once setup is done.");
 
 // Files
 const dir = env.STORAGE_DIR;
