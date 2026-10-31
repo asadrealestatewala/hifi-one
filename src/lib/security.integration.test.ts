@@ -61,6 +61,9 @@ describe("first-run setup", () => {
   it("is closed forever once any user exists", async () => {
     expect(await needsSetup(db)).toBe(false);
     await expect(firstSetup(db, { ...input, adminEmail: "third@test.example" })).rejects.toThrow(/already set up/);
+    // Without a token setup cannot add a second administrator, and a correct token does not reopen it either
+    await expect(firstSetup(db, { ...input, adminEmail: "fourth@test.example", setupToken: "right", expectedToken: "right" })).rejects.toThrow(/already set up/);
+    expect(await db.user.count()).toBe(1);
   });
 });
 
