@@ -4,37 +4,28 @@ import { leadScore } from "@/lib/crm";
 import { db } from "@/lib/db";
 import { leadScope } from "@/lib/leads";
 import { formatMoney } from "@/lib/money";
-import { parseRange, rangeFilter, rangeLabel } from "@/lib/date-range";
-import { AppliedFilters, Badge, DateRangeForm, Chips, Empty, NewButton, PageHeader, Pager, PanelForm, SearchBox, SortTh, Stat } from "@/components/ui";
-import { paging } from "@/lib/paging";
-import { orderFor, parseSort } from "@/lib/sort";
+import { rangeLabel } from "@/lib/date-range";
+import { AppliedFilters, Badge, DateRangeForm, Chips, Empty, ExportLink, NewButton, PageHeader, Pager, PanelForm, SearchBox, SortTh, Stat } from "@/components/ui";
+import { orderFor } from "@/lib/sort";
+import { listHref } from "@/lib/list-params";
+import { LEAD_SORTS, leadParams, leadWhere } from "@/lib/lists";
 import Drawer from "@/components/ui/Drawer";
 import { createLead } from "./actions";
 
 export const dynamic = "force-dynamic";
-const SORTS = { name: { field: "name" }, value: { field: "dealValue", nullable: true }, followup: { field: "nextFollowUp", nullable: true }, created: { field: "createdAt" } };
-
 export default async function Leads({ searchParams }: { searchParams: Promise<{ error?: string; dup?: string; q?: string; stage?: string; new?: string; page?: string; campaign?: string; source?: string; from?: string; to?: string; src?: string; sort?: string; dir?: string }> }) {
   const user = await requirePermission("crm.view");
   const { error, dup, q, stage, new: isNew, page, campaign, source, from, to, src, sort: sortRaw, dir: dirRaw } = await searchParams;
-  const sort = parseSort(sortRaw, dirRaw, Object.keys(SORTS), { key: "created", dir: "desc" });
-  const range = parseRange(from, to);
-  const created = rangeFilter(range);
-  const pg = paging(page);
+  const lp = leadParams({ q, stage, campaign, source, from, to, page, sort: sortRaw, dir: dirRaw });
+  const sort = lp.sort;
+  const range = lp.range;
+  const pg = lp.page;
   const canEdit = user.permissions.has("crm.edit");
-  const search = q?.trim();
-  const esc = (s: string) => s.replace(/[\\%_]/g, (c) => "\\" + c);
+  const search = lp.q;
   const base = leadScope(user);
-  const where = {
-    ...base,
-    ...(stage ? { stageId: stage } : {}),
-    ...(campaign ? { campaignId: campaign } : {}),
-    ...(source ? { leadSourceId: source } : {}),
-    ...(created ? { createdAt: created } : {}),
-    ...(search ? { AND: [{ OR: [{ name: { contains: esc(search), mode: "insensitive" as const } }, { company: { contains: esc(search), mode: "insensitive" as const } }, { email: { contains: esc(search), mode: "insensitive" as const } }, { phone: { contains: search } }] }] } : {}),
-  };
+  const where = leadWhere(user, lp);
   const [leads, matched, dueNow, campaigns, stages, stageCounts] = await Promise.all([
-    db.lead.findMany({ where, orderBy: orderFor(sort, SORTS), skip: pg.skip, take: pg.take, include: { stage: true } }),
+    db.lead.findMany({ where, orderBy: orderFor(sort, LEAD_SORTS), skip: pg.skip, take: pg.take, include: { stage: true } }),
     db.lead.count({ where }),
     db.lead.count({ where: { ...base, nextFollowUp: { lt: new Date() } } }),
     db.campaign.findMany({ where: { organizationId: user.organizationId }, orderBy: { name: "asc" }, select: { id: true, name: true, status: true, archivedAt: true } }),
@@ -53,6 +44,7 @@ export default async function Leads({ searchParams }: { searchParams: Promise<{ 
         actions={<>
           <Link href="/leads/lists" className="btn-ghost">Smart lists</Link>
           <Link href="/pipeline" className="btn-ghost">Board</Link>
+          <ExportLink href={listHref("/leads/export", { stage, campaign, source, from: range.from, to: range.to, q: search, sort: lp.sortChosen ? sort.key : undefined, dir: lp.sortChosen ? sort.dir : undefined })} />
           {canEdit && <NewButton href={href({ new: "1" })}>Add lead</NewButton>}
         </>}
       />

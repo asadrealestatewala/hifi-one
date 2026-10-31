@@ -6,9 +6,10 @@ import { audit, requirePermission } from "@/lib/auth";
 import { LedgerError, recordPayment } from "@/lib/accounting";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
-import { AppliedFilters, DateRangeForm, Empty, NewButton, Notice, PageHeader, Pager, PanelForm, SearchBox, Stat } from "@/components/ui";
-import { parseRange, rangeFilter, rangeLabel } from "@/lib/date-range";
-import { paging } from "@/lib/paging";
+import { AppliedFilters, DateRangeForm, Empty, ExportLink, NewButton, Notice, PageHeader, Pager, PanelForm, SearchBox, Stat } from "@/components/ui";
+import { rangeLabel } from "@/lib/date-range";
+import { listHref as buildHref } from "@/lib/list-params";
+import { paymentParams, paymentWhere } from "@/lib/lists";
 import Drawer from "@/components/ui/Drawer";
 import { paymentReceived } from "@/lib/events";
 
@@ -49,17 +50,17 @@ async function receive(formData: FormData) {
 export default async function Payments({ searchParams }: { searchParams: Promise<{ error?: string; ok?: string; q?: string; new?: string; page?: string; from?: string; to?: string; src?: string }> }) {
   const user = await requirePermission("finance.view");
   const { error, ok, q, new: isNew, page, from, to, src } = await searchParams;
-  const range = parseRange(from, to);
-  const received = rangeFilter(range);
-  const pg = paging(page);
+  const lp = paymentParams({ q, page, from, to });
+  const range = lp.range;
+  const pg = lp.page;
   const canPost = user.permissions.has("finance.post");
-  const search = q?.trim();
+  const search = lp.q;
   const profile = await db.companyProfile.findFirst({ where: { organizationId: user.organizationId, isDefault: true } });
   // Default to today in the company timezone, not UTC, so receipts are not dated before their invoice
   const today = new Date().toLocaleDateString("en-CA", { timeZone: profile?.timezone ?? "UTC" });
   const open = Boolean(canPost && isNew);
   const org = user.organizationId;
-  const where = { organizationId: org, ...(search ? { OR: [{ number: { contains: search, mode: "insensitive" as const } }, { client: { name: { contains: search, mode: "insensitive" as const } } }, { reference: { contains: search, mode: "insensitive" as const } }] } : {}), ...(received ? { date: received } : {}) };
+  const where = paymentWhere(user, lp);
   // Figures come from aggregates over every payment, not from the page of rows shown
   const monthStart = today.slice(0, 7);
   const [payments, matched, receivedThisMonth, advances, clients, banks] = await Promise.all([
@@ -76,7 +77,7 @@ export default async function Payments({ searchParams }: { searchParams: Promise
   const listHref = (n: number, over: Record<string, string | undefined> = {}) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ q: search, from: range.from, to: range.to, src, page: n > 1 ? String(n) : undefined, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/finance/payments${t ? `?${t}` : ""}`; };
   return (
     <div className="space-y-5">
-      <PageHeader title="Payments & receipts" subtitle="Money received, and which invoices it settled." actions={canPost ? <NewButton href="/finance/payments?new=1">Record payment</NewButton> : undefined} />
+      <PageHeader title="Payments & receipts" subtitle="Money received, and which invoices it settled." actions={<><ExportLink href={buildHref("/finance/payments/export", { q: search, from: range.from, to: range.to })} />{canPost && <NewButton href="/finance/payments?new=1">Record payment</NewButton>}</>} />
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Receipts" value={total} />
         <Stat label="Received this month" value={perCurrency(receivedThisMonth.map((r) => ({ currency: r.currency, v: r._sum.amount })))} hint="per currency" />

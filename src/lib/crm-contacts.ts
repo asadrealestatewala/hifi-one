@@ -378,7 +378,8 @@ export async function bulkUpdate(db: Db, who: Who, p: { ids: string[]; action: B
   return vid.length;
 }
 
-export const csvCell = (v: unknown) => { let s = String(v ?? ""); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+// A plain number (including a negative amount) cannot be a formula, so it stays summable
+export const csvCell = (v: unknown) => { let s = String(v ?? ""); if (/^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s)) s = "'" + s; return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
 // Any table as CSV with formula characters defused
 export const tableCsv = (head: string[], rows: unknown[][]) => [head, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n") + "\r\n";
 

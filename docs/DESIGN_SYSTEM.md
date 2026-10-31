@@ -25,13 +25,16 @@ The dashboard hero uses the primary colour with a soft gradient (owner asked for
 
 ## Shared components (use these, do not copy markup)
 
-`src/components/ui.tsx`: `PageHeader`, `Stat` (KPI card), `Badge`, `StatusBadge`, `Progress`, `Empty`, `Notice`, `Chips` (filter links with counts), `SearchBox`, `NewButton`, `Avatar`, `PanelForm` (body of a slide-over form), `likeEscape`.
+`src/components/ui.tsx`: `PageHeader`, `Stat` (KPI card), `Badge`, `StatusBadge`, `Progress`, `Empty`, `Notice`, `Chips` (filter links with counts), `SearchBox`, `NewButton`, `ExportLink` ("Export CSV" link to a list's export route), `Pager`, `SortTh`, `Avatar`, `PanelForm` (body of a slide-over form; its Save button is a `SubmitButton`), `likeEscape`.
+`src/components/ui/SubmitButton.tsx` (pending "Saving…" state via `useFormStatus`, no double submit; also used by `FilesPanel` and `PhotoForm`), `ConfirmButton.tsx`, `ErrorView.tsx` (used by every `error.tsx`), `NotFoundView.tsx` (used by every `not-found.tsx`), `PageSkeleton.tsx` (`list` or `board` skeleton for section `loading.tsx`).
 `src/components/ui/Drawer.tsx`: slide-over panel (Escape or backdrop closes). `src/components/ui/LineItems.tsx`: invoice and quote lines with live totals.
 Contacts: `EditableSection` (pencil turns a block into a form that saves alone), `Editors` (phone/email rows, custom fields, shipping with copy-billing).
 
 ## List screen pattern
 
-`PageHeader` (title, one-line purpose, primary action) → `Stat` strip → search plus `Chips` status filters (state in the URL) → table in `card !p-0` with tinted header and row hover → "New …" opens a `Drawer` via `?new=1`. A refused save redirects back with `?new=1&error=…` so the panel reopens with the message.
+`PageHeader` (title, one-line purpose, primary action) → `Stat` strip → search plus `Chips` status filters (state in the URL) → table in `card !p-0` with tinted header and row hover → "New …" opens a `Drawer` via `?new=1`. Pager under the table ("x–y of N"), sortable headers with `SortTh`, and `ExportLink` in the header.
+
+List engine (no client-side table component): `src/lib/list-params.ts` parses `q`, `sort`/`dir` (whitelisted per list), `page`, `status` (whitelisted), `from`/`to` and id filters with zod and falls back to defaults on bad input; `listHref` builds links that keep the other filters. `src/lib/lists.ts` holds each list's filter builder (`invoiceWhere`, `paymentWhere`, `leadWhere`, `quoteWhere`, `expenseWhere`, `auditWhere`), which checks the list's permission and applies record scope, so the page, its counts and its CSV export cover the same rows. `listExport` + `csvResponse` stream every matching row in batches of 1,000 (no page cap), with formula characters defused (`csvCell`), amounts as exact two-decimal strings beside a currency column, and no sensitive fields. A refused save redirects back with `?new=1&error=…` so the panel reopens with the message.
 
 ## Detail screen pattern
 
@@ -40,7 +43,7 @@ Back link, header with status badge, the key number (balance, term, stage) and p
 ## Rules
 
 - Sizes, radii and spacing come from the existing classes; no per-page overrides. Tables scroll horizontally inside their card, never the page.
-- Every list has empty, loading (`loading.tsx` skeleton) and error states. (Target, not yet met: today there is one `src/app/(app)/loading.tsx` and no `error.tsx`; see "Adoption" below.)
+- Every list has empty, loading (`loading.tsx` skeleton) and error states. `error.tsx` and `not-found.tsx` exist in `(app)`, `portal` and `vendor` (plus the root `not-found.tsx`); `loading.tsx` exists in `(app)` (generic) and in `finance`, `hr`, `leads`, `contacts` (list skeleton) and `pipeline` (board skeleton).
 - Colour is never the only signal: statuses carry a text label; progress bars carry `role="progressbar"`.
 - Touch targets and keyboard: all controls are real buttons or links; panels close with Escape.
 
@@ -75,13 +78,13 @@ These are the standards new and touched screens must meet. Components marked *pl
 | Submit | Button disables and says "Saving…" while pending; no double submit | `SubmitButton` (`src/components/ui/SubmitButton.tsx`; built into `PanelForm`) |
 | Destructive or financial action (cancel, void, write off, reverse, reject, delete) | Confirmation dialog inside the action's form; `reason` adds a required reason field, read on the server with `readReason` (`src/lib/reasons.ts`) and kept in the audit log | `ConfirmButton` (`src/components/ui/ConfirmButton.tsx`) |
 | Result of an action | Error: `Notice kind="error"` at the top of the form or page; success: a short `Notice kind="ok"` or flash | `Notice` |
-| List | Search, status chips, pagination with "x–y of N" (50 per page, `?page=` in the address), empty state with next step, export where the role may export | `paging()` (`src/lib/paging.ts`) plus `Pager` at the bottom of the `card !p-0` table; a full `DataTable` with sorting and export is still *planned* |
+| List | Search, status chips, pagination with "x–y of N" (50 per page, `?page=` in the address), empty state with next step, export where the role may export | `parseListParams` (`src/lib/list-params.ts`) and the builders in `src/lib/lists.ts`, `Pager` at the bottom of the `card !p-0` table, `SortTh`, `ExportLink` to `<list>/export` |
 | Key/value detail | Two-column definition list | `KV` *(planned)* |
 | Money | Tabular figures, currency always shown | `formatMoney` (`src/lib/money.ts`) |
 | Date ranges | Presets (this month, last month, quarter, year, custom) | the dashboard period picker; generalise to `DateRange` *(planned)* |
 | Status | One tone map for all statuses (`STATUS_TONE`); colour plus text | `StatusBadge` |
-| Loading | Skeleton matching the layout, per route segment | `loading.tsx` with `.skeleton` |
-| Errors | Friendly message, retry, link home, reference code; never the error text | `ErrorView` via `error.tsx` in `(app)`, `portal`, `vendor`; `not-found.tsx` at the root and in `(app)` |
+| Loading | Skeleton matching the layout, per route segment | `loading.tsx` with `PageSkeleton` (`.skeleton`) |
+| Errors | Friendly message, retry, link home, reference code; never the error text | `ErrorView` via `error.tsx` in `(app)`, `portal`, `vendor`; `NotFoundView` via `not-found.tsx` in the same three areas, plus the root |
 | Dialogs and panels | Escape closes, focus moves into the panel, close button labelled | `Drawer` (focus handling to add) |
 
 Added 2026-10-17: `SortTh` (sortable table header with `aria-sort`, address-driven, `src/lib/sort.ts`), `SavedViews` (personal saved filters on a list), `CommandPalette` (Ctrl K, in the shell), `ProjectTimeline` (Gantt bars with text alternatives). The `SIGNED` status uses the success tone.

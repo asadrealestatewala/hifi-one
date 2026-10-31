@@ -5,8 +5,9 @@ import { db } from "@/lib/db";
 import { ExpenseError, submitVoucher } from "@/lib/expenses";
 import { formatMoney } from "@/lib/money";
 import { notifyPermission } from "@/lib/notifications";
-import { paging } from "@/lib/paging";
-import { Chips, Empty, Notice, PageHeader, Pager, StatusBadge } from "@/components/ui";
+import { listHref } from "@/lib/list-params";
+import { EXPENSE_STATUSES as STATUSES, expenseParams, expenseScope, expenseWhere } from "@/lib/lists";
+import { Chips, Empty, ExportLink, Notice, PageHeader, Pager, StatusBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -31,17 +32,17 @@ async function submit(formData: FormData) {
   redirect(`/expenses/${id}`);
 }
 
-const STATUSES = ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "POSTED", "PAID", "REJECTED", "CANCELLED"];
 
 export default async function Expenses({ searchParams }: { searchParams: Promise<{ error?: string; status?: string; page?: string }> }) {
   const user = await requirePermission("self.expense");
   const sp = await searchParams;
   const error = sp.error;
-  const status = STATUSES.includes(sp.status ?? "") ? sp.status! : undefined;
+  const lp = expenseParams(sp);
+  const status = lp.status;
   const all = user.permissions.has("expenses.view");
-  const pg = paging(sp.page);
-  const mine = { organizationId: user.organizationId, ...(all ? {} : { submittedById: user.id }) };
-  const where = { ...mine, ...(status ? { status } : {}) };
+  const pg = lp.page;
+  const mine = expenseScope(user);
+  const where = expenseWhere(user, lp);
   const [vouchers, matched, counts, accounts, budgets, projects, people] = await Promise.all([
     db.expenseVoucher.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: pg.skip, take: pg.take }),
     db.expenseVoucher.count({ where }),
@@ -57,7 +58,7 @@ export default async function Expenses({ searchParams }: { searchParams: Promise
   const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ status, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/expenses${t ? `?${t}` : ""}`; };
   return (
     <div className="space-y-6">
-      <PageHeader title="Expense Vouchers" subtitle={`${all ? "All vouchers in the organization." : "Your vouchers."} Approved spending is committed against its budget; posting records the expense; only payment moves cash.`} />
+      <PageHeader title="Expense Vouchers" subtitle={`${all ? "All vouchers in the organization." : "Your vouchers."} Approved spending is committed against its budget; posting records the expense; only payment moves cash.`} actions={<ExportLink href={listHref("/expenses/export", { status })} />} />
       <Chips current={status ?? "all"} items={[{ key: "all", label: "All", count: counts.reduce((n, c) => n + c._count, 0), href: href({ status: undefined }) }, ...STATUSES.map((s) => ({ key: s, label: s.toLowerCase().replace("_", " ").replace(/^./, (c) => c.toUpperCase()), count: count.get(s) ?? 0, href: href({ status: s }) }))]} />
       {vouchers.length === 0 ? <Empty title={status ? "No vouchers with this status" : "No vouchers yet"}>Submit one with the form below.</Empty> : (
       <div className="card overflow-x-auto !p-0">

@@ -5,8 +5,9 @@ import { CatalogError, resolvePlanLines } from "@/lib/catalog";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { SalesError, createQuote, expireQuotes } from "@/lib/sales";
-import { Chips, Empty, NewButton, Notice, PageHeader, Pager, SearchBox, Stat, StatusBadge } from "@/components/ui";
-import { paging } from "@/lib/paging";
+import { Chips, Empty, ExportLink, NewButton, Notice, PageHeader, Pager, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import { listHref } from "@/lib/list-params";
+import { QUOTE_STATUSES, quoteParams, quoteWhere } from "@/lib/lists";
 import Drawer from "@/components/ui/Drawer";
 import QuoteForm from "./QuoteForm";
 
@@ -59,14 +60,11 @@ export default async function Quotes({ searchParams }: { searchParams: Promise<S
   ]);
   const byStatus = new Map(counts.map((c) => [c.status as string, c._count]));
   const statuses = [...byStatus.keys()];
-  const status = statuses.includes(sp.status ?? "") ? sp.status! : "all";
-  const q = sp.q?.trim();
-  const where = {
-    organizationId: org,
-    ...(status !== "all" ? { status: status as never } : {}),
-    ...(q ? { OR: [{ number: { contains: q, mode: "insensitive" as const } }, { client: { name: { contains: q, mode: "insensitive" as const } } }] } : {}),
-  };
-  const pg = paging(sp.page);
+  const status = sp.status && QUOTE_STATUSES.includes(sp.status as never) ? sp.status : "all";
+  const lp = quoteParams(sp);
+  const q = lp.q;
+  const where = quoteWhere(user, lp);
+  const pg = lp.page;
   const [quotes, matched] = await Promise.all([
     db.quote.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: pg.skip, take: pg.take, include: { client: true } }),
     db.quote.count({ where }),
@@ -77,7 +75,7 @@ export default async function Quotes({ searchParams }: { searchParams: Promise<S
   const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ status: status === "all" ? undefined : status, q: sp.q?.trim(), ...over })) if (v) p.set(k, v); const t = p.toString(); return `/quotes${t ? `?${t}` : ""}`; };
   return (
     <div className="space-y-5">
-      <PageHeader title="Quotations" subtitle="Price the work, send it, and turn accepted quotes into invoices." actions={canManage ? <NewButton href={href({ new: "1" })}>New quotation</NewButton> : undefined} />
+      <PageHeader title="Quotations" subtitle="Price the work, send it, and turn accepted quotes into invoices." actions={<><ExportLink href={listHref("/quotes/export", { status: lp.status, q })} />{canManage && <NewButton href={href({ new: "1" })}>New quotation</NewButton>}</>} />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Drafts" value={count("DRAFT")} />
         <Stat label="Sent, awaiting answer" value={count("SENT")} hint={pipeline.size ? [...pipeline].map(([c, v]) => formatMoney(v, c)).join(" · ") : undefined} />

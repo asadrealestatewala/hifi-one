@@ -143,6 +143,12 @@ export function Pager({ page, size, total, href }: { page: number; size: number;
   );
 }
 
+// "Export CSV" for a list: `href` is the list's export route with the on-screen filters, so the file holds
+// every matching row (not just the page shown). A plain link: it works without JavaScript and is never prefetched.
+export function ExportLink({ href, label = "Export CSV" }: { href: string; label?: string }) {
+  return <a href={href} className="btn-ghost" download>{label}</a>;
+}
+
 // Download links for a report: CSV for spreadsheets, PDF for sharing. `params` carries the on-screen filters.
 export function DownloadButtons({ report, params }: { report: string; params?: Record<string, string | undefined> }) {
   const q = (format: string) => { const p = new URLSearchParams({ report, format }); for (const [k, v] of Object.entries(params ?? {})) if (v) p.set(k, v); return `/reports/download?${p}`; };

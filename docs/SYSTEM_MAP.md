@@ -39,7 +39,7 @@ Guards: `src/lib/auth.ts` (`getSessionUser` cached per request, `requireUser`, `
 
 ## Route handlers (`src/app/api`)
 
-`health`; `calendar/[token]` (ICS feed); `files/[id]` (signed downloads); `avatar/[id]`; `screenshots/[id]`; `meetings/[id]/{events,signal,chat,admin}` (SSE signalling); `agent/{enroll,policy,ingest,screenshot}` (Windows monitoring agent, device token). Plus `src/app/(app)/contacts/export/route.ts` (CSV).
+`health`; `calendar/[token]` (ICS feed); `files/[id]` (signed downloads); `avatar/[id]`; `screenshots/[id]`; `meetings/[id]/{events,signal,chat,admin}` (SSE signalling); `agent/{enroll,policy,ingest,screenshot}` (Windows monitoring agent, device token). Plus CSV exports in the staff area, each guarded by its list's permission: `contacts/export`, `hr/employees/export`, and (through `src/lib/lists.ts`) `finance/invoices/export`, `finance/payments/export`, `leads/export`, `quotes/export`, `expenses/export`, `audit-logs/export`.
 
 ## Module inventory (sidebar groups, `src/components/shell/nav.ts`)
 

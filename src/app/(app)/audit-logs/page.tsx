@@ -1,19 +1,18 @@
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { paging } from "@/lib/paging";
-import { Empty, PageHeader, Pager, SearchBox } from "@/components/ui";
+import { listHref } from "@/lib/list-params";
+import { auditParams, auditWhere } from "@/lib/lists";
+import { Empty, ExportLink, PageHeader, Pager, SearchBox } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function AuditLogs({ searchParams }: { searchParams: Promise<{ q?: string; page?: string }> }) {
   const user = await requirePermission("audit.view");
   const sp = await searchParams;
-  const q = sp.q?.trim();
-  const pg = paging(sp.page);
-  const where = {
-    organizationId: user.organizationId,
-    ...(q ? { OR: [{ action: { contains: q, mode: "insensitive" as const } }, { entity: { contains: q, mode: "insensitive" as const } }, { actor: { name: { contains: q, mode: "insensitive" as const } } }] } : {}),
-  };
+  const lp = auditParams(sp);
+  const q = lp.q;
+  const pg = lp.page;
+  const where = auditWhere(user, lp);
   const [logs, total] = await Promise.all([
     db.auditLog.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: pg.skip, take: pg.take, include: { actor: { select: { name: true } } } }),
     db.auditLog.count({ where }),
@@ -21,7 +20,7 @@ export default async function AuditLogs({ searchParams }: { searchParams: Promis
   const href = (n: number) => { const p = new URLSearchParams(); if (q) p.set("q", q); if (n > 1) p.set("page", String(n)); const t = p.toString(); return `/audit-logs${t ? `?${t}` : ""}`; };
   return (
     <div className="space-y-5">
-      <PageHeader title="Audit Logs" subtitle="Who changed what, newest first." />
+      <PageHeader title="Audit Logs" subtitle="Who changed what, newest first." actions={<ExportLink href={listHref("/audit-logs/export", { q })} />} />
       <SearchBox q={q} placeholder="Search action, record or person" />
       {logs.length === 0 ? <Empty title={q ? "No events match" : "No events yet"} /> : (
         <div className="card overflow-x-auto !p-0">
