@@ -123,3 +123,7 @@ Found by comparing with the reference ERP; evidence in `docs/REFERENCE_ERP_AUDIT
 - **Needs outside setup:** sending only works once Resend (or SMTP) is connected and the domain verified; replies stop sequences only for mailboxes with receiving set up; the runner needs `JOBS_AUTORUN=1` or a scheduler (docs/DEPLOYMENT.md); `APP_URL` must be the public address so logos and links in emails work.
 - **Not built:** per-person email preferences (opting out of task emails), A/B tests and open/click tracking, sending windows (business hours), branching sequences, SMS/WhatsApp steps, HTML editing beyond the structured fields.
 - **Not verified:** a real delivery through Resend and how the layout renders in Outlook desktop and Gmail apps (checked in Chromium at desktop and 380px widths only).
+
+## Client types, retainers and quotas (added 2026-11-01, decision 48)
+- **Done (service level tested, checked in a browser):** client type and allocated project manager (client page, Services tab); catalog plans carry monthly quotas; retainers from a plan or custom; single-service orders priced per unit; quota usage with void; Retainers and Recurring Revenue page with MRR and ARR per currency (recurring only).
+- **Not built yet:** automatic usage from published content and ad campaigns, portal view of quotas, per-organization switch for which ad platforms are enabled, linking an engagement to its subscription for automatic invoicing.

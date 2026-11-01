@@ -283,6 +283,7 @@ model ServicePlan {
   prices   PlanPrice[]
   features PlanFeature[]
   leads    Lead[]
+  quotas   PlanQuota[]
 
   @@index([organizationId, categoryId])
 }
@@ -416,16 +417,19 @@ model Client {
   active           Boolean  @default(true)
   createdAt        DateTime @default(now())
 
-  contactId     String?
-  invoices      Invoice[]
-  quotes        Quote[]
-  subscriptions Subscription[]
-  contracts     Contract[]
-  payments      Payment[]
-  journalLines  JournalLine[]
-  leads         Lead[]
-  invites       ClientInvite[]
-  campaigns     CampaignClient[]
+  contactId        String?
+  clientType       String           @default("MARKETING") // MARKETING | SOFTWARE | INCORPORATION | SELLER_SERVICES | SAAS
+  projectManagerId String? // the staff member allocated to run this client's work (shown in the client portal)
+  engagements      Engagement[]
+  invoices         Invoice[]
+  quotes           Quote[]
+  subscriptions    Subscription[]
+  contracts        Contract[]
+  payments         Payment[]
+  journalLines     JournalLine[]
+  leads            Lead[]
+  invites          ClientInvite[]
+  campaigns        CampaignClient[]
 
   @@unique([organizationId, name])
 }
@@ -2424,4 +2428,74 @@ model FollowUpSend {
   enrollment FollowUpEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 
   @@unique([enrollmentId, position])
+}
+
+// ---------- Client engagements: what a client bought, its quotas and its recurring value ----------
+
+// What a retainer plan includes each month (for example 8 reels, 2 Meta ad campaigns).
+model PlanQuota {
+  id       String @id @default(cuid())
+  planId   String
+  key      String // see QUOTA_KEYS in src/lib/engagements.ts
+  quantity Int
+
+  plan ServicePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, key])
+}
+
+// A client's purchase: a retainer (recurring, with quotas) or a single service order. MRR and ARR come only from active recurring ones.
+model Engagement {
+  id             String   @id @default(cuid())
+  organizationId String
+  clientId       String
+  planId         String? // the catalog plan it was started from, if any
+  name           String
+  kind           String   @default("RETAINER") // RETAINER | SINGLE_SERVICE
+  interval       String   @default("MONTHLY") // ONE_TIME | MONTHLY | QUARTERLY | ANNUAL
+  currency       String
+  amount         Decimal  @db.Decimal(14, 2) // price per billing period (the whole price for ONE_TIME)
+  startDate      String // YYYY-MM-DD
+  endDate        String?
+  status         String   @default("ACTIVE") // ACTIVE | PAUSED | ENDED | CANCELLED
+  notes          String?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  client Client            @relation(fields: [clientId], references: [id])
+  quotas EngagementQuota[]
+  usage  QuotaUsage[]
+
+  @@index([organizationId, status])
+  @@index([clientId])
+}
+
+model EngagementQuota {
+  id           String @id @default(cuid())
+  engagementId String
+  key          String
+  quantity     Int
+  period       String @default("MONTH") // MONTH: resets every month (retainer) | TOTAL: for the whole order (single service)
+
+  engagement Engagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+
+  @@unique([engagementId, key])
+}
+
+// One delivered unit (or several) counted against a quota. Rows are never deleted; a mistake is corrected by voiding the row.
+model QuotaUsage {
+  id           String   @id @default(cuid())
+  engagementId String
+  key          String
+  quantity     Int      @default(1)
+  period       String // YYYY-MM the work counts toward
+  note         String?
+  voided       Boolean  @default(false)
+  createdById  String?
+  createdAt    DateTime @default(now())
+
+  engagement Engagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+
+  @@index([engagementId, key, period])
 }
