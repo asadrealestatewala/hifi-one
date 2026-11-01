@@ -2,13 +2,15 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Icon from "./Icon";
 import { MODULE_COLOR } from "./nav-colors";
 import Avatar from "@/components/ui/Avatar";
 import ArrangeMenu from "./ArrangeMenu";
 import type { NavStats } from "@/lib/nav-stats";
+import { SIDEBAR_THEMES, moveShown, type MenuPrefs } from "@/lib/menu-layout";
+import { saveMenuAction } from "@/app/(app)/menu/actions";
 
 type Item = { href: string; label: string };
 type Group = { id: string; title: string; icon: string; items: Item[] };
@@ -22,11 +24,46 @@ const read = <T,>(key: string, fallback: T): T => {
 const write = (key: string, value: unknown) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage unavailable: the menu still works */ } };
 
 // Grouped, collapsible navigation. Each group is a dropdown; the group holding the current page opens by itself;
-// the whole bar can shrink to icons. Choices are remembered in this browser only.
-export default function Sidebar({ groups, allGroups, menuPrefs, stats, name, roles, userId, signOut, mobileOpen, onClose }: { groups: Group[]; allGroups: Group[]; menuPrefs: { order: string[]; hidden: string[] }; stats: NavStats; name: string; roles: string; userId: string; signOut: () => Promise<void>; mobileOpen: boolean; onClose: () => void }) {
+// the whole bar can shrink to icons. Open and collapsed state is remembered in this browser only; the group order (drag a group onto
+// another), icon colours and sidebar colour are the person's saved menu (see ArrangeMenu) and follow them to every device.
+export default function Sidebar({ groups: arranged, allGroups, menuPrefs, stats, name, roles, userId, signOut, mobileOpen, onClose }: { groups: Group[]; allGroups: Group[]; menuPrefs: MenuPrefs; stats: NavStats; name: string; roles: string; userId: string; signOut: () => Promise<void>; mobileOpen: boolean; onClose: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [open, setOpen] = useState<string[]>([]);
+  // Order shown right away while a drag is being saved; the server's order takes over after the refresh.
+  const [order, setOrder] = useState(menuPrefs.order);
+  const [drag, setDrag] = useState<{ from: string; over: string | null } | null>(null);
+  const [saveError, setSaveError] = useState(false);
+  const [, start] = useTransition();
+  useEffect(() => setOrder(menuPrefs.order), [menuPrefs.order]);
+  const pos = new Map(order.map((id, i) => [id, i]));
+  const groups = [...arranged].sort((a, b) => (pos.get(a.id) ?? 999) - (pos.get(b.id) ?? 999));
+  const theme = SIDEBAR_THEMES.find((t) => t.id === menuPrefs.theme);
+  const themeStyle = theme?.bg ? ({ "--sidebar": theme.bg, "--sidebar-fg": theme.fg } as React.CSSProperties) : undefined;
+  const colorOf = (id: string) => menuPrefs.colors[id] ?? MODULE_COLOR[id];
+
+  const drop = (to: string) => {
+    if (!drag || drag.from === to) { setDrag(null); return; }
+    const next = moveShown(order, groups.map((g) => g.id), drag.from, to);
+    setDrag(null);
+    setOrder(next);
+    setSaveError(false);
+    start(async () => {
+      try { await saveMenuAction({ ...menuPrefs, order: next }); router.refresh(); } catch { setOrder(menuPrefs.order); setSaveError(true); }
+    });
+  };
+  // Desktop drag and drop on the group rows; on touch screens the Customize menu dialog has drag handles.
+  // Only the group header starts a drag; the whole group (header and open pages) is the drop target.
+  const dragHandle = (id: string) => ({
+    draggable: true,
+    onDragStart: (e: React.DragEvent) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", id); setDrag({ from: id, over: null }); },
+    onDragEnd: () => setDrag(null),
+  });
+  const dropZone = (id: string) => ({
+    onDragOver: (e: React.DragEvent) => { if (!drag) return; e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (drag.over !== id) setDrag({ ...drag, over: id }); },
+    onDrop: (e: React.DragEvent) => { if (!drag) return; e.preventDefault(); drop(id); },
+  });
 
   useEffect(() => {
     setCollapsed(read(KEY_COLLAPSED, false));
@@ -49,6 +86,7 @@ export default function Sidebar({ groups, allGroups, menuPrefs, stats, name, rol
     <>
       {mobileOpen && <div className="fixed inset-0 z-30 bg-black/40 md:hidden" onClick={onClose} aria-hidden="true" />}
       <aside
+        style={themeStyle}
         className={`fixed inset-y-0 left-0 z-40 flex flex-col bg-sidebar text-sidebar-fg transition-[width,transform] duration-200 md:sticky md:top-0 md:h-screen md:translate-x-0 ${collapsed ? "md:w-[68px]" : "md:w-64"} w-72 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
         aria-label="Main navigation"
       >
@@ -63,18 +101,19 @@ export default function Sidebar({ groups, allGroups, menuPrefs, stats, name, rol
             const isOpen = open.includes(g.id) && !collapsed;
             const holdsActive = g.id === activeGroup;
             return (
-              <div key={g.id} className="mb-0.5">
+              <div key={g.id} {...dropZone(g.id)} className={`mb-0.5 rounded-lg transition ${drag?.from === g.id ? "opacity-40" : ""} ${drag && drag.over === g.id && drag.from !== g.id ? "ring-2 ring-white/40" : ""}`}>
                 {collapsed ? (
-                  <Link href={g.items[0].href} title={g.title} className={`relative flex h-10 items-center justify-center rounded-lg ${holdsActive ? "bg-white/12" : "hover:bg-white/8"}`}>
-                    <Chip color={MODULE_COLOR[g.id]} on={holdsActive}><Icon name={g.icon} className="h-4 w-4" /></Chip>
+                  <Link {...dragHandle(g.id)} href={g.items[0].href} title={g.title} className={`relative flex h-10 items-center justify-center rounded-lg ${holdsActive ? "bg-white/12" : "hover:bg-white/8"}`}>
+                    <Chip color={colorOf(g.id)} on={holdsActive}><Icon name={g.icon} className="h-4 w-4" /></Chip>
                     {stats.badges[g.id] ? <span className="absolute right-1.5 top-1 h-2 w-2 rounded-full bg-brand ring-2 ring-sidebar" /> : null}
                   </Link>
                 ) : (
                   <button
+                    {...dragHandle(g.id)} title="Click to open, drag to move"
                     type="button" onClick={() => toggleGroup(g.id)} aria-expanded={isOpen} aria-controls={`nav-${g.id}`}
                     className={`group flex h-10 w-full items-center gap-3 rounded-lg px-3 text-[13.5px] font-medium transition-all duration-150 hover:translate-x-0.5 ${holdsActive ? "text-white" : "text-sidebar-fg hover:bg-white/8 hover:text-white"}`}
                   >
-                    <Chip color={MODULE_COLOR[g.id]} on={holdsActive}><Icon name={g.icon} className="h-4 w-4" /></Chip>
+                    <Chip color={colorOf(g.id)} on={holdsActive}><Icon name={g.icon} className="h-4 w-4" /></Chip>
                     <span className="flex-1 text-left">{g.title}</span>
                     {stats.badges[g.id] ? <span title={g.id === "crm" ? "Follow-ups due" : "Overdue tasks"} className="min-w-5 rounded-full bg-brand px-1.5 text-center text-[11px] font-semibold leading-5 text-white [animation:pop_.3s_ease-out]">{stats.badges[g.id]}</span> : null}
                     <Icon name="chevron" className={`h-3.5 w-3.5 opacity-60 transition-transform ${isOpen ? "rotate-90" : ""}`} />
@@ -88,7 +127,7 @@ export default function Sidebar({ groups, allGroups, menuPrefs, stats, name, rol
                         <li key={i.href}>
                           <Link href={i.href} onClick={onClose} aria-current={on ? "page" : undefined}
                             className={`relative block rounded-md px-3 py-1.5 text-[13px] transition-all duration-150 hover:translate-x-1 ${on ? "bg-gradient-to-r from-white/15 to-transparent font-medium text-white" : "text-sidebar-fg/80 hover:bg-white/8 hover:text-white"}`}>
-                            {on && <span aria-hidden className="absolute -left-[13px] top-1.5 h-[18px] w-0.5 rounded-full" style={{ background: MODULE_COLOR[g.id] ?? "var(--accent)" }} />}
+                            {on && <span aria-hidden className="absolute -left-[13px] top-1.5 h-[18px] w-0.5 rounded-full" style={{ background: colorOf(g.id) ?? "var(--accent)" }} />}
                             {i.label}
                           </Link>
                         </li>
@@ -101,6 +140,7 @@ export default function Sidebar({ groups, allGroups, menuPrefs, stats, name, rol
           })}
         </nav>
 
+        {saveError && !collapsed && <p role="alert" className="mx-3 mb-1 rounded-md bg-brand/20 px-2 py-1 text-[11px] text-white">The new order was not saved. Try again.</p>}
         {!collapsed && <ArrangeMenu groups={allGroups} prefs={menuPrefs} />}
         <AccountBlock name={name} roles={roles} userId={userId} signOut={signOut} collapsed={collapsed} onNavigate={onClose} />
         <div className="hidden shrink-0 border-t border-white/10 p-2 md:block">
@@ -116,7 +156,7 @@ export default function Sidebar({ groups, allGroups, menuPrefs, stats, name, rol
 function Chip({ color = "#5648e8", on, children }: { color?: string; on: boolean; children: React.ReactNode }) {
   return (
     <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white transition-transform duration-150 group-hover:scale-110 ${on ? "shadow-lg" : "opacity-90"}`}
-      style={{ background: on ? `linear-gradient(135deg, ${color}, color-mix(in srgb, ${color} 60%, #fff))` : `color-mix(in srgb, ${color} 55%, #1e2247)`, boxShadow: on ? `0 4px 14px color-mix(in srgb, ${color} 55%, transparent)` : undefined }}>{children}</span>
+      style={{ background: on ? `linear-gradient(135deg, ${color}, color-mix(in srgb, ${color} 60%, #fff))` : `color-mix(in srgb, ${color} 55%, color-mix(in srgb, var(--sidebar) 92%, #fff))`, boxShadow: on ? `0 4px 14px color-mix(in srgb, ${color} 55%, transparent)` : undefined }}>{children}</span>
   );
 }
 
