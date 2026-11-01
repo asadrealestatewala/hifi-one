@@ -22,9 +22,10 @@ export default function StaffForm({ mode, values, roles, departments, managers, 
     return (
       <div className="space-y-3 p-5">
         <Notice kind="ok"><strong>{state.created.name}</strong> was added as {state.created.employeeNo}.</Notice>
+        {state.created.onboarding && <p className="text-sm">{state.created.onboarding} <Link className="underline" href="/hr/onboarding">Onboarding approvals</Link></p>}
         {state.created.link ? (
           <div className="space-y-1">
-            <p className="text-sm">Send this one-time setup link to the person yourself (valid 72 hours). They choose their own password; nobody else ever sees it.</p>
+            <p className="text-sm">Only if the email does not arrive: send this one-time setup link to the person yourself (valid 72 hours). They choose their own password; nobody else ever sees it.</p>
             <input readOnly value={state.created.link} aria-label="Setup link" className="input font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
           </div>
         ) : <p className="text-sm text-muted">Someone who manages user access can create a sign-in setup link from the staff record.</p>}

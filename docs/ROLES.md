@@ -96,20 +96,23 @@ A role grants a permission when it is listed; Super Admin holds every permission
 | `support.view` | View client support requests |
 | `support.manage` | Answer, assign and close client support requests |
 | `mail.manage` | Create company and employee mailboxes and choose who can use each one (does not open anyone's mail) |
+| `email_templates.manage` | Edit the branded email templates and preview them |
+| `followups.manage` | Create and run CRM follow-up email sequences |
+| `onboarding.approve` | Approve or reject new staff accounts before they can sign in |
 
 ## Roles
 
 ### Super Admin
 
-`dashboard.view`, `settings.company.view`, `settings.company.edit`, `bank.view`, `bank.view_full`, `bank.edit`, `users.view`, `users.manage`, `roles.manage`, `audit.view`, `crm.view`, `crm.view_all`, `crm.edit`, `crm.convert`, `catalog.view`, `catalog.edit`, `projects.view`, `projects.view_all`, `projects.manage`, `tasks.edit`, `self.attendance`, `self.leave`, `leave.approve`, `hr.view`, `hr.manage`, `hr.view_sensitive`, `attendance.view_all`, `payroll.view`, `payroll.manage`, `payroll.approve`, `payroll.post`, `self.payslip`, `self.expense`, `expenses.view`, `expenses.review`, `expenses.approve`, `expenses.post`, `budget.view`, `budget.manage`, `budget.approve`, `budget.override`, `vendors.view`, `vendors.manage`, `vendors.bills`, `vendors.post`, `assets.view`, `assets.manage`, `assets.post`, `investments.view`, `investments.manage`, `reports.view`, `dashboard.executive`, `content.view`, `content.manage`, `content.publish`, `journal.create`, `journal.approve`, `coa.manage`, `period.lock`, `fx.manage`, `projects.costs`, `bank.reconcile`, `finance.writeoff`, `commissions.own`, `commissions.manage`, `commissions.approve`, `assistant.use`, `monitoring.own`, `monitoring.view_team`, `monitoring.screenshots`, `monitoring.configure`, `meetings.use`, `quotes.view`, `quotes.manage`, `contracts.view`, `contracts.manage`, `subscriptions.manage`, `finance.refund`, `clients.view`, `clients.edit`, `finance.view`, `finance.post`, `campaigns.view`, `campaigns.manage`, `jobs.run`, `leadsources.manage`, `support.view`, `support.manage`, `mail.manage`
+`dashboard.view`, `settings.company.view`, `settings.company.edit`, `bank.view`, `bank.view_full`, `bank.edit`, `users.view`, `users.manage`, `roles.manage`, `audit.view`, `crm.view`, `crm.view_all`, `crm.edit`, `crm.convert`, `catalog.view`, `catalog.edit`, `projects.view`, `projects.view_all`, `projects.manage`, `tasks.edit`, `self.attendance`, `self.leave`, `leave.approve`, `hr.view`, `hr.manage`, `hr.view_sensitive`, `attendance.view_all`, `payroll.view`, `payroll.manage`, `payroll.approve`, `payroll.post`, `self.payslip`, `self.expense`, `expenses.view`, `expenses.review`, `expenses.approve`, `expenses.post`, `budget.view`, `budget.manage`, `budget.approve`, `budget.override`, `vendors.view`, `vendors.manage`, `vendors.bills`, `vendors.post`, `assets.view`, `assets.manage`, `assets.post`, `investments.view`, `investments.manage`, `reports.view`, `dashboard.executive`, `content.view`, `content.manage`, `content.publish`, `journal.create`, `journal.approve`, `coa.manage`, `period.lock`, `fx.manage`, `projects.costs`, `bank.reconcile`, `finance.writeoff`, `commissions.own`, `commissions.manage`, `commissions.approve`, `assistant.use`, `monitoring.own`, `monitoring.view_team`, `monitoring.screenshots`, `monitoring.configure`, `meetings.use`, `quotes.view`, `quotes.manage`, `contracts.view`, `contracts.manage`, `subscriptions.manage`, `finance.refund`, `clients.view`, `clients.edit`, `finance.view`, `finance.post`, `campaigns.view`, `campaigns.manage`, `jobs.run`, `leadsources.manage`, `support.view`, `support.manage`, `mail.manage`, `email_templates.manage`, `followups.manage`, `onboarding.approve`
 
 ### CEO / Director
 
-`dashboard.view`, `settings.company.view`, `bank.view`, `users.view`, `audit.view`, `crm.view`, `crm.view_all`, `catalog.view`, `clients.view`, `finance.view`, `projects.view`, `projects.view_all`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `support.view`, `campaigns.view`, `hr.view`, `leave.approve`, `payroll.view`, `payroll.approve`, `expenses.view`, `expenses.approve`, `budget.view`, `budget.approve`, `budget.override`, `vendors.view`, `assets.view`, `investments.view`, `reports.view`, `dashboard.executive`, `journal.approve`, `period.lock`, `quotes.view`, `contracts.view`, `projects.costs`, `commissions.approve`
+`dashboard.view`, `settings.company.view`, `bank.view`, `users.view`, `audit.view`, `crm.view`, `crm.view_all`, `catalog.view`, `clients.view`, `finance.view`, `projects.view`, `projects.view_all`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `onboarding.approve`, `support.view`, `campaigns.view`, `hr.view`, `leave.approve`, `payroll.view`, `payroll.approve`, `expenses.view`, `expenses.approve`, `budget.view`, `budget.approve`, `budget.override`, `vendors.view`, `assets.view`, `investments.view`, `reports.view`, `dashboard.executive`, `journal.approve`, `period.lock`, `quotes.view`, `contracts.view`, `projects.costs`, `commissions.approve`
 
 ### Marketing Director
 
-`dashboard.view`, `crm.view`, `crm.view_all`, `catalog.view`, `catalog.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `leadsources.manage`, `content.view`, `content.manage`, `content.publish`, `campaigns.view`, `campaigns.manage`
+`dashboard.view`, `crm.view`, `crm.view_all`, `catalog.view`, `catalog.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `followups.manage`, `email_templates.manage`, `leadsources.manage`, `content.view`, `content.manage`, `content.publish`, `campaigns.view`, `campaigns.manage`
 
 ### Branch Manager
 
@@ -125,7 +128,7 @@ A role grants a permission when it is listed; Super Admin holds every permission
 
 ### HR Manager
 
-`dashboard.view`, `users.view`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `hr.view`, `hr.manage`, `hr.view_sensitive`, `leave.approve`, `attendance.view_all`, `payroll.view`, `payroll.manage`, `monitoring.view_team`, `monitoring.screenshots`, `monitoring.configure`
+`dashboard.view`, `users.view`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `onboarding.approve`, `hr.view`, `hr.manage`, `hr.view_sensitive`, `leave.approve`, `attendance.view_all`, `payroll.view`, `payroll.manage`, `monitoring.view_team`, `monitoring.screenshots`, `monitoring.configure`
 
 ### Payroll Officer
 
@@ -133,7 +136,7 @@ A role grants a permission when it is listed; Super Admin holds every permission
 
 ### Sales Manager
 
-`dashboard.view`, `crm.view`, `crm.view_all`, `crm.edit`, `crm.convert`, `catalog.view`, `clients.view`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `leadsources.manage`, `leave.approve`, `quotes.view`, `quotes.manage`, `contracts.view`, `contracts.manage`, `commissions.own`, `campaigns.view`, `campaigns.manage`
+`dashboard.view`, `crm.view`, `crm.view_all`, `crm.edit`, `crm.convert`, `catalog.view`, `clients.view`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `followups.manage`, `leadsources.manage`, `leave.approve`, `quotes.view`, `quotes.manage`, `contracts.view`, `contracts.manage`, `commissions.own`, `campaigns.view`, `campaigns.manage`
 
 ### Sales Agent
 

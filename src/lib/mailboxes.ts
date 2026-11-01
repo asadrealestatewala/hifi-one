@@ -7,6 +7,7 @@ import type { PrismaClient } from "@prisma/client";
 import { MailError, cleanAddress, transport } from "./mailer";
 import { SYSTEM_PURPOSES, type SystemPurpose, fromHeader, lower, newMessageId, parseAddress, storeMessage } from "./mail-store";
 import { notifyMany } from "./notifications";
+import { stopForReply } from "./followups";
 
 type Db = PrismaClient;
 
@@ -240,6 +241,8 @@ export async function receiveInbound(db: Db, event: { type?: string; data?: { em
       at: e.created_at && !Number.isNaN(Date.parse(e.created_at)) ? new Date(e.created_at) : undefined,
     });
     stored++;
+    // A reply from a lead ends any follow-up sequence still emailing them
+    await stopForReply(db, { organizationId: mb.organizationId, from: from.address, threadId: msg.threadId });
     await notifyMany(db, mb.members.map((m) => m.userId), { kind: "mail", title: `New email in ${mb.address}`, body: `${from.name ?? from.address}: ${subject}`, link: `/mail/${msg.threadId}`, dedupeKey: `mail:${providerId}` });
   }
   return { stored };

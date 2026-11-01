@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { db } from "@/lib/db";
 import { runJobs, jobKeys } from "@/lib/jobs";
+import { runFollowUps } from "@/lib/followups";
 import { limiter } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,11 @@ export async function POST(req: Request) {
     if (!limiter("jobs-bad", 10, 600_000).take(ip)) return reply({ error: "Too many attempts" }, 429);
     return reply({ error: "Unauthorized" }, 401);
   }
-  const only = new URL(req.url).searchParams.get("only")?.split(",").filter((k) => jobKeys.includes(k));
+  const params = new URL(req.url).searchParams;
+  // ?only=followups sends due follow-up emails without touching the daily jobs (for a scheduler that calls every few minutes)
+  if (params.get("only") === "followups") return reply({ ok: true, followUps: await runFollowUps(db) });
+  const only = params.get("only")?.split(",").filter((k) => jobKeys.includes(k));
   const results = await runJobs(db, { trigger: "SCHEDULE", only: only?.length ? only : undefined });
-  return reply({ ok: true, results });
+  const followUps = only?.length ? [] : await runFollowUps(db);
+  return reply({ ok: true, results, followUps });
 }

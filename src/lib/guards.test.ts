@@ -25,7 +25,7 @@ const AREAS: { prefix: string; guard: RegExp; label: string }[] = [
 ];
 
 // Pages that are intentionally public or only redirect
-const PUBLIC = new Set(["login/page.tsx", "login/verify/page.tsx", "login/forgot/page.tsx", "forbidden/page.tsx", "invite/[token]/page.tsx", "setup/page.tsx", "reset/[token]/page.tsx", "join/[token]/page.tsx", "sign/[token]/page.tsx"]);
+const PUBLIC = new Set(["onboarding/[token]/page.tsx", "unsubscribe/[token]/page.tsx", "login/page.tsx", "login/verify/page.tsx", "login/forgot/page.tsx", "forbidden/page.tsx", "invite/[token]/page.tsx", "setup/page.tsx", "reset/[token]/page.tsx", "join/[token]/page.tsx", "sign/[token]/page.tsx"]);
 
 // Pages that only need a signed-in employee because they show the caller's own data and check
 // record ownership or permissions themselves. Everything else in (app) must call requirePermission.
@@ -77,7 +77,8 @@ function actionBodies(src: string): { name: string; body: string }[] {
 
 // Pre-sign-in screens. Each is protected by something else: a password, a code, an emailed or handed-over secret token, or the one-time empty-system check.
 // join/[token] is the guest entrance to a meeting: protected by the secret in the link, the host's waiting room and a rate limit.
-const PUBLIC_ACTIONS = new Set(["login/page.tsx", "login/verify/page.tsx", "login/forgot/page.tsx", "invite/[token]/page.tsx", "setup/page.tsx", "reset/[token]/page.tsx", "join/[token]/page.tsx", "sign/[token]/page.tsx"]);
+// onboarding/[token] needs the emailed link plus the 6-digit code from it; unsubscribe/[token] a signed token. Both are rate limited.
+const PUBLIC_ACTIONS = new Set(["onboarding/[token]/page.tsx", "unsubscribe/[token]/page.tsx", "login/page.tsx", "login/verify/page.tsx", "login/forgot/page.tsx", "invite/[token]/page.tsx", "setup/page.tsx", "reset/[token]/page.tsx", "join/[token]/page.tsx", "sign/[token]/page.tsx"]);
 
 describe("every server action checks the caller", () => {
   for (const f of files.filter((x) => /\.(tsx?|ts)$/.test(x) && !x.endsWith(".test.ts"))) {
@@ -104,7 +105,7 @@ describe("every route handler checks the caller", () => {
   // and must resolve that secret through eventsForToken (which refuses unknown, switched-off and inactive-user tokens).
   // The desktop agent endpoints sign in with a device token instead of a browser session (see the agent test below).
   // The website's contact and apply forms are public by design: same-site, rate limited and validated (see the website tests below)
-  const PUBLIC_ROUTES = new Set(["api/site/contact/route.ts", "api/site/apply/route.ts", "api/health/route.ts", "api/calendar/[token]/route.ts", "api/agent/enroll/route.ts", "api/agent/policy/route.ts", "api/agent/ingest/route.ts", "api/agent/screenshot/route.ts", "api/jobs/run/route.ts", "api/leads/capture/route.ts", "api/meetings/[id]/events/route.ts", "api/meetings/[id]/signal/route.ts", "api/meetings/[id]/chat/route.ts", "api/meetings/[id]/admin/route.ts", "api/mail/inbound/route.ts"]);
+  const PUBLIC_ROUTES = new Set(["api/site/contact/route.ts", "api/site/apply/route.ts", "api/health/route.ts", "api/calendar/[token]/route.ts", "api/agent/enroll/route.ts", "api/agent/policy/route.ts", "api/agent/ingest/route.ts", "api/agent/screenshot/route.ts", "api/jobs/run/route.ts", "api/leads/capture/route.ts", "api/meetings/[id]/events/route.ts", "api/meetings/[id]/signal/route.ts", "api/meetings/[id]/chat/route.ts", "api/meetings/[id]/admin/route.ts", "api/mail/inbound/route.ts", "api/unsubscribe/route.ts"]);
   for (const f of files.filter((x) => x.endsWith("/route.ts"))) {
     const r = rel(f);
     if (PUBLIC_ROUTES.has(r)) continue;

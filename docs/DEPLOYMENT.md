@@ -118,6 +118,14 @@ Off until `ANTHROPIC_API_KEY` is set. When on, a person's question and the figur
 - **What to back up.** The database (agreements, signatures, lead sources, job history, saved views, support threads) and the upload folder (vendor documents, deliverable files and attachments). Both are needed for a restore; see below.
 - Run `node scripts/smoke-prod.mjs <url>` after every deployment: it now also checks the jobs endpoint, lead capture, signing links and the new pages.
 
+## Email templates, onboarding approval and follow-ups (added 2026-11-01)
+
+- **`APP_URL=https://hifimarketing.co`** must be set: emails load the logo from it and every button links to it.
+- **Follow-up sender.** With `JOBS_AUTORUN=1` (recommended on the pm2 server) due follow-ups go out every 15 minutes, nothing else to do. Otherwise add a cron line such as `*/10 * * * * cd /var/www/hifi-one && npm run followups:run >> /var/log/hifi-followups.log 2>&1`, or call `POST /api/jobs/run?only=followups` with the jobs token. Running it often or from two places is safe.
+- **Optional:** `FOLLOW_UP_HOURLY_LIMIT` (default 150) caps follow-up emails per hour, separately from the 60-per-hour cap for other system mail. Keep it within your Resend plan.
+- **Roles:** the migration gives `email_templates.manage`, `followups.manage` and `onboarding.approve` to Super Admin. Run `npm run roles:sync` to give HR Manager and CEO `onboarding.approve`, Sales Manager `followups.manage`, and Marketing Director both follow-ups and templates.
+- New staff accounts now wait for email verification and approval before they can sign in (decision 47). Existing accounts are not affected.
+
 ## Backup verification
 
 A backup nobody has checked is a hope. Schedule this after your backup job and alert on a non-zero exit:

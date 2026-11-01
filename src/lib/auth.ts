@@ -9,6 +9,7 @@ import { limiter } from "./rate-limit";
 import { checkSecondFactor } from "./mfa";
 import { needsMfaSetup } from "./mfa-policy";
 import { parseLoginIdentifier } from "./login-identifier";
+import { signInBlock } from "./onboarding";
 import type { PermissionKey } from "./permissions";
 
 const COOKIE = "hifi_session";
@@ -83,6 +84,9 @@ export async function login(identifier: string, password: string): Promise<Login
     await db.auditLog.create({ data: { organizationId: user.organizationId, actorId: user.id, action: "auth.login_failed", entity: "User", entityId: user.id } });
     return generic;
   }
+  // New staff accounts wait for a verified email and an approver (src/lib/onboarding.ts). Said only after the password was right.
+  const pending = await signInBlock(db, user.id);
+  if (pending) return { ok: false, error: pending };
   if (user.totpEnabled) {
     // Password is right, but no session exists until the second factor is proven. The pending cookie only proves step one.
     const token = await new SignJWT({ uid: user.id, purpose: "mfa" }).setProtectedHeader({ alg: "HS256" }).setExpirationTime("5m").sign(secret());
