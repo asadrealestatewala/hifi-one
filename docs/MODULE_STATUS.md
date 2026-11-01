@@ -140,3 +140,8 @@ Found by comparing with the reference ERP; evidence in `docs/REFERENCE_ERP_AUDIT
 - **Done (service tested; build, lint, full suite pass):** host records any meeting from the room, banner for everyone, chunked upload to disk, download from the meeting page and the client Delivery tab, permission `meetings.recordings`, audit, Team / progress meeting type.
 - **Not verified:** a real multi-device call with live camera, screen share and audio (the sandbox has no second device); long recordings near the 1.5 GB cap.
 - **Not built:** transcripts, retention or auto-delete rules, recording by someone other than the host, server-side recording.
+
+## Project updates feed and phase (added 2026-11-01, decision 52)
+- **Done (service tested, guards pass; tsc and eslint clean):** updates feed with kinds, per-entry client visibility, project phase with tracker on the staff project page and the client portal project page, audit.
+- **Not built:** notifying the client when an update is shown, editing an entry, configurable phases, attachments or images on entries, a client-side reply.
+- **Not verified in a browser** (service and guard tests only).
