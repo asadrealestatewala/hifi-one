@@ -39,3 +39,6 @@ See `docs/MONITORING.md`. In short: the menu entries are Workfolio (HR and manag
 ## Not built
 
 Support tickets or chat in the portals; vendor document uploads and compliance expiry; a live video view of employees; downloads of the consolidated multi-currency reports.
+
+## Project updates and phase
+Staff post to a project's updates feed from the project page (Updates and phase). Entries marked "Show this to the client" and the current phase appear at the top of the client's portal project page (`/portal/projects/<id>`). Logic: `src/lib/project-updates.ts`; clients only ever read through `clientFeed`, which scopes by client and selects visible entries.

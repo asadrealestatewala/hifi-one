@@ -9,6 +9,7 @@ import { addMember, createTask, setProjectStatus } from "../actions";
 import ProjectDepth from "./ProjectDepth";
 import ProjectMeetings from "./ProjectMeetings";
 import Deliverables from "./Deliverables";
+import ProjectUpdates from "./ProjectUpdates";
 import ProjectTimeline from "./ProjectTimeline";
 import TaskBoard from "./TaskBoard";
 import TaskDetail from "./TaskDetail";
@@ -85,6 +86,7 @@ export default async function ProjectPage({
       {project.scope && <section className="card text-sm whitespace-pre-line">{project.scope}</section>}
 
       <ProjectDepth user={user} projectId={project.id} closed={closed} />
+      <ProjectUpdates projectId={project.id} organizationId={user.organizationId} phase={project.phase} hasClient={Boolean(project.clientId)} canPost={canMove} canSetPhase={canManage} closed={closed} msg={msg} />
       <Deliverables projectId={project.id} organizationId={user.organizationId} canManage={canManage} hasClient={Boolean(project.clientId)} closed={closed} msg={msg} />
       {user.permissions.has("meetings.use") && <ProjectMeetings projectId={project.id} organizationId={user.organizationId} closed={closed} />}
 

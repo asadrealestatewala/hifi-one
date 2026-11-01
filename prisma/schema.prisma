@@ -589,10 +589,12 @@ model Project {
   currency       String    @default("USD")
   scope          String?
   campaignId     String? // the campaign this project delivers, if any
+  phase          String? // current delivery phase for software projects: DISCOVERY | DESIGN | DEVELOPMENT | TESTING | CLIENT_REVIEW | LAUNCHED
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   campaign    Campaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  updates     ProjectUpdate[]
   members     ProjectMember[]
   tasks       Task[]
   milestones  Milestone[]
@@ -2580,4 +2582,24 @@ model MeetingRecording {
 
   @@index([meetingId])
   @@index([organizationId, startedAt])
+}
+
+// A dated entry in a project's updates feed (testing result, release, blocker, decision or plain progress note).
+// Entries marked visibleToClient show in the client portal; the others are internal.
+model ProjectUpdate {
+  id              String   @id @default(cuid())
+  organizationId  String
+  projectId       String
+  kind            String   @default("UPDATE") // UPDATE | TESTING | RELEASE | BLOCKER | DECISION
+  title           String
+  body            String?
+  phase           String? // the project phase when this was posted
+  visibleToClient Boolean  @default(false)
+  authorId        String
+  createdAt       DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([organizationId, createdAt])
 }

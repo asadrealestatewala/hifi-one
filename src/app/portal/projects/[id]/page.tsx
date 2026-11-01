@@ -5,7 +5,9 @@ import { db } from "@/lib/db";
 import { clientCommented } from "@/lib/events";
 import { LedgerError } from "@/lib/ledger-math";
 import { portalAddComment, portalProject } from "@/lib/portal";
-import { Notice, PageHeader, StatusBadge, SubmitButton } from "@/components/ui";
+import PhaseTracker from "@/components/PhaseTracker";
+import { KIND_LABEL, PHASE_LABEL, clientFeed, type ProjectPhase, type UpdateKind } from "@/lib/project-updates";
+import { Badge, Notice, PageHeader, StatusBadge, SubmitButton } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +33,7 @@ export default async function PortalProjectPage({ params, searchParams }: { para
   const sp = await searchParams;
   const p = await portalProject(db, user.clientId, id);
   if (!p) notFound();
+  const feed = await clientFeed(db, { clientId: user.clientId, projectId: p.id, take: 50 });
   return (
     <div className="space-y-5">
       <Link href="/portal/projects" className="text-sm text-muted hover:underline">← All projects</Link>
@@ -39,6 +42,23 @@ export default async function PortalProjectPage({ params, searchParams }: { para
       {sp.sent && <Notice kind="ok">Your message was sent to the team.</Notice>}
       {p.scope && <section className="card whitespace-pre-line text-sm">{p.scope}</section>}
       <div className="h-2 overflow-hidden rounded-full bg-hover" role="progressbar" aria-valuenow={p.progress} aria-valuemin={0} aria-valuemax={100} aria-label="Project progress"><div className="h-full rounded-full bg-primary" style={{ width: `${p.progress}%` }} /></div>
+      {feed && (feed.phase || feed.updates.length > 0) && (
+        <section className="card space-y-4" aria-labelledby="upd-h">
+          <h2 id="upd-h" className="font-semibold">Where this project is{feed.phase ? `: ${PHASE_LABEL[feed.phase as ProjectPhase] ?? feed.phase}` : ""}</h2>
+          {feed.phase && <PhaseTracker phase={feed.phase} />}
+          {feed.updates.length > 0 && (
+            <ul className="divide-y divide-border text-sm">
+              {feed.updates.map((u) => (
+                <li key={u.id} className="space-y-1 py-3 first:pt-0">
+                  <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-medium">{u.title}</p><Badge>{KIND_LABEL[u.kind as UpdateKind] ?? u.kind}</Badge></div>
+                  {u.body && <p className="whitespace-pre-wrap text-muted">{u.body}</p>}
+                  <p className="text-xs text-muted">{u.author} · {u.at.toLocaleString()}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
       {p.tasks.length === 0 ? <div className="card text-sm text-muted">The team has not shared any tasks yet.</div> : p.tasks.map((t) => (
         <section key={t.id} id={`t-${t.id}`} className="card space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">{t.title}</h2><span className="flex items-center gap-2 text-xs text-muted">{t.dueDate && `due ${t.dueDate.toLocaleDateString()}`}<StatusBadge status={t.status} /></span></div>
