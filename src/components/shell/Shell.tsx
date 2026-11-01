@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { Suspense, useState } from "react";
 import NavProgress from "./NavProgress";
 import type { NavStats } from "@/lib/nav-stats";
+import type { MenuPrefs } from "@/lib/menu-layout";
 import Link from "next/link";
 import CommandPalette from "./CommandPalette";
 import Icon from "./Icon";
@@ -16,7 +17,7 @@ type Group = { id: string; title: string; icon: string; items: { href: string; l
 
 // The signed-in frame: sidebar, top bar and the page. Only layout state lives here; every permission decision was made on the server.
 export default function Shell({ groups, allGroups, menuPrefs, quick, name, roles, userId, unread, stats, canSearch, canAsk, signOut, children }: {
-  groups: Group[]; allGroups: Group[]; menuPrefs: { order: string[]; hidden: string[] }; quick: { href: string; label: string; icon: string }[]; name: string; roles: string; userId: string; unread: number; stats: NavStats; canSearch: boolean; canAsk: boolean; signOut: () => Promise<void>; children: React.ReactNode;
+  groups: Group[]; allGroups: Group[]; menuPrefs: MenuPrefs; quick: { href: string; label: string; icon: string }[]; name: string; roles: string; userId: string; unread: number; stats: NavStats; canSearch: boolean; canAsk: boolean; signOut: () => Promise<void>; children: React.ReactNode;
 }) {
   const [mobile, setMobile] = useState(false);
   const pathname = usePathname();
