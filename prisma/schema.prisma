@@ -420,6 +420,7 @@ model Client {
   contactId        String?
   clientType       String           @default("MARKETING") // MARKETING | SOFTWARE | INCORPORATION | SELLER_SERVICES | SAAS
   projectManagerId String? // the staff member allocated to run this client's work (shown in the client portal)
+  supportManagerId String? // dedicated support manager for a SaaS customer; the project manager covers support when empty
   engagements      Engagement[]
   invoices         Invoice[]
   quotes           Quote[]

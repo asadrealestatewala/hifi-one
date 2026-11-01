@@ -150,3 +150,8 @@ Found by comparing with the reference ERP; evidence in `docs/REFERENCE_ERP_AUDIT
 - **Done (service and guard tests; tsc and eslint clean):** client CSV beside the existing PDF; vendor CSV and PDF; project manager name and ID plus project dates in the client portal.
 - **Not built:** date-range filter on downloads, invoice-level ledger for vendors beyond approved bills and payments, manager card for vendors.
 - **Not verified in a browser** (download routes covered by guard tests and service tests only).
+
+## SaaS customer support (added 2026-11-01, decision 54)
+- **Done (service tested, tsc and eslint clean):** support manager per client, support handler fallback to the project manager, tutorial, support and inquiry calls from the Delivery tab, support contact and meeting purpose in the portal.
+- **Not built:** forcing every support call to record, routing support tickets to the support manager automatically, a support-manager dashboard, SLA timers.
+- **Not verified in a browser.**

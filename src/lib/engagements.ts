@@ -48,6 +48,16 @@ export async function setProjectManager(db: Db, p: { organizationId: string; cli
   if (r.count === 0) throw new EngagementError("Client not found.");
 }
 
+// Dedicated support manager for a client (usually a SaaS customer). Empty means the project manager covers support.
+export async function setSupportManager(db: Db, p: { organizationId: string; clientId: string; userId: string | null }) {
+  if (p.userId && !(await db.user.findFirst({ where: { id: p.userId, organizationId: p.organizationId, userType: "EMPLOYEE", active: true } }))) throw new EngagementError("Choose an active staff member.");
+  const r = await db.client.updateMany({ where: { id: p.clientId, organizationId: p.organizationId }, data: { supportManagerId: p.userId } });
+  if (r.count === 0) throw new EngagementError("Client not found.");
+}
+
+// Who handles this client's support: the dedicated support manager, else the project manager, else nobody yet.
+export const supportHandler = (c: { supportManagerId: string | null; projectManagerId: string | null }) => c.supportManagerId ?? c.projectManagerId ?? null;
+
 // Sets how many of a service a catalog plan includes each month. Zero removes the line.
 export async function setPlanQuota(db: Db, p: { organizationId: string; planId: string; key: string; quantity: number }) {
   if (!isQuotaKey(p.key)) throw new EngagementError("Choose a service the plan can include.");

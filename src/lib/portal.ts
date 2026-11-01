@@ -52,6 +52,15 @@ export async function portalProjects(db: PrismaClient, clientId: string) {
 
 // The staff member looking after this client: the client's allocated project manager, or else the manager of the project
 // being viewed. Only the name and employee number are shared, never contact details, pay or other staff data.
+// For SaaS customers the dedicated support manager is their contact (else the project manager covers support).
+export async function portalSupport(db: PrismaClient, clientId: string) {
+  const c = await db.client.findUnique({ where: { id: clientId }, select: { organizationId: true, clientType: true, supportManagerId: true, projectManagerId: true } });
+  const id = c && c.clientType === "SAAS" ? (c.supportManagerId ?? c.projectManagerId) : null;
+  if (!c || !id) return null;
+  const user = await db.user.findFirst({ where: { id, organizationId: c.organizationId, userType: "EMPLOYEE" }, select: { name: true, employeeProfile: { select: { employeeNo: true } } } });
+  return user ? { name: user.name, employeeNo: user.employeeProfile?.employeeNo ?? null, dedicated: Boolean(c.supportManagerId) } : null;
+}
+
 export async function portalManager(db: PrismaClient, clientId: string, projectManagerId?: string | null) {
   const client = await db.client.findUnique({ where: { id: clientId }, select: { organizationId: true, projectManagerId: true } });
   const id = client?.projectManagerId ?? projectManagerId ?? null;

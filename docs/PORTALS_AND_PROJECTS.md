@@ -45,3 +45,6 @@ Staff post to a project's updates feed from the project page (Updates and phase)
 
 ## Ledger downloads and manager card
 Client: `/portal/statement` with `/portal/statement/pdf` and `/portal/statement/csv`. Vendor: `/vendor/ledger` with `/vendor/ledger/pdf` and `/vendor/ledger/csv`. Builders: `loadStatementDoc` and `loadVendorStatementDoc` (`src/lib/pdf-data.ts`), `statementCsv` (`src/lib/ledger-csv.ts`). The client home and project pages show the allocated project manager through `portalManager` (name and employee number only).
+
+## SaaS support contact
+SaaS clients see their support contact (`portalSupport`: the dedicated support manager, else the project manager) on the portal home, and each scheduled meeting shows its purpose. Staff set the support manager on the client's Services tab and schedule tutorial, support and inquiry calls on the Delivery tab.
