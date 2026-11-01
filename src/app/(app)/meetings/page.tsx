@@ -1,3 +1,4 @@
+import { MEETING_PURPOSES, PURPOSE_LABEL } from "@/lib/delivery";
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { Badge, Empty, Notice, PageHeader } from "@/components/ui";
@@ -49,6 +50,7 @@ export default async function Meetings({ searchParams }: { searchParams: Promise
             <div><label className="label" htmlFor="m-kind">Type</label><select id="m-kind" name="kind" className="input"><option value="MEETING">Meeting</option><option value="WORKSHOP">Online workshop</option></select></div>
             <div><label className="label" htmlFor="m-dur">Minutes</label><input id="m-dur" name="durationMin" type="number" min={5} max={480} defaultValue={60} className="input" /></div>
           </div>
+          <div><label className="label" htmlFor="m-purpose">What is it for</label><select id="m-purpose" name="purpose" className="input" defaultValue="GENERAL">{MEETING_PURPOSES.map((x) => <option key={x} value={x}>{PURPOSE_LABEL[x]}</option>)}</select></div>
           <UtcDateTimeInput id="m-when" name="scheduledAt" label="When (leave empty to start now)" />
           <div><label className="label" htmlFor="m-client">Client (optional)</label><select id="m-client" name="clientId" className="input" defaultValue=""><option value="">None</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
           <div><label className="label" htmlFor="m-proj">Project (optional)</label><select id="m-proj" name="projectId" className="input" defaultValue=""><option value="">None</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>

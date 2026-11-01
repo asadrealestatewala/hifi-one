@@ -8,8 +8,8 @@ import { dec, round2 } from "./ledger-math";
 export class DeliveryError extends Error {}
 type Db = PrismaClient;
 
-export const MEETING_PURPOSES = ["GENERAL", "DISCOVERY", "WEEKLY_REVIEW", "SUPPORT", "TUTORIAL", "INQUIRY"] as const;
-export const PURPOSE_LABEL: Record<string, string> = { GENERAL: "Meeting", DISCOVERY: "Business discovery call", WEEKLY_REVIEW: "Weekly review", SUPPORT: "Customer support", TUTORIAL: "Product tutorial", INQUIRY: "Inquiry" };
+export const MEETING_PURPOSES = ["GENERAL", "TEAM", "DISCOVERY", "WEEKLY_REVIEW", "SUPPORT", "TUTORIAL", "INQUIRY"] as const;
+export const PURPOSE_LABEL: Record<string, string> = { GENERAL: "Meeting", TEAM: "Team or progress meeting", DISCOVERY: "Business discovery call", WEEKLY_REVIEW: "Weekly review", SUPPORT: "Customer support", TUTORIAL: "Product tutorial", INQUIRY: "Inquiry" };
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 // The Monday of the week a date falls in, as YYYY-MM-DD.

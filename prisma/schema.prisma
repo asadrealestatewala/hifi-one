@@ -1888,7 +1888,7 @@ model Meeting {
   agenda         String?
   scheduledAt    DateTime?
   durationMin    Int       @default(60)
-  purpose        String    @default("GENERAL") // GENERAL | DISCOVERY | WEEKLY_REVIEW | SUPPORT | TUTORIAL | INQUIRY
+  purpose        String    @default("GENERAL") // GENERAL | TEAM | DISCOVERY | WEEKLY_REVIEW | SUPPORT | TUTORIAL | INQUIRY
   recordingUrl   String? // where the recording of this call is kept, attached by the host (the ERP does not record video itself)
   joinToken      String    @unique // the secret in the guest link
   waitingRoom    Boolean   @default(true)
@@ -2562,4 +2562,22 @@ model ReviewRebateTier {
   updatedAt      DateTime @updatedAt
 
   @@unique([organizationId, minRating])
+}
+
+// A recording made by the host's browser during a meeting and uploaded in pieces while it runs. The file lives on the server's disk
+// (STORAGE_DIR/recordings) and is only reachable through the authorized download route. Everyone in the call is told it is being recorded.
+model MeetingRecording {
+  id             String    @id @default(cuid())
+  organizationId String
+  meetingId      String
+  startedById    String
+  status         String    @default("RECORDING") // RECORDING | READY | FAILED
+  chunks         Int       @default(0)
+  size           Int       @default(0)
+  durationSec    Int?
+  startedAt      DateTime  @default(now())
+  stoppedAt      DateTime?
+
+  @@index([meetingId])
+  @@index([organizationId, startedAt])
 }

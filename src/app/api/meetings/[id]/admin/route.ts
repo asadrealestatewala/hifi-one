@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { publish } from "@/lib/meeting-hub";
 import { broadcastRoster, json, peersFor, ticketFrom } from "@/lib/meeting-http";
 import { authenticateParticipant, decide, endMeeting, history, leave, MeetingError } from "@/lib/meetings";
+import { closeForMeeting, isRecording } from "@/lib/recordings";
 
 export const dynamic = "force-dynamic";
 
@@ -21,13 +22,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
     if (b.action === "end") {
       await endMeeting(db, { meetingId: id, actorTicket: ticket! });
+      await closeForMeeting(db, id); // nothing keeps recording after the meeting ends
       publish(id, "ended", {});
       return json({ ok: true });
     }
     const action = b.action === "admit" ? "ADMIT" : b.action === "deny" ? "DENY" : b.action === "remove" ? "REMOVE" : null;
     if (!action || !b.target) return json({ error: "Bad request" }, 400);
     await decide(db, { meetingId: id, actorTicket: ticket!, targetId: b.target, action });
-    if (action === "ADMIT") publish(id, "admitted", { peers: await peersFor(id, b.target), messages: await history(db, id) }, { to: b.target });
+    if (action === "ADMIT") publish(id, "admitted", { peers: await peersFor(id, b.target), messages: await history(db, id), recording: await isRecording(db, id) }, { to: b.target });
     else publish(id, action === "DENY" ? "denied" : "removed", {}, { to: b.target });
     await broadcastRoster(id);
     return json({ ok: true });

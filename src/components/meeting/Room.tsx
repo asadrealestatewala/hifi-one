@@ -53,7 +53,7 @@ function Tile({ stream, name, muted, off, speaking, label, local, big }: { strea
   );
 }
 
-export default function Room({ meetingId, title, kind, me, inviteUrl, fake }: { meetingId: string; title: string; kind: string; me: { name: string; isHost: boolean }; inviteUrl?: string; fake?: boolean }) {
+export default function Room({ meetingId, title, kind, me, inviteUrl, fake, canRecord }: { meetingId: string; title: string; kind: string; me: { name: string; isHost: boolean }; inviteUrl?: string; fake?: boolean; canRecord?: boolean }) {
   const [phase, setPhase] = useState<Phase>("prejoin");
   const [myId, setMyId] = useState("");
   const [isHost, setIsHost] = useState(me.isHost);
@@ -71,6 +71,9 @@ export default function Room({ meetingId, title, kind, me, inviteUrl, fake }: { 
   const [speaker, setSpeaker] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [mediaNote, setMediaNote] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false); // someone (the host) is recording this meeting
+  const [recBusy, setRecBusy] = useState(false);
+  const rec = useRef<{ id: string; recorder: MediaRecorder; ac: AudioContext; timer: ReturnType<typeof setInterval>; mixTimer: ReturnType<typeof setInterval>; queue: Promise<void>; seq: number; failed: boolean } | null>(null);
 
   const local = useRef<{ stream: MediaStream | null; mic: MediaStreamTrack | null; cam: MediaStreamTrack | null; screen: MediaStreamTrack | null; screenStream: MediaStream | null }>({ stream: null, mic: null, cam: null, screen: null, screenStream: null });
   const peers = useRef(new Map<string, Peer>());
@@ -218,17 +221,19 @@ export default function Room({ meetingId, title, kind, me, inviteUrl, fake }: { 
     const src = new EventSource(`/api/meetings/${meetingId}/events`);
     es.current = src;
     const on = <T,>(name: string, fn: (d: T) => void) => src.addEventListener(name, (ev) => fn(JSON.parse((ev as MessageEvent).data)));
-    on<{ you: { id: string; isHost: boolean; status: string }; iceServers: RTCIceServer[] }>("hello", (d) => {
+    on<{ you: { id: string; isHost: boolean; status: string }; iceServers: RTCIceServer[]; recording?: boolean }>("hello", (d) => {
+      setRecording(Boolean(d.recording));
       idRef.current = d.you.id; setMyId(d.you.id); setIsHost(d.you.isHost); ice.current = d.iceServers;
       setPhase(d.you.status === "ADMITTED" ? "live" : "waiting");
     });
-    const start = (d: { peers: { id: string; name: string }[]; messages: Msg[] }) => { setMessages(d.messages); setPhase("live"); for (const p of d.peers) void callPeer(p.id, p.name); };
+    const start = (d: { peers: { id: string; name: string }[]; messages: Msg[]; recording?: boolean }) => { if (d.recording !== undefined) setRecording(d.recording); setMessages(d.messages); setPhase("live"); for (const p of d.peers) void callPeer(p.id, p.name); };
     on("welcome", start);
     on("admitted", start);
     on<{ people: Person[]; waiting: { id: string; name: string }[] }>("roster", (d) => { setPeople(d.people); setWaiting(d.waiting); for (const p of d.people) { const peer = peers.current.get(p.id); if (peer) peer.name = p.name; } });
     on<{ from: string; kind: string; payload: unknown }>("signal", (d) => { void onSignalRef.current(d.from, d.kind, d.payload); });
     on<Msg>("chat", (m) => { setMessages((x) => [...x, m]); if (!panelRef.current.includes("chat") && m.participantId !== idRef.current) setUnread((n) => n + 1); });
     on<{ id: string }>("peer-left", (d) => closePeer(d.id));
+    on<{ on: boolean }>("recording", (d) => setRecording(d.on));
     on("denied", () => { setPhase("denied"); src.close(); });
     on("removed", () => { setPhase("removed"); src.close(); closeAll(); });
     on("ended", () => { setPhase("ended"); src.close(); closeAll(); });
@@ -271,16 +276,94 @@ export default function Room({ meetingId, title, kind, me, inviteUrl, fake }: { 
       stateRef.current = { ...stateRef.current, sharing: true }; setSharing(true); sendState(); rerender();
     } catch { setNotice("Screen sharing was cancelled or is not allowed in this browser."); }
   };
-  const leave = async () => { es.current?.close(); closeAll(); await post("admin", { action: "leave" }).catch(() => undefined); setPhase("ended"); };
-  const endAll = async () => { if (confirm("End the meeting for everyone?")) await post("admin", { action: "end" }).catch((e) => setNotice(e.message)); };
+  const leave = async () => { await stopRecording(); es.current?.close(); closeAll(); await post("admin", { action: "leave" }).catch(() => undefined); setPhase("ended"); };
+  const endAll = async () => { if (confirm("End the meeting for everyone?")) { await stopRecording(); await post("admin", { action: "end" }).catch((e) => setNotice(e.message)); } };
   const send = async () => { const b = draft.trim(); if (!b) return; setDraft(""); try { await post("chat", { body: b }); } catch (e) { setNotice((e as Error).message); } };
   const decide = (action: string, target: string) => post("admin", { action, target }).catch((e) => setNotice(e.message));
   const copy = async () => { if (!inviteUrl) return; try { await navigator.clipboard.writeText(inviteUrl); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { setNotice(inviteUrl); } };
+
+  // ---------- recording (host only) ----------
+  // Draws every video tile on the stage into one canvas, mixes everyone's audio, and uploads the result in 5 second pieces.
+  const stopRecording = useCallback(async () => {
+    const r = rec.current;
+    if (!r) return;
+    rec.current = null;
+    clearInterval(r.timer); clearInterval(r.mixTimer);
+    await new Promise<void>((resolve) => { r.recorder.onstop = () => resolve(); try { r.recorder.stop(); } catch { resolve(); } });
+    await r.queue;
+    r.ac.close().catch(() => undefined);
+    await fetch(`/api/meetings/${meetingId}/recording`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "stop", recordingId: r.id }) }).catch(() => undefined);
+    setRecording(false);
+    if (r.failed) setNotice("Part of the recording could not be saved. Check the meeting page for what was kept.");
+  }, [meetingId]);
+
+  const startRecording = async () => {
+    if (rec.current || recBusy) return;
+    if (!confirm("Record this meeting? Everyone in the call will see that it is being recorded. Only people allowed to watch recordings can open it afterwards.")) return;
+    setRecBusy(true);
+    try {
+      const r = await fetch(`/api/meetings/${meetingId}/recording`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "start" }) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error ?? "Could not start recording");
+      const canvas = document.createElement("canvas"); canvas.width = 1280; canvas.height = 720;
+      const ctx = canvas.getContext("2d")!;
+      const draw = () => {
+        ctx.fillStyle = "#0b0e24"; ctx.fillRect(0, 0, 1280, 720);
+        const vids = [...document.querySelectorAll("main video")].filter((v): v is HTMLVideoElement => v instanceof HTMLVideoElement && v.videoWidth > 0 && v.readyState >= 2 && !v.classList.contains("invisible"));
+        const place = (v: HTMLVideoElement, x: number, y: number, w: number, h: number) => { const k = Math.min(w / v.videoWidth, h / v.videoHeight); const dw = v.videoWidth * k, dh = v.videoHeight * k; ctx.drawImage(v, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh); };
+        if (vids.length === 1) place(vids[0], 0, 0, 1280, 720);
+        else if (vids.length > 1 && presenterRef.current) { place(vids[0], 0, 0, 960, 720); vids.slice(1, 4).forEach((v, i) => place(v, 970, i * 240, 310, 236)); }
+        else if (vids.length > 1) { const cols = vids.length <= 4 ? 2 : 3, rows = Math.ceil(vids.length / cols), w = 1280 / cols, h = 720 / rows; vids.forEach((v, i) => place(v, (i % cols) * w, Math.floor(i / cols) * h, w - 6, h - 6)); }
+        ctx.fillStyle = "rgba(220,38,38,0.9)"; ctx.fillRect(16, 16, 12, 12);
+      };
+      draw();
+      const timer = setInterval(draw, 100); // a timer, not animation frames, so a background tab keeps recording
+      const ac = new AudioContext(); const dest = ac.createMediaStreamDestination();
+      const mixed = new Set<string>();
+      const mix = () => {
+        const add = (s: MediaStream | null | undefined) => { if (s && s.getAudioTracks().length && !mixed.has(s.id)) { mixed.add(s.id); try { ac.createMediaStreamSource(s).connect(dest); } catch { /* a stream that cannot be mixed stays out */ } } };
+        add(local.current.stream);
+        for (const p of peers.current.values()) add(p.audio);
+      };
+      mix();
+      const mixTimer = setInterval(mix, 2000);
+      const out = canvas.captureStream(15);
+      dest.stream.getAudioTracks().forEach((t) => out.addTrack(t));
+      const mime = ["video/webm;codecs=vp8,opus", "video/webm"].find((m) => MediaRecorder.isTypeSupported(m));
+      if (!mime) throw new Error("This browser cannot record video. Use Chrome, Edge or Firefox.");
+      const recorder = new MediaRecorder(out, { mimeType: mime, videoBitsPerSecond: 1_500_000 });
+      const state = { id: j.recordingId as string, recorder, ac, timer, mixTimer, queue: Promise.resolve(), seq: 0, failed: false };
+      recorder.ondataavailable = (ev) => {
+        if (ev.data.size === 0) return;
+        const seq = state.seq++;
+        state.queue = state.queue.then(async () => {
+          for (let attempt = 0; attempt < 4; attempt++) {
+            try {
+              const r2 = await fetch(`/api/meetings/${meetingId}/recording?rid=${state.id}&seq=${seq}`, { method: "PUT", headers: { "content-type": "application/octet-stream" }, body: ev.data });
+              if (r2.ok) return;
+              if (r2.status === 400 || r2.status === 413) break;
+            } catch { /* retry */ }
+            await new Promise((res) => setTimeout(res, 1000 * (attempt + 1)));
+          }
+          state.failed = true;
+        });
+      };
+      recorder.start(5000);
+      rec.current = state;
+      setRecording(true);
+    } catch (e) {
+      setNotice((e as Error).message);
+    } finally {
+      setRecBusy(false);
+    }
+  };
 
   // ---------- layout ----------
   const remote = [...peers.current.entries()];
   const presenter = sharing ? { id: myId, name: me.name, stream: local.current.screenStream, mine: true } : remote.map(([id, p]) => ({ id, name: p.name, stream: p.screen, mine: false, on: p.state.sharing })).find((x) => x.on && x.stream);
   const camStream = local.current.stream;
+  const presenterRef = useRef(false);
+  presenterRef.current = Boolean(presenter);
   const tiles = useMemo(() => remote.map(([id, p]) => ({ id, name: p.name, cam: p.cam ?? p.audio, state: p.state })), [remote.map(([id, p]) => `${id}${p.cam?.id}${p.audio?.id}${p.state.muted}${p.state.camOff}`).join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (phase === "prejoin") {
@@ -294,7 +377,7 @@ export default function Room({ meetingId, title, kind, me, inviteUrl, fake }: { 
         <div className="space-y-4 self-center">
           <div><p className="text-xs font-semibold uppercase tracking-wide text-muted">{kind === "WORKSHOP" ? "Online workshop" : "Meeting"}</p><h1 className="text-2xl font-semibold tracking-tight">{title}</h1><p className="mt-1 text-sm text-muted">Joining as {me.name}</p></div>
           <button type="button" onClick={join} className="btn w-full !py-3">Join now</button>
-          <p className="text-xs text-muted">Your browser will ask for permission to use the camera and microphone. Nothing is recorded by Hifi One.</p>
+          <p className="text-xs text-muted">Your browser will ask for permission to use the camera and microphone. The host may record this meeting. If so, you will see a &quot;being recorded&quot; banner for as long as it runs.</p>
         </div>
       </div>
     );
@@ -311,6 +394,7 @@ export default function Room({ meetingId, title, kind, me, inviteUrl, fake }: { 
     <div className="flex h-screen flex-col bg-[#0b0e24] text-white">
       <header className="flex items-center justify-between gap-3 px-4 py-2.5">
         <div className="min-w-0"><p className="truncate text-sm font-semibold">{title}</p><p className="text-xs text-white/60">{people.filter((p) => p.online).length || peers.current.size + 1} in the call{kind === "WORKSHOP" ? " · workshop" : ""}</p></div>
+        {recording && <p role="status" className="flex items-center gap-1.5 rounded-lg bg-red-600/90 px-3 py-1 text-xs font-medium"><span aria-hidden className="h-2 w-2 animate-pulse rounded-full bg-white" />This meeting is being recorded</p>}
         {notice && <p role="status" className="max-w-md truncate rounded-lg bg-white/10 px-3 py-1 text-xs">{notice}</p>}
         {inviteUrl && <button type="button" onClick={copy} className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 text-xs hover:bg-white/15"><Icon name="link" className="h-4 w-4" />{copied ? "Link copied" : "Copy guest link"}</button>}
       </header>
@@ -360,6 +444,7 @@ export default function Room({ meetingId, title, kind, me, inviteUrl, fake }: { 
         <Ctl on={!muted} icon={muted ? "micoff" : "mic"} label={muted ? "Unmute" : "Mute"} onClick={toggleMic} danger={muted} />
         <Ctl on={!camOff && !!local.current.cam} icon={camOff || !local.current.cam ? "videooff" : "video"} label={camOff || !local.current.cam ? "Start camera" : "Stop camera"} onClick={toggleCam} danger={camOff} />
         <Ctl on={sharing} icon="screen" label={sharing ? "Stop sharing" : "Share screen"} onClick={sharing ? stopShare : startShare} accent={sharing} />
+        {isHost && canRecord && <button type="button" onClick={recording && rec.current ? () => void stopRecording() : () => void startRecording()} disabled={recBusy || (recording && !rec.current)} className={`flex h-11 items-center gap-2 rounded-full px-4 text-sm font-medium disabled:opacity-50 ${recording && rec.current ? "bg-red-600 hover:bg-red-700" : "bg-white/12 hover:bg-white/20"}`}><span aria-hidden className="h-2.5 w-2.5 rounded-full bg-red-400" />{recording && rec.current ? "Stop recording" : "Record"}</button>}
         <Ctl on icon="chat" label="Chat" onClick={() => { setPanel(panel === "chat" ? "" : "chat"); setUnread(0); }} badge={unread} />
         <Ctl on icon="users" label="People" onClick={() => setPanel(panel === "people" ? "" : "people")} badge={isHost ? waiting.length : 0} />
         <button type="button" onClick={leave} className="flex h-11 items-center gap-2 rounded-full bg-red-600 px-5 text-sm font-medium hover:bg-red-700"><Icon name="phone" className="h-4 w-4 rotate-[135deg]" />Leave</button>
