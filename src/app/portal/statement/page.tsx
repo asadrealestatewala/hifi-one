@@ -10,7 +10,7 @@ export default async function PortalStatement() {
   const st = await clientStatement(db, user.organizationId, user.clientId);
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2"><h1 className="text-2xl font-semibold tracking-tight">Account statement</h1><a className="btn" href="/portal/statement/pdf" target="_blank" rel="noopener">Download PDF</a></div>
+      <div className="flex items-center justify-between gap-2"><h1 className="text-2xl font-semibold tracking-tight">Account statement</h1><span className="flex gap-2"><a className="btn-ghost" href="/portal/statement/csv">Download CSV</a><a className="btn" href="/portal/statement/pdf" target="_blank" rel="noopener">Download PDF</a></span></div>
       {st.advances.map((a) => <p key={a.currency} className="text-sm">Credit held on your account: <strong>{formatMoney(a.amount, a.currency)}</strong></p>)}
       <div className="card overflow-x-auto">
         {st.rows.length === 0 ? <p className="text-sm text-muted">No transactions yet.</p> : (

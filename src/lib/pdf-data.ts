@@ -2,6 +2,7 @@
 // and returns null when the record does not exist or is not theirs. Free of Next.js imports.
 import type { PrismaClient } from "@prisma/client";
 import { clientStatement } from "./accounting";
+import { vendorLedger } from "./vendors";
 import { DEFAULT_DOC_CONFIG, mergeConfig, type Bank, type Company, type CreditNoteDoc, type DocConfig, type InvoiceDoc, type PayslipDoc, type ReceiptDoc, type QuoteDoc, type AgreementDoc, type StatementDoc, type VoucherDoc } from "./pdf";
 
 type Json = Record<string, unknown> | null | undefined;
@@ -96,6 +97,19 @@ export async function loadStatementDoc(db: PrismaClient, p: { organizationId: st
     client: { name: client.name, code: client.code }, asOf: new Date(), company: await liveCompany(db, p.organizationId), config: (await getDocConfig(db, p.organizationId, "STATEMENT")).config,
     rows: st.rows.map((r) => ({ date: r.date, number: r.number, description: r.description, debit: r.debit.toString(), credit: r.credit.toString(), balance: r.balance.toString(), currency: r.currency })),
     advances: st.advances.map((a) => ({ currency: a.currency, amount: a.amount.toString() })),
+  };
+}
+
+// The vendor's statement in the same layout: bills approved (what we owe them), payments made, and the balance still due to them.
+export async function loadVendorStatementDoc(db: PrismaClient, p: { organizationId: string; vendorId: string }): Promise<StatementDoc | null> {
+  const vendor = await db.vendor.findFirst({ where: { id: p.vendorId, organizationId: p.organizationId } });
+  if (!vendor) return null;
+  const rows = await vendorLedger(db, p.organizationId, vendor.id);
+  return {
+    client: { name: vendor.name }, asOf: new Date(), company: await liveCompany(db, p.organizationId), config: (await getDocConfig(db, p.organizationId, "STATEMENT")).config,
+    rows: rows.map((r) => ({ date: r.date, number: r.number, description: r.description, debit: r.billed.toString(), credit: r.paid.toString(), balance: r.balance.toString(), currency: r.currency })),
+    advances: [],
+    labels: { party: "Vendor", debit: "Billed", credit: "Paid", balance: "Due to you", heading: "VENDOR STATEMENT" },
   };
 }
 

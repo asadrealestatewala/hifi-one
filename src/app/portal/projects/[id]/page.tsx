@@ -40,6 +40,12 @@ export default async function PortalProjectPage({ params, searchParams }: { para
       <PageHeader title={p.name} subtitle={`${p.number}${p.deadline ? ` · due ${p.deadline.toLocaleDateString()}` : ""} · ${p.progress}% complete`} actions={<StatusBadge status={p.status} />} />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {sp.sent && <Notice kind="ok">Your message was sent to the team.</Notice>}
+      <section className="card grid gap-3 text-sm sm:grid-cols-4" aria-label="Project details">
+        <div><p className="text-xs font-semibold text-muted">Your project manager</p><p className="font-medium">{p.manager ? p.manager.name : "Not assigned yet"}</p>{p.manager?.employeeNo && <p className="text-xs text-muted">ID {p.manager.employeeNo}</p>}</div>
+        <div><p className="text-xs font-semibold text-muted">Project</p><p className="font-medium">{p.number}</p></div>
+        <div><p className="text-xs font-semibold text-muted">Started</p><p className="font-medium">{p.startDate ? p.startDate.toLocaleDateString() : "Not set"}</p></div>
+        <div><p className="text-xs font-semibold text-muted">Due</p><p className="font-medium">{p.deadline ? p.deadline.toLocaleDateString() : "Not set"}</p></div>
+      </section>
       {p.scope && <section className="card whitespace-pre-line text-sm">{p.scope}</section>}
       <div className="h-2 overflow-hidden rounded-full bg-hover" role="progressbar" aria-valuenow={p.progress} aria-valuemin={0} aria-valuemax={100} aria-label="Project progress"><div className="h-full rounded-full bg-primary" style={{ width: `${p.progress}%` }} /></div>
       {feed && (feed.phase || feed.updates.length > 0) && (

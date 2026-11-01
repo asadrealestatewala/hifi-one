@@ -296,11 +296,14 @@ export type StatementDoc = {
   client: { name: string; code?: string | null }; asOf: Date; company: Company; config: DocConfig;
   rows: { date: Date; number: string; description: string; debit: string; credit: string; balance: string; currency: string }[];
   advances: { currency: string; amount: string }[];
+  // Wording for other parties (a vendor's statement): defaults are the client's
+  labels?: { party: string; debit: string; credit: string; balance: string; heading: string };
 };
 export async function statementPdf(d: StatementDoc, b: Build = {}) {
   const { ctx, done } = start({ ...b, title: `Statement ${d.client.name}`, cfg: d.config });
-  header(ctx, d.company, "ACCOUNT STATEMENT");
-  kv(ctx, [["Client", `${d.client.name}${d.client.code ? ` (${d.client.code})` : ""}`], ["As of", fmtDate(d.asOf)]]);
+  const L = d.labels ?? { party: "Client", debit: "Charges", credit: "Payments", balance: "Balance", heading: "ACCOUNT STATEMENT" };
+  header(ctx, d.company, L.heading);
+  kv(ctx, [[L.party, `${d.client.name}${d.client.code ? ` (${d.client.code})` : ""}`], ["As of", fmtDate(d.asOf)]]);
   doc_move(ctx);
   const cur = [...new Set(d.rows.map((r) => r.currency))];
   if (cur.length === 0) ctx.doc.font("Helvetica").fontSize(10).text("No transactions yet.", 48);
@@ -308,7 +311,7 @@ export async function statementPdf(d: StatementDoc, b: Build = {}) {
     const rows = d.rows.filter((r) => r.currency === c);
     ctx.doc.font("Helvetica-Bold").fontSize(10).fillColor("#111").text(t(ctx, `Currency ${c}`), 48);
     ctx.doc.moveDown(0.2);
-    table(ctx, [{ label: "Date", width: 62 }, { label: "Document", width: 78 }, { label: "Description", width: 149 }, { label: "Charges", width: 70, align: "right" }, { label: "Payments", width: 70, align: "right" }, { label: "Balance", width: 70, align: "right" }],
+    table(ctx, [{ label: "Date", width: 62 }, { label: "Document", width: 78 }, { label: "Description", width: 149 }, { label: L.debit, width: 70, align: "right" }, { label: L.credit, width: 70, align: "right" }, { label: L.balance, width: 70, align: "right" }],
       rows.map((r) => [fmtDate(r.date), r.number, r.description, Number(r.debit) > 0 ? pdfMoney(r.debit, c) : "", Number(r.credit) > 0 ? pdfMoney(r.credit, c) : "", pdfMoney(r.balance, c)]));
     ctx.doc.moveDown(0.8);
   }

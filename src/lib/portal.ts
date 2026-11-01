@@ -50,11 +50,21 @@ export async function portalProjects(db: PrismaClient, clientId: string) {
   });
 }
 
+// The staff member looking after this client: the client's allocated project manager, or else the manager of the project
+// being viewed. Only the name and employee number are shared, never contact details, pay or other staff data.
+export async function portalManager(db: PrismaClient, clientId: string, projectManagerId?: string | null) {
+  const client = await db.client.findUnique({ where: { id: clientId }, select: { organizationId: true, projectManagerId: true } });
+  const id = client?.projectManagerId ?? projectManagerId ?? null;
+  if (!client || !id) return null;
+  const user = await db.user.findFirst({ where: { id, organizationId: client.organizationId, userType: "EMPLOYEE" }, select: { name: true, employeeProfile: { select: { employeeNo: true } } } });
+  return user ? { name: user.name, employeeNo: user.employeeProfile?.employeeNo ?? null } : null;
+}
+
 // One project of this client with its client-visible tasks and the comments shared with the client (never internal ones).
 export async function portalProject(db: PrismaClient, clientId: string, projectId: string) {
   const project = await db.project.findFirst({
     where: { id: projectId, clientId, status: { not: "CANCELLED" } },
-    select: { id: true, number: true, name: true, status: true, deadline: true, scope: true, tasks: { select: { id: true, status: true, title: true, clientVisible: true, dueDate: true, parentId: true } } },
+    select: { id: true, number: true, name: true, status: true, deadline: true, startDate: true, scope: true, managerId: true, tasks: { select: { id: true, status: true, title: true, clientVisible: true, dueDate: true, parentId: true } } },
   });
   if (!project) return null;
   const done = project.tasks.filter((t) => t.status === "DONE").length;
@@ -62,7 +72,8 @@ export async function portalProject(db: PrismaClient, clientId: string, projectI
   const comments = await db.taskComment.findMany({ where: { taskId: { in: visible.map((t) => t.id) }, internal: false }, orderBy: { createdAt: "asc" } });
   const authors = new Map((await db.user.findMany({ where: { id: { in: [...new Set(comments.map((c) => c.authorId))] } }, select: { id: true, name: true, clientId: true } })).map((u) => [u.id, u]));
   return {
-    id: project.id, number: project.number, name: project.name, status: project.status, deadline: project.deadline, scope: project.scope,
+    id: project.id, number: project.number, name: project.name, status: project.status, deadline: project.deadline, startDate: project.startDate, scope: project.scope,
+    manager: await portalManager(db, clientId, project.managerId),
     progress: project.tasks.length ? Math.round((done / project.tasks.length) * 100) : 0,
     tasks: visible.map((t) => ({
       id: t.id, title: t.title, status: t.status, dueDate: t.dueDate,
