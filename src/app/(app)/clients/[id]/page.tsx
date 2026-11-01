@@ -9,10 +9,12 @@ import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import InviteForm from "./InviteForm";
 import RefundForm from "./RefundForm";
+import ServicesTab from "./ServicesTab";
+import { CLIENT_TYPE_LABEL } from "@/lib/engagements";
 
 export const dynamic = "force-dynamic";
 
-export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; mailOk?: string; mailError?: string; tab?: string }> }) {
+export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; mailOk?: string; mailError?: string; tab?: string; saved?: string }> }) {
   const user = await requirePermission("clients.view");
   const { id } = await params;
   const sp = await searchParams;
@@ -28,7 +30,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       ])
     : [null, []];
   const has = (p: string) => user.permissions.has(p as never);
-  const TABS: [string, string][] = [["overview", "Overview"], ...(canSeeFinance ? [["billing", "Billing"] as [string, string]] : []), ...(has("projects.view") ? [["projects", "Projects"] as [string, string]] : []), ...(has("campaigns.view") ? [["campaigns", "Campaigns"] as [string, string]] : []), ...(has("clients.edit") ? [["portal", "Portal access"] as [string, string]] : [])];
+  const TABS: [string, string][] = [["overview", "Overview"], ["services", "Services"], ...(canSeeFinance ? [["billing", "Billing"] as [string, string]] : []), ...(has("projects.view") ? [["projects", "Projects"] as [string, string]] : []), ...(has("campaigns.view") ? [["campaigns", "Campaigns"] as [string, string]] : []), ...(has("clients.edit") ? [["portal", "Portal access"] as [string, string]] : [])];
   const tab = TABS.some(([k]) => k === sp.tab) ? sp.tab! : "overview";
   const tabHref = (k: string) => (k === "overview" ? `/clients/${client.id}` : `/clients/${client.id}?tab=${k}`);
   const [projects, campaigns, portalUsers, quotes, contracts] = await Promise.all([
@@ -42,7 +44,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
     <div className="space-y-6">
       <Link href="/clients" className="text-sm text-muted hover:underline">← All clients</Link>
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-4"><Avatar name={client.name} size={56} /><div><h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">{client.name}<StatusBadge status={client.active ? "ACTIVE" : "ENDED"} /></h1><p className="text-sm text-muted">{client.code} · bills in {client.currency}, {client.paymentTermsDays}-day terms</p></div></div>
+        <div className="flex items-center gap-4"><Avatar name={client.name} size={56} /><div><h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">{client.name}<StatusBadge status={client.active ? "ACTIVE" : "ENDED"} /></h1><p className="text-sm text-muted">{client.code} · {CLIENT_TYPE_LABEL[client.clientType]} · bills in {client.currency}, {client.paymentTermsDays}-day terms</p></div></div>
         <div className="flex flex-wrap gap-2">
           {client.email && <Link href={`/mail/compose?client=${client.id}`} className="btn-ghost">Write an email</Link>}
           {client.contactId && user.permissions.has("crm.view") && <Link href={`/contacts/${client.contactId}`} className="btn-ghost">Open contact</Link>}
@@ -55,7 +57,9 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
         ))}
       </section>}
       {error && <Notice kind="error">{error}</Notice>}
+      {sp.saved && <Notice kind="ok">Saved.</Notice>}
       <Chips current={tab} items={TABS.map(([k, l]) => ({ key: k, label: l, href: tabHref(k) }))} />
+      {tab === "services" && <ServicesTab organizationId={user.organizationId} client={client} canEdit={has("clients.edit")} />}
       {tab === "portal" && (
         <>
           <InviteForm clientId={client.id} />
