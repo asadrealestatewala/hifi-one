@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { CatalogError, INTERVALS, addFeature, removeFeature, removePlanPrice, setPlanPrice, updatePlan } from "@/lib/catalog";
 import { db } from "@/lib/db";
+import { EngagementError, QUOTA_KEYS, QUOTA_LABEL, setPlanQuota } from "@/lib/engagements";
 import { CURRENCIES, formatMoney } from "@/lib/money";
 import { Notice } from "@/components/ui";
 
@@ -26,12 +27,14 @@ async function act(formData: FormData) {
       await addFeature(db, { organizationId: org, planId, text: s("text") });
     } else if (op === "removeFeature") {
       await removeFeature(db, { organizationId: org, planId, featureId: s("featureId") });
+    } else if (op === "quota") {
+      await setPlanQuota(db, { organizationId: org, planId, key: s("key"), quantity: Number(s("quantity") || 0) });
     } else {
       redirect(`/services/${planId}?error=Unknown%20action`);
     }
     await audit(user, { action: `catalog.${op}`, entity: "ServicePlan", entityId: planId, after: { currency: s("currency") || undefined, amount: s("amount") || undefined, name: s("name") || undefined } });
   } catch (e) {
-    if (e instanceof CatalogError) redirect(`/services/${planId}?error=${encodeURIComponent(e.message)}`);
+    if (e instanceof CatalogError || e instanceof EngagementError) redirect(`/services/${planId}?error=${encodeURIComponent(e.message)}`);
     throw e;
   }
   redirect(`/services/${planId}?saved=1`);
@@ -41,7 +44,7 @@ export default async function PlanEditor({ params, searchParams }: { params: Pro
   const user = await requirePermission("catalog.view");
   const { id } = await params;
   const sp = await searchParams;
-  const plan = await db.servicePlan.findFirst({ where: { id, organizationId: user.organizationId }, include: { category: true, prices: true, features: { orderBy: { sortOrder: "asc" } } } });
+  const plan = await db.servicePlan.findFirst({ where: { id, organizationId: user.organizationId }, include: { category: true, prices: true, features: { orderBy: { sortOrder: "asc" } }, quotas: true } });
   if (!plan) notFound();
   const canEdit = user.permissions.has("catalog.edit");
   const hidden = (op: string, extra?: Record<string, string>) => (
@@ -88,6 +91,28 @@ export default async function PlanEditor({ params, searchParams }: { params: Pro
                   </form>
                 )}
                 {canEdit && p && <form action={act}>{hidden("removePrice", { currency: c })}<button className="underline text-xs">Remove</button></form>}
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      <section className="card space-y-3">
+        <h2 className="font-semibold">Included each month (quotas)</h2>
+        <p className="text-xs text-muted">What a client on this plan gets every month. These are copied onto the client&apos;s retainer when it starts, so later changes here do not alter existing retainers. Enter 0 to remove a line.</p>
+        <ul className="text-sm">
+          {QUOTA_KEYS.map((k) => {
+            const q = plan.quotas.find((x) => x.key === k);
+            return (
+              <li key={k} className="flex flex-wrap items-center justify-between gap-2 border-t border-border py-1.5 first:border-0">
+                <span className="grow">{QUOTA_LABEL[k]}</span>
+                {canEdit ? (
+                  <form action={act} className="flex items-center gap-2">
+                    {hidden("quota", { key: k })}
+                    <input name="quantity" type="number" min={0} max={10000} defaultValue={q?.quantity ?? 0} aria-label={`${QUOTA_LABEL[k]} per month`} className="input !w-24" />
+                    <button className="btn-ghost">Set</button>
+                  </form>
+                ) : <span>{q?.quantity ?? 0}</span>}
               </li>
             );
           })}

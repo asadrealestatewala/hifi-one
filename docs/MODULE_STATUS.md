@@ -127,3 +127,7 @@ Found by comparing with the reference ERP; evidence in `docs/REFERENCE_ERP_AUDIT
 ## Campaign commission rates (added 2026-11-01, decision 49)
 - **Done (tested):** per-campaign agent and manager rates, accrual of both shares, rates shown on My commissions, Manager share label on entries.
 - **Not built:** rates tied to a subscription plan rather than a campaign; a separate sales-manager portal view beyond My commissions.
+
+## Client types, retainers and quotas (added 2026-11-01, decision 48)
+- **Done (service level tested, checked in a browser):** client type and allocated project manager (client page, Services tab); catalog plans carry monthly quotas; retainers from a plan or custom; single-service orders priced per unit; quota usage with void; Retainers and Recurring Revenue page with MRR and ARR per currency (recurring only).
+- **Not built yet:** automatic usage from published content and ad campaigns, portal view of quotas, per-organization switch for which ad platforms are enabled, linking an engagement to its subscription for automatic invoicing.

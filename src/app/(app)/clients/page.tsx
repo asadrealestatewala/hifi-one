@@ -9,6 +9,7 @@ import { orderFor, parseSort } from "@/lib/sort";
 import Drawer from "@/components/ui/Drawer";
 import SavedViews from "@/components/SavedViews";
 import { loadViews } from "@/lib/saved-views";
+import { CLIENT_TYPES, CLIENT_TYPE_LABEL } from "@/lib/engagements";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ const schema = z.object({
   country: opt,
   taxId: opt,
   currency: z.enum(["PKR", "USD", "AED", "GBP"]),
+  clientType: z.enum(CLIENT_TYPES),
   paymentTermsDays: z.coerce.number().int().min(0).max(365),
 });
 
@@ -83,11 +85,12 @@ export default async function Clients({ searchParams }: { searchParams: Promise<
       {clients.length === 0 ? <Empty title={q ? "No clients match" : "No clients yet"}>{canEdit ? "Add your first client, or convert a won lead." : "Clients will appear here."}</Empty> : (
         <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">
-            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><SortTh label="Client" field="name" sort={sort} hrefFor={href} className="px-4 py-2.5" /><th className="pr-4">Email</th><SortTh label="Country" field="country" sort={sort} hrefFor={href} /><SortTh label="Currency" field="currency" sort={sort} hrefFor={href} /><th className="pr-4">Terms</th><th className="pr-4">Status</th></tr></thead>
+            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><SortTh label="Client" field="name" sort={sort} hrefFor={href} className="px-4 py-2.5" /><th className="pr-4">Type</th><th className="pr-4">Email</th><SortTh label="Country" field="country" sort={sort} hrefFor={href} /><SortTh label="Currency" field="currency" sort={sort} hrefFor={href} /><th className="pr-4">Terms</th><th className="pr-4">Status</th></tr></thead>
             <tbody>
               {clients.map((c) => (
                 <tr key={c.id} className="border-t border-border transition hover:bg-hover/50">
                   <td className="px-4 py-2.5"><Link href={`/clients/${c.id}`} className="flex items-center gap-3"><Avatar name={c.name} /><span><span className="block font-medium hover:underline">{c.name}</span><span className="text-xs text-muted">{c.code}</span></span></Link></td>
+                  <td className="pr-4 text-muted">{CLIENT_TYPE_LABEL[c.clientType]}</td>
                   <td className="pr-4 text-muted">{c.email}</td>
                   <td className="pr-4 text-muted">{c.country}</td>
                   <td className="pr-4">{c.currency}</td>
@@ -110,6 +113,10 @@ export default async function Clients({ searchParams }: { searchParams: Promise<
                   <input id={String(n)} name={String(n)} required={Boolean(r)} className="input" />
                 </div>
               ))}
+              <div className="sm:col-span-2">
+                <label className="label" htmlFor="clientType">Client type</label>
+                <select id="clientType" name="clientType" className="input" defaultValue="MARKETING">{CLIENT_TYPES.map((t) => <option key={t} value={t}>{CLIENT_TYPE_LABEL[t]}</option>)}</select>
+              </div>
               <div>
                 <label className="label" htmlFor="currency">Billing currency</label>
                 <select id="currency" name="currency" className="input" defaultValue="USD">{["PKR", "USD", "AED", "GBP"].map((c) => <option key={c}>{c}</option>)}</select>
