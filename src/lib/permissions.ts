@@ -89,6 +89,7 @@ export const PERMISSIONS = {
   "leadsources.manage": "Create website lead forms, keys and assignment rules",
   "support.view": "View client support requests",
   "support.manage": "Answer, assign and close client support requests",
+  "mail.manage": "Create company and employee mailboxes and choose who can use each one (does not open anyone's mail)",
 } as const;
 
 export type PermissionKey = keyof typeof PERMISSIONS;

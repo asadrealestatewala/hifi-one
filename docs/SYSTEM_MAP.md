@@ -51,7 +51,7 @@ Guards: `src/lib/auth.ts` (`getSessionUser` cached per request, `requireUser`, `
 
 ## Route handlers (`src/app/api`)
 
-`health`; `calendar/[token]` (ICS feed); `files/[id]` (signed downloads); `avatar/[id]`; `screenshots/[id]`; `meetings/[id]/{events,signal,chat,admin}` (SSE signalling); `agent/{enroll,policy,ingest,screenshot}` (Windows monitoring agent, device token). Plus CSV exports in the staff area, each guarded by its list's permission: `contacts/export`, `hr/employees/export`, and (through `src/lib/lists.ts`) `finance/invoices/export`, `finance/payments/export`, `leads/export`, `quotes/export`, `expenses/export`, `audit-logs/export`.
+`health`; `calendar/[token]` (ICS feed); `files/[id]` (signed downloads); `avatar/[id]`; `screenshots/[id]`; `meetings/[id]/{events,signal,chat,admin}` (SSE signalling); `agent/{enroll,policy,ingest,screenshot}` (Windows monitoring agent, device token); `mail/inbound` (Resend `email.received` webhook, Svix signature, `src/lib/mailboxes.ts`). Plus CSV exports in the staff area, each guarded by its list's permission: `contacts/export`, `hr/employees/export`, and (through `src/lib/lists.ts`) `finance/invoices/export`, `finance/payments/export`, `leads/export`, `quotes/export`, `expenses/export`, `audit-logs/export`.
 
 ## Module inventory (sidebar groups, `src/components/shell/nav.ts`)
 
@@ -83,7 +83,7 @@ Public pages: `login` (email or phone), `login/verify`, `login/forgot`, `invite/
 
 ## External integrations (all honest "not configured" without credentials)
 
-SMTP mail (`mailer.ts`), Anthropic assistant (`assistant.ts`), WhatsApp click-to-chat links only (`whatsapp.ts`), TURN relay for video (not configured), ad platforms (not built), social posting (not built).
+Mail through the Resend API or SMTP (`mailer.ts`), company mailboxes with Resend inbound (`mailboxes.ts`, `mail-store.ts`; staff screens `/mail`, admin `/settings/mailboxes`), Anthropic assistant (`assistant.ts`), WhatsApp click-to-chat links only (`whatsapp.ts`), TURN relay for video (not configured), ad platforms (not built), social posting (not built).
 
 ## Measured conventions (2026-10-13)
 

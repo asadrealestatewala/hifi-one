@@ -40,6 +40,10 @@
 
 Unique per organization: `Client(name)`, `Account(code)`, `NumberSequence(key)`. Unique globally: `User.email`, `Meeting.joinToken`, `MeetingParticipant.ticket`. A database trigger makes posted journal lines immutable.
 
+## Mailboxes
+
+`Mailbox` (address unique; kind SYSTEM with one per purpose per organization, SHARED, or PERSONAL with an owner), `MailboxMember` (user, can send; membership is the only access), `MailThread` (one conversation in one mailbox; counterpart address, optional client, contact or employee link; unread count; OPEN or ARCHIVED), `MailMessage` (IN or OUT; RFC Message-ID, In-Reply-To and References for threading; status SENT, FAILED, NOT_CONFIGURED or RECEIVED; `providerId` unique so webhook retries store nothing twice). `EmailMessage` stays the outbox log of system emails; system emails sent from a purpose mailbox also get a `MailMessage` copy.
+
 ## Not modelled yet
 
 Brands under a client, deliverables as their own entity (campaign deliverables are content items and tasks in linked projects), purchase orders separate from work orders, ad-platform metrics, saved views for arbitrary lists (smart lists exist for leads).

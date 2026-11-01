@@ -43,7 +43,10 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       <Link href="/clients" className="text-sm text-muted hover:underline">← All clients</Link>
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-4"><Avatar name={client.name} size={56} /><div><h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">{client.name}<StatusBadge status={client.active ? "ACTIVE" : "ENDED"} /></h1><p className="text-sm text-muted">{client.code} · bills in {client.currency}, {client.paymentTermsDays}-day terms</p></div></div>
-        {client.contactId && user.permissions.has("crm.view") && <Link href={`/contacts/${client.contactId}`} className="btn-ghost">Open contact</Link>}
+        <div className="flex flex-wrap gap-2">
+          {client.email && <Link href={`/mail/compose?client=${client.id}`} className="btn-ghost">Write an email</Link>}
+          {client.contactId && user.permissions.has("crm.view") && <Link href={`/contacts/${client.contactId}`} className="btn-ghost">Open contact</Link>}
+        </div>
       </header>
       {tab === "overview" && <section className="card text-sm grid grid-cols-3 gap-y-2 max-w-2xl">
         {([["Email", client.email], ["Phone", client.phone], ["Country", client.country], ["Tax ID", client.taxId],
