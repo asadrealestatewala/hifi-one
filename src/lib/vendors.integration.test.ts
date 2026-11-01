@@ -6,6 +6,8 @@ import {
   rejectBill, setVendorStatus, submitBill, vendorLedger,
 } from "./vendors";
 import { trialBalance } from "./accounting";
+import { statementCsv } from "./ledger-csv";
+import { loadVendorStatementDoc } from "./pdf-data";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
 const db = new PrismaClient({ datasourceUrl: url });
@@ -113,6 +115,18 @@ describe("delivery, billing and payment", () => {
     const dr = tb.reduce((a, r) => a + Number(r.debit), 0);
     const cr = tb.reduce((a, r) => a + Number(r.credit), 0);
     expect(dr).toBe(cr);
+  });
+
+  it("the vendor statement download lists only that vendor's bill and payment with exact amounts", async () => {
+    const doc = await loadVendorStatementDoc(db, { organizationId: org, vendorId: vendorA });
+    expect(doc?.rows.map((r) => [r.debit, r.credit, r.balance])).toEqual([["1500", "0", "1500"], ["0", "1500", "0"]]);
+    const csv = statementCsv(doc!, "vendor");
+    expect(csv.split("\r\n")[0]).toBe("Date,Document,Description,Billed,Paid,Due to you,Currency");
+    expect(csv.trim().split("\r\n")).toHaveLength(3);
+    expect(csv).not.toContain("Credit held");
+    // another vendor sees nothing of vendor A, and another organization gets no document
+    expect((await loadVendorStatementDoc(db, { organizationId: org, vendorId: vendorB }))?.rows).toEqual([]);
+    expect(await loadVendorStatementDoc(db, { organizationId: "other-org", vendorId: vendorA })).toBeNull();
   });
 
   it("rejecting a bill frees the billable amount and needs a reason", async () => {

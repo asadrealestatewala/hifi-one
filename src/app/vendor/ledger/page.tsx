@@ -11,7 +11,7 @@ export default async function VendorStatement() {
   const rows = await vendorLedger(db, user.organizationId, user.vendorId); // scoped to this vendor only
   return (
     <div className="space-y-4">
-      <PageHeader title="Statement" />
+      <PageHeader title="Statement" actions={<span className="flex gap-2"><a className="btn-ghost" href="/vendor/ledger/csv">Download CSV</a><a className="btn" href="/vendor/ledger/pdf" target="_blank" rel="noopener">Download PDF</a></span>} />
       <div className="card overflow-x-auto">
         {rows.length === 0 ? <p className="text-sm text-muted">No approved bills or payments yet.</p> : (
           <table className="w-full text-sm">

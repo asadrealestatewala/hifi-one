@@ -145,3 +145,8 @@ Found by comparing with the reference ERP; evidence in `docs/REFERENCE_ERP_AUDIT
 - **Done (service tested, guards pass; tsc and eslint clean):** updates feed with kinds, per-entry client visibility, project phase with tracker on the staff project page and the client portal project page, audit.
 - **Not built:** notifying the client when an update is shown, editing an entry, configurable phases, attachments or images on entries, a client-side reply.
 - **Not verified in a browser** (service and guard tests only).
+
+## Portal ledger downloads and manager card (added 2026-11-01, decision 53)
+- **Done (service and guard tests; tsc and eslint clean):** client CSV beside the existing PDF; vendor CSV and PDF; project manager name and ID plus project dates in the client portal.
+- **Not built:** date-range filter on downloads, invoice-level ledger for vendors beyond approved bills and payments, manager card for vendors.
+- **Not verified in a browser** (download routes covered by guard tests and service tests only).

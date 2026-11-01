@@ -42,3 +42,6 @@ Support tickets or chat in the portals; vendor document uploads and compliance e
 
 ## Project updates and phase
 Staff post to a project's updates feed from the project page (Updates and phase). Entries marked "Show this to the client" and the current phase appear at the top of the client's portal project page (`/portal/projects/<id>`). Logic: `src/lib/project-updates.ts`; clients only ever read through `clientFeed`, which scopes by client and selects visible entries.
+
+## Ledger downloads and manager card
+Client: `/portal/statement` with `/portal/statement/pdf` and `/portal/statement/csv`. Vendor: `/vendor/ledger` with `/vendor/ledger/pdf` and `/vendor/ledger/csv`. Builders: `loadStatementDoc` and `loadVendorStatementDoc` (`src/lib/pdf-data.ts`), `statementCsv` (`src/lib/ledger-csv.ts`). The client home and project pages show the allocated project manager through `portalManager` (name and employee number only).
