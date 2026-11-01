@@ -10,7 +10,8 @@ export type MfaState = { error?: string; codes?: string[]; done?: string };
 const appSecret = () => process.env.SESSION_SECRET ?? "";
 
 export async function startMfa(): Promise<MfaState> {
-  const user = await requireUser();
+  // This page is the one place a user who must set up two-step can reach, so its actions must be too
+  const user = await requireUser({ allowMfaSetup: true });
   try {
     await beginMfaSetup(db, user.id, appSecret());
   } catch (e) {
@@ -22,7 +23,8 @@ export async function startMfa(): Promise<MfaState> {
 }
 
 export async function confirmMfa(_prev: MfaState, formData: FormData): Promise<MfaState> {
-  const user = await requireUser();
+  // This page is the one place a user who must set up two-step can reach, so its actions must be too
+  const user = await requireUser({ allowMfaSetup: true });
   try {
     const codes = await confirmMfaSetup(db, user.id, String(formData.get("code") ?? ""), appSecret());
     await audit(user, { action: "auth.mfa_enabled", entity: "User", entityId: user.id });

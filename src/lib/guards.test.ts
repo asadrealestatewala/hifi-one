@@ -199,3 +199,15 @@ describe("secrets never live in source", () => {
     expect(gi).toMatch(/^!\.env\.example$/m);
   });
 });
+
+// A user whose role requires two-step is redirected to /account/security until it is on. The actions that
+// turn it on must let that user through too, or "Set up" just bounces back to the same page.
+describe("two-step setup is reachable while it is required", () => {
+  const src = read(path.join(root, "(app)/account/security/actions.ts"));
+  for (const name of ["startMfa", "confirmMfa"]) {
+    it(`${name} allows MFA setup`, () => {
+      const body = actionBodies(src).find((a) => a.name === name)?.body ?? "";
+      expect(body, `${name} must call requireUser({ allowMfaSetup: true })`).toMatch(/requireUser\(\{[^}]*allowMfaSetup:\s*true/);
+    });
+  }
+});
