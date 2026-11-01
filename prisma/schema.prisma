@@ -1571,7 +1571,9 @@ model CommissionEntry {
   organizationId String
   userId         String
   kind           String    @default("COMMISSION") // COMMISSION | BONUS
-  allocationId   String?   @unique // the payment allocation that earned it, so one payment is never commissioned twice
+  allocationId   String? // the payment allocation that earned it; with role it is unique, so one payment is never commissioned twice for the same role
+  role           String    @default("SALES_AGENT") // SALES_AGENT | SALES_MANAGER: whose share of the allocation this is
+  campaignId     String? // the campaign whose rate was used, when one applied
   invoiceId      String?
   clientId       String?
   currency       String
@@ -1590,6 +1592,7 @@ model CommissionEntry {
   payrollRunId   String? // set while the entry is being paid through a payroll run
   createdAt      DateTime  @default(now())
 
+  @@unique([allocationId, role])
   @@index([organizationId, status])
   @@index([userId, createdAt])
   @@index([payrollRunId])
@@ -2498,4 +2501,23 @@ model QuotaUsage {
   engagement Engagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
 
   @@index([engagementId, key, period])
+}
+
+// The commission rate for a campaign or product (for example 3% digital marketing, 5% Agentify ERP subscription), per role.
+// Shown to sales staff for motivation and used when a client's payments earn commission. Changing a rate restarts effectiveFrom
+// so only later payments use it.
+model CampaignCommissionRate {
+  id             String   @id @default(cuid())
+  organizationId String
+  campaignId     String
+  role           String // SALES_AGENT | SALES_MANAGER
+  ratePercent    Decimal  @db.Decimal(5, 2)
+  active         Boolean  @default(true)
+  effectiveFrom  DateTime @default(now())
+  updatedById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([campaignId, role])
+  @@index([organizationId, active])
 }

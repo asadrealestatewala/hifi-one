@@ -28,41 +28,97 @@ export async function setRule(db: Db, p: { organizationId: string; userId: strin
   return { rule, before };
 }
 
+export const COMMISSION_ROLES = ["SALES_AGENT", "SALES_MANAGER"] as const;
+export const ROLE_LABEL: Record<string, string> = { SALES_AGENT: "Sales agent", SALES_MANAGER: "Sales manager" };
+
+// The rate a campaign or product pays each role (for example 3% digital marketing, 5% Agentify ERP). Changing a rate restarts the clock
+// so only payments received afterwards use the new one.
+export async function setCampaignRate(db: Db, p: { organizationId: string; campaignId: string; role: string; ratePercent: string; active: boolean; actorId: string }) {
+  if (!(COMMISSION_ROLES as readonly string[]).includes(p.role)) throw new CommissionError("Choose sales agent or sales manager.");
+  if (!/^\d{1,2}(\.\d{1,2})?$/.test(p.ratePercent.trim()) || dec(p.ratePercent).gt(50)) throw new CommissionError("Enter a rate between 0 and 50 percent with up to two decimals.");
+  if (!(await db.campaign.findFirst({ where: { id: p.campaignId, organizationId: p.organizationId } }))) throw new CommissionError("Choose a campaign.");
+  const rate = p.ratePercent.trim();
+  const key = { campaignId_role: { campaignId: p.campaignId, role: p.role } };
+  const before = await db.campaignCommissionRate.findUnique({ where: key });
+  const row = await db.campaignCommissionRate.upsert({
+    where: key,
+    update: { ratePercent: rate, active: p.active, updatedById: p.actorId, ...(before && (!before.ratePercent.eq(rate) || (!before.active && p.active)) ? { effectiveFrom: new Date() } : {}) },
+    create: { organizationId: p.organizationId, campaignId: p.campaignId, role: p.role, ratePercent: rate, active: p.active, updatedById: p.actorId },
+  });
+  return { row, before };
+}
+
+export type CampaignRateRow = { campaignId: string; campaign: string; category: string | null; agent: string | null; manager: string | null };
+
+// What each campaign pays, for showing to sales staff. Only active rates; a campaign with none is left out.
+export async function campaignRates(db: Db, organizationId: string): Promise<CampaignRateRow[]> {
+  const rates = await db.campaignCommissionRate.findMany({ where: { organizationId, active: true } });
+  if (rates.length === 0) return [];
+  const campaigns = await db.campaign.findMany({ where: { organizationId, id: { in: [...new Set(rates.map((r) => r.campaignId))] }, archivedAt: null }, include: { category: { select: { name: true } } }, orderBy: { name: "asc" } });
+  return campaigns.map((c) => ({
+    campaignId: c.id, campaign: c.name, category: c.category?.name ?? null,
+    agent: rates.find((r) => r.campaignId === c.id && r.role === "SALES_AGENT")?.ratePercent.toString() ?? null,
+    manager: rates.find((r) => r.campaignId === c.id && r.role === "SALES_MANAGER")?.ratePercent.toString() ?? null,
+  }));
+}
+
 // The person who owns a client's sales is the owner of the lead that converted into it (the latest, if several).
 export async function salesOwnerOf(db: Db, organizationId: string, clientId: string): Promise<string | null> {
-  const lead = await db.lead.findFirst({ where: { organizationId, clientId, convertedAt: { not: null }, assignedToId: { not: null } }, orderBy: { convertedAt: "desc" }, select: { assignedToId: true } });
-  return lead?.assignedToId ?? null;
+  return (await salesLeadOf(db, organizationId, clientId))?.owner ?? null;
+}
+
+async function salesLeadOf(db: Db, organizationId: string, clientId: string): Promise<{ owner: string; campaignId: string | null } | null> {
+  const lead = await db.lead.findFirst({ where: { organizationId, clientId, convertedAt: { not: null }, assignedToId: { not: null } }, orderBy: { convertedAt: "desc" }, select: { assignedToId: true, campaignId: true } });
+  return lead ? { owner: lead.assignedToId!, campaignId: lead.campaignId } : null;
 }
 
 // Works out commissions for payment allocations that have none yet. Safe to run as often as you like.
+// The agent who converted the client earns the converted lead's campaign rate for agents; without one, their own personal rate.
+// Their manager earns the campaign's manager rate (only when the campaign has one). Each role earns at most once per payment.
 export async function accrueCommissions(db: Db, p: { organizationId: string; actorId: string }) {
   const rules = await db.commissionRule.findMany({ where: { organizationId: p.organizationId, active: true } });
-  if (rules.length === 0) return { created: 0 };
+  const crates = await db.campaignCommissionRate.findMany({ where: { organizationId: p.organizationId, active: true } });
+  if (rules.length === 0 && crates.length === 0) return { created: 0 };
   const ruleBy = new Map(rules.map((r) => [r.userId, r]));
-  const done = new Set((await db.commissionEntry.findMany({ where: { organizationId: p.organizationId, allocationId: { not: null } }, select: { allocationId: true } })).map((e) => e.allocationId!));
-  const since = new Date(Math.min(...rules.map((r) => r.createdAt.getTime())));
+  const rateBy = new Map(crates.map((r) => [`${r.campaignId}:${r.role}`, r]));
+  const done = new Set((await db.commissionEntry.findMany({ where: { organizationId: p.organizationId, allocationId: { not: null } }, select: { allocationId: true, role: true } })).map((e) => `${e.allocationId}:${e.role}`));
+  const since = new Date(Math.min(...rules.map((r) => r.createdAt.getTime()), ...crates.map((r) => r.effectiveFrom.getTime())));
   const allocations = await db.paymentAllocation.findMany({
     where: { payment: { organizationId: p.organizationId, createdAt: { gte: since } }, invoice: { organizationId: p.organizationId } },
     include: { invoice: true, payment: { select: { createdAt: true } } },
   });
-  const ownerCache = new Map<string, string | null>();
+  const leadCache = new Map<string, { owner: string; campaignId: string | null } | null>();
+  const managerCache = new Map<string, string | null>();
   let created = 0;
   for (const a of allocations) {
-    if (done.has(a.id)) continue;
-    if (!ownerCache.has(a.invoice.clientId)) ownerCache.set(a.invoice.clientId, await salesOwnerOf(db, p.organizationId, a.invoice.clientId));
-    const owner = ownerCache.get(a.invoice.clientId);
-    const rule = owner ? ruleBy.get(owner) : undefined;
-    if (!owner || !rule || a.payment.createdAt < rule.createdAt) continue;
+    if (!leadCache.has(a.invoice.clientId)) leadCache.set(a.invoice.clientId, await salesLeadOf(db, p.organizationId, a.invoice.clientId));
+    const lead = leadCache.get(a.invoice.clientId);
+    if (!lead) continue;
     const total = dec(a.invoice.total.toString());
     if (total.lte(0)) continue;
     const base = round2(dec(a.amount.toString()).mul(a.invoice.subtotal.toString()).div(total)); // the revenue share of what was paid, tax excluded
-    const amount = round2(base.mul(rule.ratePercent.toString()).div(100));
-    if (amount.lte(0)) continue;
-    const r = await db.commissionEntry.createMany({
-      data: [{ organizationId: p.organizationId, userId: owner, kind: "COMMISSION", allocationId: a.id, invoiceId: a.invoiceId, clientId: a.invoice.clientId, currency: a.invoice.currency, base: base.toString(), ratePercent: rule.ratePercent.toString(), amount: amount.toString(), createdById: p.actorId }],
-      skipDuplicates: true,
-    });
-    created += r.count;
+    if (!managerCache.has(lead.owner)) {
+      const m = (await db.user.findFirst({ where: { id: lead.owner, organizationId: p.organizationId }, select: { managerId: true } }))?.managerId ?? null;
+      managerCache.set(lead.owner, m && (await db.user.findFirst({ where: { id: m, organizationId: p.organizationId, userType: "EMPLOYEE", active: true }, select: { id: true } })) ? m : null);
+    }
+    const agentRate = lead.campaignId ? rateBy.get(`${lead.campaignId}:SALES_AGENT`) : undefined;
+    const managerRate = lead.campaignId ? rateBy.get(`${lead.campaignId}:SALES_MANAGER`) : undefined;
+    const personal = ruleBy.get(lead.owner);
+    const shares: { role: string; userId: string; rate: string; from: Date }[] = [];
+    if (agentRate) shares.push({ role: "SALES_AGENT", userId: lead.owner, rate: agentRate.ratePercent.toString(), from: agentRate.effectiveFrom });
+    else if (personal) shares.push({ role: "SALES_AGENT", userId: lead.owner, rate: personal.ratePercent.toString(), from: personal.createdAt });
+    const mgr = managerCache.get(lead.owner);
+    if (managerRate && mgr && mgr !== lead.owner) shares.push({ role: "SALES_MANAGER", userId: mgr, rate: managerRate.ratePercent.toString(), from: managerRate.effectiveFrom });
+    for (const sh of shares) {
+      if (done.has(`${a.id}:${sh.role}`) || a.payment.createdAt < sh.from) continue;
+      const amount = round2(base.mul(sh.rate).div(100));
+      if (amount.lte(0)) continue;
+      const r = await db.commissionEntry.createMany({
+        data: [{ organizationId: p.organizationId, userId: sh.userId, kind: "COMMISSION", role: sh.role, campaignId: (sh.role === "SALES_AGENT" ? agentRate : managerRate) ? lead.campaignId : null, allocationId: a.id, invoiceId: a.invoiceId, clientId: a.invoice.clientId, currency: a.invoice.currency, base: base.toString(), ratePercent: sh.rate, amount: amount.toString(), createdById: p.actorId }],
+        skipDuplicates: true,
+      });
+      created += r.count;
+    }
   }
   return { created };
 }

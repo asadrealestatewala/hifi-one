@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
-import { CommissionError, accrueCommissions, addBonus, approveEntry, payEntry, setRule, voidEntry } from "@/lib/commissions";
+import { COMMISSION_ROLES, CommissionError, ROLE_LABEL, accrueCommissions, addBonus, approveEntry, payEntry, setCampaignRate, setRule, voidEntry, campaignRates } from "@/lib/commissions";
 import { db } from "@/lib/db";
 import { paging } from "@/lib/paging";
 import { ConfirmButton, Notice, PageHeader, Pager } from "@/components/ui";
@@ -22,6 +22,11 @@ async function manage(formData: FormData) {
       const r = await setRule(db, { organizationId: org, userId: s("userId"), ratePercent: s("ratePercent"), active: formData.get("active") === "on", actorId: user.id });
       await audit(user, { action: "commission.rule", entity: "CommissionRule", entityId: r.rule.id, before: r.before ? { rate: r.before.ratePercent.toString(), active: r.before.active } : null, after: { rate: r.rule.ratePercent.toString(), active: r.rule.active } });
       return back("msg", "Rate saved. It applies to payments received from now on.");
+    }
+    if (op === "campaignRate") {
+      const r = await setCampaignRate(db, { organizationId: org, campaignId: s("campaignId"), role: s("role"), ratePercent: s("ratePercent"), active: formData.get("active") === "on", actorId: user.id });
+      await audit(user, { action: "commission.campaign_rate", entity: "CampaignCommissionRate", entityId: r.row.id, before: r.before ? { rate: r.before.ratePercent.toString(), active: r.before.active } : null, after: { campaignId: s("campaignId"), role: s("role"), rate: r.row.ratePercent.toString(), active: r.row.active } });
+      return back("msg", "Campaign rate saved. It applies to payments received from now on.");
     }
     if (op === "accrue") {
       const r = await accrueCommissions(db, { organizationId: org, actorId: user.id });
@@ -76,12 +81,14 @@ export default async function Commissions({ searchParams }: { searchParams: Prom
   const canPay = canApprove && user.permissions.has("finance.post");
   const pg = paging(sp.page);
   const waiting = { organizationId: org, status: { in: ["EARNED", "APPROVED"] as never } };
-  const [rules, entries, waitingCount, staff, banks] = await Promise.all([
+  const [rules, entries, waitingCount, staff, banks, campaigns, crates] = await Promise.all([
     db.commissionRule.findMany({ where: { organizationId: org } }),
     db.commissionEntry.findMany({ where: waiting, orderBy: [{ createdAt: "asc" }, { id: "asc" }], skip: pg.skip, take: pg.take }),
     db.commissionEntry.count({ where: waiting }),
     db.user.findMany({ where: { organizationId: org, userType: "EMPLOYEE", active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     canPay ? db.bankAccount.findMany({ where: { organizationId: org, active: true, ledgerAccountId: { not: null } } }) : Promise.resolve([]),
+    db.campaign.findMany({ where: { organizationId: org, archivedAt: null }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    campaignRates(db, org),
   ]);
   const name = new Map(staff.map((u) => [u.id, u.name]));
   const ruleOf = new Map(rules.map((r) => [r.userId, r]));
@@ -101,7 +108,7 @@ export default async function Commissions({ searchParams }: { searchParams: Prom
               {entries.map((e) => (
                 <tr key={e.id} className="border-t border-border align-top">
                   <td className="py-2 pr-3">{name.get(e.userId) ?? "Unknown"}</td>
-                  <td className="pr-3">{e.kind === "BONUS" ? `Bonus: ${e.note}` : `${e.ratePercent.toString()}% of ${formatMoney(e.base, e.currency)}`}</td>
+                  <td className="pr-3">{e.kind === "BONUS" ? `Bonus: ${e.note}` : `${e.role === "SALES_MANAGER" ? "Manager share: " : ""}${e.ratePercent.toString()}% of ${formatMoney(e.base, e.currency)}`}</td>
                   <td className="pr-3 text-right">{formatMoney(e.amount, e.currency)}</td><td className="pr-3">{e.status.toLowerCase()}</td>
                   <td className="space-y-1">
                     {e.status === "EARNED" && canApprove && <form action={decide}><input type="hidden" name="entryId" value={e.id} /><input type="hidden" name="op" value="approve" /><button className="underline text-xs">{e.userId === user.id ? "Approve (not your own)" : "Approve"}</button></form>}
@@ -133,6 +140,21 @@ export default async function Commissions({ searchParams }: { searchParams: Prom
           <button className="btn-ghost">Save rate</button>
         </form>
         <p className="text-xs text-muted">A new or changed rate applies to payments received after it is saved, never to past ones.</p>
+      </section>
+
+      <section className="card space-y-3">
+        <h2 className="font-semibold">Rates by campaign or product</h2>
+        <p className="text-xs text-muted">What each campaign pays the sales agent who closed the client and that agent&apos;s manager (for example 3% for digital marketing, 5% for an Agentify ERP subscription). Sales staff see these on My commissions. A campaign rate wins over a person&apos;s own rate; without one, the personal rate above still applies. The manager is the agent&apos;s manager in the staff directory.</p>
+        <ul className="text-sm">{crates.map((c) => <li key={c.campaignId} className="flex flex-wrap justify-between gap-2 border-t border-border py-1 first:border-0"><span>{c.campaign}{c.category ? <span className="text-xs text-muted"> · {c.category}</span> : null}</span><span>agent {c.agent ? `${c.agent}%` : "none"} · manager {c.manager ? `${c.manager}%` : "none"}</span></li>)}
+          {crates.length === 0 && <li className="text-muted">No campaign rates set yet.</li>}</ul>
+        <form action={manage} className="flex flex-wrap items-end gap-3 border-t border-border pt-3">
+          <input type="hidden" name="op" value="campaignRate" />
+          <div><label className="label" htmlFor="crCampaign">Campaign</label><select id="crCampaign" name="campaignId" required className="input"><option value="">Choose…</option>{campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+          <div><label className="label" htmlFor="crRole">Paid to</label><select id="crRole" name="role" className="input">{COMMISSION_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}</select></div>
+          <div><label className="label" htmlFor="crRate">Rate (%)</label><input id="crRate" name="ratePercent" required inputMode="decimal" className="input !w-24" /></div>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="active" defaultChecked /> Active</label>
+          <button className="btn-ghost">Save campaign rate</button>
+        </form>
       </section>
 
       <form action={manage} className="card grid gap-3 sm:grid-cols-5 items-end">
