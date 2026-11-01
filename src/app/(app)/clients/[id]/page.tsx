@@ -60,7 +60,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       {error && <Notice kind="error">{error}</Notice>}
       {sp.saved && <Notice kind="ok">{sp.shared ? `Review saved. ${sp.pool && sp.pool !== "0" ? `${formatMoney(sp.pool, client.currency)} set aside for ${sp.shared} team member${sp.shared === "1" ? "" : "s"}, waiting for approval under Commissions.` : "No rebate was set aside: either the rating is below every tier or the client has no project manager or project team yet."}` : "Saved."}</Notice>}
       <Chips current={tab} items={TABS.map(([k, l]) => ({ key: k, label: l, href: tabHref(k) }))} />
-      {tab === "delivery" && <DeliveryTab organizationId={user.organizationId} client={client} canEdit={has("clients.edit")} canMeet={has("meetings.use")} pmName={client.projectManagerId ? (await db.user.findFirst({ where: { id: client.projectManagerId, organizationId: user.organizationId }, select: { name: true } }))?.name ?? null : null} />}
+      {tab === "delivery" && <DeliveryTab organizationId={user.organizationId} client={client} canEdit={has("clients.edit")} canMeet={has("meetings.use")} canWatch={has("meetings.recordings")} pmName={client.projectManagerId ? (await db.user.findFirst({ where: { id: client.projectManagerId, organizationId: user.organizationId }, select: { name: true } }))?.name ?? null : null} />}
       {tab === "services" && <ServicesTab organizationId={user.organizationId} client={client} canEdit={has("clients.edit")} />}
       {tab === "portal" && (
         <>

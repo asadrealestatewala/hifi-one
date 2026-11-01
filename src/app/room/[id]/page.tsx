@@ -26,5 +26,5 @@ export default async function StaffRoom({ params, searchParams }: { params: Prom
     );
   }
   const isHost = me.isHost || m.hostId === user.id;
-  return <Room meetingId={id} title={m.title} kind={m.kind} me={{ name: me.name, isHost }} inviteUrl={guestLink(await baseUrl(), m.joinToken)} fake={sp.fake === "1"} />;
+  return <Room meetingId={id} title={m.title} kind={m.kind} me={{ name: me.name, isHost }} inviteUrl={guestLink(await baseUrl(), m.joinToken)} fake={sp.fake === "1"} canRecord={isHost && user.permissions.has("meetings.recordings")} />;
 }

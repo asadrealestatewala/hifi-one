@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { isOnline, publish, subscribe } from "@/lib/meeting-hub";
 import { broadcastRoster, peersFor, ticketFrom } from "@/lib/meeting-http";
 import { authenticateParticipant, history, iceServers, leave } from "@/lib/meetings";
+import { isRecording } from "@/lib/recordings";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -21,7 +22,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       off = subscribe(id, me.id, send);
       beat = setInterval(() => { try { controller.enqueue(enc.encode(": keepalive\n\n")); } catch { /* closed */ } }, 20_000);
       const you = { id: me.id, name: me.name, isHost: me.isHost || (me.userId !== null && me.userId === me.meeting.hostId), status: me.status };
-      send("hello", { you, title: me.meeting.title, kind: me.meeting.kind, iceServers: iceServers() });
+      send("hello", { you, title: me.meeting.title, kind: me.meeting.kind, iceServers: iceServers(), recording: me.status === "ADMITTED" && (await isRecording(db, id)) });
       if (me.status === "ADMITTED") send("welcome", { peers: await peersFor(id, me.id), messages: await history(db, id) });
       await broadcastRoster(id);
       const close = () => {

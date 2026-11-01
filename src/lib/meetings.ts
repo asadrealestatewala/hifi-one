@@ -24,7 +24,7 @@ export async function createMeeting(db: Db, p: {
   const kind = p.kind ?? "MEETING";
   if (!(KINDS as readonly string[]).includes(kind)) throw new MeetingError("Choose meeting or workshop.");
   const purpose = p.purpose ?? "GENERAL";
-  if (!["GENERAL", "DISCOVERY", "WEEKLY_REVIEW", "SUPPORT", "TUTORIAL", "INQUIRY"].includes(purpose)) throw new MeetingError("Choose what the meeting is for.");
+  if (!["GENERAL", "TEAM", "DISCOVERY", "WEEKLY_REVIEW", "SUPPORT", "TUTORIAL", "INQUIRY"].includes(purpose)) throw new MeetingError("Choose what the meeting is for.");
   const duration = p.durationMin ?? 60;
   if (!Number.isInteger(duration) || duration < 5 || duration > 480) throw new MeetingError("Duration must be between 5 and 480 minutes.");
   let scheduledAt: Date | null = null;

@@ -6,12 +6,14 @@ import { Badge, Empty, StatusBadge, SubmitButton } from "@/components/ui";
 import { createMeetingAction } from "../../meetings/actions";
 import { attachRecording, saveReview } from "./delivery-actions";
 
-export default async function DeliveryTab({ organizationId, client, canEdit, canMeet, pmName }: { organizationId: string; client: { id: string; name: string; currency: string; projectManagerId: string | null }; canEdit: boolean; canMeet: boolean; pmName: string | null }) {
+export default async function DeliveryTab({ organizationId, client, canEdit, canMeet, canWatch, pmName }: { organizationId: string; client: { id: string; name: string; currency: string; projectManagerId: string | null }; canEdit: boolean; canMeet: boolean; canWatch: boolean; pmName: string | null }) {
   const [meetings, reviews, tiers] = await Promise.all([
     db.meeting.findMany({ where: { organizationId, clientId: client.id, purpose: { in: ["DISCOVERY", "WEEKLY_REVIEW"] } }, orderBy: [{ scheduledAt: "desc" }, { createdAt: "desc" }], take: 20 }),
     db.clientReview.findMany({ where: { organizationId, clientId: client.id }, orderBy: { weekStart: "desc" }, take: 20 }),
     db.reviewRebateTier.findMany({ where: { organizationId }, orderBy: { minRating: "desc" } }),
   ]);
+  const recs = new Map<string, { id: string; startedAt: Date }[]>();
+  if (canWatch) for (const r of await db.meetingRecording.findMany({ where: { organizationId, status: "READY", meetingId: { in: meetings.map((m) => m.id) } }, orderBy: { startedAt: "desc" } })) recs.set(r.meetingId, [...(recs.get(r.meetingId) ?? []), r]);
   const reviewers = new Map((await db.user.findMany({ where: { id: { in: [...new Set(reviews.map((r) => r.reviewerId))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
   const week = weekStartOf(new Date().toISOString().slice(0, 10));
   const returnTo = `/clients/${client.id}?tab=delivery`;
@@ -30,7 +32,9 @@ export default async function DeliveryTab({ organizationId, client, canEdit, can
             {meetings.map((m) => (
               <li key={m.id} className="space-y-1 py-2">
                 <div className="flex flex-wrap items-center justify-between gap-2"><Link href={`/meetings/${m.id}`} className="font-medium hover:underline">{m.title}</Link><span className="flex items-center gap-2 text-xs text-muted">{PURPOSE_LABEL[m.purpose]}{m.scheduledAt ? ` · ${m.scheduledAt.toLocaleString()}` : ""}<StatusBadge status={m.status} /></span></div>
-                {m.recordingUrl ? <p className="text-xs"><a className="underline" href={m.recordingUrl} target="_blank" rel="noopener noreferrer">Recording</a></p> : <p className="text-xs text-muted">No recording attached.</p>}
+                {m.recordingUrl ? <p className="text-xs"><a className="underline" href={m.recordingUrl} target="_blank" rel="noopener noreferrer">Recording link</a></p> : null}
+                {canWatch && (recs.get(m.id) ?? []).map((r) => <p key={r.id} className="text-xs"><a className="underline" href={`/api/meetings/${m.id}/recording/${r.id}`}>Download recording of {r.startedAt.toLocaleDateString()}</a></p>)}
+                {!m.recordingUrl && !(recs.get(m.id) ?? []).length && <p className="text-xs text-muted">No recording yet.</p>}
                 {canMeet && (
                   <form action={attachRecording} className="flex flex-wrap items-center gap-2">
                     <input type="hidden" name="clientId" value={client.id} /><input type="hidden" name="meetingId" value={m.id} />
@@ -43,7 +47,7 @@ export default async function DeliveryTab({ organizationId, client, canEdit, can
             ))}
           </ul>
         )}
-        <p className="text-xs text-muted">The ERP does not record video itself. Record the call with your recording tool, tell everyone on the call it is recorded, and attach the link here for quality and record keeping.</p>
+        <p className="text-xs text-muted">Hosts with the recordings permission can record from inside the meeting room (everyone sees a recording banner). A recording made with another tool can be attached as a link.</p>
         {canMeet && (
           <form action={createMeetingAction} className="grid gap-3 border-t border-border pt-3 sm:grid-cols-3">
             <input type="hidden" name="clientId" value={client.id} /><input type="hidden" name="returnTo" value={returnTo} />

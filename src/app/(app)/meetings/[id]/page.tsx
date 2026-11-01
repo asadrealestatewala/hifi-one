@@ -23,6 +23,8 @@ export default async function MeetingDetail({ params, searchParams }: { params: 
     attendance(db, m.id),
     history(db, m.id, 500),
   ]);
+  const canWatch = user.permissions.has("meetings.recordings");
+  const recordings = canWatch ? await db.meetingRecording.findMany({ where: { meetingId: m.id, organizationId: user.organizationId, status: { not: "FAILED" } }, orderBy: { startedAt: "desc" } }) : [];
   const link = guestLink(await baseUrl(), m.joinToken);
   const open = m.status === "SCHEDULED" || m.status === "LIVE";
   const isHost = m.hostId === user.id;
@@ -54,6 +56,21 @@ export default async function MeetingDetail({ params, searchParams }: { params: 
       )}
 
       {isHost && m.status === "SCHEDULED" && <form action={cancelAction}><input type="hidden" name="id" value={m.id} /><ConfirmButton title="Cancel this meeting?" message="Participants can no longer join with their links." confirmLabel="Cancel meeting">Cancel this meeting</ConfirmButton></form>}
+
+      {recordings.length > 0 && (
+        <section className="card space-y-2">
+          <h2 className="font-semibold">Recordings</h2>
+          <ul className="divide-y divide-border text-sm">
+            {recordings.map((r) => (
+              <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span>{r.startedAt.toLocaleString()}{r.durationSec != null ? ` · ${Math.floor(r.durationSec / 60)} min ${r.durationSec % 60} s` : ""} · {(r.size / 1048576).toFixed(1)} MB</span>
+                {r.status === "READY" ? <a className="btn-ghost" href={`/api/meetings/${m.id}/recording/${r.id}`}>Download</a> : <Badge tone="danger">recording now</Badge>}
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-muted">Only people with the recordings permission can open these. Downloads are logged.</p>
+        </section>
+      )}
 
       {att.length > 0 && (
         <section className="card overflow-x-auto">

@@ -135,3 +135,8 @@ Found by comparing with the reference ERP; evidence in `docs/REFERENCE_ERP_AUDIT
 ## Marketing delivery workflow (added 2026-11-01, decision 50)
 - **Done (tested; Delivery tab checked in a browser):** discovery and weekly review calls scheduled from the client page with a recording link; content brief, sample and auto task; project-manager approval step; published posts counted against quotas; weekly reviews with rating tiers and team bonus entries.
 - **Not built:** recording the call inside the ERP (needs a media server), a separate customer success manager role and dashboard, showing reviews in the client portal, per-person split weights.
+
+## Meeting recording (added 2026-11-01, decision 51)
+- **Done (service tested; build, lint, full suite pass):** host records any meeting from the room, banner for everyone, chunked upload to disk, download from the meeting page and the client Delivery tab, permission `meetings.recordings`, audit, Team / progress meeting type.
+- **Not verified:** a real multi-device call with live camera, screen share and audio (the sandbox has no second device); long recordings near the 1.5 GB cap.
+- **Not built:** transcripts, retention or auto-delete rules, recording by someone other than the host, server-side recording.
