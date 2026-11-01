@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { mailConfig } from "@/lib/mailer";
-import { STANDARD_MAILBOXES, mailDomain, receivingConfig } from "@/lib/mailboxes";
+import { STANDARD_MAILBOXES, mailDomain, receivingConfig, staffMailDomain } from "@/lib/mailboxes";
 import { baseUrl } from "@/lib/meeting-cookie";
 import { Badge, Empty, Notice, PageHeader, SubmitButton } from "@/components/ui";
 import { createMailboxAction, setupStandardAction } from "./actions";
@@ -27,6 +27,7 @@ export default async function MailboxSettings({ searchParams }: { searchParams: 
   const send = mailConfig();
   const recv = receivingConfig();
   const domain = mailDomain();
+  const staffDomain = staffMailDomain();
   const webhook = `${await baseUrl()}/api/mail/inbound`;
   return (
     <div className="space-y-5 max-w-5xl">
@@ -44,7 +45,8 @@ export default async function MailboxSettings({ searchParams }: { searchParams: 
             <p>Changing the MX record of {domain} moves all of its incoming mail to Resend. If the domain already receives mail somewhere else, use a subdomain or forwarding instead.</p>
           </div>
         )}
-        <p className="text-muted">Addresses are created on <code>{domain}</code> (server setting <code>MAIL_DOMAIN</code>). Sending only works once that domain is verified in Resend.</p>
+        <p className="text-muted">Shared and system addresses are created on <code>{domain}</code> (server setting <code>MAIL_DOMAIN</code>); employee addresses on <code>{staffDomain}</code>{staffDomain === domain ? "" : <> (<code>STAFF_MAIL_DOMAIN</code>)</>}. Sending only works once the domain is verified in Resend.</p>
+        {staffDomain !== domain && <p className="text-muted">Mail for each shared address on {domain} must be forwarded to the same name on {staffDomain} at your DNS host (for example billing@{domain} to billing@{staffDomain}). Employee addresses on {staffDomain} need nothing.</p>}
       </section>
 
       {missingStandard.length > 0 && (
@@ -95,7 +97,7 @@ export default async function MailboxSettings({ searchParams }: { searchParams: 
                   <form action={createMailboxAction} className="flex flex-wrap items-center gap-2 py-2">
                     <input type="hidden" name="kind" value="PERSONAL" /><input type="hidden" name="ownerId" value={u.id} /><input type="hidden" name="displayName" value={u.name} />
                     <label className="sr-only" htmlFor={`lp-${u.id}`}>Address for {u.name}</label>
-                    <input id={`lp-${u.id}`} name="localPart" className="input !w-44" required defaultValue={suggest(u.name)} /><span className="text-muted">@{domain}</span>
+                    <input id={`lp-${u.id}`} name="localPart" className="input !w-44" required defaultValue={suggest(u.name)} /><span className="text-muted">@{staffDomain}</span>
                     <SubmitButton className="btn-ghost" pendingText="Creating…">Create</SubmitButton>
                   </form>
                 </td>
@@ -109,7 +111,7 @@ export default async function MailboxSettings({ searchParams }: { searchParams: 
             <form action={createMailboxAction} className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
               <input type="hidden" name="kind" value="PERSONAL" />
               <div><label className="label" htmlFor="ex-owner">Employee</label><select id="ex-owner" name="ownerId" className="input" required>{staff.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
-              <div><label className="label" htmlFor="ex-local">Address</label><div className="flex items-center gap-1"><input id="ex-local" name="localPart" className="input" required /><span className="text-muted">@{domain}</span></div></div>
+              <div><label className="label" htmlFor="ex-local">Address</label><div className="flex items-center gap-1"><input id="ex-local" name="localPart" className="input" required /><span className="text-muted">@{staffDomain}</span></div></div>
               <div><label className="label" htmlFor="ex-name">Name shown to recipients</label><input id="ex-name" name="displayName" className="input" required /></div>
               <SubmitButton pendingText="Creating…">Create</SubmitButton>
             </form>

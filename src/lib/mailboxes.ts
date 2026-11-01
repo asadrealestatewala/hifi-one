@@ -11,8 +11,16 @@ import { stopForReply } from "./followups";
 
 type Db = PrismaClient;
 
+// Shared and system addresses (billing@, sales@, noreply@ ...) live here: the public company domain.
 export function mailDomain(env: Record<string, string | undefined> = process.env) {
   return lower(env.MAIL_DOMAIN || "hifimarketing.co");
+}
+
+// Personal (employee) addresses live here. Defaults to MAIL_DOMAIN. Set STAFF_MAIL_DOMAIN (for example mail.hifimarketing.co)
+// when the receiving domain at Resend is a subdomain, so a new employee mailbox works the moment it is created, with no
+// forwarding rule to add at the DNS host. The public domain then only needs forwards for its few shared addresses.
+export function staffMailDomain(env: Record<string, string | undefined> = process.env) {
+  return lower(env.STAFF_MAIL_DOMAIN || env.MAIL_DOMAIN || "hifimarketing.co");
 }
 
 export function receivingConfig(env: Record<string, string | undefined> = process.env) {
@@ -42,7 +50,7 @@ export async function createMailbox(db: Db, p: {
   purpose?: SystemPurpose | null; ownerId?: string | null; domain?: string;
 }) {
   const local = cleanLocalPart(p.localPart);
-  const address = `${local}@${p.domain ?? mailDomain()}`;
+  const address = `${local}@${p.domain ?? (p.kind === "PERSONAL" ? staffMailDomain() : mailDomain())}`;
   if (p.kind === "SYSTEM" && !(p.purpose && SYSTEM_PURPOSES.includes(p.purpose))) throw new MailError("Choose what the system mailbox is for.");
   if (p.kind !== "SYSTEM" && p.purpose) throw new MailError("Only system mailboxes have a purpose.");
   let owner: { id: string; name: string } | null = null;

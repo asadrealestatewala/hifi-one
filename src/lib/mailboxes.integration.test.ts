@@ -35,6 +35,22 @@ beforeAll(async () => {
 afterEach(() => { setTransportForTests(null); sent.length = 0; });
 afterAll(async () => { await db.$disconnect(); });
 
+describe("mailbox domains by kind", () => {
+  it("puts personal mailboxes on the staff domain and shared ones on the company domain", async () => {
+    const before = { m: process.env.MAIL_DOMAIN, s: process.env.STAFF_MAIL_DOMAIN };
+    process.env.MAIL_DOMAIN = "company.test"; process.env.STAFF_MAIL_DOMAIN = "mail.company.test";
+    try {
+      const personal = await createMailbox(db, { organizationId: org, actorId: admin.id, kind: "PERSONAL", localPart: "dom.person", displayName: "Dom", ownerId: omar.id });
+      const shared = await createMailbox(db, { organizationId: org, actorId: admin.id, kind: "SHARED", localPart: "dom.sales", displayName: "Sales" });
+      expect(personal.address).toBe("dom.person@mail.company.test");
+      expect(shared.address).toBe("dom.sales@company.test");
+    } finally {
+      if (before.m === undefined) delete process.env.MAIL_DOMAIN; else process.env.MAIL_DOMAIN = before.m;
+      if (before.s === undefined) delete process.env.STAFF_MAIL_DOMAIN; else process.env.STAFF_MAIL_DOMAIN = before.s;
+    }
+  });
+});
+
 describe("creating mailboxes", () => {
   it("creates a personal mailbox for an active employee and makes them its only member", async () => {
     const mb = await createMailbox(db, { organizationId: org, actorId: admin.id, kind: "PERSONAL", localPart: "Sara.Khan", displayName: "Sara Khan", ownerId: sara.id, domain: D });
