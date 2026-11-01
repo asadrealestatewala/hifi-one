@@ -22,6 +22,13 @@ jobs:
             git reset --hard origin/main
             npm ci --legacy-peer-deps
             npx prisma migrate deploy
-            npm run build
+            # Build beside the live build, never over it. Building in place deleted the running server's CSS and JS
+            # chunks, so a slow or failed build left every page unstyled. tsc and eslint already run in CI.
+            rm -rf .next-build
+            NEXT_DIST_DIR=.next-build SKIP_BUILD_CHECKS=1 npm run build
+            test -f .next-build/BUILD_ID
+            rm -rf .next-previous
+            if [ -d .next ]; then mv .next .next-previous; fi
+            mv .next-build .next
             pm2 restart hifi-one || pm2 start npm --name hifi-one -- start
             pm2 save

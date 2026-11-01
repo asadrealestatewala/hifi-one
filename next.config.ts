@@ -16,8 +16,16 @@ const csp = [
   "frame-ancestors 'none'",
 ].join("; ");
 
+// The VPS deploy builds into a side folder and swaps it in only when the build succeeds, so a failed build never
+// leaves the running server pointing at missing CSS and JS chunks. CI already runs tsc and eslint on every push,
+// so the deploy skips them during the build; they are what ran the server out of memory.
+const skipBuildChecks = process.env.SKIP_BUILD_CHECKS === "1";
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  distDir: process.env.NEXT_DIST_DIR || ".next",
+  typescript: { ignoreBuildErrors: skipBuildChecks },
+  eslint: { ignoreDuringBuilds: skipBuildChecks },
   // Uploads travel through server actions; the file size limit itself is enforced by the file service (15 MB)
   experimental: { serverActions: { bodySizeLimit: "16mb" } },
   async headers() {
