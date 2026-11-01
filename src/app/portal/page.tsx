@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireClientUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
-import { portalInvoices, portalManager, portalPayments, portalProjects } from "@/lib/portal";
+import { portalInvoices, portalManager, portalPayments, portalSupport, portalProjects } from "@/lib/portal";
 import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -11,13 +11,14 @@ const LABEL: Record<string, string> = { TODO: "To do", IN_PROGRESS: "In progress
 
 export default async function PortalHome() {
   const user = await requireClientUser();
-  const [invoices, projects, payments, manager] = await Promise.all([portalInvoices(db, user.clientId), portalProjects(db, user.clientId), portalPayments(db, user.clientId), portalManager(db, user.clientId)]);
+  const [invoices, projects, payments, manager, support] = await Promise.all([portalInvoices(db, user.clientId), portalProjects(db, user.clientId), portalPayments(db, user.clientId), portalManager(db, user.clientId), portalSupport(db, user.clientId)]);
   const owed = new Map<string, number>();
   for (const i of invoices) owed.set(i.currency, (owed.get(i.currency) ?? 0) + Number(i.total.sub(i.amountPaid).sub(i.creditedAmount)));
   return (
     <div className="space-y-6">
       <PageHeader title="Your account" />
       {manager && <p className="text-sm text-muted">Your project manager: <strong className="text-foreground">{manager.name}</strong>{manager.employeeNo && ` (ID ${manager.employeeNo})`}</p>}
+      {support && <p className="text-sm text-muted">Your {support.dedicated ? "support manager" : "support contact"}: <strong className="text-foreground">{support.name}</strong>{support.employeeNo && ` (ID ${support.employeeNo})`}. Tutorials and support calls appear under Meetings.</p>}
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="card"><p className="text-xs font-semibold text-muted">Outstanding</p>
           {owed.size === 0 ? <p className="text-2xl font-bold">Nothing due</p> : [...owed].map(([c, v]) => <p key={c} className="text-2xl font-bold">{formatMoney(v, c)}</p>)}

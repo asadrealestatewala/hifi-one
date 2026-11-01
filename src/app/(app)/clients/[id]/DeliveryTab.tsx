@@ -6,9 +6,9 @@ import { Badge, Empty, StatusBadge, SubmitButton } from "@/components/ui";
 import { createMeetingAction } from "../../meetings/actions";
 import { attachRecording, saveReview } from "./delivery-actions";
 
-export default async function DeliveryTab({ organizationId, client, canEdit, canMeet, canWatch, pmName }: { organizationId: string; client: { id: string; name: string; currency: string; projectManagerId: string | null }; canEdit: boolean; canMeet: boolean; canWatch: boolean; pmName: string | null }) {
+export default async function DeliveryTab({ organizationId, client, canEdit, canMeet, canWatch, pmName, supportName }: { organizationId: string; client: { id: string; name: string; currency: string; clientType: string; projectManagerId: string | null; supportManagerId: string | null }; canEdit: boolean; canMeet: boolean; canWatch: boolean; pmName: string | null; supportName: string | null }) {
   const [meetings, reviews, tiers] = await Promise.all([
-    db.meeting.findMany({ where: { organizationId, clientId: client.id, purpose: { in: ["DISCOVERY", "WEEKLY_REVIEW"] } }, orderBy: [{ scheduledAt: "desc" }, { createdAt: "desc" }], take: 20 }),
+    db.meeting.findMany({ where: { organizationId, clientId: client.id, purpose: { in: ["DISCOVERY", "WEEKLY_REVIEW", "SUPPORT", "TUTORIAL", "INQUIRY"] } }, orderBy: [{ scheduledAt: "desc" }, { createdAt: "desc" }], take: 20 }),
     db.clientReview.findMany({ where: { organizationId, clientId: client.id }, orderBy: { weekStart: "desc" }, take: 20 }),
     db.reviewRebateTier.findMany({ where: { organizationId }, orderBy: { minRating: "desc" } }),
   ]);
@@ -22,12 +22,13 @@ export default async function DeliveryTab({ organizationId, client, canEdit, can
       <section className="card space-y-3">
         <h2 className="font-semibold">Delivery</h2>
         <p className="text-sm text-muted">Project manager: <strong className="text-foreground">{pmName ?? "not allocated yet"}</strong>{pmName ? "" : " (set it on the Services tab)"}. The project manager approves each content entry before the client sees it; then the client approves it in the portal calendar, then the social media manager posts it.</p>
+        {client.clientType === "SAAS" && <p className="text-sm text-muted">Support: <strong className="text-foreground">{supportName ?? "no one allocated yet"}</strong>{client.supportManagerId ? "" : supportName ? " (the project manager covers support)" : " (set a support manager or project manager on the Services tab)"}. Product tutorials, support calls and inquiries are held in the ERP meeting room, and the host can record them.</p>}
         <p className="text-sm"><Link className="underline" href={`/content?client=${client.id}`}>Open this client&apos;s content calendar</Link></p>
       </section>
 
       <section className="card space-y-3">
-        <h2 className="font-semibold">Discovery call and weekly reviews</h2>
-        {meetings.length === 0 ? <Empty title="No calls yet">Schedule the business discovery call below. It happens in the ERP&apos;s meeting room.</Empty> : (
+        <h2 className="font-semibold">{client.clientType === "SAAS" ? "Tutorial, support and inquiry calls" : "Discovery call and weekly reviews"}</h2>
+        {meetings.length === 0 ? <Empty title="No calls yet">{client.clientType === "SAAS" ? "Schedule a product tutorial, a support call or an inquiry call below." : "Schedule the business discovery call below."} It happens in the ERP&apos;s meeting room.</Empty> : (
           <ul className="divide-y divide-border text-sm">
             {meetings.map((m) => (
               <li key={m.id} className="space-y-1 py-2">
@@ -51,8 +52,8 @@ export default async function DeliveryTab({ organizationId, client, canEdit, can
         {canMeet && (
           <form action={createMeetingAction} className="grid gap-3 border-t border-border pt-3 sm:grid-cols-3">
             <input type="hidden" name="clientId" value={client.id} /><input type="hidden" name="returnTo" value={returnTo} />
-            <div><label className="label" htmlFor="dm-purpose">Call</label><select id="dm-purpose" name="purpose" className="input"><option value="DISCOVERY">Business discovery call</option><option value="WEEKLY_REVIEW">Weekly review</option></select></div>
-            <div><label className="label" htmlFor="dm-title">Title</label><input id="dm-title" name="title" required maxLength={140} defaultValue={`Discovery call: ${client.name}`} className="input" /></div>
+            <div><label className="label" htmlFor="dm-purpose">Call</label><select id="dm-purpose" name="purpose" className="input">{client.clientType === "SAAS" ? <><option value="TUTORIAL">Product tutorial</option><option value="SUPPORT">Customer support</option><option value="INQUIRY">Inquiry</option></> : <><option value="DISCOVERY">Business discovery call</option><option value="WEEKLY_REVIEW">Weekly review</option></>}</select></div>
+            <div><label className="label" htmlFor="dm-title">Title</label><input id="dm-title" name="title" required maxLength={140} defaultValue={`${client.clientType === "SAAS" ? "Support call" : "Discovery call"}: ${client.name}`} className="input" /></div>
             <div><label className="label" htmlFor="dm-at">When</label><input id="dm-at" name="scheduledAt" type="datetime-local" className="input" /></div>
             <input type="hidden" name="durationMin" value="60" /><input type="hidden" name="waitingRoom" value="on" />
             <div className="sm:col-span-3"><SubmitButton pendingText="Scheduling…">Schedule call</SubmitButton></div>

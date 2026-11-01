@@ -6,7 +6,7 @@ import { addEngagement, changeEngagementStatus, recordUsage, saveClientProfile, 
 
 const INTERVAL_LABEL: Record<string, string> = { ONE_TIME: "one time", MONTHLY: "per month", QUARTERLY: "per quarter", ANNUAL: "per year" };
 
-export default async function ServicesTab({ organizationId, client, canEdit }: { organizationId: string; client: { id: string; currency: string; clientType: string; projectManagerId: string | null }; canEdit: boolean }) {
+export default async function ServicesTab({ organizationId, client, canEdit }: { organizationId: string; client: { id: string; currency: string; clientType: string; projectManagerId: string | null; supportManagerId: string | null }; canEdit: boolean }) {
   const month = currentPeriod();
   const [engagements, staff, plans] = await Promise.all([
     db.engagement.findMany({ where: { organizationId, clientId: client.id }, orderBy: [{ status: "asc" }, { createdAt: "desc" }], include: { usage: { where: { voided: false }, orderBy: { createdAt: "desc" }, take: 8 } } }),
@@ -25,6 +25,7 @@ export default async function ServicesTab({ organizationId, client, canEdit }: {
             <input type="hidden" name="clientId" value={client.id} />
             <div><label className="label" htmlFor="clientType">Client type</label><select id="clientType" name="clientType" defaultValue={client.clientType} className="input">{CLIENT_TYPES.map((t) => <option key={t} value={t}>{CLIENT_TYPE_LABEL[t]}</option>)}</select></div>
             <div><label className="label" htmlFor="projectManagerId">Project manager</label><select id="projectManagerId" name="projectManagerId" defaultValue={client.projectManagerId ?? ""} className="input"><option value="">Not allocated yet</option>{staff.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+            {client.clientType === "SAAS" && <div><label className="label" htmlFor="supportManagerId">Support manager</label><select id="supportManagerId" name="supportManagerId" defaultValue={client.supportManagerId ?? ""} className="input"><option value="">Project manager covers support</option>{staff.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>}
             <div className="flex items-end"><SubmitButton pendingText="Saving…">Save</SubmitButton></div>
           </form>
         ) : <p className="text-sm">{CLIENT_TYPE_LABEL[client.clientType]} · project manager: {pm?.name ?? "not allocated yet"}</p>}

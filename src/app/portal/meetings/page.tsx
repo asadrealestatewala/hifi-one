@@ -3,6 +3,7 @@ import { Badge, Empty, PageHeader } from "@/components/ui";
 import { db } from "@/lib/db";
 import { baseUrl } from "@/lib/meeting-cookie";
 import { guestLink } from "@/lib/meetings";
+import { PURPOSE_LABEL } from "@/lib/delivery";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export default async function PortalMeetings() {
       {meetings.length === 0 ? <Empty title="Nothing scheduled">When we invite you to a meeting or workshop it will appear here with a button to join.</Empty> : (
         <ul className="space-y-3">{meetings.map((m) => (
           <li key={m.id} className="card flex flex-wrap items-center justify-between gap-3">
-            <div><p className="font-medium">{m.title} {m.status === "LIVE" && <Badge tone="success">live now</Badge>}{m.kind === "WORKSHOP" && <span className="ml-1"><Badge tone="warning">workshop</Badge></span>}</p><p className="text-sm text-muted">{m.scheduledAt ? m.scheduledAt.toLocaleString() : "Starting now"} · {m.durationMin} minutes</p>{m.agenda && <p className="mt-1 whitespace-pre-line text-sm">{m.agenda}</p>}</div>
+            <div><p className="font-medium">{m.title} {m.status === "LIVE" && <Badge tone="success">live now</Badge>}{m.kind === "WORKSHOP" && <span className="ml-1"><Badge tone="warning">workshop</Badge></span>}{m.purpose !== "GENERAL" && PURPOSE_LABEL[m.purpose] && <span className="ml-1"><Badge>{PURPOSE_LABEL[m.purpose]}</Badge></span>}</p><p className="text-sm text-muted">{m.scheduledAt ? m.scheduledAt.toLocaleString() : "Starting now"} · {m.durationMin} minutes</p>{m.agenda && <p className="mt-1 whitespace-pre-line text-sm">{m.agenda}</p>}</div>
             <a className="btn" href={guestLink(base, m.joinToken)} target="_blank" rel="noopener">Join in your browser</a>
           </li>
         ))}</ul>

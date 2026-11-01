@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { EngagementError, createEngagement, logUsage, setClientType, setEngagementStatus, setProjectManager, voidUsage } from "@/lib/engagements";
+import { EngagementError, createEngagement, logUsage, setClientType, setEngagementStatus, setProjectManager, setSupportManager, voidUsage } from "@/lib/engagements";
 
 const back = (clientId: string, q: string) => redirect(`/clients/${clientId}?tab=services&${q}`);
 
@@ -13,7 +13,9 @@ export async function saveClientProfile(formData: FormData): Promise<void> {
   try {
     await setClientType(db, { organizationId: user.organizationId, clientId, clientType: String(formData.get("clientType") ?? "") });
     await setProjectManager(db, { organizationId: user.organizationId, clientId, userId: String(formData.get("projectManagerId") ?? "") || null });
-    await audit(user, { action: "client.profile", entity: "Client", entityId: clientId, after: { clientType: formData.get("clientType"), projectManagerId: formData.get("projectManagerId") || null } });
+    // The support manager select only appears for SaaS customers; leave it alone when the form did not send it
+    if (formData.has("supportManagerId")) await setSupportManager(db, { organizationId: user.organizationId, clientId, userId: String(formData.get("supportManagerId") ?? "") || null });
+    await audit(user, { action: "client.profile", entity: "Client", entityId: clientId, after: { clientType: formData.get("clientType"), projectManagerId: formData.get("projectManagerId") || null, ...(formData.has("supportManagerId") ? { supportManagerId: formData.get("supportManagerId") || null } : {}) } });
   } catch (e) {
     if (e instanceof EngagementError) back(clientId, `error=${encodeURIComponent(e.message)}`);
     throw e;
