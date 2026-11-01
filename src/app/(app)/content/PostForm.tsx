@@ -33,6 +33,8 @@ export default function PostForm({ clients, people, defaultDate, closeTo, error 
           </div>
         </fieldset>
 
+        <div><label className="label" htmlFor="pf-brief">Brief for the designer or editor</label><textarea id="pf-brief" name="brief" rows={3} maxLength={3000} placeholder="What to make, the topic and any details" className="input" /></div>
+        <div><label className="label" htmlFor="pf-sample">Sample link</label><input id="pf-sample" name="sampleUrl" type="url" maxLength={500} placeholder="https:// reference to follow" className="input" /></div>
         <div><label className="label" htmlFor="pf-copy">Caption <span className="font-normal text-muted">({caption.length} characters)</span></label><textarea id="pf-copy" name="copy" rows={5} maxLength={5000} value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Write the caption with #hashtags and @mentions" className="input" /></div>
 
         <fieldset><legend className="label">Platforms <span className="font-normal text-muted">(tap to select{platforms.length > 0 ? `, ${platforms.length} chosen` : ""})</span></legend>

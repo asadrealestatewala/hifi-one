@@ -18,7 +18,7 @@ export async function createMeetingAction(formData: FormData) {
     const projectId = s(formData, "projectId") || null;
     const project = projectId ? await db.project.findFirst({ where: { id: projectId, organizationId: user.organizationId }, select: { clientId: true } }) : null;
     const m = await createMeeting(db, {
-      organizationId: user.organizationId, hostId: user.id, title: s(formData, "title"), kind: s(formData, "kind") || "MEETING", projectId, clientId: s(formData, "clientId") || project?.clientId || null,
+      organizationId: user.organizationId, hostId: user.id, title: s(formData, "title"), kind: s(formData, "kind") || "MEETING", purpose: s(formData, "purpose") || undefined, projectId, clientId: s(formData, "clientId") || project?.clientId || null,
       agenda: s(formData, "agenda"), scheduledAt: s(formData, "scheduledAt") || null, durationMin: Number(s(formData, "durationMin") || 60), waitingRoom: formData.get("waitingRoom") === "on",
     });
     id = m.id;
