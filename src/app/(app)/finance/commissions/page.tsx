@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { paging } from "@/lib/paging";
 import { ConfirmButton, Notice, PageHeader, Pager } from "@/components/ui";
 import { readReason } from "@/lib/reasons";
+import { DeliveryError, setRebateTier } from "@/lib/delivery";
 import { formatMoney } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,11 @@ async function manage(formData: FormData) {
       await audit(user, { action: "commission.campaign_rate", entity: "CampaignCommissionRate", entityId: r.row.id, before: r.before ? { rate: r.before.ratePercent.toString(), active: r.before.active } : null, after: { campaignId: s("campaignId"), role: s("role"), rate: r.row.ratePercent.toString(), active: r.row.active } });
       return back("msg", "Campaign rate saved. It applies to payments received from now on.");
     }
+    if (op === "rebateTier") {
+      await setRebateTier(db, { organizationId: org, minRating: Number(s("minRating")), percent: s("percent"), actorId: user.id });
+      await audit(user, { action: "commission.rebate_tier", entity: "ReviewRebateTier", after: { minRating: s("minRating"), percent: s("percent") } });
+      return back("msg", "Rebate tier saved. It applies to reviews recorded from now on.");
+    }
     if (op === "accrue") {
       const r = await accrueCommissions(db, { organizationId: org, actorId: user.id });
       await audit(user, { action: "commission.accrue", entity: "CommissionEntry", after: r });
@@ -45,7 +51,7 @@ async function manage(formData: FormData) {
       await audit(user, { action: "commission.void", entity: "CommissionEntry", entityId: s("entryId"), after: { reason: why.reason } });
     }
   } catch (e) {
-    if (e instanceof CommissionError) return back("error", e.message);
+    if (e instanceof CommissionError || e instanceof DeliveryError) return back("error", e.message);
     throw e;
   }
   redirect("/finance/commissions");
@@ -81,7 +87,7 @@ export default async function Commissions({ searchParams }: { searchParams: Prom
   const canPay = canApprove && user.permissions.has("finance.post");
   const pg = paging(sp.page);
   const waiting = { organizationId: org, status: { in: ["EARNED", "APPROVED"] as never } };
-  const [rules, entries, waitingCount, staff, banks, campaigns, crates] = await Promise.all([
+  const [rules, entries, waitingCount, staff, banks, campaigns, crates, tiers] = await Promise.all([
     db.commissionRule.findMany({ where: { organizationId: org } }),
     db.commissionEntry.findMany({ where: waiting, orderBy: [{ createdAt: "asc" }, { id: "asc" }], skip: pg.skip, take: pg.take }),
     db.commissionEntry.count({ where: waiting }),
@@ -89,6 +95,7 @@ export default async function Commissions({ searchParams }: { searchParams: Prom
     canPay ? db.bankAccount.findMany({ where: { organizationId: org, active: true, ledgerAccountId: { not: null } } }) : Promise.resolve([]),
     db.campaign.findMany({ where: { organizationId: org, archivedAt: null }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     campaignRates(db, org),
+    db.reviewRebateTier.findMany({ where: { organizationId: org }, orderBy: { minRating: "desc" } }),
   ]);
   const name = new Map(staff.map((u) => [u.id, u.name]));
   const ruleOf = new Map(rules.map((r) => [r.userId, r]));
@@ -154,6 +161,19 @@ export default async function Commissions({ searchParams }: { searchParams: Prom
           <div><label className="label" htmlFor="crRate">Rate (%)</label><input id="crRate" name="ratePercent" required inputMode="decimal" className="input !w-24" /></div>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="active" defaultChecked /> Active</label>
           <button className="btn-ghost">Save campaign rate</button>
+        </form>
+      </section>
+
+      <section className="card space-y-3">
+        <h2 className="font-semibold">Weekly review rebate</h2>
+        <p className="text-xs text-muted">When the customer success manager records a client&apos;s weekly review, the highest tier the rating reaches sets how much of that client&apos;s weekly retainer is shared equally between the project manager and the staff on the client&apos;s projects. Each share is a bonus waiting for approval below. Enter 0 to remove a tier.</p>
+        <ul className="text-sm">{tiers.map((t) => <li key={t.id} className="flex justify-between border-t border-border py-1 first:border-0"><span>{t.minRating} stars or more</span><span>{t.percent.toString()}% of the weekly retainer</span></li>)}
+          {tiers.length === 0 && <li className="text-muted">No tiers yet, so reviews earn no rebate.</li>}</ul>
+        <form action={manage} className="flex flex-wrap items-end gap-3 border-t border-border pt-3">
+          <input type="hidden" name="op" value="rebateTier" />
+          <div><label className="label" htmlFor="rtRating">From rating</label><select id="rtRating" name="minRating" className="input">{[5, 4, 3, 2, 1].map((n) => <option key={n} value={n}>{n} stars</option>)}</select></div>
+          <div><label className="label" htmlFor="rtPercent">Percent</label><input id="rtPercent" name="percent" required inputMode="decimal" className="input !w-24" /></div>
+          <button className="btn-ghost">Save tier</button>
         </form>
       </section>
 

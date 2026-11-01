@@ -131,3 +131,7 @@ Found by comparing with the reference ERP; evidence in `docs/REFERENCE_ERP_AUDIT
 ## Client types, retainers and quotas (added 2026-11-01, decision 48)
 - **Done (service level tested, checked in a browser):** client type and allocated project manager (client page, Services tab); catalog plans carry monthly quotas; retainers from a plan or custom; single-service orders priced per unit; quota usage with void; Retainers and Recurring Revenue page with MRR and ARR per currency (recurring only).
 - **Not built yet:** automatic usage from published content and ad campaigns, portal view of quotas, per-organization switch for which ad platforms are enabled, linking an engagement to its subscription for automatic invoicing.
+
+## Marketing delivery workflow (added 2026-11-01, decision 50)
+- **Done (tested; Delivery tab checked in a browser):** discovery and weekly review calls scheduled from the client page with a recording link; content brief, sample and auto task; project-manager approval step; published posts counted against quotas; weekly reviews with rating tiers and team bonus entries.
+- **Not built:** recording the call inside the ERP (needs a media server), a separate customer success manager role and dashboard, showing reviews in the client portal, per-person split weights.

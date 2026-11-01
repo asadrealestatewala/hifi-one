@@ -3,6 +3,8 @@
 import type { PrismaClient } from "@prisma/client";
 import { PLATFORMS, POST_TYPES, canTransition, isDate, isEditable, isTime, needsComment, type Actor } from "./content-rules";
 import { notifyMany } from "./notifications";
+import { QUOTA_LABEL, logUsage, currentPeriod } from "./engagements";
+import { taskAssigned } from "./events";
 
 export class ContentError extends Error {}
 
@@ -26,21 +28,57 @@ function checkFields(p: PostFields) {
 
 export async function createContent(
   db: PrismaClient,
-  p: PostFields & { organizationId: string; clientId?: string | null; projectId?: string | null; title: string; copy: string; hashtags?: string; assignedToId?: string | null; createdById: string },
+  p: PostFields & { organizationId: string; clientId?: string | null; projectId?: string | null; title: string; copy: string; hashtags?: string; assignedToId?: string | null; createdById: string; brief?: string; sampleUrl?: string },
 ) {
   const platforms = checkFields(p);
   if (p.title.trim().length < 2) throw new ContentError("Enter a title.");
   if (p.copy.length > 5000) throw new ContentError("The caption is too long.");
   if (p.clientId && !(await db.client.findFirst({ where: { id: p.clientId, organizationId: p.organizationId } }))) throw new ContentError("Choose a client.");
   if (p.assignedToId && !(await db.user.findFirst({ where: { id: p.assignedToId, organizationId: p.organizationId, active: true, userType: "EMPLOYEE" } }))) throw new ContentError("Choose a staff member to assign it to.");
-  return db.contentItem.create({
+  const sample = p.sampleUrl?.trim() ?? "";
+  if (sample) { let ok = false; try { ok = ["https:", "http:"].includes(new URL(sample).protocol); } catch { ok = false; } if (!ok || sample.length > 500) throw new ContentError("Enter the sample as a web link."); }
+  if ((p.brief ?? "").length > 3000) throw new ContentError("The brief is too long.");
+  const item = await db.contentItem.create({
     data: {
+      brief: p.brief?.trim() || null, sampleUrl: sample || null,
       organizationId: p.organizationId, clientId: p.clientId || null, projectId: p.projectId || null, platform: platforms[0], platforms, postType: p.postType ?? "STATIC", title: p.title.trim(), copy: p.copy,
       hashtags: p.hashtags || null, plannedDate: p.plannedDate || null, plannedTime: p.plannedTime || null, assignedToId: p.assignedToId || null, createdById: p.createdById,
       versions: { create: { version: 1, copy: p.copy, hashtags: p.hashtags || null } },
       events: { create: { actorId: p.createdById, actorType: "STAFF", toStatus: "DRAFT" } },
     },
   });
+  // The person asked to make it gets a project task as well, on the client's active project when there is one, so it shows in their task list.
+  if (item.assignedToId && item.clientId) {
+    const project = p.projectId ? await db.project.findFirst({ where: { id: p.projectId, organizationId: p.organizationId } }) : await db.project.findFirst({ where: { organizationId: p.organizationId, clientId: item.clientId, status: "ACTIVE" }, orderBy: { createdAt: "asc" } });
+    if (project) {
+      const task = await db.task.create({
+        data: {
+          projectId: project.id, title: `Create: ${item.title}`, status: "TODO", assigneeId: item.assignedToId, createdById: p.createdById, dueDate: item.plannedDate ? new Date(item.plannedDate + "T00:00:00Z") : null,
+          description: [item.brief, item.sampleUrl ? `Sample: ${item.sampleUrl}` : null, `Content calendar entry: /content/${item.id}`].filter(Boolean).join("\n\n"),
+        },
+      });
+      await db.contentItem.update({ where: { id: item.id }, data: { taskId: task.id } });
+      await taskAssigned(db, { organizationId: p.organizationId, taskId: task.id, toUserId: item.assignedToId, byUserId: p.createdById }).catch(() => undefined);
+    }
+  }
+  return item;
+}
+
+// The kind of work a published post counts as against a retainer's quota.
+export const QUOTA_FOR_POST: Record<string, string> = { REEL: "REEL", VIDEO: "LONG_VIDEO", LIVE: "LONG_VIDEO", STATIC: "STATIC_CREATIVE", CAROUSEL: "STATIC_CREATIVE", STORY: "STATIC_CREATIVE" };
+
+// A published post counts once against the client's active retainer that includes that kind of work. Never blocks publishing.
+export async function countPublishedAgainstQuota(db: PrismaClient, item: { id: string; organizationId: string; clientId: string | null; postType: string; title: string }, actorId: string) {
+  const key = QUOTA_FOR_POST[item.postType];
+  if (!key || !item.clientId) return false;
+  const e = await db.engagement.findFirst({ where: { organizationId: item.organizationId, clientId: item.clientId, status: "ACTIVE", quotas: { some: { key } } }, orderBy: { createdAt: "asc" } });
+  if (!e) return false;
+  if (await db.quotaUsage.findFirst({ where: { contentItemId: item.id, key } })) return false;
+  try {
+    const u = await logUsage(db, { organizationId: item.organizationId, engagementId: e.id, key, quantity: 1, period: currentPeriod(), note: `Published: ${item.title} (${QUOTA_LABEL[key]})`, actorId });
+    await db.quotaUsage.update({ where: { id: u.id }, data: { contentItemId: item.id } });
+    return true;
+  } catch { return false; }
 }
 
 // Moving a post to another day (drag on the calendar). Allowed in any status except Published; the approved wording is untouched, so no new version.
@@ -81,9 +119,14 @@ export async function transition(db: PrismaClient, p: { organizationId: string; 
     if (!canTransition(p.actor.type, item.status, p.to, Boolean(item.clientId))) throw new ContentError(`That change is not allowed from ${item.status.toLowerCase().replace("_", " ")}.`);
     const comment = p.comment?.trim() || null;
     if (needsComment(item.status, p.to) && !comment) throw new ContentError("Please give a reason.");
-    // Internal review must be done by someone other than the author
-    if (item.status === "INTERNAL_REVIEW" && p.to === "CLIENT_REVIEW" && item.createdById === p.actor.id) {
-      throw new ContentError("Someone other than the author must complete the internal review.");
+    // The client's project manager approves before the client sees it. Without one, someone other than the author must complete the internal review.
+    if (item.status === "INTERNAL_REVIEW" && p.to === "CLIENT_REVIEW") {
+      const pm = item.clientId ? (await tx.client.findFirst({ where: { id: item.clientId }, select: { projectManagerId: true } }))?.projectManagerId ?? null : null;
+      if (pm) {
+        if (p.actor.id !== pm) throw new ContentError("Only this client's project manager approves content before it goes to the client.");
+      } else if (item.createdById === p.actor.id) {
+        throw new ContentError("Someone other than the author must complete the internal review.");
+      }
     }
     const updated = await tx.contentItem.update({ where: { id: item.id }, data: { status: p.to } });
     await tx.contentEvent.create({ data: { itemId: item.id, actorId: p.actor.id, actorType: p.actor.type, fromStatus: item.status, toStatus: p.to, comment } });
@@ -92,6 +135,7 @@ export async function transition(db: PrismaClient, p: { organizationId: string; 
 
   // Notifications after the change is saved (idempotent per item and status)
   const { item, comment } = result;
+  if (p.to === "PUBLISHED") await countPublishedAgainstQuota(db, item, p.actor.id);
   const key = `content:${item.id}:${item.version}:${p.to}`;
   if (p.to === "CLIENT_REVIEW" && item.clientId) {
     const clientUsers = await db.user.findMany({ where: { clientId: item.clientId, active: true }, select: { id: true } });

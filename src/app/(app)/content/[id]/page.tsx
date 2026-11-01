@@ -89,7 +89,10 @@ export default async function ContentPage({ params, searchParams }: { params: Pr
           <div><button className="btn-ghost">Save</button></div>
         </form>
       ) : (
+        <>
+        {(item.brief || item.sampleUrl || item.taskId) && <section className="card text-sm space-y-1"><h2 className="font-semibold">Brief</h2>{item.brief && <p className="whitespace-pre-line">{item.brief}</p>}{item.sampleUrl && <p><a className="underline" href={item.sampleUrl} target="_blank" rel="noopener noreferrer">Sample</a></p>}{item.taskId && <p className="text-xs text-muted">A project task was created for the assignee.</p>}</section>}
         <section className="card text-sm space-y-1"><p className="whitespace-pre-line">{item.copy}</p>{item.hashtags && <p className="text-muted">{item.hashtags}</p>}</section>
+        </>
       )}
 
       <FilesPanel user={user} ownerType="CONTENT" ownerId={item.id} returnTo={`/content/${item.id}`} title="Creative files (images, video, documents)" flash={{ fileError, fileOk }} />

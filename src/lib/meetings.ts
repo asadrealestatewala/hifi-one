@@ -17,12 +17,14 @@ const token = () => crypto.randomBytes(16).toString("hex");
 
 export async function createMeeting(db: Db, p: {
   organizationId: string; hostId: string; title: string; kind?: string; projectId?: string | null; clientId?: string | null; agenda?: string | null;
-  scheduledAt?: string | null; durationMin?: number; waitingRoom?: boolean;
+  scheduledAt?: string | null; durationMin?: number; waitingRoom?: boolean; purpose?: string;
 }) {
   const title = p.title.trim();
   if (!title || title.length > 140) throw new MeetingError("Give the meeting a title of up to 140 characters.");
   const kind = p.kind ?? "MEETING";
   if (!(KINDS as readonly string[]).includes(kind)) throw new MeetingError("Choose meeting or workshop.");
+  const purpose = p.purpose ?? "GENERAL";
+  if (!["GENERAL", "DISCOVERY", "WEEKLY_REVIEW", "SUPPORT", "TUTORIAL", "INQUIRY"].includes(purpose)) throw new MeetingError("Choose what the meeting is for.");
   const duration = p.durationMin ?? 60;
   if (!Number.isInteger(duration) || duration < 5 || duration > 480) throw new MeetingError("Duration must be between 5 and 480 minutes.");
   let scheduledAt: Date | null = null;
@@ -30,7 +32,7 @@ export async function createMeeting(db: Db, p: {
   if (p.projectId && !(await db.project.findFirst({ where: { id: p.projectId, organizationId: p.organizationId } }))) throw new MeetingError("Unknown project.");
   if (p.clientId && !(await db.client.findFirst({ where: { id: p.clientId, organizationId: p.organizationId } }))) throw new MeetingError("Unknown client.");
   return db.meeting.create({
-    data: { organizationId: p.organizationId, hostId: p.hostId, title, kind, projectId: p.projectId || null, clientId: p.clientId || null, agenda: p.agenda?.trim().slice(0, 4000) || null, scheduledAt, durationMin: duration, joinToken: token(), waitingRoom: p.waitingRoom ?? true },
+    data: { organizationId: p.organizationId, hostId: p.hostId, title, kind, purpose, projectId: p.projectId || null, clientId: p.clientId || null, agenda: p.agenda?.trim().slice(0, 4000) || null, scheduledAt, durationMin: duration, joinToken: token(), waitingRoom: p.waitingRoom ?? true },
   });
 }
 

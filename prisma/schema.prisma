@@ -1126,6 +1126,9 @@ model ContentItem {
   status         String   @default("DRAFT") // DRAFT | INTERNAL_REVIEW | CLIENT_REVIEW | CHANGES_REQUESTED | APPROVED | SCHEDULED | PUBLISHED
   version        Int      @default(1)
   assignedToId   String?
+  brief          String? // what the designer or editor should make
+  sampleUrl      String? // a reference or sample to follow
+  taskId         String? // the project task created for the assignee
   createdById    String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -1590,9 +1593,11 @@ model CommissionEntry {
   paidAt         DateTime?
   paymentEntryId String?
   payrollRunId   String? // set while the entry is being paid through a payroll run
+  reviewId       String? // the weekly client review whose rating earned this bonus
   createdAt      DateTime  @default(now())
 
   @@unique([allocationId, role])
+  @@unique([reviewId, userId])
   @@index([organizationId, status])
   @@index([userId, createdAt])
   @@index([payrollRunId])
@@ -1883,6 +1888,8 @@ model Meeting {
   agenda         String?
   scheduledAt    DateTime?
   durationMin    Int       @default(60)
+  purpose        String    @default("GENERAL") // GENERAL | DISCOVERY | WEEKLY_REVIEW | SUPPORT | TUTORIAL | INQUIRY
+  recordingUrl   String? // where the recording of this call is kept, attached by the host (the ERP does not record video itself)
   joinToken      String    @unique // the secret in the guest link
   waitingRoom    Boolean   @default(true)
   status         String    @default("SCHEDULED") // SCHEDULED | LIVE | ENDED | CANCELLED
@@ -2488,18 +2495,20 @@ model EngagementQuota {
 
 // One delivered unit (or several) counted against a quota. Rows are never deleted; a mistake is corrected by voiding the row.
 model QuotaUsage {
-  id           String   @id @default(cuid())
-  engagementId String
-  key          String
-  quantity     Int      @default(1)
-  period       String // YYYY-MM the work counts toward
-  note         String?
-  voided       Boolean  @default(false)
-  createdById  String?
-  createdAt    DateTime @default(now())
+  id            String   @id @default(cuid())
+  engagementId  String
+  key           String
+  quantity      Int      @default(1)
+  period        String // YYYY-MM the work counts toward
+  note          String?
+  voided        Boolean  @default(false)
+  contentItemId String? // the published post that counted, so one post counts once
+  createdById   String?
+  createdAt     DateTime @default(now())
 
   engagement Engagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
 
+  @@unique([contentItemId, key])
   @@index([engagementId, key, period])
 }
 
@@ -2520,4 +2529,37 @@ model CampaignCommissionRate {
 
   @@unique([campaignId, role])
   @@index([organizationId, active])
+}
+
+// ---------- Weekly customer success reviews and the rebate they earn the team ----------
+
+// The customer success manager's weekly meeting with a client: a rating and a written review.
+model ClientReview {
+  id             String   @id @default(cuid())
+  organizationId String
+  clientId       String
+  meetingId      String?
+  weekStart      String // YYYY-MM-DD, the Monday of the week reviewed
+  rating         Int // 1 to 5
+  review         String
+  reviewerId     String
+  rebatePercent  Decimal  @default(0) @db.Decimal(5, 2) // the tier that applied when it was recorded
+  rebatePool     Decimal  @default(0) @db.Decimal(14, 2) // money set aside for the team, in the client's currency
+  currency       String
+  createdAt      DateTime @default(now())
+
+  @@unique([clientId, weekStart])
+  @@index([organizationId, createdAt])
+}
+
+// Rating tiers: a review at or above minRating earns the team this percent of the client's weekly retainer. The highest matching tier applies.
+model ReviewRebateTier {
+  id             String   @id @default(cuid())
+  organizationId String
+  minRating      Int
+  percent        Decimal  @db.Decimal(5, 2)
+  updatedById    String?
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, minRating])
 }

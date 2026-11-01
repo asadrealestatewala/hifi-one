@@ -10,11 +10,12 @@ import { formatMoney } from "@/lib/money";
 import InviteForm from "./InviteForm";
 import RefundForm from "./RefundForm";
 import ServicesTab from "./ServicesTab";
+import DeliveryTab from "./DeliveryTab";
 import { CLIENT_TYPE_LABEL } from "@/lib/engagements";
 
 export const dynamic = "force-dynamic";
 
-export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; mailOk?: string; mailError?: string; tab?: string; saved?: string }> }) {
+export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; mailOk?: string; mailError?: string; tab?: string; saved?: string; shared?: string; pool?: string }> }) {
   const user = await requirePermission("clients.view");
   const { id } = await params;
   const sp = await searchParams;
@@ -30,7 +31,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       ])
     : [null, []];
   const has = (p: string) => user.permissions.has(p as never);
-  const TABS: [string, string][] = [["overview", "Overview"], ["services", "Services"], ...(canSeeFinance ? [["billing", "Billing"] as [string, string]] : []), ...(has("projects.view") ? [["projects", "Projects"] as [string, string]] : []), ...(has("campaigns.view") ? [["campaigns", "Campaigns"] as [string, string]] : []), ...(has("clients.edit") ? [["portal", "Portal access"] as [string, string]] : [])];
+  const TABS: [string, string][] = [["overview", "Overview"], ["services", "Services"], ["delivery", "Delivery"], ...(canSeeFinance ? [["billing", "Billing"] as [string, string]] : []), ...(has("projects.view") ? [["projects", "Projects"] as [string, string]] : []), ...(has("campaigns.view") ? [["campaigns", "Campaigns"] as [string, string]] : []), ...(has("clients.edit") ? [["portal", "Portal access"] as [string, string]] : [])];
   const tab = TABS.some(([k]) => k === sp.tab) ? sp.tab! : "overview";
   const tabHref = (k: string) => (k === "overview" ? `/clients/${client.id}` : `/clients/${client.id}?tab=${k}`);
   const [projects, campaigns, portalUsers, quotes, contracts] = await Promise.all([
@@ -57,8 +58,9 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
         ))}
       </section>}
       {error && <Notice kind="error">{error}</Notice>}
-      {sp.saved && <Notice kind="ok">Saved.</Notice>}
+      {sp.saved && <Notice kind="ok">{sp.shared ? `Review saved. ${sp.pool && sp.pool !== "0" ? `${formatMoney(sp.pool, client.currency)} set aside for ${sp.shared} team member${sp.shared === "1" ? "" : "s"}, waiting for approval under Commissions.` : "No rebate was set aside: either the rating is below every tier or the client has no project manager or project team yet."}` : "Saved."}</Notice>}
       <Chips current={tab} items={TABS.map(([k, l]) => ({ key: k, label: l, href: tabHref(k) }))} />
+      {tab === "delivery" && <DeliveryTab organizationId={user.organizationId} client={client} canEdit={has("clients.edit")} canMeet={has("meetings.use")} pmName={client.projectManagerId ? (await db.user.findFirst({ where: { id: client.projectManagerId, organizationId: user.organizationId }, select: { name: true } }))?.name ?? null : null} />}
       {tab === "services" && <ServicesTab organizationId={user.organizationId} client={client} canEdit={has("clients.edit")} />}
       {tab === "portal" && (
         <>
