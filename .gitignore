@@ -11,6 +11,8 @@ dist/
 build/
 out/
 .next/
+/.next-build/
+/.next-previous/
 coverage/
 
 # Environment and secrets
