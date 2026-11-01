@@ -7,7 +7,7 @@ Master prompt section in brackets.
 ## CRM and sales [5]
 - **Done:** contacts and organizations (360 page with Flowlu-style tabs, per-section in-place editing, birthday, tax ID, billing and shipping address, social, UTM, custom fields, followers, tags, documents), leads, opportunities board (configurable stages in the database), smart lists, prospecting worklists with CSV import and do-not-contact, campaigns, sales targets with verified calls, lead scoring, quotations from catalog plans, duplicate detection, merge with history preserved, CSV export of contacts, daily goals and levels, lead conversion (links or creates the client, keeps history, creates a draft invoice once).
 - **Partial:** attachments exist on contacts and contracts, not on leads; reminders are follow-up dates with in-app counts (no email reminders); exports exist for contacts only; saved views = smart lists for leads.
-- **Not built:** proposals separate from quotations, editing pipeline stages in the UI, inbound email inbox (outbound email from a contact works when SMTP is configured).
+- **Not built:** proposals separate from quotations, editing pipeline stages in the UI. (Company mailboxes with an inbox were added on 2026-11-01; see Mailboxes below.)
 
 ## Marketing agency operations [6]
 - **Content calendar (done, tested at service level):** month calendar and sheet views, filters (search, platform, type, status, assignee, client), KPI cards, Plan-a-post panel (type, caption with count, nine platforms, date, time, client or our own account, assignee), drag a post to another day, creative files on the post, approval workflow kept (client review for clients, internal approval for own posts). Not built: posting to the platforms (needs their API credentials), per-platform captions, analytics.
@@ -108,3 +108,11 @@ Found by comparing with the reference ERP; evidence in `docs/REFERENCE_ERP_AUDIT
 3. Check the task panel signed in; then deliverables and monthly client report.
 4. Tighten the content security policy.
 5. Work through the five tasks at the end of `docs/REFERENCE_ERP_AUDIT.md` (pagination, error states, confirmations, notifications, CI).
+
+## Mailboxes (added 2026-11-01)
+
+- **Done (tested):** system mailboxes (noreply, billing, hr, onboarding, finance) with one click; personal mailboxes per employee (more than one allowed) and shared team mailboxes with read-and-send or read-only members; /mail inbox with Inbox, Sent and Archived, search, unread counts, conversation view, reply with threading headers, compose (also from a client page); threads linked to the client, CRM contact or employee on the other side; invoices, quotations and statements sent from billing@ with a Sent copy, so client replies thread back; Resend API or SMTP sending; signed Resend inbound webhook at /api/mail/inbound (idempotent, notifies members).
+- **Needs outside setup:** the domain verified in Resend for sending, and for receiving an MX record plus the webhook and `RESEND_API_KEY` / `RESEND_WEBHOOK_SECRET` (docs/DEPLOYMENT.md).
+- **Not built:** attachments on mailbox emails (names of received attachments are shown, files are not downloaded), HTML rendering of received mail (plain text is shown), drafts, forwarding, bounce/delivery status from Resend events, emailing staff invitations and setup links from onboarding@.
+- **Not verified:** a real send and receive through Resend (no hifimarketing.co domain in Resend yet).
+

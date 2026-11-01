@@ -87,7 +87,21 @@ Do this on the real server (or an identical staging one) before anyone relies on
 
 ## Email
 
-Outgoing email uses SMTP and is off until you set `SMTP_HOST` and `MAIL_FROM` (plus `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` if your provider needs them) in the server environment. With these set, invoices, quotations and customer statements can be emailed as PDFs from their pages. Use Settings > Email to test the connection and send yourself a test message; every attempt is logged there as sent, failed (with the provider's reason) or not sent. Invitation and password-reset links are still copied by hand. Use an app password or API key for the mail account, not a personal password, and add SPF/DKIM records for your sending domain or messages will land in spam.
+Outgoing email is off until a way to send is configured in the server environment. Either set `RESEND_API_KEY` (preferred; used when both are set) or `SMTP_HOST` (plus `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`; Resend's SMTP is `smtp.resend.com`, user `resend`, password = an API key). `MAIL_FROM` is the sender for anything no mailbox owns. Use Settings > Email to test the connection; every attempt is logged there as sent, failed (with the provider's reason) or not sent. Add the sending domain's SPF/DKIM records (Resend shows them) or messages land in spam.
+
+### Mailboxes (Settings > Mailboxes, permission `mail.manage`)
+
+- `MAIL_DOMAIN` (default `hifimarketing.co`) is the domain new mailbox addresses are created on. That domain must be added and verified for sending in Resend before mail from those addresses is accepted.
+- "Create them" makes noreply@, billing@, hr@, onboarding@ and finance@. Once billing@ exists, invoices, quotations and statements are sent from it and a copy is kept in its Sent folder; password resets, meeting invitations and test emails go from noreply@.
+- Each employee gets one or more personal mailboxes, and shared team mailboxes can have several members (read and send, or read only). People use them at /mail with their normal Hifi One sign-in. Membership is the only access: `mail.manage` assigns people but never opens anyone's mail.
+- After upgrading, run `npm run roles:sync` so Super Admin receives `mail.manage`; grant it to other roles in Roles & Permissions if needed.
+
+### Receiving mail (optional)
+
+1. In Resend, add the receiving domain and switch on receiving. Resend shows an MX record; add it at the DNS host. **The MX record decides where all of the domain's mail goes.** If `hifimarketing.co` already receives mail elsewhere (Google Workspace, Zoho, cPanel), do not replace that record: either receive on a subdomain (for example `mail.hifimarketing.co`, then set `MAIL_DOMAIN` to it) or forward from the existing provider to an address on a Resend receiving domain.
+2. In Resend > Webhooks, add `https://<your host>/api/mail/inbound` for the `email.received` event and copy its signing secret.
+3. Set `RESEND_API_KEY` (a full-access key: it is used to fetch each received email's content) and `RESEND_WEBHOOK_SECRET` (the `whsec_...` value), then restart.
+4. Send a test email to one of the mailboxes. The webhook refuses unsigned or stale requests, ignores addresses nobody has a mailbox for, and stores each email once even when Resend retries.
 
 ## Video meetings
 

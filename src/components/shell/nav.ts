@@ -63,6 +63,7 @@ export const NAV: NavGroup[] = [
     { href: "/procurement", label: "Orders & Bills", permission: "vendors.view" },
   ] },
   { id: "me", title: "My Space", icon: "user", items: [
+    { href: "/mail", label: "Mailbox", permission: null },
     { href: "/me/profile", label: "My Profile", permission: null },
     { href: "/me/help", label: "Help & Guide", permission: null },
     { href: "/account/security", label: "Account Security", permission: null },
@@ -87,6 +88,7 @@ export const NAV: NavGroup[] = [
     { href: "/settings/exchange-rates", label: "Exchange Rates", permission: "reports.view" },
     { href: "/settings/tax-rates", label: "Tax Rates", permission: "settings.company.view" },
     { href: "/settings/email", label: "Email", permission: "settings.company.view" },
+    { href: "/settings/mailboxes", label: "Mailboxes", permission: "mail.manage" },
     { href: "/settings/monitoring", label: "Monitoring Policy", permission: "monitoring.configure" },
     { href: "/settings/jobs", label: "Scheduled Jobs", permission: "jobs.run" },
     { href: "/audit-logs", label: "Audit Logs", permission: "audit.view" },

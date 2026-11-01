@@ -29,7 +29,7 @@ const PUBLIC = new Set(["login/page.tsx", "login/verify/page.tsx", "login/forgot
 
 // Pages that only need a signed-in employee because they show the caller's own data and check
 // record ownership or permissions themselves. Everything else in (app) must call requirePermission.
-const OWN_DATA_PAGES = new Set(["(app)/account/password/page.tsx", "(app)/account/security/page.tsx", "(app)/notifications/page.tsx", "(app)/me/profile/page.tsx", "(app)/me/help/page.tsx", "(app)/me/tasks/page.tsx", "(app)/payslips/[id]/page.tsx", "(app)/expenses/[id]/page.tsx"]);
+const OWN_DATA_PAGES = new Set(["(app)/account/password/page.tsx", "(app)/account/security/page.tsx", "(app)/notifications/page.tsx", "(app)/me/profile/page.tsx", "(app)/me/help/page.tsx", "(app)/me/tasks/page.tsx", "(app)/payslips/[id]/page.tsx", "(app)/expenses/[id]/page.tsx", "(app)/mail/page.tsx", "(app)/mail/[id]/page.tsx", "(app)/mail/compose/page.tsx"]);
 
 describe("every protected page checks the caller", () => {
   const pages = files.filter((f) => f.endsWith("/page.tsx"));
@@ -104,7 +104,7 @@ describe("every route handler checks the caller", () => {
   // and must resolve that secret through eventsForToken (which refuses unknown, switched-off and inactive-user tokens).
   // The desktop agent endpoints sign in with a device token instead of a browser session (see the agent test below).
   // The website's contact and apply forms are public by design: same-site, rate limited and validated (see the website tests below)
-  const PUBLIC_ROUTES = new Set(["api/site/contact/route.ts", "api/site/apply/route.ts", "api/health/route.ts", "api/calendar/[token]/route.ts", "api/agent/enroll/route.ts", "api/agent/policy/route.ts", "api/agent/ingest/route.ts", "api/agent/screenshot/route.ts", "api/jobs/run/route.ts", "api/leads/capture/route.ts", "api/meetings/[id]/events/route.ts", "api/meetings/[id]/signal/route.ts", "api/meetings/[id]/chat/route.ts", "api/meetings/[id]/admin/route.ts"]);
+  const PUBLIC_ROUTES = new Set(["api/site/contact/route.ts", "api/site/apply/route.ts", "api/health/route.ts", "api/calendar/[token]/route.ts", "api/agent/enroll/route.ts", "api/agent/policy/route.ts", "api/agent/ingest/route.ts", "api/agent/screenshot/route.ts", "api/jobs/run/route.ts", "api/leads/capture/route.ts", "api/meetings/[id]/events/route.ts", "api/meetings/[id]/signal/route.ts", "api/meetings/[id]/chat/route.ts", "api/meetings/[id]/admin/route.ts", "api/mail/inbound/route.ts"]);
   for (const f of files.filter((x) => x.endsWith("/route.ts"))) {
     const r = rel(f);
     if (PUBLIC_ROUTES.has(r)) continue;
@@ -162,6 +162,17 @@ describe("the desktop agent endpoints", () => {
     }
     expect(read(path.resolve(__dirname, "../app/api/agent/enroll/route.ts"))).toContain("enrollDevice(");
     expect(read(path.resolve(__dirname, "../lib/agent-http.ts"))).toContain("authenticateDevice(");
+  });
+});
+
+describe("the inbound mail webhook", () => {
+  it("checks the Resend signature before reading anything, and fetches the email from Resend instead of trusting the request", () => {
+    const src = read(path.resolve(__dirname, "../app/api/mail/inbound/route.ts"));
+    expect(src).toContain("verifyWebhook(");
+    expect(src).toMatch(/401/);
+    expect(src.indexOf("verifyWebhook(")).toBeLessThan(src.indexOf("JSON.parse("));
+    expect(src).toContain("resendFetcher(");
+    expect(src).not.toMatch(/export (async )?function (GET|PUT|PATCH|DELETE)/);
   });
 });
 

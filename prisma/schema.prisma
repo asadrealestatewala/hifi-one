@@ -2195,3 +2195,100 @@ model JobApplication {
   @@unique([organizationId, jobId, email])
   @@index([organizationId, status, createdAt])
 }
+
+// ---------- Mailboxes (company email, sent through Resend or SMTP, received through a Resend webhook) ----------
+
+// One address on the company domain. SYSTEM mailboxes (noreply, billing, hr, onboarding, finance) carry a purpose so the
+// system knows which address sends which kind of message. PERSONAL mailboxes belong to one employee; SHARED ones to a team.
+model Mailbox {
+  id             String   @id @default(cuid())
+  organizationId String
+  address        String   @unique // lower case, e.g. billing@hifimarketing.co
+  displayName    String
+  kind           String // SYSTEM | SHARED | PERSONAL
+  purpose        String? // NOREPLY | BILLING | HR | ONBOARDING | FINANCE (SYSTEM only)
+  ownerId        String? // PERSONAL: the employee it belongs to
+  signature      String?
+  active         Boolean  @default(true)
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  members  MailboxMember[]
+  threads  MailThread[]
+  messages MailMessage[]
+
+  @@unique([organizationId, purpose])
+  @@index([organizationId, kind])
+}
+
+// Who may read and send from a mailbox. Every member signs in with their own Hifi One login.
+model MailboxMember {
+  id        String   @id @default(cuid())
+  mailboxId String
+  userId    String
+  canSend   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  mailbox Mailbox @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+
+  @@unique([mailboxId, userId])
+  @@index([userId])
+}
+
+// A conversation inside one mailbox. Linked to a client, CRM contact or employee when the other side is known.
+model MailThread {
+  id             String   @id @default(cuid())
+  organizationId String
+  mailboxId      String
+  subject        String
+  counterpart    String // the other side's address (first external participant)
+  clientId       String?
+  contactId      String?
+  employeeId     String? // a User, for HR conversations with staff
+  status         String   @default("OPEN") // OPEN | ARCHIVED
+  unread         Int      @default(0)
+  snippet        String   @default("")
+  lastMessageAt  DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  mailbox  Mailbox       @relation(fields: [mailboxId], references: [id])
+  messages MailMessage[]
+
+  @@index([mailboxId, status, lastMessageAt])
+  @@index([organizationId, clientId])
+  @@index([organizationId, employeeId])
+}
+
+model MailMessage {
+  id              String   @id @default(cuid())
+  organizationId  String
+  mailboxId       String
+  threadId        String
+  direction       String // IN | OUT
+  fromAddress     String
+  fromName        String?
+  toAddresses     String[]
+  ccAddresses     String[] @default([])
+  subject         String
+  text            String
+  html            String? // inbound only; shown sandboxed, never as live markup
+  messageId       String? // RFC Message-ID, used for threading replies
+  inReplyTo       String?
+  references      String[] @default([])
+  attachmentNames String[] @default([])
+  status          String // SENT | FAILED | NOT_CONFIGURED | RECEIVED
+  error           String?
+  providerId      String?  @unique // Resend email id (sent or received); makes webhook retries harmless
+  sentById        String?
+  relatedType     String? // set when the system sent it (INVOICE, QUOTE, STATEMENT, ...)
+  relatedId       String?
+  createdAt       DateTime @default(now())
+
+  mailbox Mailbox    @relation(fields: [mailboxId], references: [id])
+  thread  MailThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+  @@index([mailboxId, messageId])
+  @@index([organizationId, createdAt])
+}
