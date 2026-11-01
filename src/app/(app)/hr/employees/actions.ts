@@ -6,9 +6,10 @@ import { redirect } from "next/navigation";
 import { audit, requirePermission, toActor } from "@/lib/auth";
 import { AccountError, createResetLink } from "@/lib/accounts";
 import { db } from "@/lib/db";
+import { onboardingNotice, startOnboarding } from "@/lib/onboarding";
 import { StaffError, createStaff, ensureStaffProfile, markVerified, setStaffArchived, setStaffStatus, updateStaff, type StaffInput, type StaffStatus } from "@/lib/staff";
 
-export type StaffFormState = { error?: string; sameName?: boolean; values?: Record<string, string>; roleKeys?: string[]; n?: number; created?: { id: string; name: string; employeeNo: string; link?: string }; saved?: boolean };
+export type StaffFormState = { error?: string; sameName?: boolean; values?: Record<string, string>; roleKeys?: string[]; n?: number; created?: { id: string; name: string; employeeNo: string; link?: string; onboarding?: string }; saved?: boolean };
 export type LinkState = { link?: string; error?: string };
 
 async function origin() {
@@ -45,8 +46,11 @@ export async function createStaffAction(prev: StaffFormState, formData: FormData
       await audit(user, { action: "user.setup_link", entity: "User", entityId: created.id });
       link = `${await origin()}/reset/${token}`;
     }
+    // The account cannot sign in until the person verifies their email with the emailed code and an approver accepts it
+    const ob = await startOnboarding(db, { organizationId: user.organizationId, userId: created.id, requestedById: user.id });
+    await audit(user, { action: "onboarding.start", entity: "User", entityId: created.id, after: { status: ob.request.status, codeEmail: ob.codeEmail } });
     revalidatePath("/hr/employees");
-    return { created: { id: profile.id, name: created.name, employeeNo: profile.employeeNo, link } };
+    return { created: { id: profile.id, name: created.name, employeeNo: profile.employeeNo, link, onboarding: onboardingNotice(ob) } };
   } catch (e) {
     if (e instanceof StaffError) return { error: e.message, sameName: e.message.includes("same name"), ...kept(formData, prev.n) };
     throw e;

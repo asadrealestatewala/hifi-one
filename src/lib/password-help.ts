@@ -4,7 +4,8 @@
 import type { PrismaClient } from "@prisma/client";
 import { createResetLink } from "./accounts";
 import { parseLoginIdentifier } from "./login-identifier";
-import { isConfigured as mailConfigured, sendEmail } from "./mailer";
+import { isConfigured as mailConfigured } from "./mailer";
+import { firstName, sendTemplate } from "./email-template-store";
 import { isSmsConfigured } from "./sms";
 
 export const HELP_MESSAGE = "If the details match an active account and a delivery method is set up, a reset link is on its way. If nothing arrives, ask your administrator for a setup link.";
@@ -17,8 +18,8 @@ export async function requestPasswordHelp(db: PrismaClient, p: { identifier: str
   if (id.kind === "phone" && !isSmsConfigured()) return { sent: null };
   if (!user.email || !mailConfigured()) return { sent: null };
   const token = await createResetLink(db, { organizationId: user.organizationId, userId: user.id, createdById: user.id, hours: 1 });
-  const text = `Someone asked to reset the Hifi One password for this address.\n\nChoose a new password here (valid for one hour):\n${p.origin}/reset/${token}\n\nIf it was not you, ignore this email.`;
-  await sendEmail(db, { organizationId: user.organizationId, to: user.email, subject: "Reset your Hifi One password", text, storedText: text.replace(/\/reset\/\S+/, "/reset/[link removed]"), relatedType: "User", relatedId: user.id });
+  // The outbox keeps the message without the secret link
+  await sendTemplate(db, { organizationId: user.organizationId, key: "password_reset", to: user.email, relatedType: "User", relatedId: user.id, secret: true, buttonUrl: `${p.origin}/reset/${token}`, vars: { first_name: firstName(user.name), link: `${p.origin}/reset/${token}` } });
   await db.auditLog.create({ data: { organizationId: user.organizationId, actorId: user.id, action: "auth.password_help", entity: "User", entityId: user.id } });
   return { sent: "email" };
 }

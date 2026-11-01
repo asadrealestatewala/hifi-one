@@ -5,8 +5,16 @@ import type { PrismaClient } from "@prisma/client";
 import { salesOwnerOf } from "./commissions";
 import { formatMoney } from "./money";
 import { notify, notifyMany, notifyPermission } from "./notifications";
+import { appUrl, firstName, sendTemplateQuietly } from "./email-template-store";
 
 type Db = PrismaClient;
+
+// True the first time this person gets this notice. The email that goes with a notice is sent only then, so a retried or
+// repeated assignment never emails twice.
+const firstTime = async (db: Db, userId: string, dedupeKey: string) => !(await db.notification.findUnique({ where: { userId_dedupeKey: { userId, dedupeKey } } }));
+
+// The person to email about something assigned to them: active staff with an email address.
+const emailable = (db: Db, userId: string) => db.user.findFirst({ where: { id: userId, active: true, userType: "EMPLOYEE", email: { not: null } }, select: { name: true, email: true } });
 
 const portalUsers = async (db: Db, where: { clientId: string } | { vendorId: string }) =>
   (await db.user.findMany({ where: { ...where, active: true }, select: { id: true } })).map((u) => u.id);
@@ -14,9 +22,18 @@ const portalUsers = async (db: Db, where: { clientId: string } | { vendorId: str
 // A lead was given to someone other than the person who did it.
 export async function leadAssigned(db: Db, p: { organizationId: string; leadId: string; toUserId: string | null; byUserId: string }) {
   if (!p.toUserId || p.toUserId === p.byUserId) return;
-  const lead = await db.lead.findFirst({ where: { id: p.leadId, organizationId: p.organizationId }, select: { id: true, name: true, number: true } });
+  const lead = await db.lead.findFirst({ where: { id: p.leadId, organizationId: p.organizationId }, select: { id: true, name: true, number: true, company: true, email: true, phone: true, source: true } });
   if (!lead) return;
-  await notify(db, p.toUserId, { kind: "lead.assigned", title: `Lead assigned to you: ${lead.name}`, body: `L-${lead.number}`, link: `/leads/${lead.id}`, dedupeKey: `lead-assigned:${lead.id}:${p.toUserId}` });
+  const key = `lead-assigned:${lead.id}:${p.toUserId}`;
+  const fresh = await firstTime(db, p.toUserId, key);
+  await notify(db, p.toUserId, { kind: "lead.assigned", title: `Lead assigned to you: ${lead.name}`, body: `L-${lead.number}`, link: `/leads/${lead.id}`, dedupeKey: key });
+  const to = fresh ? await emailable(db, p.toUserId) : null;
+  if (to) {
+    await sendTemplateQuietly(db, {
+      organizationId: p.organizationId, key: "lead_assigned", to: to.email!, purpose: "NOREPLY", relatedType: "Lead", relatedId: lead.id, buttonUrl: `${appUrl()}/leads/${lead.id}`,
+      vars: { first_name: firstName(to.name), lead_name: lead.name, lead_company: lead.company ?? "", lead_email: lead.email ?? "", lead_phone: lead.phone ?? "", source: lead.source ?? "" },
+    });
+  }
 }
 
 // Several contacts (and their open leads) were given to one person at once.
@@ -85,9 +102,23 @@ export async function projectMemberAdded(db: Db, p: { organizationId: string; pr
 // A task was given to someone (at creation or by reassigning). Once per task and assignee.
 export async function taskAssigned(db: Db, p: { organizationId: string; taskId: string; toUserId: string | null; byUserId: string }) {
   if (!p.toUserId || p.toUserId === p.byUserId) return;
-  const t = await db.task.findFirst({ where: { id: p.taskId, project: { organizationId: p.organizationId } }, select: { id: true, title: true, projectId: true, dueDate: true, project: { select: { name: true } } } });
+  const t = await db.task.findFirst({ where: { id: p.taskId, project: { organizationId: p.organizationId } }, select: { id: true, title: true, projectId: true, dueDate: true, priority: true, description: true, project: { select: { name: true } } } });
   if (!t) return;
-  await notify(db, p.toUserId, { kind: "task.assigned", title: "A task was assigned to you", body: `${t.title} (${t.project.name})${t.dueDate ? `, due ${t.dueDate.toISOString().slice(0, 10)}` : ""}`, link: PROJECT_LINK(t.projectId, t.id), dedupeKey: `task-assigned:${t.id}:${p.toUserId}` });
+  const key = `task-assigned:${t.id}:${p.toUserId}`;
+  const fresh = await firstTime(db, p.toUserId, key);
+  await notify(db, p.toUserId, { kind: "task.assigned", title: "A task was assigned to you", body: `${t.title} (${t.project.name})${t.dueDate ? `, due ${t.dueDate.toISOString().slice(0, 10)}` : ""}`, link: PROJECT_LINK(t.projectId, t.id), dedupeKey: key });
+  // ...and an email with the task template, so sales and delivery staff see it even when they are not signed in
+  const to = fresh ? await emailable(db, p.toUserId) : null;
+  if (to) {
+    const by = (await db.user.findUnique({ where: { id: p.byUserId }, select: { name: true } }))?.name ?? "A colleague";
+    await sendTemplateQuietly(db, {
+      organizationId: p.organizationId, key: "task_assigned", to: to.email!, purpose: "NOREPLY", relatedType: "Task", relatedId: t.id, buttonUrl: `${appUrl()}${PROJECT_LINK(t.projectId, t.id)}`,
+      vars: {
+        first_name: firstName(to.name), task_title: t.title, project: t.project.name, priority: t.priority.charAt(0) + t.priority.slice(1).toLowerCase(),
+        due_date: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : "No due date", assigned_by: by, description: (t.description ?? "").slice(0, 600),
+      },
+    });
+  }
 }
 
 // A task reached review or done: the project manager and whoever created it hear about it (not the person who moved it).

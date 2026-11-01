@@ -18,6 +18,7 @@ export const NAV: NavGroup[] = [
     { href: "/leads/lists", label: "Smart Lists", permission: "crm.view" },
     { href: "/leads/worklists", label: "Prospecting Worklists", permission: "crm.view" },
     { href: "/settings/lead-sources", label: "Website Lead Forms", permission: "leadsources.manage" },
+    { href: "/leads/follow-ups", label: "Follow-up Automation", permission: "followups.manage" },
     { href: "/campaigns", label: "Campaigns", permission: "campaigns.view" },
     { href: "/sales/activity", label: "Sales Activity & Targets", permission: "crm.view" },
     { href: "/sales/leads-report", label: "Leads Report", permission: "crm.view" },
@@ -54,6 +55,7 @@ export const NAV: NavGroup[] = [
   { id: "people", title: "People & HR", icon: "users", items: [
     { href: "/hr/employees", label: "Staff Directory", permission: "hr.view" },
     { href: "/hr/applications", label: "Job Applications", permission: "hr.view" },
+    { href: "/hr/onboarding", label: "Onboarding Approvals", permission: "hr.view" },
     { href: "/hr/attendance", label: "Attendance (all)", permission: "attendance.view_all" },
     { href: "/payroll", label: "Payroll", permission: "payroll.view" },
     { href: "/hr/monitoring", label: "Workfolio", permission: "monitoring.view_team" },
@@ -89,6 +91,7 @@ export const NAV: NavGroup[] = [
     { href: "/settings/tax-rates", label: "Tax Rates", permission: "settings.company.view" },
     { href: "/settings/email", label: "Email", permission: "settings.company.view" },
     { href: "/settings/mailboxes", label: "Mailboxes", permission: "mail.manage" },
+    { href: "/settings/email-templates", label: "Email Templates", permission: "email_templates.manage" },
     { href: "/settings/monitoring", label: "Monitoring Policy", permission: "monitoring.configure" },
     { href: "/settings/jobs", label: "Scheduled Jobs", permission: "jobs.run" },
     { href: "/audit-logs", label: "Audit Logs", permission: "audit.view" },

@@ -12,8 +12,9 @@ export class MailError extends Error {}
 
 export type Attachment = { filename: string; content: Buffer; contentType: string };
 export type Outgoing = {
-  from: string; to: string; subject: string; text: string; attachments?: Attachment[];
+  from: string; to: string; subject: string; text: string; html?: string; attachments?: Attachment[];
   cc?: string[]; replyTo?: string; messageId?: string; inReplyTo?: string; references?: string[];
+  headers?: Record<string, string>; // extra headers, e.g. List-Unsubscribe on marketing follow-ups
 };
 export type Transport = { send(m: Outgoing): Promise<{ messageId?: string }>; verify(): Promise<void> };
 
@@ -46,7 +47,7 @@ const RESEND_API = "https://api.resend.com";
 function resendTransport(key: string): Transport {
   return {
     async send(m) {
-      const headers: Record<string, string> = {};
+      const headers: Record<string, string> = { ...(m.headers ?? {}) };
       if (m.messageId) headers["Message-ID"] = m.messageId;
       if (m.inReplyTo) headers["In-Reply-To"] = m.inReplyTo;
       if (m.references?.length) headers["References"] = m.references.join(" ");
@@ -54,7 +55,7 @@ function resendTransport(key: string): Transport {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          from: m.from, to: [m.to], cc: m.cc?.length ? m.cc : undefined, reply_to: m.replyTo, subject: m.subject, text: m.text,
+          from: m.from, to: [m.to], cc: m.cc?.length ? m.cc : undefined, reply_to: m.replyTo, subject: m.subject, text: m.text, html: m.html,
           headers: Object.keys(headers).length ? headers : undefined,
           attachments: m.attachments?.map((a) => ({ filename: a.filename, content: a.content.toString("base64"), content_type: a.contentType })),
         }),
@@ -86,8 +87,8 @@ function realTransport(): Transport | null {
   return {
     async send(m) {
       const r = await t.sendMail({
-        from: m.from, to: m.to, cc: m.cc, replyTo: m.replyTo, subject: m.subject, text: m.text, attachments: m.attachments,
-        messageId: m.messageId, inReplyTo: m.inReplyTo, references: m.references,
+        from: m.from, to: m.to, cc: m.cc, replyTo: m.replyTo, subject: m.subject, text: m.text, html: m.html, attachments: m.attachments,
+        messageId: m.messageId, inReplyTo: m.inReplyTo, references: m.references, headers: m.headers,
       });
       return { messageId: r.messageId };
     },
@@ -107,24 +108,37 @@ export function cleanAddress(raw: string): string {
 const oneLine = (s: string) => s.replace(/[\r\n\0]+/g, " ").trim();
 
 export const HOURLY_LIMIT = 60;
+// Follow-up automation has its own hourly allowance, so a busy sequence never blocks invoices or password resets (and the
+// other way round). FOLLOW_UP_HOURLY_LIMIT on the server changes it; stay within what your Resend plan allows.
+export const followUpHourlyLimit = (env: Record<string, string | undefined> = process.env) => Math.max(1, Math.min(2000, Number(env.FOLLOW_UP_HOURLY_LIMIT) || 150));
+export const AUTOMATED = "FOLLOW_UP";
 
 export async function sendEmail(db: Db, p: {
   organizationId: string; to: string; subject: string; text: string; attachment?: Attachment; relatedType?: string; relatedId?: string; actorId?: string; now?: Date;
   storedText?: string; // what the outbox keeps instead of `text`, for messages that carry a secret link
   purpose?: SystemPurpose; // which shared mailbox sends it; defaults from relatedType (invoices from billing@, resets from noreply@)
+  mailboxId?: string | null; // send from this mailbox instead (follow-ups from a salesperson's or the sales mailbox)
+  html?: string; // branded HTML version; `text` stays the plain-text part
+  headers?: Record<string, string>;
 }) {
   const to = cleanAddress(p.to);
   const subject = oneLine(p.subject).slice(0, 200);
   if (!subject) throw new MailError("The email needs a subject.");
   if (p.text.length > 20_000) throw new MailError("The message is too long.");
+  if (p.html && p.html.length > 200_000) throw new MailError("The message is too long.");
   const since = new Date((p.now ?? new Date()).getTime() - 3_600_000);
-  if ((await db.emailMessage.count({ where: { organizationId: p.organizationId, createdAt: { gte: since } } })) >= HOURLY_LIMIT) {
-    throw new MailError(`Email limit reached (${HOURLY_LIMIT} per hour). Try again later.`);
+  const automated = p.relatedType === AUTOMATED;
+  const limit = automated ? followUpHourlyLimit() : HOURLY_LIMIT;
+  const bucket = automated ? { relatedType: AUTOMATED } : { OR: [{ relatedType: null }, { relatedType: { not: AUTOMATED } }] };
+  if ((await db.emailMessage.count({ where: { organizationId: p.organizationId, createdAt: { gte: since }, ...bucket } })) >= limit) {
+    throw new MailError(`Email limit reached (${limit} per hour${automated ? " for follow-ups" : ""}). Try again later.`);
   }
   const base = { organizationId: p.organizationId, toEmail: to, subject, body: p.storedText ?? p.text, attachmentName: p.attachment?.filename ?? null, relatedType: p.relatedType ?? null, relatedId: p.relatedId ?? null, createdById: p.actorId ?? null };
   // The shared system mailbox for this kind of message, when an administrator has set one up (Settings > Mailboxes).
   const purpose = p.purpose ?? (p.relatedType ? PURPOSE_FOR_RELATED[p.relatedType] : undefined);
-  const mailbox = purpose ? await db.mailbox.findFirst({ where: { organizationId: p.organizationId, purpose, active: true } }) : null;
+  const mailbox = p.mailboxId
+    ? await db.mailbox.findFirst({ where: { id: p.mailboxId, organizationId: p.organizationId, active: true } })
+    : purpose ? await db.mailbox.findFirst({ where: { organizationId: p.organizationId, purpose, active: true } }) : null;
   const t = transport();
   const from = mailbox ? fromHeader(mailbox) : override ? "test@example.invalid" : mailConfig().from;
   // Keep a copy in the mailbox's Sent folder so replies thread back into the same conversation.
@@ -142,7 +156,7 @@ export async function sendEmail(db: Db, p: {
   const messageId = mailbox ? newMessageId(mailbox.address) : undefined;
   let r: { messageId?: string };
   try {
-    r = await t.send({ from, to, subject, text: p.text, attachments: p.attachment ? [p.attachment] : undefined, messageId });
+    r = await t.send({ from, to, subject, text: p.text, html: p.html, attachments: p.attachment ? [p.attachment] : undefined, messageId, headers: p.headers });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     await keep("FAILED", { error: msg.slice(0, 500), messageId });

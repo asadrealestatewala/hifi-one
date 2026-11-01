@@ -10,19 +10,19 @@ datasource db {
 // ---------- Identity, organization, access control ----------
 
 model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  baseCurrency String @default("USD")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  name         String
+  baseCurrency String   @default("USD")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  branches    Branch[]
-  departments Department[]
-  users       User[]
-  roles       Role[]
-  profiles    CompanyProfile[]
-  bankAccounts BankAccount[]
-  auditLogs   AuditLog[]
+  branches       Branch[]
+  departments    Department[]
+  users          User[]
+  roles          Role[]
+  profiles       CompanyProfile[]
+  bankAccounts   BankAccount[]
+  auditLogs      AuditLog[]
   settingChanges SettingChange[]
 }
 
@@ -56,42 +56,42 @@ model Department {
 }
 
 model User {
-  id             String    @id @default(cuid())
-  organizationId String
-  email          String?   @unique // official email; optional because some staff have none yet (never invented)
-  phone          String?   @unique // registered contact number in E.164 (+923001234567); can be used to sign in
-  emailVerifiedAt DateTime? // set when the person proves they receive mail there, or an administrator confirms it
-  phoneVerifiedAt DateTime? // set when an administrator confirms the number (no SMS provider is configured)
-  name           String
-  passwordHash   String
-  active         Boolean   @default(true)
-  userType       String    @default("EMPLOYEE") // EMPLOYEE | CLIENT | VENDOR | PARTNER | INVESTOR
-  clientId       String?   // set for client portal users: the only client they can ever see
-  vendorId       String?   // set for vendor portal users: the only vendor they can ever see
-  branchId       String?
-  departmentId   String?
-  managerId      String?
-  mustChangePassword Boolean @default(false)
-  totpSecretEnc  String? // encrypted at rest
-  totpEnabled    Boolean   @default(false)
-  totpLastStep   Int? // last accepted 30-second step, so a code cannot be used twice
-  calendarToken  String?   @unique // secret address of this person's calendar feed; null means no feed
-  recoveryCodes  Json? // array of sha256 hashes of unused one-time codes
-  failedLogins   Int       @default(0)
-  lockedUntil    DateTime?
-  lastLoginAt    DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  organizationId     String
+  email              String?   @unique // official email; optional because some staff have none yet (never invented)
+  phone              String?   @unique // registered contact number in E.164 (+923001234567); can be used to sign in
+  emailVerifiedAt    DateTime? // set when the person proves they receive mail there, or an administrator confirms it
+  phoneVerifiedAt    DateTime? // set when an administrator confirms the number (no SMS provider is configured)
+  name               String
+  passwordHash       String
+  active             Boolean   @default(true)
+  userType           String    @default("EMPLOYEE") // EMPLOYEE | CLIENT | VENDOR | PARTNER | INVESTOR
+  clientId           String? // set for client portal users: the only client they can ever see
+  vendorId           String? // set for vendor portal users: the only vendor they can ever see
+  branchId           String?
+  departmentId       String?
+  managerId          String?
+  mustChangePassword Boolean   @default(false)
+  totpSecretEnc      String? // encrypted at rest
+  totpEnabled        Boolean   @default(false)
+  totpLastStep       Int? // last accepted 30-second step, so a code cannot be used twice
+  calendarToken      String?   @unique // secret address of this person's calendar feed; null means no feed
+  recoveryCodes      Json? // array of sha256 hashes of unused one-time codes
+  failedLogins       Int       @default(0)
+  lockedUntil        DateTime?
+  lastLoginAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  branch       Branch?      @relation(fields: [branchId], references: [id])
-  department   Department?  @relation(fields: [departmentId], references: [id])
-  manager      User?        @relation("Reports", fields: [managerId], references: [id])
-  reports      User[]       @relation("Reports")
-  roles        UserRole[]
-  sessions     Session[]
-  auditLogs    AuditLog[]
-  campaigns    CampaignMember[]
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  branch          Branch?          @relation(fields: [branchId], references: [id])
+  department      Department?      @relation(fields: [departmentId], references: [id])
+  manager         User?            @relation("Reports", fields: [managerId], references: [id])
+  reports         User[]           @relation("Reports")
+  roles           UserRole[]
+  sessions        Session[]
+  auditLogs       AuditLog[]
+  campaigns       CampaignMember[]
   employeeProfile EmployeeProfile?
 
   @@index([organizationId])
@@ -105,7 +105,7 @@ model Role {
   isSystem       Boolean @default(false)
   requireMfa     Boolean @default(false) // everyone holding this role must use two-step verification
 
-  organization Organization    @relation(fields: [organizationId], references: [id])
+  organization Organization     @relation(fields: [organizationId], references: [id])
   permissions  RolePermission[]
   users        UserRole[]
 
@@ -131,8 +131,8 @@ model RolePermission {
 }
 
 model UserRole {
-  userId  String
-  roleId  String
+  userId    String
+  roleId    String
   expiresAt DateTime? // temporary access delegation
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -196,53 +196,53 @@ model SettingChange {
 // One row per legal entity / document profile. Edits create a new version;
 // issued documents later store a snapshot, so old rows are never overwritten.
 model CompanyProfile {
-  id             String   @id @default(cuid())
-  organizationId String
-  isDefault      Boolean  @default(false)
-  version        Int      @default(1)
-  legalName      String
-  tradingName    String?
-  website        String?
-  email          String?
-  description    String?
-  globalUan      String?
-  localUan       String?
+  id               String   @id @default(cuid())
+  organizationId   String
+  isDefault        Boolean  @default(false)
+  version          Int      @default(1)
+  legalName        String
+  tradingName      String?
+  website          String?
+  email            String?
+  description      String?
+  globalUan        String?
+  localUan         String?
   registeredOffice String?
-  salesCentre    String?
-  registrationNo String?
-  taxId          String?
-  legalNotice    String?
-  invoiceFooter  String?
-  defaultCurrency String  @default("USD")
-  timezone       String   @default("UTC")
-  updatedAt      DateTime @updatedAt
-  createdAt      DateTime @default(now())
+  salesCentre      String?
+  registrationNo   String?
+  taxId            String?
+  legalNotice      String?
+  invoiceFooter    String?
+  defaultCurrency  String   @default("USD")
+  timezone         String   @default("UTC")
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id])
 }
 
 model BankAccount {
-  id             String   @id @default(cuid())
-  organizationId String
-  internalName   String
-  bankName       String
-  accountHolder  String
-  country        String?
-  branchName     String?
-  accountNumber  String // shown masked unless bank.view_full
-  iban           String?
-  swift          String?
-  routingCode    String?
-  currency       String // PKR | USD | AED | GBP
-  accountType    String   @default("CURRENT")
-  isDefault      Boolean  @default(false)
-  active         Boolean  @default(true)
+  id                  String   @id @default(cuid())
+  organizationId      String
+  internalName        String
+  bankName            String
+  accountHolder       String
+  country             String?
+  branchName          String?
+  accountNumber       String // shown masked unless bank.view_full
+  iban                String?
+  swift               String?
+  routingCode         String?
+  currency            String // PKR | USD | AED | GBP
+  accountType         String   @default("CURRENT")
+  isDefault           Boolean  @default(false)
+  active              Boolean  @default(true)
   paymentInstructions String?
-  verified       Boolean  @default(false) // manual entry never implies verified
-  ledgerAccountId String?
-  ledgerAccount  Account? @relation(fields: [ledgerAccountId], references: [id])
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  verified            Boolean  @default(false) // manual entry never implies verified
+  ledgerAccountId     String?
+  ledgerAccount       Account? @relation(fields: [ledgerAccountId], references: [id])
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -252,11 +252,11 @@ model BankAccount {
 // ---------- Phase 1: service catalog and CRM ----------
 
 model ServiceCategory {
-  id             String   @id @default(cuid())
+  id             String  @id @default(cuid())
   organizationId String
   name           String
-  sortOrder      Int      @default(0)
-  active         Boolean  @default(true)
+  sortOrder      Int     @default(0)
+  active         Boolean @default(true)
 
   plans     ServicePlan[]
   campaigns Campaign[]
@@ -265,19 +265,19 @@ model ServiceCategory {
 }
 
 model ServicePlan {
-  id             String   @id @default(cuid())
-  organizationId String
-  categoryId     String
-  name           String
-  tagline        String?
-  billingInterval String  @default("MONTHLY") // ONE_TIME | MONTHLY | QUARTERLY | ANNUAL | HOURLY | MILESTONE | CUSTOM
-  isPopular      Boolean  @default(false)
-  isPublic       Boolean  @default(true)
-  active         Boolean  @default(true)
-  version        Int      @default(1)
-  sortOrder      Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id              String   @id @default(cuid())
+  organizationId  String
+  categoryId      String
+  name            String
+  tagline         String?
+  billingInterval String   @default("MONTHLY") // ONE_TIME | MONTHLY | QUARTERLY | ANNUAL | HOURLY | MILESTONE | CUSTOM
+  isPopular       Boolean  @default(false)
+  isPublic        Boolean  @default(true)
+  active          Boolean  @default(true)
+  version         Int      @default(1)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   category ServiceCategory @relation(fields: [categoryId], references: [id])
   prices   PlanPrice[]
@@ -289,10 +289,10 @@ model ServicePlan {
 
 // Independent price per currency (never a converted copy of another currency)
 model PlanPrice {
-  id       String  @id @default(cuid())
+  id       String   @id @default(cuid())
   planId   String
   currency String
-  amount   Decimal @db.Decimal(14, 2)
+  amount   Decimal  @db.Decimal(14, 2)
   setupFee Decimal? @db.Decimal(14, 2)
 
   plan ServicePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
@@ -325,48 +325,49 @@ model PipelineStage {
 }
 
 model Lead {
-  id             String   @id @default(cuid())
-  organizationId String
-  number         Int      @default(autoincrement())
-  name           String
-  company        String?
-  email          String?
-  phone          String?
-  country        String?
-  source         String?
-  serviceInterest String?
-  planId         String?
-  dealValue      Decimal? @db.Decimal(14, 2)
-  currency       String   @default("USD")
-  priority       String   @default("MEDIUM")
-  stageId        String
-  stageChangedAt DateTime @default(now())
-  assignedToId   String?
-  nextFollowUp   DateTime?
-  notes          String?
-  createdById    String?
-  clientId       String?
-  convertedAt    DateTime?
-  contactId      String?   // the contact record this lead belongs to; kept in sync
-  city           String?
-  timezone       String?
-  preferredContact String?  // CALL | WHATSAPP | EMAIL | SMS
+  id                String    @id @default(cuid())
+  organizationId    String
+  number            Int       @default(autoincrement())
+  name              String
+  company           String?
+  email             String?
+  phone             String?
+  country           String?
+  source            String?
+  serviceInterest   String?
+  planId            String?
+  dealValue         Decimal?  @db.Decimal(14, 2)
+  currency          String    @default("USD")
+  priority          String    @default("MEDIUM")
+  stageId           String
+  stageChangedAt    DateTime  @default(now())
+  assignedToId      String?
+  nextFollowUp      DateTime?
+  notes             String?
+  createdById       String?
+  clientId          String?
+  convertedAt       DateTime?
+  contactId         String? // the contact record this lead belongs to; kept in sync
+  city              String?
+  timezone          String?
+  preferredContact  String? // CALL | WHATSAPP | EMAIL | SMS
   expectedCloseDate String? // YYYY-MM-DD
-  tags           String[]  @default([])
-  campaignId     String?
-  leadSourceId   String?   // the website form or webhook that captured it
-  utmSource      String?
-  utmMedium      String?
-  utmCampaign    String?
-  landingUrl     String?
-  lastContactAt  DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  tags              String[]  @default([])
+  campaignId        String?
+  leadSourceId      String? // the website form or webhook that captured it
+  utmSource         String?
+  utmMedium         String?
+  utmCampaign       String?
+  landingUrl        String?
+  lastContactAt     DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  client     Client?       @relation(fields: [clientId], references: [id])
-  stage      PipelineStage @relation(fields: [stageId], references: [id])
-  plan       ServicePlan?  @relation(fields: [planId], references: [id])
+  client     Client?              @relation(fields: [clientId], references: [id])
+  stage      PipelineStage        @relation(fields: [stageId], references: [id])
+  plan       ServicePlan?         @relation(fields: [planId], references: [id])
   activities LeadActivity[]
+  followUps  FollowUpEnrollment[]
 
   @@index([organizationId, stageId])
   @@index([organizationId, assignedToId])
@@ -375,15 +376,15 @@ model Lead {
 }
 
 model LeadActivity {
-  id        String   @id @default(cuid())
-  leadId    String
-  actorId   String?
-  kind      String // NOTE | CALL | EMAIL | MEETING | FOLLOW_UP | PROPOSAL | APPOINTMENT | WHATSAPP | STAGE_CHANGE | CREATED
-  outcome   String? // calls: NO_ANSWER | VOICEMAIL | CONNECTED | WRONG_NUMBER | NOT_INTERESTED
-  verified  Boolean  @default(false) // a connected call counts toward targets only once a manager has verified it
+  id           String   @id @default(cuid())
+  leadId       String
+  actorId      String?
+  kind         String // NOTE | CALL | EMAIL | MEETING | FOLLOW_UP | PROPOSAL | APPOINTMENT | WHATSAPP | STAGE_CHANGE | CREATED
+  outcome      String? // calls: NO_ANSWER | VOICEMAIL | CONNECTED | WRONG_NUMBER | NOT_INTERESTED
+  verified     Boolean  @default(false) // a connected call counts toward targets only once a manager has verified it
   verifiedById String?
-  body      String?
-  createdAt DateTime @default(now())
+  body         String?
+  createdAt    DateTime @default(now())
 
   lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
@@ -401,32 +402,32 @@ model NumberSequence {
 }
 
 model Client {
-  id             String   @id @default(cuid())
-  organizationId String
-  code           String? // assigned on creation, e.g. C-0001
-  name           String
-  email          String?
-  phone          String?
-  billingAddress String?
-  country        String?
-  taxId          String?
-  currency       String   @default("USD")
-  paymentTermsDays Int    @default(14)
-  active         Boolean  @default(true)
-  createdAt      DateTime @default(now())
+  id               String   @id @default(cuid())
+  organizationId   String
+  code             String? // assigned on creation, e.g. C-0001
+  name             String
+  email            String?
+  phone            String?
+  billingAddress   String?
+  country          String?
+  taxId            String?
+  currency         String   @default("USD")
+  paymentTermsDays Int      @default(14)
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
 
-  contactId String?
-  invoices Invoice[]
-  quotes   Quote[]
+  contactId     String?
+  invoices      Invoice[]
+  quotes        Quote[]
   subscriptions Subscription[]
-  contracts Contract[]
-  payments Payment[]
-  journalLines JournalLine[]
-  leads    Lead[]
-  invites  ClientInvite[]
+  contracts     Contract[]
+  payments      Payment[]
+  journalLines  JournalLine[]
+  leads         Lead[]
+  invites       ClientInvite[]
+  campaigns     CampaignClient[]
 
   @@unique([organizationId, name])
-  campaigns CampaignClient[]
 }
 
 model Account {
@@ -487,31 +488,31 @@ model JournalLine {
 }
 
 model Invoice {
-  id             String   @id @default(cuid())
-  organizationId String
-  number         String? // assigned when issued
-  clientId       String
-  status         String   @default("DRAFT") // DRAFT | ISSUED | PARTIALLY_PAID | PAID | CANCELLED
-  currency       String
-  issueDate      DateTime?
-  dueDate        DateTime?
-  subtotal       Decimal  @default(0) @db.Decimal(14, 2)
-  taxRate        Decimal  @default(0) @db.Decimal(5, 2) // percent
-  taxAmount      Decimal  @default(0) @db.Decimal(14, 2)
-  total          Decimal  @default(0) @db.Decimal(14, 2)
-  amountPaid     Decimal  @default(0) @db.Decimal(14, 2)
-  creditedAmount Decimal  @default(0) @db.Decimal(14, 2)
-  projectId      String?
-  notes          String?
+  id              String    @id @default(cuid())
+  organizationId  String
+  number          String? // assigned when issued
+  clientId        String
+  status          String    @default("DRAFT") // DRAFT | ISSUED | PARTIALLY_PAID | PAID | CANCELLED
+  currency        String
+  issueDate       DateTime?
+  dueDate         DateTime?
+  subtotal        Decimal   @default(0) @db.Decimal(14, 2)
+  taxRate         Decimal   @default(0) @db.Decimal(5, 2) // percent
+  taxAmount       Decimal   @default(0) @db.Decimal(14, 2)
+  total           Decimal   @default(0) @db.Decimal(14, 2)
+  amountPaid      Decimal   @default(0) @db.Decimal(14, 2)
+  creditedAmount  Decimal   @default(0) @db.Decimal(14, 2)
+  projectId       String?
+  notes           String?
   // Frozen at issue time so later settings changes never alter issued documents
   companySnapshot Json?
   bankSnapshot    Json?
-  journalEntryId String?
-  createdById    String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  journalEntryId  String?
+  createdById     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  client      Client       @relation(fields: [clientId], references: [id])
+  client      Client              @relation(fields: [clientId], references: [id])
   lines       InvoiceLine[]
   allocations PaymentAllocation[]
   creditNotes CreditNote[]
@@ -549,7 +550,7 @@ model Payment {
   bankSnapshot   Json?
   createdAt      DateTime @default(now())
 
-  client      Client      @relation(fields: [clientId], references: [id])
+  client      Client              @relation(fields: [clientId], references: [id])
   allocations PaymentAllocation[]
 
   @@unique([organizationId, number])
@@ -570,27 +571,27 @@ model PaymentAllocation {
 // ---------- Phase 2: projects and tasks ----------
 
 model Project {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
   number         String
   name           String
   clientId       String?
   managerId      String
-  status         String   @default("ACTIVE") // ACTIVE | ON_HOLD | COMPLETED | CANCELLED
-  priority       String   @default("MEDIUM")
+  status         String    @default("ACTIVE") // ACTIVE | ON_HOLD | COMPLETED | CANCELLED
+  priority       String    @default("MEDIUM")
   startDate      DateTime?
   deadline       DateTime?
-  budgetAmount   Decimal? @db.Decimal(14, 2)
-  currency       String   @default("USD")
+  budgetAmount   Decimal?  @db.Decimal(14, 2)
+  currency       String    @default("USD")
   scope          String?
   campaignId     String? // the campaign this project delivers, if any
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  campaign Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
-  members ProjectMember[]
-  tasks   Task[]
-  milestones Milestone[]
+  campaign    Campaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  members     ProjectMember[]
+  tasks       Task[]
+  milestones  Milestone[]
   timeEntries TimeEntry[]
 
   @@unique([organizationId, number])
@@ -598,41 +599,41 @@ model Project {
 }
 
 model ProjectMember {
-  projectId String
-  userId    String
-  role      String? // e.g. Graphic Designer
+  projectId  String
+  userId     String
+  role       String? // e.g. Graphic Designer
   hourlyCost Decimal? @db.Decimal(10, 2) // internal cost per hour in the project currency; restricted
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, userId])
   @@index([userId])
 }
 
 model Task {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   projectId      String
   title          String
   description    String?
-  status         String   @default("TODO") // TODO | IN_PROGRESS | REVIEW | DONE
-  priority       String   @default("MEDIUM")
+  status         String    @default("TODO") // TODO | IN_PROGRESS | REVIEW | DONE
+  priority       String    @default("MEDIUM")
   assigneeId     String?
   dueDate        DateTime?
-  estimatedHours Decimal? @db.Decimal(8, 2)
-  clientVisible  Boolean  @default(false)
+  estimatedHours Decimal?  @db.Decimal(8, 2)
+  clientVisible  Boolean   @default(false)
   milestoneId    String?
-  blocked        Boolean  @default(false)
+  blocked        Boolean   @default(false)
   completedAt    DateTime?
   createdById    String?
-  parentId       String?   // a subtask points at its parent task (one level only)
+  parentId       String? // a subtask points at its parent task (one level only)
   blockedBy      String[]  @default([]) // ids of tasks in the same project that must be Done first
-  recurrence     String?   // DAILY | WEEKLY | MONTHLY: completing the task creates the next one
+  recurrence     String? // DAILY | WEEKLY | MONTHLY: completing the task creates the next one
   recurredFromId String?   @unique // the completed task that created this one, so it is created once
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  project  Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  milestone Milestone?   @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
-  comments TaskComment[]
+  project   Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestone Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  comments  TaskComment[]
 
   @@index([parentId])
   @@index([projectId, status])
@@ -653,15 +654,15 @@ model TaskComment {
 }
 
 model ClientInvite {
-  id        String    @id @default(cuid())
-  clientId  String?
-  vendorId  String?
-  email     String
-  tokenHash String    @unique // only the hash is stored; the link is shown once
-  expiresAt DateTime
-  usedAt    DateTime?
+  id          String    @id @default(cuid())
+  clientId    String?
+  vendorId    String?
+  email       String
+  tokenHash   String    @unique // only the hash is stored; the link is shown once
+  expiresAt   DateTime
+  usedAt      DateTime?
   createdById String?
-  createdAt DateTime  @default(now())
+  createdAt   DateTime  @default(now())
 
   client Client? @relation(fields: [clientId], references: [id])
   vendor Vendor? @relation(fields: [vendorId], references: [id])
@@ -672,46 +673,46 @@ model ClientInvite {
 // ---------- Phase 4: HR ----------
 
 model EmployeeProfile {
-  id             String   @id @default(cuid())
-  organizationId String
-  userId         String   @unique
-  employeeNo     String
-  designation    String?
-  departmentId   String?
-  employmentType String   @default("FULL_TIME") // FULL_TIME | PART_TIME | CONTRACT | INTERN
-  workLocation   String   @default("OFFICE") // OFFICE | REMOTE | HYBRID | FIELD
-  joinDate       DateTime?
-  probationEnd   DateTime?
-  phone          String?
-  personalEmail  String?
-  address        String?
+  id               String    @id @default(cuid())
+  organizationId   String
+  userId           String    @unique
+  employeeNo       String
+  designation      String?
+  departmentId     String?
+  employmentType   String    @default("FULL_TIME") // FULL_TIME | PART_TIME | CONTRACT | INTERN
+  workLocation     String    @default("OFFICE") // OFFICE | REMOTE | HYBRID | FIELD
+  joinDate         DateTime?
+  probationEnd     DateTime?
+  phone            String?
+  personalEmail    String?
+  address          String?
   emergencyContact String?
   // Sensitive: only users with hr.view_sensitive may read these
-  dateOfBirth    String?   // YYYY-MM-DD
-  gender         String?
-  fatherName     String?
-  identityNumber String?
-  bankDetails    String?
-  status         String   @default("ACTIVE") // ACTIVE | INACTIVE | EXITED
-  exitDate       DateTime?
-  notes          String? // internal HR notes, visible to hr.view
-  archivedAt     DateTime? // archived records leave the directory but keep all history
+  dateOfBirth      String? // YYYY-MM-DD
+  gender           String?
+  fatherName       String?
+  identityNumber   String?
+  bankDetails      String?
+  status           String    @default("ACTIVE") // ACTIVE | INACTIVE | EXITED
+  exitDate         DateTime?
+  notes            String? // internal HR notes, visible to hr.view
+  archivedAt       DateTime? // archived records leave the directory but keep all history
 
-  user User @relation(fields: [userId], references: [id])
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([organizationId, employeeNo])
 }
 
 model AttendanceRecord {
-  id        String    @id @default(cuid())
-  userId    String
-  workDate  String // YYYY-MM-DD in the company timezone
-  clockIn   DateTime
-  clockOut  DateTime?
-  workMode  String    @default("OFFICE") // OFFICE | REMOTE
-  note      String?
+  id            String    @id @default(cuid())
+  userId        String
+  workDate      String // YYYY-MM-DD in the company timezone
+  clockIn       DateTime
+  clockOut      DateTime?
+  workMode      String    @default("OFFICE") // OFFICE | REMOTE
+  note          String?
   correctedById String?
 
   breaks BreakRecord[]
@@ -721,7 +722,7 @@ model AttendanceRecord {
 }
 
 model BreakRecord {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   attendanceId String
   startAt      DateTime
   endAt        DateTime?
@@ -745,18 +746,18 @@ model LeaveType {
 }
 
 model LeaveRequest {
-  id          String    @id @default(cuid())
-  userId      String
-  leaveTypeId String
-  startDate   String // YYYY-MM-DD
-  endDate     String // YYYY-MM-DD
-  days        Decimal   @db.Decimal(5, 1) // working days, weekends excluded
-  reason      String?
-  status      String    @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
-  approverId  String?
-  decidedAt   DateTime?
+  id           String    @id @default(cuid())
+  userId       String
+  leaveTypeId  String
+  startDate    String // YYYY-MM-DD
+  endDate      String // YYYY-MM-DD
+  days         Decimal   @db.Decimal(5, 1) // working days, weekends excluded
+  reason       String?
+  status       String    @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
+  approverId   String?
+  decidedAt    DateTime?
   decisionNote String?
-  createdAt   DateTime  @default(now())
+  createdAt    DateTime  @default(now())
 
   leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
 
@@ -781,11 +782,11 @@ model SalaryStructure {
 }
 
 model PayrollRun {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
   period         String // YYYY-MM
   currency       String
-  status         String   @default("DRAFT") // DRAFT | APPROVED | POSTED | PAID
+  status         String    @default("DRAFT") // DRAFT | APPROVED | POSTED | PAID
   createdById    String?
   approvedById   String?
   approvedAt     DateTime?
@@ -793,7 +794,7 @@ model PayrollRun {
   paidAt         DateTime?
   journalEntryId String?
   paymentEntryId String?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
 
   items PayrollItem[]
 
@@ -846,16 +847,16 @@ model Budget {
 }
 
 model BudgetTransfer {
-  id           String    @id @default(cuid())
-  fromBudgetId String
-  toBudgetId   String
-  amount       Decimal   @db.Decimal(14, 2)
-  reason       String
-  status       String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  id            String    @id @default(cuid())
+  fromBudgetId  String
+  toBudgetId    String
+  amount        Decimal   @db.Decimal(14, 2)
+  reason        String
+  status        String    @default("PENDING") // PENDING | APPROVED | REJECTED
   requestedById String
-  decidedById  String?
-  decidedAt    DateTime?
-  createdAt    DateTime  @default(now())
+  decidedById   String?
+  decidedAt     DateTime?
+  createdAt     DateTime  @default(now())
 
   from Budget @relation("from", fields: [fromBudgetId], references: [id])
   to   Budget @relation("to", fields: [toBudgetId], references: [id])
@@ -896,20 +897,20 @@ model ExpenseVoucher {
 // ---------- Phase 5: vendors and procurement ----------
 
 model Vendor {
-  id             String   @id @default(cuid())
-  organizationId String
-  code           String
-  name           String
-  email          String?
-  phone          String?
-  country        String?
-  currency       String   @default("USD")
-  categories     String? // comma separated service categories
-  paymentTermsDays Int    @default(30)
-  status         String   @default("PENDING") // PENDING | APPROVED | SUSPENDED
-  bankDetails    String? // restricted
-  internalNotes  String?
-  createdAt      DateTime @default(now())
+  id               String   @id @default(cuid())
+  organizationId   String
+  code             String
+  name             String
+  email            String?
+  phone            String?
+  country          String?
+  currency         String   @default("USD")
+  categories       String? // comma separated service categories
+  paymentTermsDays Int      @default(30)
+  status           String   @default("PENDING") // PENDING | APPROVED | SUSPENDED
+  bankDetails      String? // restricted
+  internalNotes    String?
+  createdAt        DateTime @default(now())
 
   applications VendorApplication[]
   workOrders   WorkOrder[]
@@ -1002,26 +1003,26 @@ model VendorBill {
 // ---------- Phase 5: fixed assets and investments ----------
 
 model Asset {
-  id             String   @id @default(cuid())
-  organizationId String
-  number         String
-  name           String
-  category       String?
-  serialNumber   String?
-  supplier       String?
-  purchaseDate   String // YYYY-MM-DD
-  cost           Decimal  @db.Decimal(14, 2)
-  salvageValue   Decimal  @default(0) @db.Decimal(14, 2)
-  currency       String
+  id               String   @id @default(cuid())
+  organizationId   String
+  number           String
+  name             String
+  category         String?
+  serialNumber     String?
+  supplier         String?
+  purchaseDate     String // YYYY-MM-DD
+  cost             Decimal  @db.Decimal(14, 2)
+  salvageValue     Decimal  @default(0) @db.Decimal(14, 2)
+  currency         String
   usefulLifeMonths Int
-  location       String?
-  status         String   @default("ACTIVE") // ACTIVE | DISPOSED
-  assignedToId   String?
-  purchaseEntryId String?
-  disposedDate   String?
+  location         String?
+  status           String   @default("ACTIVE") // ACTIVE | DISPOSED
+  assignedToId     String?
+  purchaseEntryId  String?
+  disposedDate     String?
   disposalProceeds Decimal? @db.Decimal(14, 2)
-  disposalEntryId String?
-  createdAt      DateTime @default(now())
+  disposalEntryId  String?
+  createdAt        DateTime @default(now())
 
   depreciation DepreciationEntry[]
   assignments  AssetAssignment[]
@@ -1030,10 +1031,10 @@ model Asset {
 }
 
 model DepreciationEntry {
-  id             String   @id @default(cuid())
+  id             String  @id @default(cuid())
   assetId        String
   period         String // YYYY-MM
-  amount         Decimal  @db.Decimal(14, 2)
+  amount         Decimal @db.Decimal(14, 2)
   journalEntryId String?
 
   asset Asset @relation(fields: [assetId], references: [id])
@@ -1091,15 +1092,15 @@ model InvestmentTransaction {
 // ---------- Notifications, content calendar, prospecting worklists ----------
 
 model Notification {
-  id          String    @id @default(cuid())
-  userId      String
-  kind        String
-  title       String
-  body        String?
-  link        String?
-  dedupeKey   String?
-  readAt      DateTime?
-  createdAt   DateTime  @default(now())
+  id        String    @id @default(cuid())
+  userId    String
+  kind      String
+  title     String
+  body      String?
+  link      String?
+  dedupeKey String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
 
   @@unique([userId, dedupeKey])
   @@index([userId, readAt, createdAt])
@@ -1108,7 +1109,7 @@ model Notification {
 model ContentItem {
   id             String   @id @default(cuid())
   organizationId String
-  clientId       String?   // empty for the company's own posts, which are approved internally
+  clientId       String? // empty for the company's own posts, which are approved internally
   projectId      String?
   platform       String // FACEBOOK | INSTAGRAM | TIKTOK | LINKEDIN | YOUTUBE | OTHER
   title          String
@@ -1186,19 +1187,19 @@ model Worklist {
 }
 
 model WorklistRow {
-  id             String   @id @default(cuid())
-  worklistId     String
-  rowNumber      Int // original row in the source file
-  name           String
-  company        String?
-  email          String?
-  phone          String?
-  raw            Json
-  status         String   @default("NEW") // NEW | CONTACTED | NOT_INTERESTED | DO_NOT_CONTACT | CONVERTED
-  note           String?
+  id              String   @id @default(cuid())
+  worklistId      String
+  rowNumber       Int // original row in the source file
+  name            String
+  company         String?
+  email           String?
+  phone           String?
+  raw             Json
+  status          String   @default("NEW") // NEW | CONTACTED | NOT_INTERESTED | DO_NOT_CONTACT | CONVERTED
+  note            String?
   duplicateLeadId String?
   convertedLeadId String?
-  updatedAt      DateTime @updatedAt
+  updatedAt       DateTime @updatedAt
 
   worklist Worklist @relation(fields: [worklistId], references: [id], onDelete: Cascade)
 
@@ -1306,7 +1307,7 @@ model ExchangeRate {
   organizationId String
   currency       String
   rate           Decimal  @db.Decimal(18, 8)
-  effectiveDate  String   // YYYY-MM-DD
+  effectiveDate  String // YYYY-MM-DD
   source         String   @default("MANUAL")
   note           String?
   createdById    String?
@@ -1318,28 +1319,28 @@ model ExchangeRate {
 // ---------- Quotations, subscriptions, contracts ----------
 
 model Quote {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
   number         String
   clientId       String
-  status         String   @default("DRAFT") // DRAFT | SENT | ACCEPTED | DECLINED | EXPIRED | INVOICED | CANCELLED
+  status         String    @default("DRAFT") // DRAFT | SENT | ACCEPTED | DECLINED | EXPIRED | INVOICED | CANCELLED
   currency       String
-  validUntil     String?  // YYYY-MM-DD
-  subtotal       Decimal  @default(0) @db.Decimal(14, 2)
-  taxRate        Decimal  @default(0) @db.Decimal(5, 2)
-  taxAmount      Decimal  @default(0) @db.Decimal(14, 2)
-  total          Decimal  @default(0) @db.Decimal(14, 2)
+  validUntil     String? // YYYY-MM-DD
+  subtotal       Decimal   @default(0) @db.Decimal(14, 2)
+  taxRate        Decimal   @default(0) @db.Decimal(5, 2)
+  taxAmount      Decimal   @default(0) @db.Decimal(14, 2)
+  total          Decimal   @default(0) @db.Decimal(14, 2)
   notes          String?
   terms          String?
   sentAt         DateTime?
   decidedAt      DateTime?
   decidedById    String?
-  decidedVia     String?  // PORTAL | STAFF
+  decidedVia     String? // PORTAL | STAFF
   decisionNote   String?
-  invoiceId      String?  @unique
+  invoiceId      String?   @unique
   createdById    String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   client Client      @relation(fields: [clientId], references: [id])
   lines  QuoteLine[]
@@ -1356,7 +1357,7 @@ model QuoteLine {
   unitPrice   Decimal @db.Decimal(14, 2)
   amount      Decimal @db.Decimal(14, 2)
   planId      String? // set when the line came from a catalog plan
-  planVersion Int?    // the plan version whose price was used
+  planVersion Int? // the plan version whose price was used
 
   quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
 }
@@ -1371,9 +1372,9 @@ model Subscription {
   amount          Decimal  @db.Decimal(14, 2) // per billing period, before tax
   taxRate         Decimal  @default(0) @db.Decimal(5, 2)
   interval        String   @default("MONTHLY") // MONTHLY | QUARTERLY | ANNUAL
-  startDate       String   // YYYY-MM-DD
+  startDate       String // YYYY-MM-DD
   endDate         String?
-  nextBillingDate String?  // null once the subscription has run its course
+  nextBillingDate String? // null once the subscription has run its course
   cyclesBilled    Int      @default(0)
   status          String   @default("ACTIVE") // ACTIVE | PAUSED | CANCELLED | ENDED
   createdById     String?
@@ -1399,20 +1400,20 @@ model SubscriptionInvoice {
 }
 
 model Contract {
-  id               String   @id @default(cuid())
-  organizationId   String
-  clientId         String
-  title            String
-  status           String   @default("DRAFT") // DRAFT | ACTIVE | EXPIRED | TERMINATED
-  startDate        String?
-  endDate          String?
-  renewalNoticeDays Int     @default(30)
-  currency         String?
-  value            Decimal? @db.Decimal(14, 2)
-  notes            String?
-  createdById      String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                String   @id @default(cuid())
+  organizationId    String
+  clientId          String
+  title             String
+  status            String   @default("DRAFT") // DRAFT | ACTIVE | EXPIRED | TERMINATED
+  startDate         String?
+  endDate           String?
+  renewalNoticeDays Int      @default(30)
+  currency          String?
+  value             Decimal? @db.Decimal(14, 2)
+  notes             String?
+  createdById       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   client Client @relation(fields: [clientId], references: [id])
 
@@ -1425,7 +1426,7 @@ model Milestone {
   id          String    @id @default(cuid())
   projectId   String
   name        String
-  dueDate     String?   // YYYY-MM-DD
+  dueDate     String? // YYYY-MM-DD
   status      String    @default("PENDING") // PENDING | IN_PROGRESS | DONE
   amount      Decimal?  @db.Decimal(14, 2) // what is billed to the client when this milestone is done
   invoiceId   String?   @unique
@@ -1440,20 +1441,20 @@ model Milestone {
 }
 
 model TimeEntry {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
   projectId      String
   taskId         String?
   userId         String
-  workDate       String   // YYYY-MM-DD
-  hours          Decimal  @db.Decimal(5, 2)
+  workDate       String // YYYY-MM-DD
+  hours          Decimal   @db.Decimal(5, 2)
   note           String?
-  hourlyCost     Decimal? @db.Decimal(10, 2) // the member's cost rate when the time was logged, so later rate changes never rewrite history
-  approval       String   @default("PENDING") // PENDING | APPROVED | REJECTED (informational: profitability counts all entries)
+  hourlyCost     Decimal?  @db.Decimal(10, 2) // the member's cost rate when the time was logged, so later rate changes never rewrite history
+  approval       String    @default("PENDING") // PENDING | APPROVED | REJECTED (informational: profitability counts all entries)
   approvedById   String?
   approvedAt     DateTime?
   approvalNote   String?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
@@ -1468,11 +1469,11 @@ model BankStatementLine {
   id             String   @id @default(cuid())
   organizationId String
   bankAccountId  String
-  date           String   // YYYY-MM-DD
+  date           String // YYYY-MM-DD
   description    String
   reference      String?
   amount         Decimal  @db.Decimal(14, 2) // positive = money in, negative = money out
-  dedupKey       String   // the same line imported twice is recognised and skipped
+  dedupKey       String // the same line imported twice is recognised and skipped
   importedById   String?
   createdAt      DateTime @default(now())
 
@@ -1482,15 +1483,15 @@ model BankStatementLine {
 
 // Links one bank statement line to one ledger line (or clears a ledger line as part of the opening position).
 model BankMatch {
-  id              String   @id @default(cuid())
-  organizationId  String
-  bankAccountId   String
-  statementLineId String?  @unique
-  journalLineId   String   @unique
-  kind            String   @default("STATEMENT") // STATEMENT | OPENING
-  matchedById     String?
+  id               String   @id @default(cuid())
+  organizationId   String
+  bankAccountId    String
+  statementLineId  String?  @unique
+  journalLineId    String   @unique
+  kind             String   @default("STATEMENT") // STATEMENT | OPENING
+  matchedById      String?
   reconciliationId String?
-  createdAt       DateTime @default(now())
+  createdAt        DateTime @default(now())
 
   @@index([bankAccountId])
 }
@@ -1526,19 +1527,19 @@ model TaxRate {
 // Every email the system tries to send. The status is only SENT when the mail server accepted the message;
 // with no mail account configured the status is NOT_CONFIGURED and nothing is claimed as delivered.
 model EmailMessage {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   organizationId    String
   toEmail           String
   subject           String
   body              String
   attachmentName    String?
-  relatedType       String?  // INVOICE | QUOTE | STATEMENT | TEST
+  relatedType       String? // INVOICE | QUOTE | STATEMENT | TEST
   relatedId         String?
-  status            String   // SENT | FAILED | NOT_CONFIGURED
+  status            String // SENT | FAILED | NOT_CONFIGURED
   error             String?
   providerMessageId String?
   createdById       String?
-  createdAt         DateTime @default(now())
+  createdAt         DateTime  @default(now())
   sentAt            DateTime?
 
   @@index([organizationId, createdAt])
@@ -1562,28 +1563,28 @@ model CommissionRule {
 }
 
 model CommissionEntry {
-  id               String    @id @default(cuid())
-  organizationId   String
-  userId           String
-  kind             String    @default("COMMISSION") // COMMISSION | BONUS
-  allocationId     String?   @unique // the payment allocation that earned it, so one payment is never commissioned twice
-  invoiceId        String?
-  clientId         String?
-  currency         String
-  base             Decimal   @default(0) @db.Decimal(14, 2) // revenue the percentage was applied to
-  ratePercent      Decimal   @default(0) @db.Decimal(5, 2)
-  amount           Decimal   @db.Decimal(14, 2)
-  note             String?
-  status           String    @default("EARNED") // EARNED | APPROVED | PAID | VOID
-  createdById      String?
-  approvedById     String?
-  approvedAt       DateTime?
-  accrualEntryId   String?
-  paidById         String?
-  paidAt           DateTime?
-  paymentEntryId   String?
-  payrollRunId     String?   // set while the entry is being paid through a payroll run
-  createdAt        DateTime  @default(now())
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String
+  kind           String    @default("COMMISSION") // COMMISSION | BONUS
+  allocationId   String?   @unique // the payment allocation that earned it, so one payment is never commissioned twice
+  invoiceId      String?
+  clientId       String?
+  currency       String
+  base           Decimal   @default(0) @db.Decimal(14, 2) // revenue the percentage was applied to
+  ratePercent    Decimal   @default(0) @db.Decimal(5, 2)
+  amount         Decimal   @db.Decimal(14, 2)
+  note           String?
+  status         String    @default("EARNED") // EARNED | APPROVED | PAID | VOID
+  createdById    String?
+  approvedById   String?
+  approvedAt     DateTime?
+  accrualEntryId String?
+  paidById       String?
+  paidAt         DateTime?
+  paymentEntryId String?
+  payrollRunId   String? // set while the entry is being paid through a payroll run
+  createdAt      DateTime  @default(now())
 
   @@index([organizationId, status])
   @@index([userId, createdAt])
@@ -1597,7 +1598,7 @@ model AssistantLog {
   userId         String
   question       String
   toolsUsed      String[]
-  status         String   // ANSWERED | FAILED | NOT_CONFIGURED
+  status         String // ANSWERED | FAILED | NOT_CONFIGURED
   createdAt      DateTime @default(now())
 
   @@index([organizationId, createdAt])
@@ -1607,18 +1608,18 @@ model AssistantLog {
 // ---------- CRM depth: campaigns, smart lists, sales targets ----------
 
 model Campaign {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
   name           String
-  channel        String   @default("OTHER") // FACEBOOK | INSTAGRAM | LINKEDIN | GOOGLE | EMAIL | REFERRAL | COLD_CALLING | EVENT | OTHER
-  status         String   @default("ACTIVE") // PLANNED | ACTIVE | PAUSED | DONE
-  budget         Decimal? @db.Decimal(14, 2)
-  currency       String   @default("USD")
+  channel        String    @default("OTHER") // FACEBOOK | INSTAGRAM | LINKEDIN | GOOGLE | EMAIL | REFERRAL | COLD_CALLING | EVENT | OTHER
+  status         String    @default("ACTIVE") // PLANNED | ACTIVE | PAUSED | DONE
+  budget         Decimal?  @db.Decimal(14, 2)
+  currency       String    @default("USD")
   startDate      String?
   endDate        String?
   notes          String?
   createdById    String?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
   code           String? // CMP-0001, from NumberSequence "CAMPAIGN"
   categoryId     String? // the shared business category list (ServiceCategory)
   description    String?
@@ -1682,7 +1683,7 @@ model SalesTarget {
   id             String   @id @default(cuid())
   organizationId String
   userId         String
-  metric         String   // CALLS | CONNECTED_CALLS | EMAILS | MEETINGS | FOLLOW_UPS | PROPOSALS | CONVERSIONS
+  metric         String // CALLS | CONNECTED_CALLS | EMAILS | MEETINGS | FOLLOW_UPS | PROPOSALS | CONVERSIONS
   daily          Int?
   monthly        Int?
   updatedById    String?
@@ -1695,22 +1696,22 @@ model SalesTarget {
 
 // Off until an administrator turns it on. Changing what is collected raises the version, and everyone must read and accept the new version before anything is recorded about them.
 model MonitoringPolicy {
-  organizationId       String   @id
-  version              Int      @default(1)
-  enabled              Boolean  @default(false)
-  policyText           String   @default("")
-  trackActivity        Boolean  @default(true)  // aggregate active/idle time and key and click COUNTS (never what was typed)
-  trackApps            Boolean  @default(false) // names of applications used, as durations
-  screenshots          Boolean  @default(false)
-  screenshotIntervalMin Int     @default(10)
-  idleThresholdMin     Int      @default(5)
-  timezone             String   @default("Asia/Karachi") // working hours below are in this time zone
-  workStart            String   @default("09:00")
-  workEnd              String   @default("18:00")
-  workDays             String   @default("1,2,3,4,5") // 0 = Sunday
-  retentionDays        Int      @default(30)
-  updatedById          String?
-  updatedAt            DateTime @updatedAt
+  organizationId        String   @id
+  version               Int      @default(1)
+  enabled               Boolean  @default(false)
+  policyText            String   @default("")
+  trackActivity         Boolean  @default(true) // aggregate active/idle time and key and click COUNTS (never what was typed)
+  trackApps             Boolean  @default(false) // names of applications used, as durations
+  screenshots           Boolean  @default(false)
+  screenshotIntervalMin Int      @default(10)
+  idleThresholdMin      Int      @default(5)
+  timezone              String   @default("Asia/Karachi") // working hours below are in this time zone
+  workStart             String   @default("09:00")
+  workEnd               String   @default("18:00")
+  workDays              String   @default("1,2,3,4,5") // 0 = Sunday
+  retentionDays         Int      @default(30)
+  updatedById           String?
+  updatedAt             DateTime @updatedAt
 }
 
 model PolicyAck {
@@ -1837,7 +1838,7 @@ model MonitoringAccess {
   organizationId String
   viewerId       String
   subjectId      String
-  what           String   // SCREENSHOT | REPORT
+  what           String // SCREENSHOT | REPORT
   targetId       String?
   createdAt      DateTime @default(now())
 
@@ -1845,17 +1846,17 @@ model MonitoringAccess {
 }
 
 model TimesheetCorrection {
-  id             String    @id @default(cuid())
-  organizationId String
-  userId         String
-  day            String    // YYYY-MM-DD
-  requestedMinutes Int     // tracked minutes the employee says the day should show
-  reason         String
-  status         String    @default("PENDING") // PENDING | APPROVED | REJECTED
-  decidedById    String?
-  decidedAt      DateTime?
-  decisionNote   String?
-  createdAt      DateTime  @default(now())
+  id               String    @id @default(cuid())
+  organizationId   String
+  userId           String
+  day              String // YYYY-MM-DD
+  requestedMinutes Int // tracked minutes the employee says the day should show
+  reason           String
+  status           String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  decidedById      String?
+  decidedAt        DateTime?
+  decisionNote     String?
+  createdAt        DateTime  @default(now())
 
   @@index([organizationId, status])
   @@index([userId, day])
@@ -1892,7 +1893,7 @@ model Meeting {
 model MeetingParticipant {
   id         String    @id @default(cuid())
   meetingId  String
-  userId     String?   // set for staff; guests have only a name
+  userId     String? // set for staff; guests have only a name
   name       String
   isHost     Boolean   @default(false)
   ticket     String    @unique // proves this browser is this participant
@@ -1923,51 +1924,51 @@ model MeetingMessage {
 
 // A person or an organization. Leads, clients, quotes, meetings and activities hang off it, so a change made here shows everywhere.
 model Contact {
-  id              String   @id @default(cuid())
-  organizationId  String
-  kind            String   @default("PERSON") // PERSON | ORGANIZATION
-  title           String?
-  firstName       String?
-  lastName        String?
-  name            String   // display name: "First Last" for a person, the company name for an organization
-  parentId        String?  // the organization a person works for
-  category        String   @default("LEAD") // LEAD | CUSTOMER | PARTNER | VENDOR | INVESTOR | OTHER
-  industry        String?
-  jobTitle        String?
-  ownerId         String?
-  followers       String[] @default([])
-  website         String?
-  phones          Json     @default("[]") // [{ type: "WORK|MOBILE|HOME|WHATSAPP|OTHER", value }]
-  emails          Json     @default("[]") // [{ type: "WORK|PERSONAL|BILLING|OTHER", value }]
-  matchKeys       String[] @default([]) // every email and normalised phone, for duplicate detection
-  primaryPhone    String?  // normalised copies of the first entry, for matching and sorting
-  primaryEmail    String?
-  addressLine     String?
-  city            String?
-  state           String?
-  country         String?
-  postalCode      String?
-  timezone        String?
+  id               String    @id @default(cuid())
+  organizationId   String
+  kind             String    @default("PERSON") // PERSON | ORGANIZATION
+  title            String?
+  firstName        String?
+  lastName         String?
+  name             String // display name: "First Last" for a person, the company name for an organization
+  parentId         String? // the organization a person works for
+  category         String    @default("LEAD") // LEAD | CUSTOMER | PARTNER | VENDOR | INVESTOR | OTHER
+  industry         String?
+  jobTitle         String?
+  ownerId          String?
+  followers        String[]  @default([])
+  website          String?
+  phones           Json      @default("[]") // [{ type: "WORK|MOBILE|HOME|WHATSAPP|OTHER", value }]
+  emails           Json      @default("[]") // [{ type: "WORK|PERSONAL|BILLING|OTHER", value }]
+  matchKeys        String[]  @default([]) // every email and normalised phone, for duplicate detection
+  primaryPhone     String? // normalised copies of the first entry, for matching and sorting
+  primaryEmail     String?
+  addressLine      String?
+  city             String?
+  state            String?
+  country          String?
+  postalCode       String?
+  timezone         String?
   preferredContact String?
-  source          String?
-  campaignId      String?
-  tags            String[] @default([])
-  notes           String?
-  customFields    Json     @default("{}")
-  birthday        String?  // YYYY-MM-DD
-  taxId           String?
-  shipAddressLine String?
-  shipCity        String?
-  shipState       String?
-  shipCountry     String?
-  shipPostalCode  String?
-  social          Json     @default("{}") // facebook, linkedin, telegram, x, skype, instagram
-  utm             Json     @default("{}") // source, medium, campaign, term, content
-  archived        Boolean  @default(false)
-  lastActivityAt  DateTime?
-  createdById     String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  source           String?
+  campaignId       String?
+  tags             String[]  @default([])
+  notes            String?
+  customFields     Json      @default("{}")
+  birthday         String? // YYYY-MM-DD
+  taxId            String?
+  shipAddressLine  String?
+  shipCity         String?
+  shipState        String?
+  shipCountry      String?
+  shipPostalCode   String?
+  social           Json      @default("{}") // facebook, linkedin, telegram, x, skype, instagram
+  utm              Json      @default("{}") // source, medium, campaign, term, content
+  archived         Boolean   @default(false)
+  lastActivityAt   DateTime?
+  createdById      String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   activities ContactActivity[]
 
@@ -1979,14 +1980,14 @@ model Contact {
 }
 
 model ContactActivity {
-  id        String   @id @default(cuid())
-  contactId String
-  actorId   String?
-  kind      String   // NOTE | CALL | EMAIL | MEETING | WHATSAPP | SYSTEM
-  outcome   String?
-  body      String?
-  leadActivityId String? @unique // set when the same event also exists on a linked lead, so it is shown once and counted once
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  contactId      String
+  actorId        String?
+  kind           String // NOTE | CALL | EMAIL | MEETING | WHATSAPP | SYSTEM
+  outcome        String?
+  body           String?
+  leadActivityId String?  @unique // set when the same event also exists on a linked lead, so it is shown once and counted once
+  createdAt      DateTime @default(now())
 
   contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
@@ -2007,14 +2008,13 @@ model UserPreference {
   @@unique([userId, key])
 }
 
-
 // ---------- Scheduled jobs ----------
 model JobRun {
   id             String    @id @default(cuid())
   organizationId String
-  key            String    // subscription_billing | commission_accrual | expiry_sweep | invoice_reminders | task_reminders | monitoring_purge | document_expiry
+  key            String // subscription_billing | commission_accrual | expiry_sweep | invoice_reminders | task_reminders | monitoring_purge | document_expiry
   trigger        String    @default("SCHEDULE") // SCHEDULE | MANUAL | SCRIPT
-  runDate        String    // company-local day, so a job runs once a day
+  runDate        String // company-local day, so a job runs once a day
   status         String    @default("RUNNING") // RUNNING | OK | FAILED
   summary        String?
   error          String?
@@ -2029,9 +2029,9 @@ model JobRun {
 model SupportRequest {
   id             String    @id @default(cuid())
   organizationId String
-  number         String    // SUP-0001
+  number         String // SUP-0001
   clientId       String
-  createdById    String    // the portal user who raised it (or staff on their behalf)
+  createdById    String // the portal user who raised it (or staff on their behalf)
   subject        String
   status         String    @default("OPEN") // OPEN | IN_PROGRESS | WAITING_CLIENT | RESOLVED | CLOSED
   priority       String    @default("NORMAL") // NORMAL | HIGH | URGENT
@@ -2070,13 +2070,13 @@ model Deliverable {
   campaignId     String?
   title          String
   description    String?
-  link           String?   // where the client can see the proof (design, document, staging site)
+  link           String? // where the client can see the proof (design, document, staging site)
   status         String    @default("DRAFT") // DRAFT | PENDING | APPROVED | CHANGES_REQUESTED
   version        Int       @default(1)
   requestedAt    DateTime?
   requestedById  String?
   decidedAt      DateTime?
-  decidedById    String?   // the portal user who decided
+  decidedById    String? // the portal user who decided
   decisionNote   String?
   createdById    String
   createdAt      DateTime  @default(now())
@@ -2097,7 +2097,7 @@ model LeadSource {
   assignMode     String    @default("ROUND_ROBIN") // NONE | FIXED | ROUND_ROBIN
   assigneeIds    String[]  @default([])
   rrIndex        Int       @default(0)
-  allowedOrigins String?   // comma separated; empty means any website may post with the key
+  allowedOrigins String? // comma separated; empty means any website may post with the key
   active         Boolean   @default(true)
   leadCount      Int       @default(0)
   lastLeadAt     DateTime?
@@ -2111,8 +2111,8 @@ model CampaignSpend {
   id             String   @id @default(cuid())
   organizationId String
   campaignId     String
-  date           String   // YYYY-MM-DD
-  platform       String   // free text such as Meta, Google, TikTok, Print
+  date           String // YYYY-MM-DD
+  platform       String // free text such as Meta, Google, TikTok, Print
   amount         Decimal  @db.Decimal(14, 2)
   currency       String
   impressions    Int?
@@ -2132,7 +2132,7 @@ model DocumentTemplate {
   organizationId String
   name           String
   kind           String   @default("CONTRACT") // CONTRACT | PROPOSAL | NDA | OTHER
-  body           String   // text with {{placeholders}}
+  body           String // text with {{placeholders}}
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -2141,29 +2141,29 @@ model DocumentTemplate {
 }
 
 model Agreement {
-  id             String    @id @default(cuid())
-  organizationId String
-  number         String    // AGR-0001
-  title          String
-  body           String    // the final text the signer sees
-  bodyHash       String    // sha256 of the text at the moment it was sent; the signature is bound to it
-  clientId       String?
-  vendorId       String?
-  templateId     String?
-  status         String    @default("DRAFT") // DRAFT | SENT | SIGNED | DECLINED | VOID
-  tokenHash      String?   @unique
-  tokenExpiresAt DateTime?
-  signerName     String?
-  signerEmail    String?
-  signedAt       DateTime?
-  signedIp       String?
+  id              String    @id @default(cuid())
+  organizationId  String
+  number          String // AGR-0001
+  title           String
+  body            String // the final text the signer sees
+  bodyHash        String // sha256 of the text at the moment it was sent; the signature is bound to it
+  clientId        String?
+  vendorId        String?
+  templateId      String?
+  status          String    @default("DRAFT") // DRAFT | SENT | SIGNED | DECLINED | VOID
+  tokenHash       String?   @unique
+  tokenExpiresAt  DateTime?
+  signerName      String?
+  signerEmail     String?
+  signedAt        DateTime?
+  signedIp        String?
   signedUserAgent String?
-  signatureImage String?   // small PNG data URL drawn by the signer (optional)
-  declineReason  String?
-  sentAt         DateTime?
-  createdById    String
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  signatureImage  String? // small PNG data URL drawn by the signer (optional)
+  declineReason   String?
+  sentAt          DateTime?
+  createdById     String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@unique([organizationId, number])
   @@index([organizationId, status])
@@ -2184,7 +2184,7 @@ model JobApplication {
   coverNote      String?
   cvFileId       String?
   status         String    @default("NEW") // NEW | REVIEWING | SHORTLISTED | INTERVIEW | OFFERED | HIRED | REJECTED
-  notes          String?   // HR's own notes, never shown to the applicant
+  notes          String? // HR's own notes, never shown to the applicant
   submissions    Int       @default(1) // the same person applying again for the same role updates this record
   sourceUrl      String?
   reviewedById   String?
@@ -2291,4 +2291,137 @@ model MailMessage {
   @@index([threadId, createdAt])
   @@index([mailboxId, messageId])
   @@index([organizationId, createdAt])
+}
+
+// ---------- Branded email templates, onboarding approval and follow-up automation ----------
+
+// An edited copy of a built-in template (key = the built-in key) or a follow-up template made in the ERP (kind FOLLOW_UP).
+// Built-in templates without a row use the wording in src/lib/email-templates.ts. Variables are written {{like_this}}.
+model EmailTemplate {
+  id             String   @id @default(cuid())
+  organizationId String
+  key            String
+  kind           String   @default("SYSTEM") // SYSTEM | FOLLOW_UP
+  name           String
+  subject        String
+  preheader      String?
+  heading        String
+  body           String
+  buttonLabel    String?
+  buttonUrl      String? // follow-up templates only; built-in templates link where the system says
+  highlights     String? // up to three lines "Title | text", shown as cards
+  archived       Boolean  @default(false)
+  updatedById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  steps FollowUpStep[]
+
+  @@unique([organizationId, key])
+  @@index([organizationId, kind])
+}
+
+// A new staff account waits here until its email is verified with a one-time code and an approver accepts it.
+// Accounts without a row (everyone created before this existed) are not affected.
+model OnboardingRequest {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String    @unique
+  status         String    @default("PENDING_VERIFICATION") // PENDING_VERIFICATION | PENDING_APPROVAL | APPROVED | REJECTED
+  tokenHash      String?   @unique // the link in the code email; only the hash is kept
+  tokenExpiresAt DateTime?
+  codeHash       String?
+  codeExpiresAt  DateTime?
+  codeAttempts   Int       @default(0)
+  codesSent      Int       @default(0)
+  lastCodeAt     DateTime?
+  verifiedAt     DateTime?
+  requestedById  String?
+  decidedById    String?
+  decidedAt      DateTime?
+  decisionNote   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId, status])
+}
+
+// GoHighLevel-style follow-up: a timed series of emails to new CRM leads, stopped by a reply, a stage change or an unsubscribe.
+model FollowUpSequence {
+  id                String    @id @default(cuid())
+  organizationId    String
+  name              String
+  description       String?
+  active            Boolean   @default(false)
+  trigger           String    @default("NEW_LEAD") // NEW_LEAD (every new lead with an email) | MANUAL (enrolled from the lead page)
+  leadSourceId      String? // only leads from this website form
+  tag               String? // only leads with this tag
+  stopOnStageChange Boolean   @default(true)
+  mailboxId         String? // the address it sends from
+  fromOwner         Boolean   @default(true) // use the lead owner's own mailbox when they have one
+  activatedAt       DateTime? // new leads created after this moment are enrolled automatically
+  createdById       String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  steps       FollowUpStep[]
+  enrollments FollowUpEnrollment[]
+
+  @@index([organizationId, active])
+}
+
+model FollowUpStep {
+  id         String @id @default(cuid())
+  sequenceId String
+  position   Int // 0, 1, 2 ...
+  delayDays  Int // days after enrolment (day 0, 2, 5, 10)
+  templateId String
+
+  sequence FollowUpSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  template EmailTemplate    @relation(fields: [templateId], references: [id])
+
+  @@unique([sequenceId, position])
+}
+
+model FollowUpEnrollment {
+  id             String    @id @default(cuid())
+  organizationId String
+  sequenceId     String
+  leadId         String
+  email          String
+  status         String    @default("ACTIVE") // ACTIVE | COMPLETED | STOPPED
+  stopReason     String? // REPLIED | STAGE_CHANGED | UNSUBSCRIBED | WON | LOST | MANUAL | SEND_FAILED | NO_EMAIL
+  nextStep       Int       @default(0)
+  nextSendAt     DateTime?
+  failures       Int       @default(0)
+  stageIdAtStart String
+  enrolledById   String?
+  enrolledAt     DateTime  @default(now())
+  stoppedAt      DateTime?
+  stoppedById    String?
+
+  sequence FollowUpSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  lead     Lead             @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  sends    FollowUpSend[]
+
+  @@unique([sequenceId, leadId])
+  @@index([status, nextSendAt])
+  @@index([organizationId, email])
+  @@index([leadId])
+}
+
+// One row per step sent (or tried). The unique key means a step is never sent twice, even if two runners overlap.
+model FollowUpSend {
+  id             String   @id @default(cuid())
+  enrollmentId   String
+  position       Int
+  status         String // SENDING | SENT | FAILED
+  emailMessageId String?
+  subject        String?
+  error          String?
+  createdAt      DateTime @default(now())
+
+  enrollment FollowUpEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, position])
 }

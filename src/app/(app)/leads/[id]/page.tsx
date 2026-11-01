@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import WhatsAppButton from "@/components/WhatsAppButton";
-import { Badge, Notice } from "@/components/ui";
+import { Badge, ConfirmButton, Notice } from "@/components/ui";
 import { requirePermission } from "@/lib/auth";
 import { ACTIVITY_KINDS, CALL_OUTCOMES, leadScore } from "@/lib/crm";
 import { db } from "@/lib/db";
@@ -10,7 +10,9 @@ import { formatMoney } from "@/lib/money";
 import { templates } from "@/lib/whatsapp";
 import { addNote } from "../actions";
 import { logActivityAction, updateLeadDetails } from "../crm-actions";
+import { enrollAction, stopEnrollmentAction } from "../follow-ups/actions";
 import StageSelect from "./StageSelect";
+import { STOP_REASONS } from "@/lib/followups";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +36,11 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
   const owner = lead.assignedToId ? await db.user.findUnique({ where: { id: lead.assignedToId }, select: { name: true } }) : null;
   const actors = new Map((await db.user.findMany({ where: { id: { in: [...new Set(lead.activities.map((a) => a.actorId).filter(Boolean) as string[])] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
   const sc = leadScore(lead);
+  const [followUps, sequences] = await Promise.all([
+    db.followUpEnrollment.findMany({ where: { leadId: lead.id }, orderBy: { enrolledAt: "desc" }, include: { sequence: { select: { name: true, steps: { select: { id: true } } } }, sends: { where: { status: "SENT" }, select: { id: true } } } }),
+    canEdit ? db.followUpSequence.findMany({ where: { organizationId: org, steps: { some: {} } }, orderBy: { name: "asc" }, select: { id: true, name: true, active: true } }) : Promise.resolve([]),
+  ]);
+  const joinable = sequences.filter((q) => !followUps.some((f) => f.sequenceId === q.id));
   const rows: [string, React.ReactNode][] = [
     ["Company", lead.company], ["Email", lead.email], ["Phone", lead.phone], ["Preferred contact", lead.preferredContact?.toLowerCase()],
     ["Location", [lead.city, lead.country].filter(Boolean).join(", ") || null], ["Time zone", lead.timezone], ["Owner", owner?.name], ["Campaign", campaign?.name], ["Source", lead.source],
@@ -70,7 +77,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
         </div>
       )}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
-      {sp.saved && <Notice kind="ok">Saved.</Notice>}
+      {sp.saved && <Notice kind="ok">{sp.saved === "1" ? "Saved." : sp.saved}</Notice>}
       {lead.clientId && <Notice kind="ok">Converted to a client. <Link className="underline" href={`/clients/${lead.clientId}`}>Open the client account</Link></Notice>}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
@@ -118,6 +125,33 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
                 <div className="sm:col-span-3"><button className="btn">Log activity</button></div>
               </form>
               <p className="text-xs text-muted">A call marked connected counts toward your target once a manager verifies it.</p>
+            </section>
+          )}
+          {(followUps.length > 0 || (canEdit && joinable.length > 0)) && (
+            <section className="card space-y-3">
+              <h2 className="font-semibold">Follow-up emails</h2>
+              {followUps.length > 0 && (
+                <ul className="divide-y divide-border text-sm">{followUps.map((f) => (
+                  <li key={f.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                    <span><span className="font-medium">{f.sequence.name}</span><span className="block text-xs text-muted">{f.sends.length} of {f.sequence.steps.length} sent{f.status === "ACTIVE" && f.nextSendAt ? ` · next ${f.nextSendAt.toLocaleString()}` : ""}{f.status === "STOPPED" ? ` · stopped: ${(STOP_REASONS[f.stopReason ?? ""] ?? f.stopReason ?? "").toLowerCase()}` : ""}</span></span>
+                    <span className="flex items-center gap-2">
+                      <Badge tone={f.status === "ACTIVE" ? "success" : f.status === "COMPLETED" ? "primary" : "neutral"}>{f.status === "ACTIVE" ? "running" : f.status.toLowerCase()}</Badge>
+                      {canEdit && f.status === "ACTIVE" && (
+                        <form action={stopEnrollmentAction}><input type="hidden" name="enrollmentId" value={f.id} /><input type="hidden" name="back" value={`/leads/${lead.id}`} />
+                          <ConfirmButton title="Stop these follow-up emails?" message="No more emails from this sequence go to this lead." confirmLabel="Stop">Stop</ConfirmButton>
+                        </form>
+                      )}
+                    </span>
+                  </li>
+                ))}</ul>
+              )}
+              {canEdit && joinable.length > 0 && (lead.email ? (
+                <form action={enrollAction} className="flex flex-wrap items-end gap-2">
+                  <input type="hidden" name="leadId" value={lead.id} />
+                  <div className="min-w-0 flex-1"><label className="label" htmlFor="fu-seq">Add to a follow-up sequence</label><select id="fu-seq" name="sequenceId" className="input">{joinable.map((q) => <option key={q.id} value={q.id}>{q.name}{q.active ? "" : " (paused)"}</option>)}</select></div>
+                  <button className="btn-ghost">Add</button>
+                </form>
+              ) : <p className="text-xs text-muted">Add an email address to this lead to send follow-ups.</p>)}
             </section>
           )}
           <section className="card space-y-3">

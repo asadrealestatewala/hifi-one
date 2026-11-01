@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { audit, requirePermission, toActor } from "@/lib/auth";
 import { AccountError, adminResetMfa, createResetLink, createUser, setUserActive, setUserRoles } from "@/lib/accounts";
 import { db } from "@/lib/db";
+import { onboardingNotice, startOnboarding } from "@/lib/onboarding";
 
 export type LinkState = { link?: string; error?: string; done?: string };
 
@@ -21,8 +22,11 @@ export async function createStaffUser(_prev: LinkState, formData: FormData): Pro
     // The new person sets their own password through a 24-hour link; nobody ever types or sees a temporary password
     const token = await createResetLink(db, { organizationId: user.organizationId, userId: created.id, createdById: user.id, hours: 24, actor: toActor(user) });
     await audit(user, { action: "user.create", entity: "User", entityId: created.id, after: { email: created.email, roles: roleKeys } });
+    // The account cannot sign in until the person verifies their email with the emailed code and an approver accepts it
+    const ob = await startOnboarding(db, { organizationId: user.organizationId, userId: created.id, requestedById: user.id });
+    await audit(user, { action: "onboarding.start", entity: "User", entityId: created.id, after: { status: ob.request.status, codeEmail: ob.codeEmail } });
     revalidatePath("/users");
-    return { link: `${await origin()}/reset/${token}`, done: `${created.name} was created.` };
+    return { link: `${await origin()}/reset/${token}`, done: `${created.name} was created. ${onboardingNotice(ob)}` };
   } catch (e) {
     if (e instanceof AccountError) return { error: e.message };
     throw e;

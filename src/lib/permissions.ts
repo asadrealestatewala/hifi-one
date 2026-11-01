@@ -90,6 +90,9 @@ export const PERMISSIONS = {
   "support.view": "View client support requests",
   "support.manage": "Answer, assign and close client support requests",
   "mail.manage": "Create company and employee mailboxes and choose who can use each one (does not open anyone's mail)",
+  "email_templates.manage": "Edit the branded email templates and preview them",
+  "followups.manage": "Create and run CRM follow-up email sequences",
+  "onboarding.approve": "Approve or reject new staff accounts before they can sign in",
 } as const;
 
 export type PermissionKey = keyof typeof PERMISSIONS;
@@ -133,18 +136,18 @@ export const ROLE_DEFS: RoleDef[] = [
 // Every internal role can use self-service; managers can approve their reports' leave; HR gets the HR tools.
 const EXTERNAL_ROLES = new Set(["CLIENT", "VENDOR", "BUSINESS_PARTNER", "INVESTOR"]);
 const EXTRA: Record<string, PermissionKey[]> = {
-  HR_MANAGER: ["hr.view", "hr.manage", "hr.view_sensitive", "leave.approve", "attendance.view_all", "payroll.view", "payroll.manage", "monitoring.view_team", "monitoring.screenshots", "monitoring.configure"],
+  HR_MANAGER: ["onboarding.approve", "hr.view", "hr.manage", "hr.view_sensitive", "leave.approve", "attendance.view_all", "payroll.view", "payroll.manage", "monitoring.view_team", "monitoring.screenshots", "monitoring.configure"],
   BRANCH_MANAGER: ["leave.approve", "hr.view"],
-  SALES_MANAGER: ["leadsources.manage", "leave.approve", "quotes.view", "quotes.manage", "contracts.view", "contracts.manage", "commissions.own", "campaigns.view", "campaigns.manage"],
+  SALES_MANAGER: ["followups.manage", "leadsources.manage", "leave.approve", "quotes.view", "quotes.manage", "contracts.view", "contracts.manage", "commissions.own", "campaigns.view", "campaigns.manage"],
   SALES_AGENT: ["quotes.view", "quotes.manage", "commissions.own", "campaigns.view"],
   PROJECT_MANAGER: ["support.view", "support.manage", "campaigns.view", "leave.approve", "projects.costs", "budget.view", "vendors.view", "vendors.manage", "content.view", "content.manage", "content.publish"],
-  MARKETING_DIRECTOR: ["leadsources.manage", "content.view", "content.manage", "content.publish", "campaigns.view", "campaigns.manage"],
+  MARKETING_DIRECTOR: ["followups.manage", "email_templates.manage", "leadsources.manage", "content.view", "content.manage", "content.publish", "campaigns.view", "campaigns.manage"],
   SUCCESS_MANAGER: ["content.view", "content.manage", "support.view", "support.manage"],
   GRAPHIC_DESIGNER: ["content.view", "content.manage"],
   VIDEO_EDITOR: ["content.view", "content.manage"],
   ADS_MANAGER: ["content.view", "campaigns.view"],
   ADS_EXPERT: ["campaigns.view"],
-  CEO: ["support.view", "campaigns.view", "hr.view", "leave.approve", "payroll.view", "payroll.approve", "expenses.view", "expenses.approve", "budget.view", "budget.approve", "budget.override", "vendors.view", "assets.view", "investments.view", "reports.view", "dashboard.executive", "journal.approve", "period.lock", "quotes.view", "contracts.view", "projects.costs", "commissions.approve"],
+  CEO: ["onboarding.approve", "support.view", "campaigns.view", "hr.view", "leave.approve", "payroll.view", "payroll.approve", "expenses.view", "expenses.approve", "budget.view", "budget.approve", "budget.override", "vendors.view", "assets.view", "investments.view", "reports.view", "dashboard.executive", "journal.approve", "period.lock", "quotes.view", "contracts.view", "projects.costs", "commissions.approve"],
   FINANCE_MANAGER: ["payroll.view", "payroll.approve", "payroll.post", "expenses.view", "expenses.review", "expenses.approve", "expenses.post", "budget.view", "budget.manage", "vendors.view", "vendors.bills", "vendors.post", "assets.view", "assets.manage", "assets.post", "investments.view", "investments.manage", "reports.view", "dashboard.executive", "journal.create", "journal.approve", "coa.manage", "period.lock", "finance.refund", "fx.manage", "quotes.view", "contracts.view", "contracts.manage", "subscriptions.manage", "projects.costs", "bank.reconcile", "finance.writeoff", "commissions.manage", "commissions.approve", "commissions.own"],
   ACCOUNTANT: ["expenses.view", "expenses.review", "expenses.post", "budget.view", "vendors.view", "vendors.post", "assets.view", "assets.manage", "reports.view", "journal.create", "quotes.view", "contracts.view", "bank.reconcile", "commissions.manage"],
   PAYROLL_OFFICER: ["hr.view", "payroll.view", "payroll.manage"],
