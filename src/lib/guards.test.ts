@@ -89,7 +89,7 @@ describe("every server action checks the caller", () => {
       // Public by design: sign-in, and accepting an emailed invitation (protected by a secret token)
       if (PUBLIC_ACTIONS.has(r)) continue;
       it(`${r} › ${a.name}`, () => {
-        expect(/require(Permission|User|ClientUser|VendorUser|Session)\(|\blogout\(/.test(a.body), `${r} ${a.name} must call a require* guard`).toBe(true);
+        expect(/require(Permission|User|ClientUser|VendorUser|Session|MobileUser)\(|\blogout\(/.test(a.body), `${r} ${a.name} must call a require* guard`).toBe(true);
       });
     }
   }
@@ -105,14 +105,28 @@ describe("every route handler checks the caller", () => {
   // and must resolve that secret through eventsForToken (which refuses unknown, switched-off and inactive-user tokens).
   // The desktop agent endpoints sign in with a device token instead of a browser session (see the agent test below).
   // The website's contact and apply forms are public by design: same-site, rate limited and validated (see the website tests below)
-  const PUBLIC_ROUTES = new Set(["api/site/contact/route.ts", "api/site/apply/route.ts", "api/health/route.ts", "api/calendar/[token]/route.ts", "api/agent/enroll/route.ts", "api/agent/policy/route.ts", "api/agent/ingest/route.ts", "api/agent/screenshot/route.ts", "api/jobs/run/route.ts", "api/leads/capture/route.ts", "api/meetings/[id]/events/route.ts", "api/meetings/[id]/signal/route.ts", "api/meetings/[id]/chat/route.ts", "api/meetings/[id]/admin/route.ts", "api/mail/inbound/route.ts", "api/unsubscribe/route.ts"]);
+  const PUBLIC_ROUTES = new Set(["api/site/contact/route.ts", "api/site/apply/route.ts", "api/health/route.ts", "api/calendar/[token]/route.ts", "api/agent/enroll/route.ts", "api/agent/policy/route.ts", "api/agent/ingest/route.ts", "api/agent/screenshot/route.ts", "api/jobs/run/route.ts", "api/leads/capture/route.ts", "api/meetings/[id]/events/route.ts", "api/meetings/[id]/signal/route.ts", "api/meetings/[id]/chat/route.ts", "api/meetings/[id]/admin/route.ts", "api/mail/inbound/route.ts", "api/unsubscribe/route.ts", "api/mobile/v1/login/route.ts", "api/mobile/v1/mfa/route.ts", "api/app/android/route.ts"]);
   for (const f of files.filter((x) => x.endsWith("/route.ts"))) {
     const r = rel(f);
     if (PUBLIC_ROUTES.has(r)) continue;
     it(`${r} is guarded`, () => {
-      expect(/require(Permission|User|ClientUser|VendorUser|Session)\(/.test(read(f)), `${r} must call a require* guard`).toBe(true);
+      expect(/require(Permission|User|ClientUser|VendorUser|Session|MobileUser)\(/.test(read(f)), `${r} must call a require* guard`).toBe(true);
     });
   }
+});
+
+describe("the mobile API", () => {
+  // Sign-in (two steps) is public by design and shares the website's credential check, limits and lockout; everything else needs a bearer session.
+  it("sign-in routes use the shared credential and second-factor checks", () => {
+    expect(read(path.resolve(__dirname, "../app/api/mobile/v1/login/route.ts"))).toContain("checkCredentials(");
+    expect(read(path.resolve(__dirname, "../app/api/mobile/v1/mfa/route.ts"))).toContain("checkSecondFactor(");
+  });
+  it("only staff sessions pass the mobile guard", () => {
+    const src = read(path.resolve(__dirname, "mobile-api.ts"));
+    expect(src).toContain('user.userType !== "EMPLOYEE"');
+    expect(src).toContain("needsMfaSetup(");
+    expect(src).toContain("mustChangePassword");
+  });
 });
 
 describe("the public website", () => {

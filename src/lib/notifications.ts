@@ -1,11 +1,13 @@
 // In-app notifications. Free of Next.js imports. A dedupe key makes retried events notify only once.
 import { Prisma, type PrismaClient } from "@prisma/client";
+import { pushToUser } from "./push";
 
 export type NotifyInput = { kind: string; title: string; body?: string; link?: string; dedupeKey?: string };
 
 export async function notify(db: PrismaClient, userId: string, n: NotifyInput) {
   try {
     await db.notification.create({ data: { userId, kind: n.kind, title: n.title, body: n.body ?? null, link: n.link ?? null, dedupeKey: n.dedupeKey ?? null } });
+    void pushToUser(db, userId, n).catch(() => {}); // phone alert; never blocks or fails the caller
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return; // already sent
     throw e;

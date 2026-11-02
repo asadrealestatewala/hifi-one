@@ -38,3 +38,6 @@ desktop.ini
 .data-db.log
 
 !.env.production.example
+
+# Built Android app served by the install page (not committed)
+/public/downloads/
