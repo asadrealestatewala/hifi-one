@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { eventsForToken, newToken, renderIcs, setCalendarToken } from "./calendar";
-import { OrgError, addBranch, addDepartment, assignPerson, deleteDepartment, renameDepartment, updateBranch } from "./org-structure";
+import { OrgError, addBranch, addDepartment, assignPerson, deleteDepartment, renameDepartment, updateBranch, updateDepartment } from "./org-structure";
 import { searchAll } from "./search";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
@@ -79,6 +79,20 @@ describe("offices and departments", () => {
     await assignPerson(db, { organizationId: org, userId: ann, branchId: null, departmentId: null });
     await deleteDepartment(db, { organizationId: org, departmentId: d.id });
     expect(await db.department.count({ where: { id: d.id } })).toBe(0);
+  });
+
+  it("edits department details and refuses a head from another organization or a clash", async () => {
+    const d = await addDepartment(db, { organizationId: org, name: "Ops" });
+    const e = await addDepartment(db, { organizationId: org, name: "Finance" });
+    await updateDepartment(db, { organizationId: org, departmentId: d.id, name: "Operations", description: "  Day to day  ", headId: ann });
+    const got = await db.department.findUniqueOrThrow({ where: { id: d.id } });
+    expect([got.name, got.description, got.headId]).toEqual(["Operations", "Day to day", ann]);
+    await updateDepartment(db, { organizationId: org, departmentId: d.id, name: "Operations", description: "", headId: null });
+    expect((await db.department.findUniqueOrThrow({ where: { id: d.id } })).headId).toBeNull();
+    await expect(updateDepartment(db, { organizationId: org, departmentId: d.id, name: "Finance" })).rejects.toThrow(/already exists/);
+    await expect(updateDepartment(db, { organizationId: other, departmentId: e.id, name: "Hijack" })).rejects.toThrow(/not found/);
+    const foreign = await db.user.create({ data: { organizationId: other, name: "Foreign", passwordHash: "x", userType: "EMPLOYEE" } });
+    await expect(updateDepartment(db, { organizationId: org, departmentId: e.id, name: "Finance", headId: foreign.id })).rejects.toThrow(/head/);
   });
 
   it("will not assign across organizations or to an archived branch", async () => {

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { BRANCH_KINDS, OrgError, addBranch, addDepartment, assignPerson, deleteDepartment, renameDepartment, updateBranch } from "@/lib/org-structure";
+import { BRANCH_KINDS, OrgError, addBranch, addDepartment, assignPerson, deleteDepartment, renameDepartment, updateBranch, updateDepartment } from "@/lib/org-structure";
 import { ConfirmButton, Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +19,7 @@ async function act(formData: FormData) {
     else if (op === "saveBranch") { await updateBranch(db, { organizationId: org, branchId: s("id"), name: s("name"), kind: s("kind"), country: s("country"), address: s("address"), timezone: s("timezone"), active: formData.get("active") === "on" }); await audit(user, { action: "org.branch_update", entity: "Branch", entityId: s("id"), after: { name: s("name"), active: formData.get("active") === "on" } }); }
     else if (op === "addDept") { const d = await addDepartment(db, { organizationId: org, name: s("name") }); await audit(user, { action: "org.department_add", entity: "Department", entityId: d.id, after: { name: d.name } }); }
     else if (op === "renameDept") { await renameDepartment(db, { organizationId: org, departmentId: s("id"), name: s("name") }); await audit(user, { action: "org.department_rename", entity: "Department", entityId: s("id"), after: { name: s("name") } }); }
+    else if (op === "saveDept") { await updateDepartment(db, { organizationId: org, departmentId: s("id"), name: s("name"), description: s("description"), headId: s("headId") || null }); await audit(user, { action: "org.department_update", entity: "Department", entityId: s("id"), after: { name: s("name"), headId: s("headId") || null } }); }
     else if (op === "deleteDept") { await deleteDepartment(db, { organizationId: org, departmentId: s("id") }); await audit(user, { action: "org.department_delete", entity: "Department", entityId: s("id") }); }
     else if (op === "assign") { await assignPerson(db, { organizationId: org, userId: s("userId"), branchId: s("branchId") || null, departmentId: s("departmentId") || null }); await audit(user, { action: "org.assign", entity: "User", entityId: s("userId"), after: { branchId: s("branchId") || null, departmentId: s("departmentId") || null } }); }
   } catch (e) {
@@ -35,7 +36,7 @@ export default async function Organization({ searchParams }: { searchParams: Pro
   const canEdit = user.permissions.has("users.manage");
   const [branches, departments, people] = await Promise.all([
     db.branch.findMany({ where: { organizationId: org }, orderBy: [{ active: "desc" }, { name: "asc" }], include: { _count: { select: { users: true } } } }),
-    db.department.findMany({ where: { organizationId: org }, orderBy: { name: "asc" }, include: { _count: { select: { users: true } } } }),
+    db.department.findMany({ where: { organizationId: org }, orderBy: { name: "asc" }, include: { head: { select: { name: true } }, _count: { select: { users: true } } } }),
     db.user.findMany({ where: { organizationId: org, userType: "EMPLOYEE", active: true }, orderBy: { name: "asc" }, select: { id: true, name: true, branchId: true, departmentId: true } }),
   ]);
   const hid = (op: string, id?: string) => (<><input type="hidden" name="op" value={op} />{id && <input type="hidden" name="id" value={id} />}</>);
@@ -76,10 +77,25 @@ export default async function Organization({ searchParams }: { searchParams: Pro
         <h2 className="font-semibold">Departments</h2>
         {departments.length === 0 && <p className="text-sm text-muted">No departments yet.</p>}
         {departments.map((d) => (
-          <div key={d.id} className="flex flex-wrap items-center gap-2 border-t border-border pt-2 first:border-0 first:pt-0">
-            <form action={act} className="flex items-center gap-2">{hid("renameDept", d.id)}<input name="name" defaultValue={d.name} aria-label={`Rename ${d.name}`} disabled={!canEdit} className="input !w-56" />{canEdit && <button className="btn-ghost">Rename</button>}</form>
-            <span className="text-xs text-muted">{d._count.users} {d._count.users === 1 ? "person" : "people"}</span>
-            {canEdit && d._count.users === 0 && <form action={act}>{hid("deleteDept", d.id)}<ConfirmButton className="underline text-xs" title="Delete this department?" message="It has no people. This cannot be undone." confirmLabel="Delete">Delete</ConfirmButton></form>}
+          <div key={d.id} className="border-t border-border pt-2 first:border-0 first:pt-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <form action={act} className="flex items-center gap-2">{hid("renameDept", d.id)}<input name="name" defaultValue={d.name} aria-label={`Rename ${d.name}`} disabled={!canEdit} className="input !w-56" />{canEdit && <button className="btn-ghost">Rename</button>}</form>
+              <span className="text-xs text-muted">{d._count.users} {d._count.users === 1 ? "person" : "people"}{d.head ? ` · Head: ${d.head.name}` : ""}</span>
+              {canEdit && d._count.users === 0 && <form action={act}>{hid("deleteDept", d.id)}<ConfirmButton className="underline text-xs" title="Delete this department?" message="It has no people. This cannot be undone." confirmLabel="Delete">Delete</ConfirmButton></form>}
+            </div>
+            {d.description && <p className="mt-1 text-sm text-muted">{d.description}</p>}
+            {canEdit && (
+              <details className="mt-1">
+                <summary className="cursor-pointer text-sm underline">Edit details</summary>
+                <form action={act} className="mt-2 grid gap-2 sm:grid-cols-2 items-end">
+                  {hid("saveDept", d.id)}
+                  <div><label className="label" htmlFor={`dn-${d.id}`}>Name</label><input id={`dn-${d.id}`} name="name" required maxLength={100} defaultValue={d.name} className="input" /></div>
+                  <div><label className="label" htmlFor={`dh-${d.id}`}>Head of department</label><select id={`dh-${d.id}`} name="headId" defaultValue={d.headId ?? ""} className="input"><option value="">None</option>{people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+                  <div className="sm:col-span-2"><label className="label" htmlFor={`dd-${d.id}`}>Description</label><input id={`dd-${d.id}`} name="description" maxLength={300} defaultValue={d.description ?? ""} className="input" /></div>
+                  <button className="btn sm:w-fit">Save details</button>
+                </form>
+              </details>
+            )}
           </div>
         ))}
         {canEdit && <form action={act} className="flex gap-2 border-t border-border pt-3">{hid("addDept")}<input name="name" required maxLength={100} placeholder="New department" aria-label="New department" className="input !w-64" /><button className="btn">Add</button></form>}

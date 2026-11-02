@@ -47,6 +47,17 @@ export async function renameDepartment(db: Db, p: { organizationId: string; depa
   if (r.count === 0) throw new OrgError("Department not found.");
 }
 
+// Edits every detail of a department: name, what it does, and its head (an active staff member of the same organization, or none).
+export async function updateDepartment(db: Db, p: { organizationId: string; departmentId: string; name: string; description?: string; headId?: string | null }) {
+  const name = clean(p.name, 100, "department");
+  const description = p.description?.trim() || null;
+  if (description && description.length > 300) throw new OrgError("The description is limited to 300 characters.");
+  if (await db.department.findFirst({ where: { organizationId: p.organizationId, name, id: { not: p.departmentId } } })) throw new OrgError("A department with that name already exists.");
+  if (p.headId && !(await db.user.findFirst({ where: { id: p.headId, organizationId: p.organizationId, userType: "EMPLOYEE", active: true } }))) throw new OrgError("Choose a staff member as the head.");
+  const r = await db.department.updateMany({ where: { id: p.departmentId, organizationId: p.organizationId }, data: { name, description, headId: p.headId || null } });
+  if (r.count === 0) throw new OrgError("Department not found.");
+}
+
 export async function deleteDepartment(db: Db, p: { organizationId: string; departmentId: string }) {
   const d = await db.department.findFirst({ where: { id: p.departmentId, organizationId: p.organizationId }, include: { _count: { select: { users: true } } } });
   if (!d) throw new OrgError("Department not found.");

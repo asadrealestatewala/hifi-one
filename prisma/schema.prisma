@@ -47,9 +47,12 @@ model Department {
   id             String   @id @default(cuid())
   organizationId String
   name           String
+  description    String?
+  headId         String? // head of department: a staff member of the same organization
   createdAt      DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id])
+  head         User?        @relation("DepartmentHead", fields: [headId], references: [id], onDelete: SetNull)
   users        User[]
 
   @@unique([organizationId, name])
@@ -86,6 +89,7 @@ model User {
   organization    Organization     @relation(fields: [organizationId], references: [id])
   branch          Branch?          @relation(fields: [branchId], references: [id])
   department      Department?      @relation(fields: [departmentId], references: [id])
+  headOf          Department[]     @relation("DepartmentHead")
   manager         User?            @relation("Reports", fields: [managerId], references: [id])
   reports         User[]           @relation("Reports")
   roles           UserRole[]
