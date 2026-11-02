@@ -34,3 +34,7 @@ Setup the owner must do once: `cd mobile && npx eas-cli init` (writes the projec
 ## Not built yet
 Client and vendor portals in the app, expenses, payslips, offline mode, biometric unlock, password change / forgot password in the app.
 Not verified on a device or emulator: the app type-checks (`cd mobile && npx tsc --noEmit`) and the server checks pass, but it has not been run on a phone.
+
+## Distribution
+
+Staff get the app with one click: **Account menu (bottom of the sidebar) > Get the Android app**, or the button on the public page `/site/app`. Both go to `/api/app/android`, which redirects to `ANDROID_APK_URL` (https) or the file `public/downloads/hifi-one.apk` on the server (git-ignored; upload it with scp and keep it across deploys), and answers 404 "not published yet" when neither exists. The current build is debug-signed and push is not enabled.
