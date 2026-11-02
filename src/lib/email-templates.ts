@@ -344,7 +344,7 @@ export const SYSTEM_TEMPLATES: TemplateDef[] = [
     blocks: { label: "Desktop app", code: "code" },
     buttonUrlVar: "link",
     defaults: {
-      subject: "Your desktop app code: {{code}}",
+      subject: "Your one-time code for the {{company_name}} desktop app",
       preheader: "Use this one-time code to connect your computer.",
       heading: "Connect your computer, {{first_name}}",
       body: "{{created_by}} created a one-time code so you can connect your computer to the {{company_name}} desktop app.\n\nOpen the page below, press Download and run the file. If the app asks for a code, enter the one above. The code works once and expires in {{code_minutes}} minutes. Never share it.\n\nThe app only records after you have accepted the monitoring policy in Hifi One, and its window always shows what it is doing.",

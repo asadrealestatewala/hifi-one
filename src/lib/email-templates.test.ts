@@ -73,7 +73,7 @@ describe("desktop app code email", () => {
   it("shows the one-time code in a code box and links to the Desktop app page", () => {
     const def = SYSTEM_TEMPLATES.find((t) => t.key === "agent_enrol_code")!;
     const r = renderEmail({ content: def.defaults, vars: def.variables, brand, blocks: def.blocks, buttonUrl: def.variables.link });
-    expect(r.subject).toContain("4F2A9-C71B0");
+    expect(r.subject).not.toContain("4F2A9-C71B0"); // the subject is kept in the outbox, the code must not be
     expect(r.text).toContain("4F2A9-C71B0");
     expect(r.html).toContain("/me/desktop-app");
   });
