@@ -15,6 +15,12 @@ import { setUserActive, type Actor } from "./accounts";
 export class StaffError extends Error {}
 
 type Db = PrismaClient;
+// Access that HR cannot hand out unless HR holds it: administration, approvals, and posting money.
+const HR_RESTRICTED = new Set<string>([
+  "users.manage", "roles.manage", "settings.company.edit", "bank.edit", "bank.view_full", "mail.manage", "onboarding.approve", "audit.view",
+  "payroll.approve", "payroll.post", "expenses.approve", "expenses.post", "budget.approve", "budget.override", "vendors.post", "assets.post",
+  "journal.approve", "coa.manage", "period.lock", "fx.manage", "finance.refund", "finance.writeoff", "commissions.approve", "monitoring.configure", "monitoring.screenshots",
+]);
 const EXTERNAL = ["CLIENT", "VENDOR", "BUSINESS_PARTNER", "INVESTOR"];
 export const STAFF_STATUSES = ["ACTIVE", "INACTIVE", "EXITED"] as const;
 export type StaffStatus = (typeof STAFF_STATUSES)[number];
@@ -124,12 +130,19 @@ export async function createStaff(db: Db, p: { organizationId: string; actor: Ac
   const roles = await db.role.findMany({ where: { organizationId: p.organizationId, key: { in: p.roleKeys } } });
   if (roles.length === 0 || roles.length !== new Set(p.roleKeys).size || roles.some((r) => EXTERNAL.includes(r.key))) throw new StaffError("Choose at least one staff role.");
   if (roles.some((r) => r.key === "SUPER_ADMIN") && !p.actor.isSuperAdmin) throw new StaffError("Only a Super Admin can give someone the Super Admin role.");
-  // Nobody can create a person with access they do not hold themselves
+  // Nobody can create a person with access they do not hold themselves, except that HR (hr.manage) may register staff
+  // into any ordinary working role. Roles carrying admin, approval or money-posting access still need the person's own access.
   if (!p.actor.isSuperAdmin) {
     const held = await db.rolePermission.findMany({ where: { roleId: { in: roles.map((r) => r.id) } }, include: { permission: true } });
+    const isHr = p.actor.permissions.has("hr.manage");
     const lacking = new Set<string>();
-    for (const h of held) if (!p.actor.permissions.has(h.permission.key)) lacking.add(h.roleId);
-    if (lacking.size) throw new StaffError(`You cannot give the ${roles.filter((r) => lacking.has(r.id)).map((r) => r.name).join(", ")} role because it includes access you do not hold yourself. Ask a Super Admin to add this person, or choose a role within your own access.`);
+    for (const h of held) {
+      const k = h.permission.key;
+      if (p.actor.permissions.has(k)) continue;
+      if (isHr && !HR_RESTRICTED.has(k)) continue;
+      lacking.add(h.roleId);
+    }
+    if (lacking.size) throw new StaffError(`You cannot give the ${roles.filter((r) => lacking.has(r.id)).map((r) => r.name).join(", ")} role because it includes admin or approval access you do not hold yourself. Ask a Super Admin to add this person, or choose another role.`);
   }
   // No usable password: a random secret nobody knows. The person sets their own through a setup link.
   const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString("base64url"), 12);
