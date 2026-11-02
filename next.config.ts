@@ -30,6 +30,8 @@ const nextConfig: NextConfig = {
   experimental: { serverActions: { bodySizeLimit: "16mb" } },
   async headers() {
     return [
+      // The service worker must always be re-checked so an update reaches installed copies
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, max-age=0" }, { key: "Content-Type", value: "text/javascript; charset=utf-8" }] },
       // One-time links and the pages behind them must never be cached by a browser or a proxy
       { source: "/sign/:path*", headers: [{ key: "Cache-Control", value: "no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       {
