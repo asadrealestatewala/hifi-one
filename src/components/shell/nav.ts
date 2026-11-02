@@ -69,6 +69,7 @@ export const NAV: NavGroup[] = [
     { href: "/mail", label: "Mailbox", permission: null },
     { href: "/me/profile", label: "My Profile", permission: null },
     { href: "/me/help", label: "Help & Guide", permission: null },
+    { href: "/site/app", label: "Android App", permission: null },
     { href: "/account/security", label: "Account Security", permission: null },
     { href: "/me/attendance", label: "My Attendance", permission: "self.attendance" },
     { href: "/me/leave", label: "My Leave", permission: "self.leave" },
