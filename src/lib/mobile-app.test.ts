@@ -27,6 +27,8 @@ describe("the install route", () => {
   it("is a public GET that only redirects to the resolved source", () => {
     const src = fs.readFileSync(path.resolve(__dirname, "../app/api/app/android/route.ts"), "utf8");
     expect(src).toContain("resolveApkSource(");
+    // Behind the proxy the request URL is localhost:3000, so the redirect must not be built from it
+    expect(src).not.toMatch(/req\.url|request\.url|NextResponse\.redirect/);
     expect(src).not.toMatch(/prisma|@\/lib\/db|export (async )?function (POST|PUT|PATCH|DELETE)/);
   });
 });
