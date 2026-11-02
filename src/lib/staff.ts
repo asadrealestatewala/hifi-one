@@ -127,7 +127,9 @@ export async function createStaff(db: Db, p: { organizationId: string; actor: Ac
   // Nobody can create a person with access they do not hold themselves
   if (!p.actor.isSuperAdmin) {
     const held = await db.rolePermission.findMany({ where: { roleId: { in: roles.map((r) => r.id) } }, include: { permission: true } });
-    if (held.some((h) => !p.actor.permissions.has(h.permission.key))) throw new StaffError("You cannot give a role with permissions you do not hold.");
+    const lacking = new Set<string>();
+    for (const h of held) if (!p.actor.permissions.has(h.permission.key)) lacking.add(h.roleId);
+    if (lacking.size) throw new StaffError(`You cannot give the ${roles.filter((r) => lacking.has(r.id)).map((r) => r.name).join(", ")} role because it includes access you do not hold yourself. Ask a Super Admin to add this person, or choose a role within your own access.`);
   }
   // No usable password: a random secret nobody knows. The person sets their own through a setup link.
   const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString("base64url"), 12);
