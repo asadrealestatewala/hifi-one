@@ -10,7 +10,7 @@ import { checkSecondFactor } from "./mfa";
 import { needsMfaSetup } from "./mfa-policy";
 import { parseLoginIdentifier } from "./login-identifier";
 import { signInBlock } from "./onboarding";
-import type { PermissionKey } from "./permissions";
+import { ALL_PERMISSIONS, type PermissionKey } from "./permissions";
 
 const COOKIE = "hifi_session";
 const SESSION_HOURS = 12;
@@ -239,7 +239,7 @@ export async function audit(
 }
 
 // The identity used by user and role administration rules (see accounts.ts)
-export const toActor = (u: SessionUser) => ({ id: u.id, isSuperAdmin: u.roleKeys.includes("SUPER_ADMIN"), permissions: u.permissions as ReadonlySet<string> });
+export const toActor = (u: SessionUser) => ({ id: u.id, isSuperAdmin: u.roleKeys.includes("SUPER_ADMIN") || ALL_PERMISSIONS.every((k) => u.permissions.has(k)), permissions: u.permissions as ReadonlySet<string> });
 
 // Any signed-in person of any type (staff, client, vendor). Used where access is decided by the record, not by the person's area.
 export async function requireSession(): Promise<SessionUser> {
