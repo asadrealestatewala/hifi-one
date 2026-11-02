@@ -75,6 +75,7 @@ export const NAV: NavGroup[] = [
     { href: "/me/payslips", label: "My Payroll", permission: "self.payslip" },
     { href: "/me/tasks", label: "My Tasks", permission: null },
     { href: "/me/time", label: "My Workfolio", permission: "monitoring.own" },
+    { href: "/me/desktop-app", label: "Desktop App", permission: "monitoring.own" },
     { href: "/expenses", label: "Expense Vouchers", permission: "self.expense" },
     { href: "/me/commissions", label: "My Commissions", permission: "commissions.own" },
     { href: "/me/documents", label: "My Documents", permission: "self.leave" },

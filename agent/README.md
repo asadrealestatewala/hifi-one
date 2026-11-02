@@ -2,7 +2,7 @@
 
 A small, visible program for recording work time, application names and (if your organization's policy allows) screenshots. Read `docs/MONITORING.md` first.
 
-Requires Node 18 or newer.
+Staff normally use the packaged `HifiOneAgent.exe` from **Desktop app** in Hifi One (see `docs/MONITORING.md`; build it with `node agent/build.mjs --server https://your-address`). Running from source requires Node 18 or newer.
 
 ```
 node hifi-agent.mjs enroll --server https://your-hifi-one-address --code ABCDE-12345

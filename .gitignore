@@ -38,3 +38,4 @@ desktop.ini
 .data-db.log
 
 !.env.production.example
+agent/dist/

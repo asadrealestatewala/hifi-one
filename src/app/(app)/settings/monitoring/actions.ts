@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { MonitorError, createEnrollmentCode, purgeMonitoring, revokeDevice, savePolicy } from "@/lib/monitoring";
+import { MonitorError, createEnrollmentCode, purgeMonitoring, revokeDevice, savePolicy, sendEnrollmentCode } from "@/lib/monitoring";
 import { defaultStorage } from "@/lib/storage";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "");
@@ -64,7 +64,7 @@ export async function purgeAction() {
   back("msg", `Removed ${r.screenshots} expired screenshots, ${r.buckets} old activity records and ${r.appUsage} old application records.`);
 }
 
-export type CodeState = { code?: string; error?: string; person?: string };
+export type CodeState = { code?: string; error?: string; person?: string; emailed?: boolean };
 export async function enrollCodeAction(_prev: CodeState, formData: FormData): Promise<CodeState> {
   const user = await requirePermission("monitoring.configure");
   try {
@@ -72,7 +72,8 @@ export async function enrollCodeAction(_prev: CodeState, formData: FormData): Pr
     const code = await createEnrollmentCode(db, { organizationId: user.organizationId, userId, createdById: user.id });
     const who = await db.user.findUnique({ where: { id: userId }, select: { name: true } });
     await audit(user, { action: "monitoring.enrol_code", entity: "User", entityId: userId });
-    return { code, person: who?.name };
+    const sent = await sendEnrollmentCode(db, { organizationId: user.organizationId, userId, code, createdByName: user.name });
+    return { code, person: who?.name, emailed: sent.emailed };
   } catch (e) {
     if (e instanceof MonitorError) return { error: e.message };
     throw e;

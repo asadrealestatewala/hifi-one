@@ -16,7 +16,7 @@ export default function EnrollForm({ people }: { people: { id: string; name: str
       {state.error && <Notice kind="error">{state.error}</Notice>}
       {state.code && (
         <div className="rounded-xl border border-border bg-hover p-4">
-          <p className="text-xs text-muted">One-time code for {state.person}. It works once and expires in an hour. Give it to them in person or by a private message.</p>
+          <p className="text-xs text-muted">One-time code for {state.person}. It works once and expires in an hour. {state.emailed ? "It was also emailed to them, and they have a notice with a link to the Desktop app page." : "They have a notice pointing to the Desktop app page; no email was sent (no address or mail not set up), so give them the code in person or by a private message."}</p>
           <p className="mt-1 font-mono text-2xl font-semibold tracking-widest">{state.code}</p>
         </div>
       )}

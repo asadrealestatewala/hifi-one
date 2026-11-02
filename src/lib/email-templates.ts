@@ -338,6 +338,20 @@ export const SYSTEM_TEMPLATES: TemplateDef[] = [
     },
   },
   {
+    key: "agent_enrol_code", name: "Desktop app: enrolment code", audience: "Staff",
+    description: "Sent to a staff member when HR creates a one-time code to connect their computer to the desktop app (Workfolio).",
+    variables: { first_name: "Bilal", code: "4F2A9-C71B0", company_name: "Hifi Marketing and Technologies", link: "https://hifimarketing.co/me/desktop-app", code_minutes: "60", created_by: "HR Manager" },
+    blocks: { label: "Desktop app", code: "code" },
+    buttonUrlVar: "link",
+    defaults: {
+      subject: "Your desktop app code: {{code}}",
+      preheader: "Use this one-time code to connect your computer.",
+      heading: "Connect your computer, {{first_name}}",
+      body: "{{created_by}} created a one-time code so you can connect your computer to the {{company_name}} desktop app.\n\nOpen the page below, press Download and run the file. If the app asks for a code, enter the one above. The code works once and expires in {{code_minutes}} minutes. Never share it.\n\nThe app only records after you have accepted the monitoring policy in Hifi One, and its window always shows what it is doing.",
+      buttonLabel: "Open the desktop app page",
+    },
+  },
+  {
     key: "task_assigned", name: "Task assigned", audience: "Staff",
     description: "Sent to the person a task is assigned to, alongside the in-app notification.",
     variables: { first_name: "Bilal", task_title: "Call back Acme about the Q3 proposal", project: "Acme Retainer", priority: "High", due_date: "2026-11-05", assigned_by: "Sara Khan", description: "They asked for pricing on the video package.", link: "https://hifimarketing.co/projects/sample", company_name: "Hifi Marketing and Technologies" },

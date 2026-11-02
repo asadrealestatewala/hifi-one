@@ -9,6 +9,7 @@
 //   - It does not count key presses or clicks (that would need a system-wide keyboard hook); activity is measured
 //     from how long the computer has gone without input.
 //
+//   HifiOneAgent.exe                  (double-click: asks for your code the first time, then starts)
 //   node hifi-agent.mjs enroll --server https://erp.example.com --code ABCDE-12345
 //   node hifi-agent.mjs run [--no-screenshots] [--simulate] [--once]
 //   node hifi-agent.mjs status
@@ -17,12 +18,15 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import readline from "node:readline/promises";
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
+// Filled in by agent/build.mjs for the packaged .exe; empty when running from source.
+const DEFAULT_SERVER = "";
 const dir = path.join(process.env.APPDATA ?? path.join(os.homedir(), ".config"), "HifiOneAgent");
 const cfgPath = path.join(dir, "config.json");
 const args = process.argv.slice(2);
-const cmd = args[0] ?? "run";
+const cmd = args[0] ?? "start";
 const flag = (n) => args.includes(`--${n}`);
 const opt = (n) => { const i = args.indexOf(`--${n}`); return i >= 0 ? args[i + 1] : undefined; };
 
@@ -75,9 +79,48 @@ async function shotReal() {
 const shotSim = async () => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(600, 1)]);
 
 // ---------- commands ----------
-async function enroll() {
-  const server = (opt("server") ?? "").replace(/\/$/, "");
-  const code = opt("code");
+// The download from Hifi One is named like HifiOneAgent-ABCDE-12345.exe: the one-time code belongs to the signed-in person who
+// pressed the download button, so double-clicking the file is the whole set-up.
+function codeFromFilename() {
+  const m = path.basename(process.execPath).match(/([0-9A-F]{5}-[0-9A-F]{5})/i);
+  return m ? m[1].toUpperCase() : undefined;
+}
+
+const exeInstalled = path.join(dir, "HifiOneAgent.exe");
+const startupDir = path.join(process.env.APPDATA ?? "", "Microsoft", "Windows", "Start Menu", "Programs", "Startup");
+const startupLink = path.join(startupDir, "Hifi One desktop app.lnk");
+const isPackaged = () => path.extname(process.execPath).toLowerCase() === ".exe" && !/node\.exe$/i.test(process.execPath);
+
+// Installs for this Windows user only (no administrator rights): a copy in %APPDATA%\HifiOneAgent and a shortcut in the
+// Startup folder so the visible window opens at sign-in. `uninstall` removes both.
+async function install() {
+  if (process.platform !== "win32" || !isPackaged()) return;
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    if (path.resolve(process.execPath) !== path.resolve(exeInstalled)) fs.copyFileSync(process.execPath, exeInstalled);
+    const ps = `$s=(New-Object -ComObject WScript.Shell).CreateShortcut('${startupLink.replace(/'/g, "''")}'); $s.TargetPath='${exeInstalled.replace(/'/g, "''")}'; $s.Arguments='run'; $s.WorkingDirectory='${dir.replace(/'/g, "''")}'; $s.Description='Hifi One desktop app'; $s.Save()`;
+    await run("powershell", ["-NoProfile", "-NonInteractive", "-Command", ps]);
+    console.log("Installed. The app will open in a window each time you sign in to Windows. Run it with the argument 'uninstall' to remove it.\n");
+  } catch (e) { console.log(`Could not set up start at sign-in (${e.message}). The app still works while this window is open.\n`); }
+}
+function uninstall() {
+  fs.rmSync(startupLink, { force: true });
+  fs.rmSync(cfgPath, { force: true });
+  console.log("Removed the start-at-sign-in shortcut and the saved sign-in. Ask your administrator to revoke the device too. You can delete the app file.");
+}
+
+async function ask(question) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  try { return (await rl.question(question)).trim(); } finally { rl.close(); }
+}
+
+async function enroll(interactive = false) {
+  let server = (opt("server") ?? DEFAULT_SERVER).replace(/\/$/, "");
+  let code = opt("code") ?? (interactive ? codeFromFilename() : undefined);
+  if (interactive) {
+    if (!server) server = (await ask("Hifi One address (for example https://erp.example.com): ")).replace(/\/$/, "");
+    if (!code) code = await ask("Enrolment code from Hifi One (for example ABCDE-12345): ");
+  }
   if (!/^https?:\/\//.test(server) || !code) { console.error("Usage: node hifi-agent.mjs enroll --server https://your-address --code ABCDE-12345"); process.exit(2); }
   const res = await fetch(`${server}/api/agent/enroll`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code, name: os.hostname(), os: `${os.type()} ${os.release()}`, version: VERSION }) });
   const j = await res.json().catch(() => ({}));
@@ -85,7 +128,9 @@ async function enroll() {
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(cfgPath, JSON.stringify({ server, token: j.token }), { mode: 0o600 });
   console.log("This computer is enrolled.");
+  if (interactive) await install();
   describe(j.policy);
+  if (!j.policy.active) console.log("Recording stays off until you have accepted the monitoring policy in Hifi One (My Workfolio).\n");
 }
 
 function describe(p) {
@@ -151,9 +196,28 @@ async function main() {
   }
 }
 
-if (cmd === "enroll") await enroll();
-else if (cmd === "status") await status();
-else if (cmd === "forget") { fs.rmSync(cfgPath, { force: true }); console.log("Removed the saved sign-in from this computer. Ask your administrator to revoke the device too."); }
-else if (cmd === "selftest") { const s = await sampleReal(); console.log(`Sampler works: foreground app name "${s.app}", idle for ${s.idleFor}s. (Nothing was sent.)`); const b = await shotReal(); console.log(`Screen capture works: ${b.length} bytes (not saved, not sent).`); }
-else if (cmd === "run") await main();
-else { console.error("Commands: enroll, run, status, forget, selftest"); process.exit(2); }
+async function start() {
+  if (!loadCfg()) {
+    console.log(`Hifi One desktop app ${VERSION}\nThis computer is not enrolled yet.${codeFromFilename() ? " Using the one-time code from your download." : ' Sign in to Hifi One, open "Desktop app" in the menu and press Download, or enter the code HR gave you.'}\n`);
+    await enroll(true);
+  }
+  await main();
+}
+
+async function dispatch() {
+  if (cmd === "start") await start();
+  else if (cmd === "enroll") await enroll();
+  else if (cmd === "status") await status();
+  else if (cmd === "uninstall") uninstall();
+  else if (cmd === "forget") { fs.rmSync(cfgPath, { force: true }); console.log("Removed the saved sign-in from this computer. Ask your administrator to revoke the device too."); }
+  else if (cmd === "selftest") { const s = await sampleReal(); console.log(`Sampler works: foreground app name "${s.app}", idle for ${s.idleFor}s. (Nothing was sent.)`); const b = await shotReal(); console.log(`Screen capture works: ${b.length} bytes (not saved, not sent).`); }
+  else if (cmd === "run") await main();
+  else { console.error("Commands: start, enroll, run, status, forget, uninstall, selftest"); process.exit(2); }
+}
+
+// The window of the packaged app closes with the program, so wait for a key before it does when something went wrong.
+dispatch().catch(async (e) => {
+  console.error(`\nStopped: ${e instanceof Error ? e.message : e}`);
+  if (process.stdin.isTTY && cmd === "start") await ask("Press Enter to close this window.").catch(() => {});
+  process.exit(1);
+});
