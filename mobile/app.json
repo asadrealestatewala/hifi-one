@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Hifi One",
+    "slug": "hifi-one",
+    "scheme": "hifione",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": { "image": "./assets/splash-icon.png", "resizeMode": "contain", "backgroundColor": "#12163a" },
+    "plugins": ["expo-secure-store"],
+    "ios": { "supportsTablet": false, "bundleIdentifier": "co.hifimarketing.hifione" },
+    "android": {
+      "package": "co.hifimarketing.hifione",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#12163a",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    }
+  }
+}

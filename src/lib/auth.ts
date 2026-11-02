@@ -44,27 +44,32 @@ const MFA_COOKIE = "hifi_mfa_pending";
 
 type LoginResult = { ok: true; mfa?: boolean; userType: string } | { ok: false; error: string };
 
-async function startSession(user: { id: string; organizationId: string }) {
-  const h = await headers();
+// Creates the database session and its signed token. The browser keeps the token in a cookie; the mobile app keeps it in the phone's secure storage.
+export async function createSession(user: { id: string; organizationId: string }, meta: { userAgent: string | null; ip: string | null }) {
   const expiresAt = new Date(Date.now() + SESSION_HOURS * 3600_000);
-  const session = await db.session.create({
-    data: { userId: user.id, expiresAt, userAgent: h.get("user-agent"), ip: h.get("x-forwarded-for") },
-  });
+  const session = await db.session.create({ data: { userId: user.id, expiresAt, userAgent: meta.userAgent, ip: meta.ip } });
   await db.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() } });
   await db.auditLog.create({
     data: { organizationId: user.organizationId, actorId: user.id, action: "auth.login", entity: "Session", entityId: session.id },
   });
   const token = await new SignJWT({ sid: session.id }).setProtectedHeader({ alg: "HS256" }).setExpirationTime(expiresAt).sign(secret());
+  return { token, expiresAt };
+}
+
+async function startSession(user: { id: string; organizationId: string }) {
+  const h = await headers();
+  const { token, expiresAt } = await createSession(user, { userAgent: h.get("user-agent"), ip: h.get("x-forwarded-for") });
   (await cookies()).set(COOKIE, token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", expires: expiresAt });
 }
 
-// Sign in with the registered email or registered contact number, plus the password. The identifier is normalised
-// first, so "+92 300 1234567", "03001234567" and "+923001234567" all find the same account. Messages never say
-// which part was wrong, and attempts are limited per address and per identifier.
-export async function login(identifier: string, password: string): Promise<LoginResult> {
+type DbUser = NonNullable<Awaited<ReturnType<typeof db.user.findUnique>>>;
+
+// Steps shared by the website and the mobile app: rate limits, lookup, lockout, password, and the onboarding gate.
+// Returns the user when the password was right; the caller then handles two-step verification and the session.
+export async function checkCredentials(identifier: string, password: string, ipHeader: string | null): Promise<{ ok: true; user: DbUser } | { ok: false; error: string }> {
   const generic = { ok: false as const, error: "Invalid email, phone number or password." };
   const id = parseLoginIdentifier(identifier);
-  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0].trim() ?? "local";
+  const ip = ipHeader?.split(",")[0].trim() || "local";
   if (!limiter("login-ip", 20, 10 * 60_000).take(ip) || !limiter("login-email", 8, 10 * 60_000).take(id?.value ?? identifier.trim().toLowerCase())) {
     return { ok: false, error: "Too many sign-in attempts. Please wait a few minutes and try again." };
   }
@@ -87,6 +92,16 @@ export async function login(identifier: string, password: string): Promise<Login
   // New staff accounts wait for a verified email and an approver (src/lib/onboarding.ts). Said only after the password was right.
   const pending = await signInBlock(db, user.id);
   if (pending) return { ok: false, error: pending };
+  return { ok: true, user };
+}
+
+// Sign in with the registered email or registered contact number, plus the password. The identifier is normalised
+// first, so "+92 300 1234567", "03001234567" and "+923001234567" all find the same account. Messages never say
+// which part was wrong, and attempts are limited per address and per identifier.
+export async function login(identifier: string, password: string): Promise<LoginResult> {
+  const checked = await checkCredentials(identifier, password, (await headers()).get("x-forwarded-for"));
+  if (!checked.ok) return checked;
+  const user = checked.user;
   if (user.totpEnabled) {
     // Password is right, but no session exists until the second factor is proven. The pending cookie only proves step one.
     const token = await new SignJWT({ uid: user.id, purpose: "mfa" }).setProtectedHeader({ alg: "HS256" }).setExpirationTime("5m").sign(secret());
@@ -137,8 +152,8 @@ export async function logout() {
   jar.delete(COOKIE);
 }
 
-async function loadSessionUser(): Promise<SessionUser | null> {
-  const token = (await cookies()).get(COOKIE)?.value;
+// Resolves a session token (cookie value or mobile bearer token) to the signed-in user, or null if it is invalid, revoked or expired.
+export async function userFromToken(token: string | undefined | null): Promise<SessionUser | null> {
   if (!token) return null;
   let sid: string;
   try {
@@ -179,6 +194,31 @@ async function loadSessionUser(): Promise<SessionUser | null> {
     totpEnabled: session.user.totpEnabled,
     mfaRequired: activeRoles.some((r) => r.role.requireMfa),
   };
+}
+
+async function loadSessionUser(): Promise<SessionUser | null> {
+  return userFromToken((await cookies()).get(COOKIE)?.value);
+}
+
+// Second step for the mobile app: the pending token proves step one (password); the code proves step two.
+export async function mfaPendingToken(userId: string) {
+  return new SignJWT({ uid: userId, purpose: "mfa" }).setProtectedHeader({ alg: "HS256" }).setExpirationTime("5m").sign(secret());
+}
+export async function userIdFromMfaToken(token: string): Promise<string | null> {
+  try {
+    const { payload } = await jwtVerify(token, secret());
+    return payload.purpose === "mfa" ? String(payload.uid) : null;
+  } catch {
+    return null;
+  }
+}
+export async function revokeSessionToken(token: string) {
+  try {
+    const { payload } = await jwtVerify(token, secret());
+    await db.session.updateMany({ where: { id: String(payload.sid) }, data: { revokedAt: new Date() } });
+  } catch {
+    // invalid token: nothing to revoke
+  }
 }
 
 // One lookup per request: the layout and the page both ask, but the database is only asked once.
