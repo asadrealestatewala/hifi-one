@@ -72,6 +72,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
               <li><a href={PHONE_HREF}><Icon name="phone" size={16} /> {PHONE}</a></li>
               <li><Link href="/portal"><Icon name="building" size={16} /> Client portal</Link></li>
               <li><Link href="/login"><Icon name="user" size={16} /> Staff login</Link></li>
+              <li><Link href="/site/app"><Icon name="phone" size={16} /> Staff app (Android)</Link></li>
             </ul>
           </div>
         </div>

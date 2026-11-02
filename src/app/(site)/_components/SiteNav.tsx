@@ -66,6 +66,7 @@ export function SiteNav() {
           <Link href="/site/contact" className="hs-btn">Get a quote</Link>
           <Link href="/portal" className="hs-btn hs-btn-ghost">Client portal</Link>
           <Link href="/login" className="hs-btn hs-btn-ghost">Staff login</Link>
+          <Link href="/site/app" className="hs-btn hs-btn-ghost">Staff app</Link>
         </div>
       </div>
     </>

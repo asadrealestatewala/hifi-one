@@ -8,7 +8,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const page = (path: string, priority: number, changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"] = "monthly") => ({ url: `${SITE_URL}${path}`, priority, changeFrequency });
   return [
     page("/", 1, "weekly"),
-    ...["/site/services", "/site/pricing", "/site/contact"].map((p) => page(p, 0.9)),
+    ...["/site/services", "/site/pricing", "/site/contact", "/site/app"].map((p) => page(p, 0.9)),
     ...["/site/about", "/site/team", "/site/careers", "/site/blog"].map((p) => page(p, 0.7)),
     page("/site/careers/jobs", 0.8, "weekly"),
     ...JOBS.map((j) => page(`/site/careers/jobs/${j.id}`, 0.6, "weekly")),
