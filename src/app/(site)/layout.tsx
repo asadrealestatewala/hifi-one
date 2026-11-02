@@ -54,7 +54,6 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
               <li><Link href="/site/about">About us</Link></li>
               <li><Link href="/site/team">Our team</Link></li>
               <li><Link href="/site/careers">Careers</Link></li>
-              <li><Link href="/site/app">Android app</Link></li>
               <li><Link href="/site/blog">News &amp; media</Link></li>
             </ul>
           </nav>

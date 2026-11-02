@@ -17,11 +17,7 @@ export default function AppPage() {
           <div className="hs-card" style={{ padding: 32 }}>
             <h2 style={{ fontSize: 24, margin: "0 0 14px" }}>What you can do</h2>
             <ul>{APP_FEATURES.map((f) => <li key={f}>{f}</li>)}</ul>
-            {APK_URL ? (
-              <p style={{ marginTop: 24 }}><a className="hs-btn" href={APK_URL} download>Download for Android (version {APK_VERSION})</a></p>
-            ) : (
-              <p style={{ marginTop: 24 }}><strong>The download is not published yet.</strong> Ask your administrator for the app file.</p>
-            )}
+            <p style={{ marginTop: 24 }}><a className="hs-btn" href={APK_URL ?? "/api/app/android"} download="hifi-one.apk">Install the app (Android, version {APK_VERSION})</a></p>
             <h2 style={{ fontSize: 20, margin: "28px 0 10px" }}>How to install</h2>
             <ol>
               <li>Open this page on your Android phone and tap Download.</li>
