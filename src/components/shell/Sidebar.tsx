@@ -180,6 +180,8 @@ function AccountBlock({ name, roles, userId, signOut, collapsed, onNavigate }: {
           {items.map(([href, label, icon]) => (
             <Link key={href} href={href} role="menuitem" onClick={() => { setOpen(false); onNavigate(); }} className="flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-sidebar-fg transition hover:bg-white/10 hover:text-white"><Icon name={icon} className="h-4 w-4" />{label}</Link>
           ))}
+          {/* One click: a plain link so the browser downloads the Android app; /api/app/android says plainly if no build is published */}
+          <a href="/api/app/android" download="hifi-one.apk" role="menuitem" onClick={() => setOpen(false)} className="flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-sidebar-fg transition hover:bg-white/10 hover:text-white"><Icon name="phone" className="h-4 w-4" />Get the Android app</a>
         </div>
       )}
       <div className={`flex items-center gap-2 ${collapsed ? "md:flex-col" : ""}`}>
