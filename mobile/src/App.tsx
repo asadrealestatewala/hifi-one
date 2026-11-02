@@ -8,6 +8,7 @@ import Leave from "./screens/Leave";
 import Login from "./screens/Login";
 import Tasks from "./screens/Tasks";
 import Time from "./screens/Time";
+import { onNotificationTap, registerForPush, unregisterPush } from "./push";
 import { C, Loading } from "./ui";
 
 type Tab = "home" | "tasks" | "time" | "leave" | "inbox";
@@ -18,7 +19,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("home");
 
   const enter = useCallback(async () => {
-    try { const r = await api<Me>("me"); setMe(r.user); setState("in"); }
+    try { const r = await api<Me>("me"); setMe(r.user); setState("in"); registerForPush(); }
     catch { setState("out"); }
   }, []);
 
@@ -27,7 +28,9 @@ export default function App() {
     loadToken().then((t) => (t ? enter() : setState("out")));
   }, [enter]);
 
-  const signOut = async () => { await api("logout", { method: "POST" }).catch(() => {}); await clearToken(); setState("out"); setTab("home"); };
+  useEffect(() => onNotificationTap(() => setTab("inbox")), []);
+
+  const signOut = async () => { await unregisterPush(); await api("logout", { method: "POST" }).catch(() => {}); await clearToken(); setState("out"); setTab("home"); };
 
   if (state === "boot") return <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}><Loading /></SafeAreaView>;
   if (state === "out") return <><StatusBar style="light" /><Login onDone={enter} /></>;

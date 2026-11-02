@@ -60,6 +60,7 @@ model Department {
 
 model User {
   id                 String    @id @default(cuid())
+  pushDevices        PushDevice[]
   organizationId     String
   email              String?   @unique // official email; optional because some staff have none yet (never invented)
   phone              String?   @unique // registered contact number in E.164 (+923001234567); can be used to sign in
@@ -2607,4 +2608,18 @@ model ProjectUpdate {
 
   @@index([projectId, createdAt])
   @@index([organizationId, createdAt])
+}
+
+// A phone that has the mobile app signed in. The token comes from Expo's push service; one phone can move between people (the latest sign-in wins).
+model PushDevice {
+  id         String   @id @default(cuid())
+  userId     String
+  token      String   @unique
+  platform   String   @default("android")
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
