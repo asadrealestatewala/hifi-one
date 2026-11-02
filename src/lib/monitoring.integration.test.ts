@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import {
   MonitorError, acknowledge, agentPolicy, authenticateDevice, createEnrollmentCode, decideCorrection, deleteScreenshot, disputeScreenshot, endBreak, endSession, enrollDevice,
-  getPolicy, heartbeat, ingestAgent, localParts, openScreenshot, purgeMonitoring, requestCorrection, revokeDevice, savePolicy, startBreak, startSession, storeScreenshot, summarize, withinSchedule,
+  getPolicy, heartbeat, ingestAgent, localParts, openScreenshot, purgeMonitoring, requestCorrection, revokeDevice, savePolicy, sendEnrollmentCode, startBreak, startSession, storeScreenshot, summarize, withinSchedule,
 } from "./monitoring";
 import { MemoryStorage } from "./storage";
 
@@ -147,6 +147,16 @@ describe("corrections", () => {
 
 describe("desktop agent", () => {
   let token = "", deviceId = "";
+  it("tells the employee about a new code without putting the code in the notice or the outbox", async () => {
+    const code = await createEnrollmentCode(db, { organizationId: org, userId: ann, createdById: hr, now: WORK });
+    const r = await sendEnrollmentCode(db, { organizationId: org, userId: ann, code, createdByName: "HR" });
+    expect(r.notified).toBe(true);
+    const n = await db.notification.findFirstOrThrow({ where: { userId: ann, kind: "monitoring.enrol_code" } });
+    expect(n.link).toBe("/me/desktop-app");
+    expect(JSON.stringify(n)).not.toContain(code);
+    expect(JSON.stringify(await db.emailMessage.findMany({ where: { relatedId: ann } }))).not.toContain(code);
+    expect(await sendEnrollmentCode(db, { organizationId: other, userId: ann, code, createdByName: "HR" })).toEqual({ notified: false, emailed: false }); // other organization
+  });
   it("enrols once with a short-lived code, and the token only works while not revoked", async () => {
     const code = await createEnrollmentCode(db, { organizationId: org, userId: ann, createdById: hr, now: WORK });
     await expect(enrollDevice(db, { code: "WRONG-CODE", name: "PC", now: WORK })).rejects.toThrow(/not valid/);

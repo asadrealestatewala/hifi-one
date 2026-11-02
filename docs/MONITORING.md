@@ -52,15 +52,21 @@ Super Admin holds all of them. Project managers see project time through the pro
 
 ## The desktop app
 
-`agent/hifi-agent.mjs` (Windows, Node 18+). It is a visible console program: it prints what it is doing on every cycle and closing the window stops it.
+Employees use **Desktop app** in My Space (`/me/desktop-app`).
 
-1. HR opens **Settings → Monitoring Policy**, chooses the person and creates a one-time enrolment code (valid one hour, single use).
-2. On the person's computer: `node hifi-agent.mjs enroll --server https://your-address --code ABCDE-12345`. It prints what the policy collects.
-3. `node hifi-agent.mjs run` starts recording (only if the person has accepted the policy in Hifi One).
-4. `status` shows what the policy currently allows; `forget` removes the saved sign-in; `selftest` checks the sampler and screen capture locally and sends nothing.
-5. HR can **revoke** a device at any time; it stops working immediately. Deactivating the person does the same.
+1. They press **Download for Windows**. The server creates a one-time code for that person only (valid one hour, single use, audited) and serves `HifiOneAgent-ABCDE-12345.exe`.
+2. They open the file. It reads the code from its own file name, connects the computer, prints what the policy collects, installs for that Windows user only (copy in `%APPDATA%\HifiOneAgent`, shortcut in the Startup folder, no administrator rights) and starts recording **only if** they have accepted the policy in Hifi One. The window always shows what it is doing; closing it stops it.
+3. If HR creates a code instead (Settings > Monitoring Policy), the employee gets an in-app notice and, when mail is set up, an email with the code (not kept in the outbox). The file asks for the code when its name has none.
+4. `HifiOneAgent.exe uninstall` removes the shortcut and the saved sign-in; `status`, `forget`, `selftest` and `run [--no-screenshots]` also exist. HR can revoke a device at any time; deactivating the person does the same.
 
-What is verified so far: enrolment, policy retrieval, activity and application uploads, server-side rejection of out-of-policy data, and screenshot storage were exercised end to end against a running server using the agent's simulation mode. The Windows sampler and screen capture were checked locally with `selftest`. **Not yet done:** packaging the agent as a signed installer or Windows service, automatic start at login, offline buffering, and macOS or Linux versions. A signed installer is the right next step before rolling out widely.
+Packaging and hosting (steps for the owner):
+
+- `agent/build.mjs --server https://your-address` builds one `HifiOneAgent.exe` with its own Node runtime (Node single-executable application), so staff install nothing.
+- The **Desktop app** GitHub Action (Actions > Desktop app > Run workflow, or push a tag `agent-v1.1.0`) builds it on Windows and publishes it as a GitHub release. The download button streams the latest release asset; set `AGENT_DOWNLOAD_URL` on the server to host it elsewhere.
+- The file is **not code-signed**. Windows SmartScreen shows "unknown publisher" (More info > Run anyway) until a code-signing certificate is used. Buying one and signing in the workflow is the next step before wide rollout.
+- Not verified: running the built `.exe` on Windows, the Startup shortcut, and the download button against the live server. The Windows sampler and capture were previously checked with `selftest`.
+
+Earlier checks: enrolment, policy retrieval, uploads, server-side rejection of out-of-policy data and screenshot storage were exercised end to end using the simulation mode. Still not done: a Windows service, offline buffering, macOS or Linux versions.
 
 ## Before you turn it on
 

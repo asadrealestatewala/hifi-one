@@ -1,0 +1,30 @@
+# Builds the Windows desktop app (agent/) as one HifiOneAgent.exe and publishes it as a GitHub release, which is where the
+# "Desktop app" page in Hifi One downloads it from. Run it by hand (Actions > Desktop app > Run workflow) or push a tag agent-v1.1.0.
+# The .exe is not code-signed: Windows SmartScreen warns until a code-signing certificate is added (see docs/MONITORING.md).
+name: Desktop app
+on:
+  workflow_dispatch:
+    inputs:
+      server:
+        description: Live address of Hifi One baked into the app
+        default: https://hifimarketing.co
+  push:
+    tags: ["agent-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node agent/build.mjs --server "${{ inputs.server || 'https://hifimarketing.co' }}"
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/agent-v') && github.ref_name || format('agent-build-{0}', github.run_number) }}
+          name: Desktop app ${{ github.run_number }}
+          files: agent/dist/HifiOneAgent.exe

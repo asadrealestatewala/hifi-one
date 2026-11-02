@@ -10,6 +10,8 @@ import crypto from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import type { StorageProvider } from "./storage";
 import { newStorageKey } from "./storage";
+import { notify } from "./notifications";
+import { appUrl, firstName, sendTemplateQuietly } from "./email-template-store";
 
 export class MonitorError extends Error {}
 type Db = PrismaClient;
@@ -401,4 +403,21 @@ export async function liveStatus(db: Db, organizationId: string, userIds: string
     const stale = open ? now.getTime() - open.lastBeatAt.getTime() > STALE_MS : false;
     return [id, { state: !open ? "OFFLINE" : stale ? "STALE" : open.breaks.length ? "BREAK" : "WORKING", since: open?.startedAt ?? null, lastSnapshotAt: lastShot.get(id) ?? null }] as const;
   }));
+}
+
+// ---------- getting the app and the code to the employee ----------
+export const ENROL_CODE_MINUTES = 60;
+
+// Tell the employee that a code exists for them: an in-app notice (no code in it) and an email that carries the code. The code is
+// not kept in the outbox. Without a working mail setup, the notice still points them to HR, who see the code on screen.
+export async function sendEnrollmentCode(db: Db, p: { organizationId: string; userId: string; code: string; createdByName: string }) {
+  const u = await db.user.findFirst({ where: { id: p.userId, organizationId: p.organizationId, active: true, userType: "EMPLOYEE" }, select: { name: true, email: true } });
+  if (!u) return { notified: false, emailed: false };
+  await notify(db, p.userId, { kind: "monitoring.enrol_code", title: "A code was created to connect your computer", body: "Open Desktop app to download it. The code expires in an hour.", link: "/me/desktop-app" });
+  if (!u.email) return { notified: true, emailed: false };
+  const m = await sendTemplateQuietly(db, {
+    organizationId: p.organizationId, key: "agent_enrol_code", to: u.email, purpose: "NOREPLY", relatedType: "User", relatedId: p.userId, secret: true, buttonUrl: `${appUrl()}/me/desktop-app`,
+    vars: { first_name: firstName(u.name), code: p.code, code_minutes: String(ENROL_CODE_MINUTES), created_by: p.createdByName },
+  });
+  return { notified: true, emailed: Boolean(m && m.status === "SENT") };
 }
