@@ -3,12 +3,18 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+// The monospace face is only used for codes and numbers, so it loads when needed instead of delaying the first paint.
+const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"], preload: false });
 
 export const metadata: Metadata = {
   title: { default: "Hifi One", template: "%s · Hifi One" },
   description: "Unified ERP for Hifi Marketing and Technologies",
-  icons: { icon: "/logo.png" },
+  // ?v= busts browser and phone icon caches when the mark changes
+  icons: {
+    icon: [{ url: "/icons/favicon-32.png?v=2", sizes: "32x32", type: "image/png" }, { url: "/icons/icon-192.png?v=2", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/icons/apple-touch-icon.png?v=2", sizes: "180x180" }],
+    shortcut: "/favicon.ico?v=2",
+  },
 };
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 

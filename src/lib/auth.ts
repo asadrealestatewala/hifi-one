@@ -161,7 +161,10 @@ export async function userFromToken(token: string | undefined | null): Promise<S
   } catch {
     return null;
   }
+  // One round trip: the session, the person, their roles and every permission come back from a single joined query
+  // (the default loader made six sequential queries on every page view and server action).
   const session = await db.session.findUnique({
+    relationLoadStrategy: "join",
     where: { id: sid },
     include: {
       user: {

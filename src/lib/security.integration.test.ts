@@ -52,6 +52,7 @@ describe("first-run setup", () => {
     expect(["ada@test.example", "other@test.example"]).toContain(u.email); // whichever of the two simultaneous setups won
     expect(await bcrypt.compare(input.password, u.passwordHash)).toBe(true);
     expect(u.roles[0].role.key).toBe("SUPER_ADMIN");
+    expect(await db.role.count({ where: { organizationId: org, requireMfa: true } })).toBe(0); // two-step is optional (decision 62)
     expect(u.roles[0].role.permissions.length).toBeGreaterThan(50);
     expect(await db.account.count({ where: { organizationId: org, systemKey: { not: null } } })).toBeGreaterThanOrEqual(15);
     expect(await db.pipelineStage.count({ where: { organizationId: org, isWon: true } })).toBe(1);

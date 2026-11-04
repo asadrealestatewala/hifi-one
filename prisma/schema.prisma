@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {
@@ -2821,18 +2822,37 @@ model Prospect {
   scoreService   String? // the service to lead with
   scoreVersion   Int?
   scoredAt       DateTime?
+  outreachStatus String    @default("NOT_CONTACTED") // stage 5: NOT_CONTACTED | CONTACTED | INTERESTED | NOT_INTERESTED, the latest outcome logged
+  outreachAt     DateTime? // when the latest outcome was logged
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   search       ProspectSearch        @relation(fields: [searchId], references: [id], onDelete: Cascade)
   websiteCheck ProspectWebsiteCheck?
   social       ProspectSocial?
+  outreach     ProspectOutreach[]
 
   @@unique([organizationId, placeId])
   @@index([organizationId, status, createdAt])
   @@index([organizationId, assignedToId])
   @@index([searchId])
   @@index([organizationId, score])
+}
+
+// Stage 5: what happened each time a salesperson contacted a prospect. A prospect becomes a lead only after an INTERESTED outcome.
+model ProspectOutreach {
+  id             String   @id @default(cuid())
+  organizationId String
+  prospectId     String
+  userId         String
+  outcome        String // CONTACTED | INTERESTED | NOT_INTERESTED | NOT_CONTACTED (a correction)
+  note           String?
+  createdAt      DateTime @default(now())
+
+  prospect Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+
+  @@index([prospectId, createdAt])
+  @@index([organizationId, userId, createdAt])
 }
 
 // Every paid or limited outside call, written before the call is made so the cap can never be overrun by two people at once.

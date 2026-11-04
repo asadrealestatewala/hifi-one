@@ -55,6 +55,7 @@ Production runs on the VPS behind hifimarketing.co (DNS pointed there on 2026-10
 3. **nginx:** `apt install nginx`, copy `deploy/nginx/hifimarketing.co.conf` to `/etc/nginx/sites-available/`, link it into `sites-enabled`, remove `sites-enabled/default` if it is the stock page, then `nginx -t && systemctl reload nginx`.
 4. **Firewall:** allow 80 and 443 (`ufw allow 'Nginx Full'`); keep 3000 and the database closed to the internet.
 5. **HTTPS:** `apt install certbot python3-certbot-nginx`, then `certbot --nginx -d hifimarketing.co -d www.hifimarketing.co --redirect`. Renewal runs from certbot's timer; `certbot renew --dry-run` checks it.
+5b. **Speed (optional, safe to repeat):** the repo's nginx file serves `/_next/static/` straight from disk with a one-year cache. On a server already set up by certbot, add that `location /_next/static/ { ... }` block from `deploy/nginx/hifimarketing.co.conf` to the HTTPS `server` block, then `nginx -t && systemctl reload nginx`. Check with `curl -sI https://hifimarketing.co/_next/static/<any file>` (expect `cache-control: public, max-age=31536000, immutable`).
 6. **App environment:** set `APP_URL=https://hifimarketing.co` in the app's environment file and `pm2 restart hifi-one --update-env`.
 7. **First-run setup:** until a user exists, `/` and `/login` send every visitor to `/setup`, so the website is not shown. Complete setup at `https://hifimarketing.co/setup` straight after the deploy (until then anyone who opens it can create the administrator). If you set `SETUP_TOKEN`, remove it afterwards and restart.
 8. **Check:** `node scripts/smoke-prod.mjs https://hifimarketing.co` (it also checks that `/` serves the website uncached), then open `/` signed out (website) and `/login` (ERP sign-in).
@@ -78,8 +79,8 @@ Do this on the real server (or an identical staging one) before anyone relies on
 2. **Run `node scripts/preflight.mjs`** with that environment. Fix every FAIL; read every WARN. It never prints secret values.
 3. **Start it** either with Docker (`docker compose up -d --build`, which uses the `Dockerfile` and `docker-compose.yml`) or directly (`npm ci && npx prisma migrate deploy && npm run build && npm start`). Put an HTTPS reverse proxy in front; do not expose port 3000 or the database to the internet.
 4. **Run `node scripts/smoke-prod.mjs https://your-address`.** It confirms the health check, the security headers (CSP, HSTS, framing, sniffing), that protected pages send a signed-out visitor to the login page, that files and the calendar feed give nothing away, and that repeated bad sign-ins never crash the server.
-5. **Run first-run setup** at `/setup` right away (the setup token is optional), sign in, and complete two-step enrolment (the first administrator's role requires it). If you set `SETUP_TOKEN`, delete it from the environment and restart.
-6. **Create a second Super Admin**, turn on two-step verification for the sensitive roles, and read Settings > Security Checklist until nothing says Fix.
+5. **Run first-run setup** at `/setup` right away (the setup token is optional), sign in, and optionally turn on two-step verification (Account security; it is no longer required). If you set `SETUP_TOKEN`, delete it from the environment and restart.
+6. **Create a second Super Admin**, consider requiring two-step verification for the sensitive roles (optional), and read Settings > Security Checklist until nothing says Fix.
 7. **Prove backup and restore**: take a backup, restore it into a scratch database, sign in against it, then run `npm run backup:check` from your scheduler.
 8. Optional: connect email (Settings > Email) and the assistant (`ANTHROPIC_API_KEY`) and test each from its page.
 
