@@ -15,6 +15,7 @@ export default async function PortalLayout({ children }: { children: React.React
   const client = await db.client.findUnique({ where: { id: user.clientId }, select: { name: true } });
   const pending = await db.contentItem.count({ where: { clientId: user.clientId, status: "CLIENT_REVIEW" } });
   const quotesOpen = await db.quote.count({ where: { clientId: user.clientId, status: "SENT" } });
+  const cloutPosts = await db.cloutCampaign.count({ where: { clientId: user.clientId } });
   const unread = await db.notification.count({ where: { userId: user.id, readAt: null } });
   const approvals = await db.deliverable.count({ where: { status: "PENDING", projectId: { in: (await db.project.findMany({ where: { clientId: user.clientId }, select: { id: true } })).map((p) => p.id) } } });
   return (
@@ -30,6 +31,7 @@ export default async function PortalLayout({ children }: { children: React.React
             <Link href="/portal/projects" className="hover:underline">Projects</Link>
             <Link href="/portal/approvals" className="hover:underline">Approvals{approvals > 0 && ` (${approvals})`}</Link>
             <Link href="/portal/support" className="hover:underline">Support</Link>
+            {cloutPosts > 0 && <Link href="/portal/clout" className="hover:underline">Influencer posts</Link>}
             <Link href="/portal/content" className="hover:underline">Content{pending > 0 && ` (${pending})`}</Link>
             <Link href="/portal/quotes" className="hover:underline">Quotations{quotesOpen > 0 && ` (${quotesOpen})`}</Link>
             <Link href="/portal/meetings" className="hover:underline">Meetings</Link>

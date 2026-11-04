@@ -21,6 +21,7 @@ export const NAV: NavGroup[] = [
     { href: "/settings/lead-sources", label: "Website Lead Forms", permission: "leadsources.manage" },
     { href: "/leads/follow-ups", label: "Follow-up Automation", permission: "followups.manage" },
     { href: "/campaigns", label: "Campaigns", permission: "campaigns.view" },
+    { href: "/clout", label: "Clout Leader", permission: "clout.view" },
     { href: "/sales/activity", label: "Sales Activity & Targets", permission: "crm.view" },
     { href: "/sales/leads-report", label: "Leads Report", permission: "crm.view" },
     { href: "/quotes", label: "Proposals & Quotations", permission: "quotes.view" },

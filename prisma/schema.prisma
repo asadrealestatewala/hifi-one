@@ -436,6 +436,8 @@ model Client {
   leads            Lead[]
   invites          ClientInvite[]
   campaigns        CampaignClient[]
+  cloutCampaigns   CloutCampaign[]
+  cloutQuotas      CloutQuota[]
 
   @@unique([organizationId, name])
 }
@@ -605,6 +607,7 @@ model Project {
   tasks       Task[]
   milestones  Milestone[]
   timeEntries TimeEntry[]
+  cloutPosts  CloutPost[]
 
   @@unique([organizationId, number])
   @@index([organizationId, status])
@@ -1652,6 +1655,7 @@ model Campaign {
   members  CampaignMember[]
   clients  CampaignClient[]
   projects Project[]
+  clout    CloutCampaign?
 
   @@unique([organizationId, name])
   @@unique([organizationId, code])
@@ -1683,6 +1687,149 @@ model CampaignClient {
 
   @@id([campaignId, clientId])
   @@index([clientId])
+}
+
+// ---- Clout Leader: influencer post tracker (public stats of posts, see docs/CLOUT_LEADER.md) ----
+
+// A person who posts for a campaign. Org-wide; handles keyed by platform (TIKTOK, INSTAGRAM, FACEBOOK).
+model CloutInfluencer {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  handles        Json     @default("{}")
+  phone          String?
+  notes          String?
+  rate           Decimal? @db.Decimal(14, 2)
+  rateCurrency   String   @default("USD")
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  posts CloutPost[]
+
+  @@unique([organizationId, name])
+}
+
+// Tracking settings of one existing Campaign. clientId is the paying client who may see it in the portal and whose fast-lane quota it uses.
+model CloutCampaign {
+  id               String    @id @default(cuid())
+  organizationId   String
+  campaignId       String    @unique
+  clientId         String?
+  refreshSeconds   Int       @default(900)
+  shareToken       String?   @unique
+  lastRefreshAllAt DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  campaign Campaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  client   Client?     @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  posts    CloutPost[]
+
+  @@index([organizationId, clientId])
+}
+
+model CloutPost {
+  id                 String    @id @default(cuid())
+  organizationId     String
+  cloutCampaignId    String
+  projectId          String?
+  influencerId       String?
+  platform           String // TIKTOK | INSTAGRAM | FACEBOOK
+  url                String
+  canonicalUrl       String
+  externalId         String?
+  status             String    @default("LIVE") // LIVE | FAILED | UNAVAILABLE | PAUSED
+  pinned             Boolean   @default(false)
+  trackingCode       String?
+  trackingLink       String?
+  caption            String?
+  authorHandle       String?
+  thumbnailUrl       String?
+  postedAt           DateTime?
+  views              BigInt    @default(0)
+  likes              BigInt    @default(0)
+  comments           BigInt    @default(0)
+  shares             BigInt?
+  saves              BigInt?
+  viewsDelta         BigInt    @default(0)
+  likesDelta         BigInt    @default(0)
+  commentsDelta      BigInt    @default(0)
+  refreshSeconds     Int? // this post's own timer; the campaign's timer is used when empty
+  effectiveSeconds   Int       @default(900) // the interval actually used, after the fast-lane quota
+  fastLane           Boolean   @default(false)
+  quotaFallback      Boolean   @default(false)
+  nextCheckAt        DateTime?
+  lastCheckedAt      DateTime?
+  lastSuccessAt      DateTime?
+  lastManualAt       DateTime?
+  lastViewedAt       DateTime?
+  consecutiveFailures Int      @default(0)
+  consecutiveGone    Int       @default(0)
+  lastError          String?
+  lastProvider       String?
+  unavailableAt      DateTime?
+  addedById          String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  cloutCampaign CloutCampaign    @relation(fields: [cloutCampaignId], references: [id], onDelete: Cascade)
+  influencer    CloutInfluencer? @relation(fields: [influencerId], references: [id], onDelete: SetNull)
+  project       Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  snapshots     CloutSnapshot[]
+
+  @@unique([organizationId, canonicalUrl])
+  @@index([status, nextCheckAt])
+  @@index([cloutCampaignId])
+  @@index([organizationId, platform, externalId])
+}
+
+model CloutSnapshot {
+  id       String   @id @default(cuid())
+  postId   String
+  takenAt  DateTime @default(now())
+  views    BigInt
+  likes    BigInt
+  comments BigInt
+  shares   BigInt?
+  saves    BigInt?
+  provider String?
+
+  post CloutPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId, takenAt])
+}
+
+// Which provider answers for a platform, which one backs it up, and how healthy the platform is right now.
+model CloutProviderSetting {
+  id             String    @id @default(cuid())
+  organizationId String
+  platform       String
+  primary        String    @default("YTDLP") // YTDLP | APIFY | FUTURE
+  fallback       String? // same values, or empty for none
+  failStreak     Int       @default(0)
+  backoffUntil   DateTime?
+  lastOkAt       DateTime?
+  lastErrorAt    DateTime?
+  lastError      String?
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([organizationId, platform])
+}
+
+// Fast-lane quota: how many posts of one client (clientId empty = the company's own and the default) may refresh every 60 s to 5 min.
+model CloutQuota {
+  id             String   @id @default(cuid())
+  organizationId String
+  clientId       String?
+  plan           String   @default("FREE") // FREE | STANDARD | PRO | CUSTOM
+  fastPosts      Int      @default(5)
+  minSeconds     Int      @default(60)
+  updatedAt      DateTime @updatedAt
+
+  client Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, clientId])
 }
 
 // Saved filters over leads. Private to the owner unless shared with everyone who can open the Leads screen.

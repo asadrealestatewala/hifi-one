@@ -83,6 +83,9 @@ A clocked-in person starts a browser screen share themselves; the dock saves a s
 | Website lead | `captureLead` (`lead-capture.ts`) | Leads (source, UTM, campaign), round robin assignee notification, campaign performance |
 | Campaign spend | `campaign-performance.ts` | campaign page, internal and client reports; leads and wins come from the CRM, never copied |
 | Agreement and signature | `src/lib/agreements.ts` | agreement pages, PDF, creator notification; vendor files in `StoredFile` (`VENDOR_DOC`) feed the `document_expiry` job |
+| Influencer post numbers and status | `src/lib/clout.ts` (`checkPost`, worker `runDueBatch`; sources in `clout-providers.ts`) | `/clout`, post pages, client portal (own client only), shared report, CSV exports; campaign owner notified when a post becomes unavailable |
+| Fast-lane places and effective refresh interval | `reallocateBucket` (`clout.ts`) from `CloutQuota` and the timers | every Clout Leader screen (shows the fallback notice) |
+| Leads from an influencer promo code | read from `Lead.utmCampaign` / `Lead.tags` by `clout-views.ts`, never copied | post page, campaign page, report |
 | Logged time review | `decideTime` (`project-finance.ts`) | project time list, notification to the person; profitability unchanged |
 
 | Integration | State | Contract |

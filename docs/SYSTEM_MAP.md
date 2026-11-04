@@ -23,6 +23,8 @@ Added 2026-10-17 (see `docs/AUTOMATION_AND_GROWTH.md`): staff routes `/settings/
 
 Added 2026-11-01: public website at `/` and `/site` (see "Public website" below).
 
+Added 2026-11-04: **Clout Leader** (`docs/CLOUT_LEADER.md`): staff routes `/clout`, `/clout/[id]`, `/clout/campaigns[/id]`, `/clout/influencers`, `/clout/settings`, `/clout/report`, `/clout/export`; portal `/portal/clout[/id]`; public secret-link `/clout-report/[token]`. Services `clout.ts`, `clout-rules.ts`, `clout-providers.ts`, `clout-views.ts`; background worker `scripts/clout-worker.mts` (pm2 `hifi-clout-worker`); yt-dlp installed by the deploy workflow.
+
 ## Public website (`/` and `/site`)
 
 The company site hifimarketing.co, rebuilt on 2026-11-01 as Next.js pages in the route group `src/app/(site)/` (decision 46). Its layout (`(site)/layout.tsx`) has its own header, footer and stylesheet (`(site)/site.css`, every rule scoped under `.hs`), the Inter font from `public/site/vendor/google-fonts` through `next/font/local`, and inline SVG icons (`_components/Icon.tsx`). It shares only the root `<html>` with the ERP, so the light/dark choice (`hifi.theme`) carries over both ways. All copy and data live in `(site)/_content/`: `site.ts` (services, pricing plans, team, offices, careers sections), `jobs.ts` (open roles) and `blog.ts` (posts). Images go through `next/image` (resized, WebP/AVIF, lazy below the fold); originals stay in `public/site/`.
