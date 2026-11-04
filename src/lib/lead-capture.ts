@@ -6,6 +6,7 @@ import crypto from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { normalizeEmail, normalizePhone } from "./contacts";
 import { ensureContactForLead } from "./crm-contacts";
+import { DuplicateLeadError, createLeadGuarded, findLeadDuplicates, getPolicy } from "./lead-duplicates";
 import { leadAssigned } from "./events";
 import { notifyMany, usersWithPermission } from "./notifications";
 
@@ -94,15 +95,24 @@ export async function captureForSource(db: Db, p: { source: Source; input: Captu
   const org = source.organizationId;
   const now = p.now ?? new Date();
 
-  // The same person submitting again is added as a note to their open lead, not a second lead
-  const or = [email ? { email } : null, phone ? { phone } : null].filter(Boolean) as { email?: string; phone?: string }[];
-  const existing = await db.lead.findFirst({ where: { organizationId: org, convertedAt: null, OR: or, stage: { isLost: false } }, orderBy: { createdAt: "desc" } });
-  if (existing) {
+  const resubmitted = async (existing: { id: string; name: string; assignedToId: string | null }) => {
     await db.leadActivity.create({ data: { leadId: existing.id, kind: "NOTE", body: `Submitted the ${source.name} form again${message ? `: ${message}` : ""}` } });
     await db.lead.update({ where: { id: existing.id }, data: { updatedAt: now } });
     if (existing.assignedToId) await notifyMany(db, [existing.assignedToId], { kind: "lead.resubmitted", title: `${existing.name} contacted you again`, body: source.name, link: `/leads/${existing.id}`, dedupeKey: `lead-again:${existing.id}:${now.toISOString().slice(0, 13)}` });
-    return { ok: true, duplicate: true };
+    return { ok: true as const, duplicate: true };
+  };
+  // The same person submitting again is added as a note to their existing lead, not a second lead. Any status counts (a lead that went cold
+  // is still that person's lead), and the visitor is never told anything about it. With the check switched off, only open leads are matched, as before.
+  const policy = await getPolicy(db, org);
+  let existing: { id: string; name: string; assignedToId: string | null } | null = null;
+  if (policy.mode !== "OFF") {
+    const m = (await findLeadDuplicates(db, { organizationId: org, email, phone }, policy))[0];
+    if (m) existing = { id: m.leadId, name: m.name, assignedToId: m.ownerId };
+  } else {
+    const or = [email ? { email } : null, phone ? { phone } : null].filter(Boolean) as { email?: string; phone?: string }[];
+    if (or.length) existing = await db.lead.findFirst({ where: { organizationId: org, convertedAt: null, OR: or, stage: { isLost: false } }, orderBy: { createdAt: "desc" } });
   }
+  if (existing) return resubmitted(existing);
 
   const stage = await db.pipelineStage.findFirst({ where: { organizationId: org, isWon: false, isLost: false }, orderBy: { sortOrder: "asc" } });
   if (!stage) throw new CaptureError("Not available right now.", 503);
@@ -118,12 +128,19 @@ export async function captureForSource(db: Db, p: { source: Source; input: Captu
     if (fresh.assignMode === "ROUND_ROBIN") await tx.leadSource.update({ where: { id: source.id }, data: { rrIndex: fresh.rrIndex + 1 } });
     return pick;
   });
-  const lead = await db.lead.create({
-    data: {
-      organizationId: org, name: leadName, company, email, phone, source: `Website: ${source.name}`, stageId: stage.id, assignedToId: assignee, campaignId: source.campaignId,
-      leadSourceId: source.id, notes: message, landingUrl, ...utm, tags: ["website"], activities: { create: { kind: "CREATED", body: `Captured from the ${source.name} form${message ? `: ${message}` : ""}` } },
-    },
-  });
+  let lead;
+  try {
+    lead = await createLeadGuarded(db, { organizationId: org, email, phone }, (tx) => tx.lead.create({
+      data: {
+        organizationId: org, name: leadName, company, email, phone, source: `Website: ${source.name}`, stageId: stage.id, assignedToId: assignee, campaignId: source.campaignId,
+        leadSourceId: source.id, notes: message, landingUrl, ...utm, tags: ["website"], activities: { create: { kind: "CREATED", body: `Captured from the ${source.name} form${message ? `: ${message}` : ""}` } },
+      },
+    }));
+  } catch (e) {
+    // Two submissions at the same instant: the second finds the first and becomes a note on it
+    if (e instanceof DuplicateLeadError && e.matches[0]) return resubmitted({ id: e.matches[0].leadId, name: e.matches[0].name, assignedToId: e.matches[0].ownerId });
+    throw e;
+  }
   await ensureContactForLead(db, lead.id);
   await db.leadSource.update({ where: { id: source.id }, data: { leadCount: { increment: 1 }, lastLeadAt: now } });
   if (assignee) await leadAssigned(db, { organizationId: org, leadId: lead.id, toUserId: assignee, byUserId: "website" });

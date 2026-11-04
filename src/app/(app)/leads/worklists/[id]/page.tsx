@@ -15,7 +15,7 @@ async function act(formData: FormData) {
   const op = String(formData.get("op"));
   try {
     if (op === "convert") {
-      const r = await convertRow(db, { organizationId: user.organizationId, rowId: String(formData.get("id")), actorId: user.id });
+      const r = await convertRow(db, { organizationId: user.organizationId, rowId: String(formData.get("id")), actorId: user.id, viewer: user });
       await audit(user, { action: "worklist.convert_row", entity: "Lead", entityId: r.leadId });
     } else {
       await setRowStatus(db, { organizationId: user.organizationId, rowId: String(formData.get("id")), status: op, note: String(formData.get("note") ?? "") });

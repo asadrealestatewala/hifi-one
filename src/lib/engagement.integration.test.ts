@@ -169,12 +169,12 @@ describe("prospecting worklists", () => {
     await expect(setRowStatus(db, { organizationId: org, rowId: amy.id, status: "NEW" })).rejects.toThrow(/already become a lead/);
   });
 
-  it("blocks conversion of suppressed contacts and of contacts already in the CRM", async () => {
+  it("blocks conversion of suppressed contacts and of contacts already exists", async () => {
     const eve = await db.worklistRow.findFirstOrThrow({ where: { worklistId, name: "Eve Fox" } });
     await expect(convertRow(db, { organizationId: org, rowId: eve.id, actorId: author })).rejects.toThrow(/do-not-contact/);
     const dan = await db.worklistRow.findFirstOrThrow({ where: { worklistId, name: "Dan Poe" } });
     expect(dan.duplicateLeadId).not.toBeNull();
-    await expect(convertRow(db, { organizationId: org, rowId: dan.id, actorId: author })).rejects.toThrow(/already in the CRM/);
+    await expect(convertRow(db, { organizationId: org, rowId: dan.id, actorId: author })).rejects.toThrow(/already exists/);
   });
 
   it("suppressing a contact later stops outreach on rows already imported", async () => {
