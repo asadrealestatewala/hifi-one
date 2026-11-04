@@ -5,7 +5,11 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Hifi One",
     short_name: "Hifi One",
     description: "Unified ERP for Hifi Marketing and Technologies",
-    start_url: "/",
+    // The installed app opens the ERP. /login sends a signed-in person straight to their
+    // dashboard, portal or vendor area, so the public website at / is not the app's entry.
+    id: "/login",
+    start_url: "/login",
+    scope: "/",
     display: "standalone",
     background_color: "#ffffff",
     theme_color: "#d10f0f",
