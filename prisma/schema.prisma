@@ -375,6 +375,7 @@ model Lead {
   plan       ServicePlan?         @relation(fields: [planId], references: [id])
   activities LeadActivity[]
   followUps  FollowUpEnrollment[]
+  keys       LeadKey[]
 
   @@index([organizationId, stageId])
   @@index([organizationId, assignedToId])
@@ -2847,6 +2848,29 @@ model ApiCall {
   createdAt      DateTime @default(now())
 
   @@index([organizationId, provider, createdAt])
+}
+
+// ---------- Duplicate lead protection (decision 65) ----------
+// One row per organization. mode: BLOCK (default) | WARN (agent may confirm) | OFF. defaultCountry anchors local phone numbers (0300...) to +92...
+model CrmSettings {
+  organizationId String @id
+  duplicateMode  String @default("BLOCK")
+  defaultCountry String @default("PK")
+  updatedAt      DateTime @updatedAt
+}
+
+// A lead's claim on a normalised email or phone. The unique index is the database-level guard against two agents adding the same person at once.
+// Leads that were added while the mode was WARN or OFF simply hold no claim on a key somebody else already holds.
+model LeadKey {
+  id             String @id @default(cuid())
+  organizationId String
+  kind           String // EMAIL | PHONE
+  key            String
+  leadId         String
+  lead           Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, kind, key])
+  @@index([leadId])
 }
 
 model ProspectorSettings {

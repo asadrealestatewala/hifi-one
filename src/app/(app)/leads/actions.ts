@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { leadScope, normalizePhone } from "@/lib/leads";
 import { convertLead } from "@/lib/conversion";
 import { ensureContactForLead, mirrorLeadActivity } from "@/lib/crm-contacts";
+import { DuplicateLeadError, createLeadGuarded, presentDuplicate } from "@/lib/lead-duplicates";
 import { LedgerError } from "@/lib/ledger-math";
 
 const opt = z.string().trim().max(500).optional().transform((v) => (v ? v : null));
@@ -41,28 +42,30 @@ export async function createLead(formData: FormData) {
   if (d.dealValue !== null && !/^\d{1,12}(\.\d{1,2})?$/.test(d.dealValue)) {
     redirect(`/leads?error=${encodeURIComponent("Deal value must be a positive number")}`);
   }
-  // Duplicate detection on email or phone within the organization (all leads, not just visible ones)
   const phone = normalizePhone(d.phone);
-  const or = [d.email ? { email: d.email } : null, phone ? { phone } : null].filter(Boolean) as { email?: string; phone?: string }[];
-  if (or.length && !d.confirmDuplicate) {
-    const dup = await db.lead.findFirst({ where: { organizationId: user.organizationId, OR: or } });
-    if (dup) {
-      redirect(`/leads?error=${encodeURIComponent("A lead with this email or phone already exists. Tick the box to create it anyway.")}&dup=1`);
-    }
-  }
   if (d.expectedCloseDate && Number.isNaN(Date.parse(d.expectedCloseDate))) redirect(`/leads?error=${encodeURIComponent("Enter a valid expected closing date")}`);
   if (d.campaignId && !(await db.campaign.findFirst({ where: { id: d.campaignId, organizationId: user.organizationId } }))) redirect(`/leads?error=${encodeURIComponent("Unknown campaign")}`);
   const stage = await db.pipelineStage.findFirstOrThrow({ where: { organizationId: user.organizationId }, orderBy: { sortOrder: "asc" } });
-  const lead = await db.lead.create({
-    data: {
-      organizationId: user.organizationId,
-      name: d.name, company: d.company, email: d.email, phone, country: d.country, city: d.city, source: d.source,
-      preferredContact: d.preferredContact, expectedCloseDate: d.expectedCloseDate, tags: d.tags, campaignId: d.campaignId,
-      serviceInterest: d.serviceInterest, dealValue: d.dealValue, currency: d.currency, priority: d.priority,
-      stageId: stage.id, assignedToId: user.id, createdById: user.id,
-      activities: { create: { kind: "CREATED", actorId: user.id, body: "Lead created" } },
-    },
-  });
+  let lead;
+  try {
+    lead = await createLeadGuarded(db, { organizationId: user.organizationId, email: d.email, phone, country: d.country, confirm: !!d.confirmDuplicate }, (tx) => tx.lead.create({
+      data: {
+        organizationId: user.organizationId,
+        name: d.name, company: d.company, email: d.email, phone, country: d.country, city: d.city, source: d.source,
+        preferredContact: d.preferredContact, expectedCloseDate: d.expectedCloseDate, tags: d.tags, campaignId: d.campaignId,
+        serviceInterest: d.serviceInterest, dealValue: d.dealValue, currency: d.currency, priority: d.priority,
+        stageId: stage.id, assignedToId: user.id, createdById: user.id,
+        activities: { create: { kind: "CREATED", actorId: user.id, body: "Lead created" } },
+      },
+    }));
+  } catch (e) {
+    if (e instanceof DuplicateLeadError) {
+      const shown = presentDuplicate(e.matches[0], user);
+      await audit(user, { action: "lead.duplicate_blocked", entity: "Lead", entityId: e.matches[0]?.leadId, after: { existingLeadId: e.matches[0]?.leadId, matchedOn: e.matches[0]?.matchedOn } });
+      redirect(`/leads?error=${encodeURIComponent(shown.text)}${shown.href ? `&dupHref=${encodeURIComponent(shown.href)}` : ""}${e.canConfirm ? "&dup=1" : ""}`);
+    }
+    throw e;
+  }
   await ensureContactForLead(db, lead.id);
   await audit(user, { action: "lead.create", entity: "Lead", entityId: lead.id, after: { name: lead.name, stage: stage.name } });
   revalidatePath("/leads");
