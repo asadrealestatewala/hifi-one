@@ -2675,6 +2675,7 @@ model Prospect {
 
   search       ProspectSearch        @relation(fields: [searchId], references: [id], onDelete: Cascade)
   websiteCheck ProspectWebsiteCheck?
+  social       ProspectSocial?
 
   @@unique([organizationId, placeId])
   @@index([organizationId, status, createdAt])
@@ -2759,4 +2760,27 @@ model ProspectWebsiteCheck {
   prospect Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, status, queuedAt])
+}
+
+// ---------- Prospector stage 3: a prospect's Facebook page ----------
+// One row per prospect. The address comes from the website check (source WEBSITE) or is typed by a person (source MANUAL, which a later
+// website check never overwrites). The numbers come from the SocialProvider named in `provider`.
+model ProspectSocial {
+  prospectId     String    @id
+  organizationId String
+  facebookUrl    String?
+  source         String    @default("WEBSITE") // WEBSITE | MANUAL
+  status         String    @default("NOT_FETCHED") // NOT_FETCHED | OK | NOT_FOUND | FAILED | LIMIT
+  provider       String?
+  pageName       String?
+  followers      Int?
+  likes          Int?
+  lastPostAt     DateTime?
+  note           String?
+  fetchedAt      DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  prospect Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
 }
