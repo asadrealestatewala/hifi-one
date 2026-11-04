@@ -2817,6 +2817,10 @@ model Prospect {
   assignedAt     DateTime?
   leadId         String? // set when sent to the CRM
   placeFetchedAt DateTime  @default(now()) // when the Google fields were last read; refresh by placeId
+  score          Int? // stage 4: 0 to 100, higher = more to fix; null until scored
+  scoreService   String? // the service to lead with
+  scoreVersion   Int?
+  scoredAt       DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -2828,6 +2832,7 @@ model Prospect {
   @@index([organizationId, status, createdAt])
   @@index([organizationId, assignedToId])
   @@index([searchId])
+  @@index([organizationId, score])
 }
 
 // Every paid or limited outside call, written before the call is made so the cap can never be overrun by two people at once.

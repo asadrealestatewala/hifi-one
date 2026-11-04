@@ -8,6 +8,7 @@ import { normalizeFacebookUrl } from "./facebook-link";
 import { getKey } from "./integration-keys";
 import { canSearch, isManager, prospectScope, type Actor } from "./prospector";
 import { SocialError, socialApis, type SocialProvider } from "./social";
+import { rescoreProspects } from "./prospect-scoring";
 
 type Db = PrismaClient;
 export const SOCIAL_FRESH_DAYS = 7;
@@ -29,6 +30,7 @@ export async function recordDiscoveredLink(db: Db, p: { prospectId: string; orga
     create: { prospectId: p.prospectId, organizationId: p.organizationId, facebookUrl: p.url, source: "WEBSITE" },
     update: { facebookUrl: p.url, source: "WEBSITE", status: "NOT_FETCHED", pageName: null, followers: null, likes: null, lastPostAt: null, note: null, fetchedAt: null, provider: null },
   });
+  await rescoreProspects(db, p.organizationId, [p.prospectId]);
 }
 
 // A person types (or clears) the Facebook address. Returns the saved address, or null when it was cleared.
@@ -37,7 +39,7 @@ export async function setFacebookLink(db: Db, actor: Actor, prospectId: string, 
   const p = await db.prospect.findFirst({ where: { AND: [prospectScope(actor), { id: prospectId }] }, select: { id: true } });
   if (!p) throw new SocialAccessError("That prospect is not available to you.");
   const text = raw.trim();
-  if (text === "") { await db.prospectSocial.deleteMany({ where: { prospectId } }); return null; }
+  if (text === "") { await db.prospectSocial.deleteMany({ where: { prospectId } }); await rescoreProspects(db, actor.organizationId, [prospectId]); return null; }
   const url = normalizeFacebookUrl(text);
   if (!url) throw new SocialAccessError("That is not the address of a Facebook page. Paste the page's link, for example facebook.com/yourbusiness.");
   await db.prospectSocial.upsert({
@@ -45,6 +47,7 @@ export async function setFacebookLink(db: Db, actor: Actor, prospectId: string, 
     create: { prospectId, organizationId: actor.organizationId, facebookUrl: url, source: "MANUAL" },
     update: { facebookUrl: url, source: "MANUAL", status: "NOT_FETCHED", pageName: null, followers: null, likes: null, lastPostAt: null, note: null, fetchedAt: null, provider: null },
   });
+  await rescoreProspects(db, actor.organizationId, [prospectId]);
   return url;
 }
 
@@ -85,6 +88,7 @@ export async function fetchFacebookData(db: Db, actor: Actor, ids: string[], opt
       if (e.kind === "KEY" || e.kind === "LIMIT") { out.stopped = e.message; out.left += batch.length - i - 1; break; }
     }
   }
+  await rescoreProspects(db, actor.organizationId, batch.map((t) => t.id), now);
   return out;
 }
 

@@ -10,6 +10,7 @@ import { SafeFetchError, fetchPublicPage, type FetchedPage } from "./safe-fetch"
 import { analyzeHtml } from "./website-analysis";
 import { findFacebookUrl } from "./facebook-link";
 import { recordDiscoveredLink } from "./prospect-social";
+import { rescoreProspects } from "./prospect-scoring";
 import { canSearch, isManager, prospectScope, type Actor } from "./prospector";
 
 type Db = PrismaClient;
@@ -110,7 +111,7 @@ export async function drainWebsiteChecks(db: Db, opts: { organizationId?: string
 
 async function processOne(db: Db, c: { prospectId: string; organizationId: string; attempts: number }, deps: Deps, psiGate: () => Promise<void>, now?: Date): Promise<"done" | "requeued" | "failed"> {
   const p = await db.prospect.findUnique({ where: { id: c.prospectId }, select: { website: true } });
-  if (!p?.website) { await db.prospectWebsiteCheck.update({ where: { prospectId: c.prospectId }, data: { status: "NO_WEBSITE", checkedAt: now ?? new Date() } }); return "done"; }
+  if (!p?.website) { await db.prospectWebsiteCheck.update({ where: { prospectId: c.prospectId }, data: { status: "NO_WEBSITE", checkedAt: now ?? new Date() } }); await rescoreProspects(db, c.organizationId, [c.prospectId], now); return "done"; }
   const data: Prisma.ProspectWebsiteCheckUpdateInput = { url: p.website.slice(0, 500), error: null };
   let page: FetchedPage | null = null;
   try { page = await deps.fetchPage(p.website); }
@@ -155,6 +156,7 @@ async function processOne(db: Db, c: { prospectId: string; organizationId: strin
     }
   }
   await db.prospectWebsiteCheck.update({ where: { prospectId: c.prospectId }, data: { ...data, status: "DONE", checkedAt: now ?? new Date() } });
+  await rescoreProspects(db, c.organizationId, [c.prospectId], now);
   return "done";
 }
 

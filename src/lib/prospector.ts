@@ -1,6 +1,7 @@
 // Prospector: find businesses with Google Places, keep them as prospects, let managers review, dismiss and assign them.
 // A prospect is not a lead: it becomes one only when sent to the CRM (a later stage), because a lead means someone showed interest.
 // Free of Next.js imports so it can be tested against the database.
+import { rescoreProspects } from "./prospect-scoring";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { BudgetError, canAfford, googleCaps, releaseCall, reserveCall, type Caps } from "./api-budget";
 import { normalizeE164, phoneTail, isCountry, countryName } from "./phone";
@@ -142,6 +143,7 @@ export async function saveProspects(db: Db, p: { organizationId: string; searchI
   // The unique (organization, place) key makes this safe even if two people find the same business at the same moment
   const made = rows.length ? await db.prospect.createMany({ data: rows, skipDuplicates: true }) : { count: 0 };
   duplicates += rows.length - made.count;
+  if (made.count > 0) await rescoreProspects(db, org, (await db.prospect.findMany({ where: { organizationId: org, searchId: p.searchId }, select: { id: true } })).map((x) => x.id), p.now);
   return { added: made.count, duplicates, closed };
 }
 
@@ -188,7 +190,7 @@ export async function assign(db: Db, actor: Actor, ids: string[], agentId: strin
 }
 
 // ---------- listing ----------
-export const PROSPECT_SORTS = { name: { field: "name" }, rating: { field: "rating", nullable: true }, created: { field: "createdAt" } } as const;
+export const PROSPECT_SORTS = { name: { field: "name" }, rating: { field: "rating", nullable: true }, created: { field: "createdAt" }, score: { field: "score", nullable: true } } as const;
 export function prospectWhere(actor: Actor, p: { q?: string; status?: string; searchId?: string }): Prisma.ProspectWhereInput {
   const and: Prisma.ProspectWhereInput[] = [prospectScope(actor)];
   if (p.status) and.push({ status: p.status });
