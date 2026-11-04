@@ -118,6 +118,13 @@ select.input { appearance: none; padding-right: 2rem; background-image: url("dat
 /* Tables: quiet headers, comfortable rows, row highlight. Applies to every table inside a card. */
 .card table { border-collapse: collapse; }
 .card thead th { font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+/* Sticky column headers. A card that scrolls sideways (overflow-x-auto) becomes the scroll container,
+   so it also gets a max height and scrolls vertically itself; the header then sticks at its top.
+   Other cards stick just under the 3.5rem top bar while the page scrolls. */
+.card thead th { position: sticky; top: 3.5rem; z-index: 1; background: var(--surface); box-shadow: inset 0 -1px 0 var(--border); }
+.card.overflow-x-auto thead th { top: 0; }
+.card.overflow-x-auto:has(table) { max-height: calc(100dvh - 6rem); overflow-y: auto; }
+@media print { .card.overflow-x-auto:has(table) { max-height: none; } .card thead th { position: static; } }
 .card tbody tr { transition: background 0.1s; }
 .card tbody tr:hover { background: var(--hover); }
 .card tbody td { vertical-align: middle; }
