@@ -21,6 +21,10 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
             npm ci --legacy-peer-deps
+            # Clout Leader reads public post numbers with yt-dlp. Install or upgrade it for this user; a problem here never stops the deploy.
+            export PATH="$HOME/.local/bin:$PATH"
+            (python3 -m pip install -U --user --break-system-packages yt-dlp >/dev/null 2>&1 || python3 -m pip install -U --user yt-dlp >/dev/null 2>&1 || pip3 install -U --user yt-dlp >/dev/null 2>&1) || echo "WARNING: yt-dlp could not be installed; Clout Leader will say so on its Settings page"
+            yt-dlp --version || true
             npx prisma migrate deploy
             # Build beside the live build, never over it. Building in place deleted the running server's CSS and JS
             # chunks, so a slow or failed build left every page unstyled. tsc and eslint already run in CI.
@@ -31,4 +35,6 @@ jobs:
             if [ -d .next ]; then mv .next .next-previous; fi
             mv .next-build .next
             pm2 restart hifi-one || pm2 start npm --name hifi-one -- start
+            # Clout Leader background worker (separate process so a slow platform never slows the website)
+            { pm2 restart hifi-clout-worker --update-env || pm2 start npm --name hifi-clout-worker -- run clout:worker; } || echo "WARNING: the Clout Leader worker did not start"
             pm2 save
