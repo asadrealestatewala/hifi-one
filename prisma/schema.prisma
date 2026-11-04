@@ -2623,3 +2623,86 @@ model PushDevice {
 
   @@index([userId])
 }
+
+// ---------- Prospector: businesses found by search, before anyone has shown interest ----------
+// A prospect is not a lead. It becomes one only when a manager sends it to the CRM (a later stage).
+
+model ProspectSearch {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  businessType   String
+  city           String
+  country        String // ISO 3166 alpha-2, e.g. PK
+  query          String
+  requests       Int      @default(0) // paid Google requests made for this search
+  found          Int      @default(0)
+  added          Int      @default(0)
+  duplicates     Int      @default(0) // already a prospect, a lead or on the do-not-contact list
+  costUsd        Decimal  @default(0) @db.Decimal(10, 4)
+  error          String?
+  createdAt      DateTime @default(now())
+
+  prospects Prospect[]
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, userId, createdAt])
+}
+
+model Prospect {
+  id             String    @id @default(cuid())
+  organizationId String
+  searchId       String
+  placeId        String // Google place ID: the one value Google lets us keep, and the key for refreshing the rest
+  name           String
+  address        String?
+  city           String?
+  country        String?
+  phone          String? // E.164, e.g. +923001234567
+  website        String?
+  mapsUrl        String?
+  rating         Decimal?  @db.Decimal(2, 1)
+  ratingCount    Int?
+  primaryType    String?
+  businessStatus String?
+  status         String    @default("NEW") // NEW | REVIEWED | ASSIGNED | SENT_TO_CRM | DISMISSED
+  assignedToId   String?
+  assignedAt     DateTime?
+  leadId         String? // set when sent to the CRM
+  placeFetchedAt DateTime  @default(now()) // when the Google fields were last read; refresh by placeId
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  search ProspectSearch @relation(fields: [searchId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, placeId])
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, assignedToId])
+  @@index([searchId])
+}
+
+// Every paid or limited outside call, written before the call is made so the cap can never be overrun by two people at once.
+model ApiCall {
+  id             String   @id @default(cuid())
+  organizationId String
+  provider       String // GOOGLE_PLACES
+  sku            String
+  userId         String?
+  costUsd        Decimal  @default(0) @db.Decimal(10, 4)
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, provider, createdAt])
+}
+
+model ProspectorSettings {
+  organizationId       String @id
+  defaultDailySearches Int    @default(10)
+}
+
+model ProspectorUserLimit {
+  organizationId String
+  userId         String
+  dailySearches  Int
+
+  @@id([organizationId, userId])
+}

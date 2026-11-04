@@ -93,6 +93,8 @@ export const PERMISSIONS = {
   "mail.manage": "Create company and employee mailboxes and choose who can use each one (does not open anyone's mail)",
   "email_templates.manage": "Edit the branded email templates and preview them",
   "followups.manage": "Create and run CRM follow-up email sequences",
+  "prospector.use": "Run Prospector searches that find new businesses (uses the Google budget)",
+  "prospector.manage": "Set Prospector daily search limits per person",
   "onboarding.approve": "Approve or reject new staff accounts before they can sign in",
 } as const;
 
@@ -139,7 +141,7 @@ const EXTERNAL_ROLES = new Set(["CLIENT", "VENDOR", "BUSINESS_PARTNER", "INVESTO
 const EXTRA: Record<string, PermissionKey[]> = {
   HR_MANAGER: ["onboarding.approve", "hr.view", "hr.manage", "hr.view_sensitive", "leave.approve", "attendance.view_all", "payroll.view", "payroll.manage", "monitoring.view_team", "monitoring.screenshots", "monitoring.configure"],
   BRANCH_MANAGER: ["leave.approve", "hr.view"],
-  SALES_MANAGER: ["followups.manage", "leadsources.manage", "leave.approve", "quotes.view", "quotes.manage", "contracts.view", "contracts.manage", "commissions.own", "campaigns.view", "campaigns.manage"],
+  SALES_MANAGER: ["prospector.use", "prospector.manage", "followups.manage", "leadsources.manage", "leave.approve", "quotes.view", "quotes.manage", "contracts.view", "contracts.manage", "commissions.own", "campaigns.view", "campaigns.manage"],
   SALES_AGENT: ["quotes.view", "quotes.manage", "commissions.own", "campaigns.view"],
   PROJECT_MANAGER: ["meetings.recordings", "support.view", "support.manage", "campaigns.view", "leave.approve", "projects.costs", "budget.view", "vendors.view", "vendors.manage", "content.view", "content.manage", "content.publish"],
   MARKETING_DIRECTOR: ["followups.manage", "email_templates.manage", "leadsources.manage", "content.view", "content.manage", "content.publish", "campaigns.view", "campaigns.manage"],
