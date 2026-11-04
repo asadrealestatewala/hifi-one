@@ -3,8 +3,9 @@
 import type { PrismaClient } from "@prisma/client";
 import { mapHeaders, normalizeEmail, normalizePhone, parseCsv } from "./contacts";
 import { ensureContactForLead } from "./crm-contacts";
+import { DuplicateLeadError, claimLeadKeys, getPolicy, guardNewLead, leadKeys, presentDuplicate, type Viewer } from "./lead-duplicates";
 
-export class WorklistError extends Error {}
+export class WorklistError extends Error { constructor(message: string, readonly existingLeadId?: string) { super(message); } }
 export const MAX_ROWS = 5000;
 
 export type ImportReport = { worklistId: string; imported: number; skipped: { row: number; reason: string }[]; duplicates: number; suppressed: number };
@@ -32,8 +33,15 @@ export async function importWorklist(
     db.lead.findMany({ where: { organizationId: p.organizationId }, select: { id: true, email: true, phone: true } }),
     db.suppressedContact.findMany({ where: { organizationId: p.organizationId } }),
   ]);
-  const leadByEmail = new Map(leads.filter((l) => l.email).map((l) => [l.email!, l.id]));
-  const leadByPhone = new Map(leads.filter((l) => l.phone).map((l) => [l.phone!, l.id]));
+  // Compared in normalised form (email lowercased, phone to +international), so 0300 1234567 and +92 300 1234567 are the same person
+  const policy = await getPolicy(db, p.organizationId);
+  const leadByEmail = new Map<string, string>();
+  const leadByPhone = new Map<string, string>();
+  for (const l of leads) {
+    const k = leadKeys(l, policy.defaultCountry);
+    if (k.email) leadByEmail.set(k.email, l.id);
+    for (const c of k.phoneCandidates) leadByPhone.set(c, l.id);
+  }
   const blockedEmail = new Set(suppressed.map((s) => s.email).filter(Boolean));
   const blockedPhone = new Set(suppressed.map((s) => normalizePhone(s.phone)).filter(Boolean));
 
@@ -57,7 +65,8 @@ export async function importWorklist(
     const raw: Record<string, string> = {};
     headers.forEach((h, c) => { if (h.trim()) raw[h.trim()] = (r[c] ?? "").trim(); });
     const isSuppressed = (email && blockedEmail.has(email)) || (phone && blockedPhone.has(phone));
-    const duplicateLeadId = (email && leadByEmail.get(email)) || (phone && leadByPhone.get(phone)) || null;
+    const rowKeys = leadKeys({ email, phone }, policy.defaultCountry);
+    const duplicateLeadId = (rowKeys.email && leadByEmail.get(rowKeys.email)) || rowKeys.phoneCandidates.map((c) => leadByPhone.get(c)).find(Boolean) || null;
     if (isSuppressed) sup++;
     else if (duplicateLeadId) duplicates++;
     data.push({ rowNumber, name, company: cell(r, "name") ? cell(r, "company") || null : null, email, phone, raw, status: isSuppressed ? "DO_NOT_CONTACT" : "NEW", duplicateLeadId: duplicateLeadId || null });
@@ -83,7 +92,7 @@ export async function setRowStatus(db: PrismaClient, p: { organizationId: string
 }
 
 // Creates a real CRM lead from a worklist row. Safe to retry: a second call returns the same lead.
-export async function convertRow(db: PrismaClient, p: { organizationId: string; rowId: string; actorId: string }) {
+export async function convertRow(db: PrismaClient, p: { organizationId: string; rowId: string; actorId: string; viewer?: Viewer }) {
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "WorklistRow" WHERE id = ${p.rowId} FOR UPDATE`;
     const row = await tx.worklistRow.findFirst({ where: { id: p.rowId, worklist: { organizationId: p.organizationId } }, include: { worklist: true } });
@@ -97,8 +106,10 @@ export async function convertRow(db: PrismaClient, p: { organizationId: string; 
       where: { organizationId: p.organizationId, OR: [...(email ? [{ email }] : []), ...(phone ? [{ phone }] : [])] },
     });
     if (blocked) throw new WorklistError("This contact is on the do-not-contact list and cannot become a lead.");
-    const dup = await tx.lead.findFirst({ where: { organizationId: p.organizationId, OR: [...(email ? [{ email }] : []), ...(phone ? [{ phone }] : [])] } });
-    if (dup) throw new WorklistError("This contact is already in the CRM. Open the existing lead instead.");
+    try { await guardNewLead(tx, { organizationId: p.organizationId, email, phone }); } catch (e) {
+      if (e instanceof DuplicateLeadError) throw new WorklistError(presentDuplicate(e.matches[0], p.viewer ?? null).text, e.matches[0]?.leadId);
+      throw e;
+    }
     const stage = await tx.pipelineStage.findFirst({ where: { organizationId: p.organizationId }, orderBy: { sortOrder: "asc" } });
     if (!stage) throw new WorklistError("The pipeline has no stages.");
     const lead = await tx.lead.create({
@@ -108,6 +119,7 @@ export async function convertRow(db: PrismaClient, p: { organizationId: string; 
         activities: { create: { kind: "CREATED", actorId: p.actorId, body: `Converted from prospecting worklist "${row.worklist.name}", row ${row.rowNumber}` } },
       },
     });
+    await claimLeadKeys(tx, { leadId: lead.id, organizationId: p.organizationId, email, phone });
     await ensureContactForLead(tx, lead.id);
     await tx.worklistRow.update({ where: { id: row.id }, data: { status: "CONVERTED", convertedLeadId: lead.id } });
     return { leadId: lead.id, created: true };

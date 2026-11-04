@@ -93,6 +93,7 @@ export const NAV: NavGroup[] = [
     { href: "/settings/documents", label: "Document Templates", permission: "settings.company.view" },
     { href: "/settings/exchange-rates", label: "Exchange Rates", permission: "reports.view" },
     { href: "/settings/tax-rates", label: "Tax Rates", permission: "settings.company.view" },
+    { href: "/settings/duplicates", label: "Duplicate Leads", permission: "crm.duplicates" },
     { href: "/settings/integrations", label: "Integrations", permission: "integrations.manage" },
     { href: "/settings/email", label: "Email", permission: "settings.company.view" },
     { href: "/settings/mailboxes", label: "Mailboxes", permission: "mail.manage" },

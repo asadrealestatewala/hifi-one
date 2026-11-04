@@ -7,6 +7,7 @@
 //  - Duplicate emails and phones are detected across all of a contact's values, not just the first.
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { dec } from "./ledger-math";
+import { claimLeadKeys, guardNewLead, resyncLeadKeys, DuplicateLeadError, presentDuplicate } from "./lead-duplicates";
 import { CURRENCIES } from "./money";
 
 export class ContactError extends Error {
@@ -153,6 +154,10 @@ async function openOpportunity(tx: Tx, p: { organizationId: string; contact: { i
     ? await tx.pipelineStage.findFirst({ where: { id: p.opp.stageId, organizationId: p.organizationId } })
     : await tx.pipelineStage.findFirst({ where: { organizationId: p.organizationId }, orderBy: { sortOrder: "asc" } });
   if (!stage) throw new ContactError("The sales pipeline has no stages yet.");
+  try { await guardNewLead(tx, { organizationId: p.organizationId, email: p.contact.primaryEmail, phone: p.contact.primaryPhone, country: p.contact.country, excludeContactId: p.contact.id }); } catch (e) {
+    if (e instanceof DuplicateLeadError) throw new ContactError(presentDuplicate(e.matches[0], null).text);
+    throw e;
+  }
   const lead = await tx.lead.create({
     data: {
       organizationId: p.organizationId, name: p.contact.name, company: p.contact.kind === "ORGANIZATION" ? p.contact.name : p.parentName, email: p.contact.primaryEmail, phone: p.contact.primaryPhone,
@@ -161,6 +166,7 @@ async function openOpportunity(tx: Tx, p: { organizationId: string; contact: { i
       stageId: stage.id, assignedToId: p.ownerId, createdById: p.actorId, contactId: p.contact.id, activities: { create: { kind: "CREATED", actorId: p.actorId, body: "Opportunity opened from the contact record" } },
     },
   });
+  await claimLeadKeys(tx, { leadId: lead.id, organizationId: p.organizationId, email: lead.email, phone: lead.phone, country: lead.country }, { strict: false });
   await tx.contactActivity.create({ data: { contactId: p.contact.id, actorId: p.actorId, kind: "SYSTEM", body: `Opportunity L-${lead.number} opened in ${stage.name}` } });
   return lead;
 }
@@ -207,6 +213,7 @@ type CRow = { id: string; kind: string; name: string; parentId: string | null; p
 async function pushToBoards(tx: Tx, c: CRow) {
   const company = c.kind === "ORGANIZATION" ? c.name : c.parentId ? (await tx.contact.findUnique({ where: { id: c.parentId }, select: { name: true } }))?.name ?? null : null;
   await tx.lead.updateMany({ where: { contactId: c.id }, data: { name: c.name, email: c.primaryEmail, phone: c.primaryPhone, city: c.city, country: c.country, timezone: c.timezone, preferredContact: c.preferredContact, tags: c.tags, ...(company !== null || c.kind === "PERSON" ? { company } : {}) } });
+  await resyncLeadKeys(tx, (await tx.lead.findMany({ where: { contactId: c.id }, select: { id: true } })).map((l) => l.id));
   await tx.client.updateMany({ where: { contactId: c.id }, data: { email: c.primaryEmail, phone: c.primaryPhone } });
   if (c.kind === "ORGANIZATION") {
     const kids = await tx.contact.findMany({ where: { parentId: c.id }, select: { id: true } });

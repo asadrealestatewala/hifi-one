@@ -13,9 +13,9 @@ import Drawer from "@/components/ui/Drawer";
 import { createLead } from "./actions";
 
 export const dynamic = "force-dynamic";
-export default async function Leads({ searchParams }: { searchParams: Promise<{ error?: string; dup?: string; q?: string; stage?: string; new?: string; page?: string; campaign?: string; source?: string; from?: string; to?: string; src?: string; sort?: string; dir?: string }> }) {
+export default async function Leads({ searchParams }: { searchParams: Promise<{ error?: string; dup?: string; dupHref?: string; q?: string; stage?: string; new?: string; page?: string; campaign?: string; source?: string; from?: string; to?: string; src?: string; sort?: string; dir?: string }> }) {
   const user = await requirePermission("crm.view");
-  const { error, dup, q, stage, new: isNew, page, campaign, source, from, to, src, sort: sortRaw, dir: dirRaw } = await searchParams;
+  const { error, dup, dupHref, q, stage, new: isNew, page, campaign, source, from, to, src, sort: sortRaw, dir: dirRaw } = await searchParams;
   const lp = leadParams({ q, stage, campaign, source, from, to, page, sort: sortRaw, dir: dirRaw });
   const sort = lp.sort;
   const range = lp.range;
@@ -102,6 +102,7 @@ export default async function Leads({ searchParams }: { searchParams: Promise<{ 
             <div><label className="label" htmlFor="expectedCloseDate">Expected closing date</label><input id="expectedCloseDate" name="expectedCloseDate" type="date" className="input" /></div>
             <div><label className="label" htmlFor="campaignId">Campaign</label><select id="campaignId" name="campaignId" className="input" defaultValue=""><option value="">None</option>{campaigns.filter((c) => !c.archivedAt && ["ACTIVE", "PLANNED"].includes(c.status)).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
             <div><label className="label" htmlFor="tags">Tags (comma separated)</label><input id="tags" name="tags" className="input" /></div>
+            {dupHref && /^\/leads\/[a-z0-9]+$/i.test(dupHref) && <p className="text-sm sm:col-span-2"><Link className="font-medium text-brand underline" href={dupHref}>Open the existing lead</Link></p>}
             {dup && <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" name="confirmDuplicate" value="1" /> Create anyway, I have checked the existing lead</label>}
             </div>
           </PanelForm>
