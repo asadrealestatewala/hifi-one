@@ -13,7 +13,7 @@ import { usersWithPermission } from "@/lib/notifications";
 import { orderFor } from "@/lib/sort";
 import { listHref, parseListParams } from "@/lib/list-params";
 import { Badge, Chips, Empty, Notice, PageHeader, Pager, SearchBox, SubmitButton } from "@/components/ui";
-import { checkWebsites, getFacebookData, reviewProspects, saveFacebookLink, saveSearchLimits, searchProspects, updateScores } from "./actions";
+import { checkWebsites, getFacebookData, reviewProspects, saveFacebookLink, saveSearchLimits, searchProspects, sendProspectsToCrm, updateScores } from "./actions";
 import AutoRefresh from "./AutoRefresh";
 
 export const dynamic = "force-dynamic";
@@ -222,6 +222,9 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
           <button className="btn-ghost" name="op" value="review">Mark reviewed</button>
           <button className="btn-ghost" name="op" value="dismiss">Dismiss</button>
           <button className="btn-ghost" name="op" value="restore">Restore</button>
+          <div><label className="label" htmlFor="sendTo">Send ticked to the CRM, owned by</label>
+            <select id="sendTo" name="sendTo" className="input" defaultValue="TEAM"><option value="TEAM">The sales team, in fair shares</option>{agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+          <button className="btn" formAction={sendProspectsToCrm} title="Makes a lead and contact for each ticked prospect with its call note. A prospect already assigned to someone keeps that person as the owner.">Send to CRM</button>
         </>}
         <button className="btn-ghost" formAction={checkWebsites} title="Reads each ticked business's website and asks Google PageSpeed for its scores">Check websites</button>
         <button className="btn-ghost" formAction={checkWebsites} name="force" value="1" title="Repeat the check even if it was done in the last week">Check again</button>
@@ -251,7 +254,7 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
                   <td className="pr-4"><CheckCell c={checks.get(r.id) ?? null} hasWebsite={Boolean(r.website)} /></td>
                   <td className="pr-4"><SocialCell s={socials.get(r.id) ?? null} prospectId={r.id} name={r.name} canEdit={canTick} /></td>
                   <td className="pr-4 whitespace-nowrap">{r.rating ? `${r.rating} (${r.ratingCount ?? 0})` : <span className="text-muted">No reviews</span>}</td>
-                  <td className="pr-4"><Badge tone={TONE[r.status] ?? "neutral"}>{LABEL[r.status] ?? r.status}</Badge></td>
+                  <td className="pr-4"><Badge tone={TONE[r.status] ?? "neutral"}>{LABEL[r.status] ?? r.status}</Badge>{r.leadId && <p className="mt-1 text-xs"><Link className="text-primary hover:underline" href={`/leads/${r.leadId}`}>Open lead</Link></p>}</td>
                   <td className="pr-4">{r.assignedToId ? names.get(r.assignedToId) ?? "Unknown" : <span className="text-muted">Nobody</span>}</td>
                 </tr>
               ))}

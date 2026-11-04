@@ -22,6 +22,9 @@ Rule: a screen never computes a stored total itself, and a total is never copied
 
 ## Cross-module workflows
 
+### Prospect to lead
+`/leads/prospector` finds businesses as `Prospect` rows (not leads). `sendToCrm` (`prospect-crm.ts`, sales managers only) is the only writer that turns one into a `Lead` (source "Prospector"): it creates the lead and its contact, the call note from `scoreProspect` as a lead note, and sets `Prospect.status = SENT_TO_CRM` and `Prospect.leadId`. After that the lead is owned by the CRM and the prospect is locked. From here the flow is Lead to cash.
+
 ### Lead to cash
 1. Lead created → `ensureContactForLead` links or creates the `Contact`.
 2. `convertLead` (`conversion.ts`) links or creates the `Client`, marks contact and organization as customers, keeps history, creates one draft invoice.
