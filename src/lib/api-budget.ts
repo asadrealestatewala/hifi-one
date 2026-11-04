@@ -8,16 +8,18 @@ type Db = PrismaClient;
 export class BudgetError extends Error {}
 
 export const PROVIDERS = {
-  GOOGLE_PLACES: { label: "Google Places" },
-  GOOGLE_PAGESPEED: { label: "Google PageSpeed" },
+  GOOGLE_PLACES: { label: "Google Places", noun: "Google" },
+  GOOGLE_PAGESPEED: { label: "Google PageSpeed", noun: "Google" },
+  SOCIALAPIS: { label: "SocialAPIs", noun: "SocialAPIs" },
 } as const;
 export type Provider = keyof typeof PROVIDERS;
 
 // Text Search Enterprise: asking for phone, website or rating moves the request to this SKU (USD per request)
 // PageSpeed Insights is free; its calls are still written to the ledger so the daily limit is enforced
-export const SKU_PRICE_USD: Record<string, number> = { PLACES_TEXT_SEARCH_ENTERPRISE: 0.035, PSI_RUN_PAGESPEED: 0 };
+export const SKU_PRICE_USD: Record<string, number> = { PLACES_TEXT_SEARCH_ENTERPRISE: 0.035, PSI_RUN_PAGESPEED: 0, SOCIAL_FB_PAGE_DETAILS: 0, SOCIAL_FB_PAGE_POSTS: 0 };
 
-export type Caps = { monthlyUsd: number; dailyCalls: number };
+// monthlyCalls is for providers sold by the number of calls (SocialAPIs credits) rather than by dollars
+export type Caps = { monthlyUsd: number; dailyCalls: number; monthlyCalls?: number };
 function num(v: string | undefined, fallback: number) { const n = Number(v); return v !== undefined && v.trim() !== "" && Number.isFinite(n) && n >= 0 ? n : fallback; }
 export function googleCaps(env: Record<string, string | undefined> = process.env): Caps {
   return { monthlyUsd: num(env.GOOGLE_MONTHLY_BUDGET_USD, 20), dailyCalls: Math.floor(num(env.GOOGLE_DAILY_CALL_LIMIT, 100)) };
@@ -26,6 +28,11 @@ export function googleCaps(env: Record<string, string | undefined> = process.env
 // PageSpeed has no money cap, only a daily request limit (default 200). Google's own quota for a key is higher, but this keeps one click from using it all.
 export function pageSpeedCaps(env: Record<string, string | undefined> = process.env): Caps {
   return { monthlyUsd: 0, dailyCalls: Math.floor(num(env.PAGESPEED_DAILY_CALL_LIMIT, 200)) };
+}
+
+// SocialAPIs sells credits: the free plan is 200 a month, and a page details or page posts request costs 1 credit, so each request is one ledger row.
+export function socialCaps(env: Record<string, string | undefined> = process.env): Caps {
+  return { monthlyUsd: 0, dailyCalls: Math.floor(num(env.SOCIALAPIS_DAILY_CALL_LIMIT, 40)), monthlyCalls: Math.floor(num(env.SOCIALAPIS_MONTHLY_CALL_LIMIT, 200)) };
 }
 
 const monthStart = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
@@ -37,7 +44,7 @@ export async function usage(db: Db, organizationId: string, provider: Provider, 
     db.apiCall.count({ where: { organizationId, provider, createdAt: { gte: dayStart(now) } } }),
   ]);
   const spent = Number(m._sum.costUsd ?? 0);
-  return { monthSpentUsd: spent, monthCalls: m._count, monthlyCapUsd: caps.monthlyUsd, monthLeftUsd: Math.max(0, caps.monthlyUsd - spent), dayCalls: d, dailyCap: caps.dailyCalls, dayLeft: Math.max(0, caps.dailyCalls - d) };
+  return { monthSpentUsd: spent, monthCalls: m._count, monthlyCalls: caps.monthlyCalls ?? null, monthlyCapUsd: caps.monthlyUsd, monthLeftUsd: Math.max(0, caps.monthlyUsd - spent), dayCalls: d, dailyCap: caps.dailyCalls, dayLeft: Math.max(0, caps.dailyCalls - d) };
 }
 
 // Would `calls` more calls of this SKU fit under both caps right now? (Used to refuse a whole search before its first request.)
@@ -57,8 +64,10 @@ export async function reserveCall(db: Db, p: { organizationId: string; provider:
   return db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`apicall:${p.organizationId}:${p.provider}`}))`;
     const u = await usage(tx as unknown as Db, p.organizationId, p.provider, p.caps, now);
-    if (u.dayCalls + 1 > p.caps.dailyCalls) throw new BudgetError(`The daily limit of ${p.caps.dailyCalls} Google requests is used up. Try again tomorrow.`);
-    if (u.monthSpentUsd + price > p.caps.monthlyUsd + 1e-9) throw new BudgetError(`The monthly Google budget of $${p.caps.monthlyUsd.toFixed(2)} is used up.`);
+    const noun = PROVIDERS[p.provider].noun;
+    if (u.dayCalls + 1 > p.caps.dailyCalls) throw new BudgetError(`The daily limit of ${p.caps.dailyCalls} ${noun} requests is used up. Try again tomorrow.`);
+    if (p.caps.monthlyCalls !== undefined && u.monthCalls + 1 > p.caps.monthlyCalls) throw new BudgetError(`The monthly limit of ${p.caps.monthlyCalls} ${noun} requests is used up.`);
+    if (u.monthSpentUsd + price > p.caps.monthlyUsd + 1e-9) throw new BudgetError(`The monthly ${noun} budget of $${p.caps.monthlyUsd.toFixed(2)} is used up.`);
     const row = await tx.apiCall.create({ data: { organizationId: p.organizationId, provider: p.provider, sku: p.sku, userId: p.userId ?? null, costUsd: price, createdAt: now } });
     return { id: row.id, costUsd: price };
   });

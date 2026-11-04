@@ -8,6 +8,8 @@ import { getKey } from "./integration-keys";
 import { PSI_SKU, PageSpeedError, runPageSpeed, type PageSpeedResult } from "./pagespeed";
 import { SafeFetchError, fetchPublicPage, type FetchedPage } from "./safe-fetch";
 import { analyzeHtml } from "./website-analysis";
+import { findFacebookUrl } from "./facebook-link";
+import { recordDiscoveredLink } from "./prospect-social";
 import { canSearch, isManager, prospectScope, type Actor } from "./prospector";
 
 type Db = PrismaClient;
@@ -123,6 +125,8 @@ async function processOne(db: Db, c: { prospectId: string; organizationId: strin
     data.finalUrl = page.finalUrl.slice(0, 500); data.httpStatus = s;
     if (s >= 200 && s < 400) {
       const a = analyzeHtml(page.html, page.finalUrl);
+      // The business's own Facebook page, if the home page links to it (stage 3 reads its numbers when someone asks)
+      await recordDiscoveredLink(db, { prospectId: c.prospectId, organizationId: c.organizationId, url: findFacebookUrl(page.html) });
       Object.assign(data, { reachable: true, https: a.https, hasTitle: a.hasTitle, hasMetaDescription: a.hasMetaDescription, hasAnalytics: a.hasAnalytics, hasGtm: a.hasGtm, hasMetaPixel: a.hasMetaPixel, hasContactForm: a.hasContactForm, hasWhatsapp: a.hasWhatsapp, lowConfidence: a.lowConfidence });
     } else {
       // 401, 403 and 429 usually mean the site refuses automatic visitors, not that it is down

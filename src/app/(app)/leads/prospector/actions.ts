@@ -6,6 +6,7 @@ import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getKey } from "@/lib/integration-keys";
 import { MAX_QUEUE_PER_CLICK, drainWebsiteChecks, queueChecks } from "@/lib/website-checks";
+import { MAX_FETCH_PER_CLICK, SocialAccessError, fetchFacebookData, setFacebookLink } from "@/lib/prospect-social";
 import { ProspectorError, assign, dismiss, markReviewed, restore, runSearch, setDailyLimits } from "@/lib/prospector";
 
 const BASE = "/leads/prospector";
@@ -89,6 +90,42 @@ export async function checkWebsites(formData: FormData): Promise<void> {
     ok = `Website checks: ${parts.join(", ")}.${r.queued > 0 ? " Results appear here within a few minutes." : ""}`;
   } catch (e) {
     if (e instanceof Error && /access/.test(e.message)) return flash("error", e.message);
+    throw e;
+  }
+  return flash("ok", ok);
+}
+
+// Reads followers, likes and the last post date for the ticked prospects that have a Facebook address. Each business uses 2 of the
+// SocialAPIs requests, so one click handles at most MAX_FETCH_PER_CLICK; the service checks access and the monthly and daily limits again.
+export async function getFacebookData(formData: FormData): Promise<void> {
+  const user = await requirePermission("crm.edit");
+  const ids = formData.getAll("ids").map(String).filter(Boolean).slice(0, 200);
+  if (ids.length === 0) return flash("error", "Tick at least one prospect first.");
+  let ok = "";
+  try {
+    const r = await fetchFacebookData(db, user, ids, { force: s(formData, "force") === "1" });
+    await audit(user, { action: "prospect.facebook_data", entity: "Prospect", after: { ...r, ids: ids.slice(0, 50) } });
+    if (r.notConfigured) return flash("error", "SocialAPIs is not configured, so nothing was fetched. A Super Admin can add the SocialAPIs key in Administration, then Integrations.");
+    const parts = [`${r.fetched} fetched`, r.noLink ? `${r.noLink} have no Facebook link (run Check websites or add the link)` : "", r.fresh ? `${r.fresh} fetched in the last week (use Fetch again to repeat)` : "", r.failed ? `${r.failed} could not be read` : "", r.left ? `${r.left} left, press the button again (up to ${MAX_FETCH_PER_CLICK} at a time)` : "", r.skipped ? `${r.skipped} not available to you` : ""].filter(Boolean);
+    ok = `Facebook data: ${parts.join(", ")}.${r.stopped ? ` Stopped: ${r.stopped}` : ""}`;
+  } catch (e) {
+    if (e instanceof SocialAccessError) return flash("error", e.message);
+    throw e;
+  }
+  return flash("ok", ok);
+}
+
+export async function saveFacebookLink(formData: FormData): Promise<void> {
+  const user = await requirePermission("crm.edit");
+  const id = s(formData, "prospectId");
+  if (!id) return flash("error", "Choose a prospect first.");
+  let ok = "";
+  try {
+    const url = await setFacebookLink(db, user, id, s(formData, "facebookUrl"));
+    await audit(user, { action: "prospect.facebook_link", entity: "Prospect", entityId: id, after: { facebookUrl: url } });
+    ok = url ? "Facebook link saved." : "Facebook link removed.";
+  } catch (e) {
+    if (e instanceof SocialAccessError) return flash("error", e.message);
     throw e;
   }
   return flash("ok", ok);

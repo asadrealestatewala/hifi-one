@@ -4,13 +4,14 @@ import { db } from "@/lib/db";
 import { isConfigured } from "@/lib/integration-keys";
 import { googleCaps, usage } from "@/lib/api-budget";
 import { pageSpeedUsage } from "@/lib/website-checks";
+import { socialUsage } from "@/lib/prospect-social";
 import { PROSPECT_SORTS, PROSPECT_STATUSES, RESULT_CHOICES, assignableAgents, canSearch, dailyLimitFor, estimate, isManager, prospectScope, prospectWhere, searchesToday } from "@/lib/prospector";
 import { countryOptions } from "@/lib/phone";
 import { usersWithPermission } from "@/lib/notifications";
 import { orderFor } from "@/lib/sort";
 import { listHref, parseListParams } from "@/lib/list-params";
 import { Badge, Chips, Empty, Notice, PageHeader, Pager, SearchBox, SubmitButton } from "@/components/ui";
-import { checkWebsites, reviewProspects, saveSearchLimits, searchProspects } from "./actions";
+import { checkWebsites, getFacebookData, reviewProspects, saveFacebookLink, saveSearchLimits, searchProspects } from "./actions";
 import AutoRefresh from "./AutoRefresh";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,41 @@ const BASE = "/leads/prospector";
 const LABEL: Record<string, string> = { NEW: "New", REVIEWED: "Reviewed", ASSIGNED: "Assigned", SENT_TO_CRM: "Sent to CRM", DISMISSED: "Dismissed" };
 const TONE: Record<string, "primary" | "warning" | "success" | "neutral"> = { NEW: "primary", REVIEWED: "warning", ASSIGNED: "primary", SENT_TO_CRM: "success", DISMISSED: "neutral" };
 const usd = (n: number) => `$${n.toFixed(2)}`;
+
+type Social = { facebookUrl: string | null; source: string; status: string; pageName: string | null; followers: number | null; likes: number | null; lastPostAt: Date | null; note: string | null; fetchedAt: Date | null };
+const num = (n: number) => n.toLocaleString("en-US");
+const daysAgo = (d: Date) => { const n = Math.floor((Date.now() - d.getTime()) / 86_400_000); return n <= 0 ? "today" : n === 1 ? "yesterday" : `${n} days ago`; };
+
+// Followers, likes and the last post date of the business's Facebook page, with a small form to add or correct the link
+function SocialCell({ s, prospectId, name, canEdit }: { s: Social | null; prospectId: string; name: string; canEdit: boolean }) {
+  const form = canEdit && (
+    <details className="text-xs">
+      <summary className="cursor-pointer text-primary">{s?.facebookUrl ? "Change link" : "Add link"}</summary>
+      <form action={saveFacebookLink} className="mt-1 flex max-w-[16rem] items-center gap-1" aria-label={`Facebook link for ${name}`}>
+        <input type="hidden" name="prospectId" value={prospectId} />
+        <input name="facebookUrl" defaultValue={s?.facebookUrl ?? ""} maxLength={300} placeholder="facebook.com/theirpage" className="input !py-1 text-xs" aria-label={`Facebook page address for ${name}`} />
+        <SubmitButton pendingText="Saving…">Save</SubmitButton>
+      </form>
+    </details>
+  );
+  if (!s?.facebookUrl) return <div className="space-y-1"><p className="text-xs text-muted">No Facebook link found</p>{form}</div>;
+  return (
+    <div className="max-w-[16rem] space-y-1">
+      <a className="break-all text-xs text-primary hover:underline" href={s.facebookUrl} target="_blank" rel="noopener noreferrer">{s.facebookUrl.replace(/^https:\/\/www\./, "").slice(0, 40)}</a>
+      <p className="text-[11px] text-muted">{s.source === "MANUAL" ? "Added by a person" : "Found on their website"}</p>
+      {s.followers != null || s.lastPostAt || s.likes != null ? (
+        <div className="flex flex-wrap gap-1">
+          {s.followers != null && <Badge tone="primary">{num(s.followers)} followers</Badge>}
+          {s.likes != null && <Badge tone="neutral">{num(s.likes)} likes</Badge>}
+          {s.lastPostAt && <Badge tone={Date.now() - s.lastPostAt.getTime() > 90 * 86_400_000 ? "warning" : "success"}>Last post {daysAgo(s.lastPostAt)}</Badge>}
+        </div>
+      ) : s.status === "NOT_FETCHED" ? <p className="text-xs text-muted">Numbers not fetched yet</p> : null}
+      {s.status === "OK" && s.lastPostAt == null && <p className="text-xs text-muted">Last post date not available.</p>}
+      {s.status !== "OK" && s.status !== "NOT_FETCHED" && s.note && <p className="text-xs text-muted">{s.note}</p>}
+      {form}
+    </div>
+  );
+}
 
 type Check = { status: string; reachable: boolean | null; httpStatus: number | null; https: boolean | null; hasTitle: boolean | null; hasMetaDescription: boolean | null; hasAnalytics: boolean | null; hasGtm: boolean | null; hasMetaPixel: boolean | null; hasContactForm: boolean | null; hasWhatsapp: boolean | null; lowConfidence: boolean | null; psiStatus: string | null; psiNote: string | null; mobileScore: number | null; seoScore: number | null; fcpMs: number | null; lcpMs: number | null; tbtMs: number | null; cls: unknown; speedIndexMs: number | null; error: string | null; checkedAt: Date | null };
 const scoreTone = (n: number) => (n >= 90 ? "success" : n >= 50 ? "warning" : "danger") as "success" | "warning" | "danger";
@@ -81,7 +117,7 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
 
   const where = prospectWhere(user, { q: lp.q, status: lp.status, searchId: lp.ids.search });
   const scope = prospectScope(user);
-  const [rows, matched, counts, agents, meter, mine, limit, psiMeter] = await Promise.all([
+  const [rows, matched, counts, agents, meter, mine, limit, psiMeter, fbMeter] = await Promise.all([
     db.prospect.findMany({ where, orderBy: orderFor(lp.sort, PROSPECT_SORTS), skip: lp.page.skip, take: lp.page.take }),
     db.prospect.count({ where }),
     db.prospect.groupBy({ by: ["status"], where: scope, _count: true }),
@@ -90,7 +126,9 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
     searcher ? searchesToday(db, org, user.id) : Promise.resolve(0),
     searcher ? dailyLimitFor(db, org, user.id) : Promise.resolve(0),
     manager || user.permissions.has("prospector.manage") ? pageSpeedUsage(db, org) : Promise.resolve(null),
+    manager || user.permissions.has("prospector.manage") ? socialUsage(db, org) : Promise.resolve(null),
   ]);
+  const socials = new Map((await db.prospectSocial.findMany({ where: { prospectId: { in: rows.map((r) => r.id) } } })).map((x) => [x.prospectId, x as Social]));
   const checks = new Map((await db.prospectWebsiteCheck.findMany({ where: { prospectId: { in: rows.map((r) => r.id) } } })).map((c) => [c.prospectId, c as Check]));
   const pending = [...checks.values()].some((c) => c.status === "QUEUED" || c.status === "RUNNING");
   const canTick = manager || searcher;
@@ -117,9 +155,10 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
       {(meter || searcher) && (
         <section className="card space-y-3" aria-label="Usage">
           <h2 className="font-semibold">Usage</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {meter && <Meter label="Google budget this month" value={meter.monthSpentUsd} max={meter.monthlyCapUsd} text={`${usd(meter.monthSpentUsd)} of ${usd(meter.monthlyCapUsd)}`} />}
             {meter && <Meter label="Google requests today" value={meter.dayCalls} max={meter.dailyCap} text={`${meter.dayCalls} of ${meter.dailyCap}`} />}
+            {fbMeter && fbMeter.monthlyCalls != null && <Meter label="Facebook requests this month" value={fbMeter.monthCalls} max={fbMeter.monthlyCalls} text={`${fbMeter.monthCalls} of ${fbMeter.monthlyCalls}`} />}
             {psiMeter && <Meter label="PageSpeed checks today" value={psiMeter.dayCalls} max={psiMeter.dailyCap} text={`${psiMeter.dayCalls} of ${psiMeter.dailyCap}`} />}
             {searcher && <Meter label="Your searches today" value={mine} max={limit} text={`${mine} of ${limit}`} />}
           </div>
@@ -161,6 +200,8 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
         </>}
         <button className="btn-ghost" formAction={checkWebsites} title="Reads each ticked business's website and asks Google PageSpeed for its scores">Check websites</button>
         <button className="btn-ghost" formAction={checkWebsites} name="force" value="1" title="Repeat the check even if it was done in the last week">Check again</button>
+        <button className="btn-ghost" formAction={getFacebookData} title="Reads followers, likes and the last post date from each ticked business's Facebook page. Each business uses 2 of the monthly SocialAPIs requests; up to 5 at a time.">Get Facebook data</button>
+        <button className="btn-ghost" formAction={getFacebookData} name="force" value="1" title="Repeat even if it was fetched in the last week">Fetch again</button>
         {pending && <AutoRefresh />}
       </form>}
 
@@ -171,7 +212,7 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
           <table className="w-full text-sm">
             <thead className="bg-hover/60 text-left text-xs text-muted"><tr>
               {canTick && <th className="w-8 py-2 pl-4"><span className="sr-only">Select</span></th>}
-              <th className="py-2 pl-4 pr-4">Business</th><th className="pr-4">Phone</th><th className="pr-4">Website</th><th className="pr-4">Website check</th><th className="pr-4">Rating</th><th className="pr-4">Status</th><th className="pr-4">Assigned to</th>
+              <th className="py-2 pl-4 pr-4">Business</th><th className="pr-4">Phone</th><th className="pr-4">Website</th><th className="pr-4">Website check</th><th className="pr-4">Facebook</th><th className="pr-4">Rating</th><th className="pr-4">Status</th><th className="pr-4">Assigned to</th>
             </tr></thead>
             <tbody>
               {rows.map((r) => (
@@ -181,6 +222,7 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
                   <td className="pr-4 whitespace-nowrap">{r.phone ? <a className="hover:underline" href={`tel:${r.phone}`}>{r.phone}</a> : <span className="text-muted">None listed</span>}</td>
                   <td className="pr-4">{r.website ? <a className="break-all text-primary hover:underline" href={r.website} target="_blank" rel="noopener noreferrer">{r.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "").slice(0, 32)}</a> : <span className="text-muted">No website</span>}</td>
                   <td className="pr-4"><CheckCell c={checks.get(r.id) ?? null} hasWebsite={Boolean(r.website)} /></td>
+                  <td className="pr-4"><SocialCell s={socials.get(r.id) ?? null} prospectId={r.id} name={r.name} canEdit={canTick} /></td>
                   <td className="pr-4 whitespace-nowrap">{r.rating ? `${r.rating} (${r.ratingCount ?? 0})` : <span className="text-muted">No reviews</span>}</td>
                   <td className="pr-4"><Badge tone={TONE[r.status] ?? "neutral"}>{LABEL[r.status] ?? r.status}</Badge></td>
                   <td className="pr-4">{r.assignedToId ? names.get(r.assignedToId) ?? "Unknown" : <span className="text-muted">Nobody</span>}</td>
