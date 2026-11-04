@@ -21,10 +21,19 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
             npm ci --legacy-peer-deps
-            # Clout Leader reads public post numbers with yt-dlp. Install or upgrade it for this user; a problem here never stops the deploy.
+            # Clout Leader reads public post numbers with yt-dlp. A problem here never stops the deploy, and its output stays visible.
+            # The standalone build needs no Python or pip; pip is the fallback. Already installed: update it in place.
             export PATH="$HOME/.local/bin:$PATH"
-            (python3 -m pip install -U --user --break-system-packages yt-dlp >/dev/null 2>&1 || python3 -m pip install -U --user yt-dlp >/dev/null 2>&1 || pip3 install -U --user yt-dlp >/dev/null 2>&1) || echo "WARNING: yt-dlp could not be installed; Clout Leader will say so on its Settings page"
-            yt-dlp --version || true
+            mkdir -p "$HOME/.local/bin"
+            if command -v yt-dlp >/dev/null 2>&1; then
+              yt-dlp -U || echo "NOTE: yt-dlp self-update did not run (pip installs update with pip)"
+            else
+              curl -fsSL -o "$HOME/.local/bin/yt-dlp" https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux && chmod +x "$HOME/.local/bin/yt-dlp" \
+                || python3 -m pip install -U --user --break-system-packages yt-dlp \
+                || python3 -m pip install -U --user yt-dlp \
+                || echo "WARNING: yt-dlp could not be installed; Clout Leader will say so on its Settings page"
+            fi
+            yt-dlp --version || echo "WARNING: yt-dlp is not runnable on this server"
             npx prisma migrate deploy
             # Build beside the live build, never over it. Building in place deleted the running server's CSS and JS
             # chunks, so a slow or failed build left every page unstyled. tsc and eslint already run in CI.
