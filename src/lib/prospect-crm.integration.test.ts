@@ -163,8 +163,31 @@ describe("duplicates and blocked numbers", () => {
     expect(await db.lead.count({ where: { organizationId: org } })).toBe(before);
     expect(await db.prospect.findUniqueOrThrow({ where: { id: known.id } })).toMatchObject({ status: "SENT_TO_CRM", leadId: lead.id });
 
+    // the lead made by a conversion claims its phone, so the CRM-wide guard now protects it too
+    const mine = await owned(ali);
+    const made = await logOutreach(db, ali, mine.id, { outcome: "INTERESTED" });
+    expect(await db.leadKey.count({ where: { leadId: made.leadId!, kind: "PHONE", key: mine.phone! } })).toBe(1);
+    // a second prospect row with the same number (found under another place id) links that lead instead of making a copy
+    const twin = await owned(ali, { phone: mine.phone });
+    expect(await logOutreach(db, ali, twin.id, { outcome: "INTERESTED" })).toMatchObject({ leadId: made.leadId, linkedExisting: true });
+
     const noPhone = await owned(ali, { phone: null });
     const n = await logOutreach(db, ali, noPhone.id, { outcome: "INTERESTED" });
     expect((await db.lead.findUniqueOrThrow({ where: { id: n.leadId! } })).phone).toBeNull();
+  });
+});
+
+describe("the duplicate setting", () => {
+  it("with checking switched off, conversion does not look for an existing lead", async () => {
+    await db.crmSettings.upsert({ where: { organizationId: org }, create: { organizationId: org, duplicateMode: "OFF", defaultCountry: "PK" }, update: { duplicateMode: "OFF" } });
+    try {
+      const stage = await db.pipelineStage.findFirstOrThrow({ where: { organizationId: org, name: "New" } });
+      const p = await owned(ali);
+      await db.lead.create({ data: { organizationId: org, name: "Same number", phone: p.phone, stageId: stage.id } });
+      const r = await logOutreach(db, ali, p.id, { outcome: "INTERESTED" });
+      expect(r.linkedExisting).toBe(false);
+    } finally {
+      await db.crmSettings.update({ where: { organizationId: org }, data: { duplicateMode: "BLOCK" } });
+    }
   });
 });

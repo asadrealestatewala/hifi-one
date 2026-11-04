@@ -10,6 +10,7 @@ import type { PrismaClient } from "@prisma/client";
 import { ensureContactForLead, mirrorLeadActivity } from "./crm-contacts";
 import { notify } from "./notifications";
 import { countryName, phoneTail } from "./phone";
+import { DuplicateLeadError, claimLeadKeys, findLeadDuplicates, getPolicy, guardNewLead, presentDuplicate } from "./lead-duplicates";
 import { isManager, ProspectorError, type Actor } from "./prospector";
 import { scoreOne, serviceLabel } from "./prospect-scoring";
 
@@ -58,9 +59,10 @@ export async function logOutreach(db: Db, actor: Actor, prospectId: string, p: {
   if (tail) {
     const blocked = await db.suppressedContact.findMany({ where: { organizationId: org }, select: { phone: true } });
     if (blocked.some((b) => phoneTail(b.phone) === tail)) throw new ProspectorError("This number is on the do-not-contact list, so it cannot become a lead.");
-    const leads = await db.lead.findMany({ where: { organizationId: org, phone: { not: null } }, select: { id: true, phone: true } });
-    existingLeadId = leads.find((l) => phoneTail(l.phone) === tail)?.id ?? null;
   }
+  // One person, one lead (lead-duplicates.ts): a lead that already has this phone is linked instead of copied, whatever its status
+  const policy = await getPolicy(db, org);
+  if (row.phone && policy.mode !== "OFF") existingLeadId = (await findLeadDuplicates(db, { organizationId: org, phone: row.phone, country: row.country }, policy))[0]?.leadId ?? null;
   const stage = await db.pipelineStage.findFirst({ where: { organizationId: org, isWon: false, isLost: false }, orderBy: { sortOrder: "asc" } });
   if (!stage && !existingLeadId) throw new ProspectorError("The pipeline has no open stage to put new leads in.");
   const s = existingLeadId ? null : await scoreOne(db, org, row.id, now);
@@ -73,6 +75,8 @@ export async function logOutreach(db: Db, actor: Actor, prospectId: string, p: {
     if (claimed.count !== 1) return null;
     await tx.prospectOutreach.create({ data: log });
     if (existingLeadId) { await tx.prospect.update({ where: { id: prospectId }, data: { leadId: existingLeadId } }); return existingLeadId; }
+    // the shared guard: locks the number, re-checks (someone may have added the lead a moment ago) and claims it below
+    const guard = await guardNewLead(tx, { organizationId: org, phone: row.phone, country: row.country });
     const history = await tx.prospectOutreach.findMany({ where: { prospectId }, orderBy: { createdAt: "asc" } });
     const names = new Map((await tx.user.findMany({ where: { id: { in: [...new Set(history.map((h) => h.userId))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
     const contactNote = `Contact history before this became a lead:\n${history.map((h) => `${h.createdAt.toISOString().slice(0, 10)} · ${names.get(h.userId) ?? "Someone"} · ${OUTCOME_LABEL[h.outcome] ?? h.outcome}${h.note ? `: ${h.note}` : ""}`).join("\n")}`;
@@ -85,6 +89,7 @@ export async function logOutreach(db: Db, actor: Actor, prospectId: string, p: {
         activities: { create: { actorId: actor.id, kind: "CREATED", body: `Converted from Prospector after the business said it is interested (opportunity ${s?.score ?? row.score ?? "not scored"} of 100)${row.address ? `. ${row.address}` : ""}` } },
       },
     });
+    await claimLeadKeys(tx, { leadId: lead.id, organizationId: org, phone: row.phone, country: row.country }, { policy: guard.policy });
     await tx.prospect.update({ where: { id: prospectId }, data: { leadId: lead.id } });
     await ensureContactForLead(tx, lead.id);
     for (const body of [contactNote, s?.pitch].filter(Boolean) as string[]) {
@@ -92,6 +97,10 @@ export async function logOutreach(db: Db, actor: Actor, prospectId: string, p: {
       await mirrorLeadActivity(tx, n.id);
     }
     return lead.id;
+  }).catch((e: unknown) => {
+    // someone added a lead with this number while we were converting: say so the way the rest of the CRM does
+    if (e instanceof DuplicateLeadError) throw new ProspectorError(e.matches[0] ? presentDuplicate(e.matches[0], { id: actor.id, permissions: actor.permissions }).text : e.message);
+    throw e;
   });
   if (!leadId) throw new ProspectorError("This prospect was just converted or closed by someone else.");
   if (!existingLeadId && owner !== actor.id) await notify(db, owner, { kind: "lead.assigned", title: `${row.name} is now a lead and is yours`, body: "From Prospector, with the contact history and a call note.", link: `/leads/${leadId}`, dedupeKey: `prospect-lead:${leadId}` });
