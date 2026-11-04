@@ -7,7 +7,8 @@ import { db } from "@/lib/db";
 import { getKey } from "@/lib/integration-keys";
 import { MAX_QUEUE_PER_CLICK, drainWebsiteChecks, queueChecks } from "@/lib/website-checks";
 import { MAX_FETCH_PER_CLICK, SocialAccessError, fetchFacebookData, setFacebookLink } from "@/lib/prospect-social";
-import { ProspectorError, assign, dismiss, markReviewed, restore, runSearch, setDailyLimits } from "@/lib/prospector";
+import { rescoreProspects } from "@/lib/prospect-scoring";
+import { ProspectorError, assign, isManager, dismiss, markReviewed, restore, runSearch, setDailyLimits } from "@/lib/prospector";
 
 const BASE = "/leads/prospector";
 const s = (f: FormData, k: string) => String(f.get(k) ?? "");
@@ -129,4 +130,15 @@ export async function saveFacebookLink(formData: FormData): Promise<void> {
     throw e;
   }
   return flash("ok", ok);
+}
+
+// Scores every prospect again from what is known now. Scores also update by themselves whenever a search, website check or Facebook read
+// adds a fact, so this is for rows that were saved before scoring existed or after a rule changed.
+export async function updateScores(formData: FormData): Promise<void> {
+  const user = await requirePermission("crm.edit");
+  void formData;
+  if (!isManager(user)) return flash("error", "Only a sales manager can update scores.");
+  const n = await rescoreProspects(db, user.organizationId, null);
+  await audit(user, { action: "prospect.rescore", entity: "Prospect", after: { count: n } });
+  return flash("ok", `${n} prospect${n === 1 ? "" : "s"} scored again.`);
 }

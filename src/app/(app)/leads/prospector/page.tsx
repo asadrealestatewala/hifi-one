@@ -5,13 +5,15 @@ import { isConfigured } from "@/lib/integration-keys";
 import { googleCaps, usage } from "@/lib/api-budget";
 import { pageSpeedUsage } from "@/lib/website-checks";
 import { socialUsage } from "@/lib/prospect-social";
+import { BAND_LABEL, SERVICES, scoreProspect, type ProspectScore } from "@/lib/prospect-score";
+import { inputFor } from "@/lib/prospect-scoring";
 import { PROSPECT_SORTS, PROSPECT_STATUSES, RESULT_CHOICES, assignableAgents, canSearch, dailyLimitFor, estimate, isManager, prospectScope, prospectWhere, searchesToday } from "@/lib/prospector";
 import { countryOptions } from "@/lib/phone";
 import { usersWithPermission } from "@/lib/notifications";
 import { orderFor } from "@/lib/sort";
 import { listHref, parseListParams } from "@/lib/list-params";
 import { Badge, Chips, Empty, Notice, PageHeader, Pager, SearchBox, SubmitButton } from "@/components/ui";
-import { checkWebsites, getFacebookData, reviewProspects, saveFacebookLink, saveSearchLimits, searchProspects } from "./actions";
+import { checkWebsites, getFacebookData, reviewProspects, saveFacebookLink, saveSearchLimits, searchProspects, updateScores } from "./actions";
 import AutoRefresh from "./AutoRefresh";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +21,28 @@ const BASE = "/leads/prospector";
 const LABEL: Record<string, string> = { NEW: "New", REVIEWED: "Reviewed", ASSIGNED: "Assigned", SENT_TO_CRM: "Sent to CRM", DISMISSED: "Dismissed" };
 const TONE: Record<string, "primary" | "warning" | "success" | "neutral"> = { NEW: "primary", REVIEWED: "warning", ASSIGNED: "primary", SENT_TO_CRM: "success", DISMISSED: "neutral" };
 const usd = (n: number) => `$${n.toFixed(2)}`;
+
+const BAND_TONE: Record<ProspectScore["band"], "success" | "primary" | "warning" | "neutral"> = { STRONG: "success", GOOD: "primary", SOME: "warning", WEAK: "neutral" };
+
+// How big an opportunity the business is (see src/lib/prospect-score.ts): the score, the service to lead with, why, and a note for the call
+function ScoreCell({ s }: { s: ProspectScore }) {
+  return (
+    <div className="max-w-[16rem] space-y-1">
+      <div className="flex flex-wrap items-center gap-1">
+        <Badge tone={BAND_TONE[s.band]}>{s.score} of 100</Badge>
+        {s.topService && <span className="text-xs text-muted">{SERVICES[s.topService].label}</span>}
+      </div>
+      <details className="text-xs text-muted">
+        <summary className="cursor-pointer text-primary">Why and what to say</summary>
+        <p className="mt-1 font-medium text-foreground">{BAND_LABEL[s.band]}</p>
+        {s.reasons.length > 0 && <ul className="mt-1 list-disc space-y-0.5 pl-4">{s.reasons.map((r) => <li key={r.id}>{r.text} (+{r.points})</li>)}</ul>}
+        {s.missing.length > 0 && <p className="mt-1">Not known yet: {s.missing.join("; ")}. The score can rise once these are checked.</p>}
+        <p className="mt-2 font-medium text-foreground">Note for the call</p>
+        <pre className="mt-0.5 whitespace-pre-wrap font-sans">{s.pitch}</pre>
+      </details>
+    </div>
+  );
+}
 
 type Social = { facebookUrl: string | null; source: string; status: string; pageName: string | null; followers: number | null; likes: number | null; lastPostAt: Date | null; note: string | null; fetchedAt: Date | null };
 const num = (n: number) => n.toLocaleString("en-US");
@@ -130,6 +154,7 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
   ]);
   const socials = new Map((await db.prospectSocial.findMany({ where: { prospectId: { in: rows.map((r) => r.id) } } })).map((x) => [x.prospectId, x as Social]));
   const checks = new Map((await db.prospectWebsiteCheck.findMany({ where: { prospectId: { in: rows.map((r) => r.id) } } })).map((c) => [c.prospectId, c as Check]));
+  const scores = new Map(rows.map((r) => [r.id, scoreProspect(inputFor({ name: r.name, website: r.website, rating: r.rating, ratingCount: r.ratingCount, websiteCheck: checks.get(r.id) ?? null, social: socials.get(r.id) ?? null }))]));
   const pending = [...checks.values()].some((c) => c.status === "QUEUED" || c.status === "RUNNING");
   const canTick = manager || searcher;
   const byStatus = new Map(counts.map((c) => [c.status, c._count]));
@@ -202,6 +227,7 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
         <button className="btn-ghost" formAction={checkWebsites} name="force" value="1" title="Repeat the check even if it was done in the last week">Check again</button>
         <button className="btn-ghost" formAction={getFacebookData} title="Reads followers, likes and the last post date from each ticked business's Facebook page. Each business uses 2 of the monthly SocialAPIs requests; up to 5 at a time.">Get Facebook data</button>
         <button className="btn-ghost" formAction={getFacebookData} name="force" value="1" title="Repeat even if it was fetched in the last week">Fetch again</button>
+        {manager && <button className="btn-ghost" formAction={updateScores} title="Scores every prospect again from what is known now">Update scores</button>}
         {pending && <AutoRefresh />}
       </form>}
 
@@ -212,7 +238,7 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
           <table className="w-full text-sm">
             <thead className="bg-hover/60 text-left text-xs text-muted"><tr>
               {canTick && <th className="w-8 py-2 pl-4"><span className="sr-only">Select</span></th>}
-              <th className="py-2 pl-4 pr-4">Business</th><th className="pr-4">Phone</th><th className="pr-4">Website</th><th className="pr-4">Website check</th><th className="pr-4">Facebook</th><th className="pr-4">Rating</th><th className="pr-4">Status</th><th className="pr-4">Assigned to</th>
+              <th className="py-2 pl-4 pr-4">Business</th><th className="pr-4">Phone</th><th className="pr-4">Website</th><th className="pr-4"><Link className="hover:underline" href={href({ sort: "score", dir: "desc", page: undefined })} title="Best opportunity first">Opportunity</Link></th><th className="pr-4">Website check</th><th className="pr-4">Facebook</th><th className="pr-4">Rating</th><th className="pr-4">Status</th><th className="pr-4">Assigned to</th>
             </tr></thead>
             <tbody>
               {rows.map((r) => (
@@ -221,6 +247,7 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
                   <td className="py-2 pl-4 pr-4"><p className="font-medium">{r.name}</p><p className="max-w-xs text-xs text-muted">{r.address}</p>{r.mapsUrl && <a className="text-xs text-primary hover:underline" href={r.mapsUrl} target="_blank" rel="noopener noreferrer">Open in Google Maps</a>}</td>
                   <td className="pr-4 whitespace-nowrap">{r.phone ? <a className="hover:underline" href={`tel:${r.phone}`}>{r.phone}</a> : <span className="text-muted">None listed</span>}</td>
                   <td className="pr-4">{r.website ? <a className="break-all text-primary hover:underline" href={r.website} target="_blank" rel="noopener noreferrer">{r.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "").slice(0, 32)}</a> : <span className="text-muted">No website</span>}</td>
+                  <td className="pr-4"><ScoreCell s={scores.get(r.id)!} /></td>
                   <td className="pr-4"><CheckCell c={checks.get(r.id) ?? null} hasWebsite={Boolean(r.website)} /></td>
                   <td className="pr-4"><SocialCell s={socials.get(r.id) ?? null} prospectId={r.id} name={r.name} canEdit={canTick} /></td>
                   <td className="pr-4 whitespace-nowrap">{r.rating ? `${r.rating} (${r.ratingCount ?? 0})` : <span className="text-muted">No reviews</span>}</td>
