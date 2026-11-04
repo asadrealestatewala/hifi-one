@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#12163a"
+      "backgroundColor": "#ffffff"
     },
     "plugins": [
       "expo-secure-store",
@@ -29,7 +29,7 @@
       "package": "co.hifimarketing.hifione",
       "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#12163a",
+        "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
