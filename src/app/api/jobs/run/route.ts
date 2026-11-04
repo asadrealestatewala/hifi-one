@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { db } from "@/lib/db";
 import { runJobs, jobKeys } from "@/lib/jobs";
 import { runFollowUps } from "@/lib/followups";
+import { drainWebsiteChecks } from "@/lib/website-checks";
 import { limiter } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,8 @@ export async function POST(req: Request) {
   const params = new URL(req.url).searchParams;
   // ?only=followups sends due follow-up emails without touching the daily jobs (for a scheduler that calls every few minutes)
   if (params.get("only") === "followups") return reply({ ok: true, followUps: await runFollowUps(db) });
+  // ?only=checks works through queued Prospector website checks
+  if (params.get("only") === "checks") return reply({ ok: true, websiteChecks: await drainWebsiteChecks(db) });
   const only = params.get("only")?.split(",").filter((k) => jobKeys.includes(k));
   const results = await runJobs(db, { trigger: "SCHEDULE", only: only?.length ? only : undefined });
   const followUps = only?.length ? [] : await runFollowUps(db);

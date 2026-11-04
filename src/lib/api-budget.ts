@@ -9,16 +9,23 @@ export class BudgetError extends Error {}
 
 export const PROVIDERS = {
   GOOGLE_PLACES: { label: "Google Places" },
+  GOOGLE_PAGESPEED: { label: "Google PageSpeed" },
 } as const;
 export type Provider = keyof typeof PROVIDERS;
 
 // Text Search Enterprise: asking for phone, website or rating moves the request to this SKU (USD per request)
-export const SKU_PRICE_USD: Record<string, number> = { PLACES_TEXT_SEARCH_ENTERPRISE: 0.035 };
+// PageSpeed Insights is free; its calls are still written to the ledger so the daily limit is enforced
+export const SKU_PRICE_USD: Record<string, number> = { PLACES_TEXT_SEARCH_ENTERPRISE: 0.035, PSI_RUN_PAGESPEED: 0 };
 
 export type Caps = { monthlyUsd: number; dailyCalls: number };
 function num(v: string | undefined, fallback: number) { const n = Number(v); return v !== undefined && v.trim() !== "" && Number.isFinite(n) && n >= 0 ? n : fallback; }
 export function googleCaps(env: Record<string, string | undefined> = process.env): Caps {
   return { monthlyUsd: num(env.GOOGLE_MONTHLY_BUDGET_USD, 20), dailyCalls: Math.floor(num(env.GOOGLE_DAILY_CALL_LIMIT, 100)) };
+}
+
+// PageSpeed has no money cap, only a daily request limit (default 200). Google's own quota for a key is higher, but this keeps one click from using it all.
+export function pageSpeedCaps(env: Record<string, string | undefined> = process.env): Caps {
+  return { monthlyUsd: 0, dailyCalls: Math.floor(num(env.PAGESPEED_DAILY_CALL_LIMIT, 200)) };
 }
 
 const monthStart = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));

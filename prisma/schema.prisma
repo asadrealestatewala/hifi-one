@@ -2673,7 +2673,8 @@ model Prospect {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  search ProspectSearch @relation(fields: [searchId], references: [id], onDelete: Cascade)
+  search       ProspectSearch        @relation(fields: [searchId], references: [id], onDelete: Cascade)
+  websiteCheck ProspectWebsiteCheck?
 
   @@unique([organizationId, placeId])
   @@index([organizationId, status, createdAt])
@@ -2719,4 +2720,43 @@ model IntegrationKey {
   createdAt      DateTime @default(now())
 
   @@id([organizationId, provider])
+}
+
+// ---------- Prospector stage 2: what a prospect's own website shows ----------
+// One row per prospect. QUEUED rows are the work queue: a runner claims them (FOR UPDATE SKIP LOCKED), so two servers never take the same one.
+model ProspectWebsiteCheck {
+  prospectId         String    @id
+  organizationId     String
+  status             String    @default("QUEUED") // QUEUED | RUNNING | DONE | FAILED | NO_WEBSITE
+  attempts           Int       @default(0)
+  queuedAt           DateTime  @default(now())
+  startedAt          DateTime?
+  checkedAt          DateTime?
+  error              String? // why the home page could not be read
+  url                String? // the address that was checked
+  finalUrl           String? // where it ended up after redirects
+  httpStatus         Int?
+  reachable          Boolean?
+  https              Boolean?
+  hasTitle           Boolean?
+  hasMetaDescription Boolean?
+  hasAnalytics       Boolean? // Google Analytics or Tag Manager
+  hasGtm             Boolean?
+  hasMetaPixel       Boolean?
+  hasContactForm     Boolean?
+  hasWhatsapp        Boolean?
+  lowConfidence      Boolean   @default(false) // the page is built in the browser, so tags and forms may be hidden from us
+  psiStatus          String? // OK | NOT_CONFIGURED | LIMIT | UNREACHABLE | FAILED
+  psiNote            String?
+  mobileScore        Int? // PageSpeed performance, 0 to 100
+  seoScore           Int? // PageSpeed SEO, 0 to 100
+  fcpMs              Int?
+  lcpMs              Int?
+  tbtMs              Int?
+  cls                Decimal?  @db.Decimal(6, 3)
+  speedIndexMs       Int?
+
+  prospect Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, queuedAt])
 }
