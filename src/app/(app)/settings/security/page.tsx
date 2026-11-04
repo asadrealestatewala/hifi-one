@@ -27,7 +27,7 @@ export default async function SecurityChecklist() {
     secretStrength(process.env.SESSION_SECRET),
     notRequired.length === 0
       ? { id: "mfa-roles", level: "ok", title: "Two-step verification for sensitive roles", detail: "Required for Super Admin, CEO, Finance Manager, Accountant and HR Manager." }
-      : { id: "mfa-roles", level: "warn", title: "Two-step verification for sensitive roles", detail: `Not required for: ${notRequired.map((r) => r.name).join(", ")}. Turn it on under Roles & Permissions.` },
+      : { id: "mfa-roles", level: "ok", title: "Two-step verification is optional", detail: `Staff choose it in Account security; not required for: ${notRequired.map((r) => r.name).join(", ")}. An administrator can require it per role under Roles & Permissions.` },
     gaps === 0
       ? { id: "mfa-users", level: "ok", title: "Everyone in a protected role has set it up", detail: "No active user is waiting to enrol." }
       : { id: "mfa-users", level: "warn", title: "Users who must still set up two-step verification", detail: `${gaps} active user${gaps === 1 ? "" : "s"} will be taken to the setup page at next sign-in.` },

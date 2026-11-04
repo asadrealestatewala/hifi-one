@@ -78,8 +78,8 @@ Do this on the real server (or an identical staging one) before anyone relies on
 2. **Run `node scripts/preflight.mjs`** with that environment. Fix every FAIL; read every WARN. It never prints secret values.
 3. **Start it** either with Docker (`docker compose up -d --build`, which uses the `Dockerfile` and `docker-compose.yml`) or directly (`npm ci && npx prisma migrate deploy && npm run build && npm start`). Put an HTTPS reverse proxy in front; do not expose port 3000 or the database to the internet.
 4. **Run `node scripts/smoke-prod.mjs https://your-address`.** It confirms the health check, the security headers (CSP, HSTS, framing, sniffing), that protected pages send a signed-out visitor to the login page, that files and the calendar feed give nothing away, and that repeated bad sign-ins never crash the server.
-5. **Run first-run setup** at `/setup` right away (the setup token is optional), sign in, and complete two-step enrolment (the first administrator's role requires it). If you set `SETUP_TOKEN`, delete it from the environment and restart.
-6. **Create a second Super Admin**, turn on two-step verification for the sensitive roles, and read Settings > Security Checklist until nothing says Fix.
+5. **Run first-run setup** at `/setup` right away (the setup token is optional), sign in, and optionally turn on two-step verification (Account security; it is no longer required). If you set `SETUP_TOKEN`, delete it from the environment and restart.
+6. **Create a second Super Admin**, consider requiring two-step verification for the sensitive roles (optional), and read Settings > Security Checklist until nothing says Fix.
 7. **Prove backup and restore**: take a backup, restore it into a scratch database, sign in against it, then run `npm run backup:check` from your scheduler.
 8. Optional: connect email (Settings > Email) and the assistant (`ANTHROPIC_API_KEY`) and test each from its page.
 
