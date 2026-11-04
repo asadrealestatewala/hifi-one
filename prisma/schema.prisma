@@ -2814,7 +2814,7 @@ model Prospect {
   ratingCount    Int?
   primaryType    String?
   businessStatus String?
-  status         String    @default("NEW") // NEW | REVIEWED | ASSIGNED | SENT_TO_CRM | DISMISSED
+  status         String    @default("NEW") // NEW | REVIEWED | ASSIGNED | CONTACTED | NOT_INTERESTED | SENT_TO_CRM (shown as Converted) | DISMISSED
   assignedToId   String?
   assignedAt     DateTime?
   leadId         String? // set when sent to the CRM
@@ -2829,12 +2829,29 @@ model Prospect {
   search       ProspectSearch        @relation(fields: [searchId], references: [id], onDelete: Cascade)
   websiteCheck ProspectWebsiteCheck?
   social       ProspectSocial?
+  outreach     ProspectOutreach[]
 
   @@unique([organizationId, placeId])
   @@index([organizationId, status, createdAt])
   @@index([organizationId, assignedToId])
   @@index([searchId])
   @@index([organizationId, score])
+}
+
+// Stage 5: what happened each time a salesperson contacted a prospect. INTERESTED turns the prospect into a lead; NOT_INTERESTED closes it.
+model ProspectOutreach {
+  id             String   @id @default(cuid())
+  organizationId String
+  prospectId     String
+  userId         String
+  outcome        String // CONTACTED | INTERESTED | NOT_INTERESTED
+  note           String?
+  createdAt      DateTime @default(now())
+
+  prospect Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+
+  @@index([prospectId, createdAt])
+  @@index([organizationId, userId, createdAt])
 }
 
 // Every paid or limited outside call, written before the call is made so the cap can never be overrun by two people at once.

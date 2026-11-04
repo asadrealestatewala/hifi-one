@@ -8,6 +8,7 @@ import { getKey } from "@/lib/integration-keys";
 import { MAX_QUEUE_PER_CLICK, drainWebsiteChecks, queueChecks } from "@/lib/website-checks";
 import { MAX_FETCH_PER_CLICK, SocialAccessError, fetchFacebookData, setFacebookLink } from "@/lib/prospect-social";
 import { rescoreProspects } from "@/lib/prospect-scoring";
+import { OUTCOME_LABEL, logOutreach } from "@/lib/prospect-crm";
 import { ProspectorError, assign, isManager, dismiss, markReviewed, restore, runSearch, setDailyLimits } from "@/lib/prospector";
 
 const BASE = "/leads/prospector";
@@ -141,4 +142,25 @@ export async function updateScores(formData: FormData): Promise<void> {
   const n = await rescoreProspects(db, user.organizationId, null);
   await audit(user, { action: "prospect.rescore", entity: "Prospect", after: { count: n } });
   return flash("ok", `${n} prospect${n === 1 ? "" : "s"} scored again.`);
+}
+
+// The salesperson who owns a prospect (or a manager) logs what happened when they contacted the business. Contacted keeps it a prospect,
+// Not interested closes it, and Interested turns it into a CRM lead in the same step and opens the lead.
+export async function logProspectContact(formData: FormData): Promise<void> {
+  const user = await requirePermission("crm.edit");
+  const id = s(formData, "prospectId");
+  if (!id) return flash("error", "Choose a prospect first.");
+  let ok = "";
+  let leadId: string | null = null;
+  try {
+    const r = await logOutreach(db, user, id, { outcome: s(formData, "outcome"), note: s(formData, "note") });
+    await audit(user, { action: "prospect.outreach", entity: "Prospect", entityId: id, after: { outcome: r.outcome, leadId: r.leadId, linkedExisting: r.linkedExisting } });
+    leadId = r.leadId;
+    ok = `Saved: ${OUTCOME_LABEL[r.outcome].toLowerCase()}.${r.outcome === "NOT_INTERESTED" ? " The prospect is closed." : ""}`;
+  } catch (e) {
+    if (e instanceof ProspectorError) return flash("error", e.message);
+    throw e;
+  }
+  if (leadId) return redirect(`/leads/${leadId}`);
+  return flash("ok", ok);
 }

@@ -51,6 +51,15 @@ describe("searching", () => {
     expect(r).toMatchObject({ found: 3, added: 1, duplicates: 2 });
     expect(await db.prospect.count({ where: { organizationId: org } })).toBe(4);
   });
+  it("recognises a re-scraped business by its phone number even when Google gives it a new place ID, whatever became of the earlier prospect", async () => {
+    const first = await run(mgr, vi.fn().mockResolvedValue(page([300])), { city: "Rescrape" });
+    expect(first.added).toBe(1);
+    const old = await db.prospect.findFirstOrThrow({ where: { placeId: "pl300" } });
+    await db.prospect.update({ where: { id: old.id }, data: { status: "NOT_INTERESTED" } });
+    const again = await run(mgr, vi.fn().mockResolvedValue(new Response(JSON.stringify({ places: [place(301, { internationalPhoneNumber: "+92 300 11122300" })] }))), { city: "Rescrape" });
+    expect(again).toMatchObject({ found: 1, added: 0, duplicates: 1 });
+    expect(await db.prospect.count({ where: { organizationId: org, phone: old.phone } })).toBe(1);
+  });
   it("skips businesses that match an existing lead or the do-not-contact list, and permanently closed ones", async () => {
     const stage = await db.pipelineStage.create({ data: { organizationId: org, name: "New", sortOrder: 1, probability: 10 } });
     await db.lead.create({ data: { organizationId: org, name: "Known Lead", phone: "0300-1112210", stageId: stage.id } });

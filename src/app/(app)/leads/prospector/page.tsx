@@ -12,14 +12,15 @@ import { countryOptions } from "@/lib/phone";
 import { usersWithPermission } from "@/lib/notifications";
 import { orderFor } from "@/lib/sort";
 import { listHref, parseListParams } from "@/lib/list-params";
+import { OUTCOME_LABEL, OUTCOMES } from "@/lib/prospect-crm";
 import { Badge, Chips, Empty, Notice, PageHeader, Pager, SearchBox, SubmitButton } from "@/components/ui";
-import { checkWebsites, getFacebookData, reviewProspects, saveFacebookLink, saveSearchLimits, searchProspects, updateScores } from "./actions";
+import { checkWebsites, getFacebookData, reviewProspects, saveFacebookLink, saveSearchLimits, logProspectContact, searchProspects, updateScores } from "./actions";
 import AutoRefresh from "./AutoRefresh";
 
 export const dynamic = "force-dynamic";
 const BASE = "/leads/prospector";
-const LABEL: Record<string, string> = { NEW: "New", REVIEWED: "Reviewed", ASSIGNED: "Assigned", SENT_TO_CRM: "Sent to CRM", DISMISSED: "Dismissed" };
-const TONE: Record<string, "primary" | "warning" | "success" | "neutral"> = { NEW: "primary", REVIEWED: "warning", ASSIGNED: "primary", SENT_TO_CRM: "success", DISMISSED: "neutral" };
+const LABEL: Record<string, string> = { NEW: "New", REVIEWED: "Reviewed", ASSIGNED: "Assigned", CONTACTED: "Contacted", NOT_INTERESTED: "Not interested", SENT_TO_CRM: "Converted", DISMISSED: "Dismissed" };
+const TONE: Record<string, "primary" | "warning" | "success" | "neutral"> = { NEW: "primary", REVIEWED: "warning", ASSIGNED: "primary", CONTACTED: "primary", NOT_INTERESTED: "warning", SENT_TO_CRM: "success", DISMISSED: "neutral" };
 const usd = (n: number) => `$${n.toFixed(2)}`;
 
 const BAND_TONE: Record<ProspectScore["band"], "success" | "primary" | "warning" | "neutral"> = { STRONG: "success", GOOD: "primary", SOME: "warning", WEAK: "neutral" };
@@ -49,6 +50,30 @@ const num = (n: number) => n.toLocaleString("en-US");
 const daysAgo = (d: Date) => { const n = Math.floor((Date.now() - d.getTime()) / 86_400_000); return n <= 0 ? "today" : n === 1 ? "yesterday" : `${n} days ago`; };
 
 // Followers, likes and the last post date of the business's Facebook page, with a small form to add or correct the link
+const OUTCOME_OPTION: Record<string, string> = { CONTACTED: "Contacted, still working on it", INTERESTED: "Interested, make it a lead", NOT_INTERESTED: "Not interested, close it" };
+function OutreachCell({ p, last, who, manager, author }: { p: { id: string; name: string; status: string; assignedToId: string | null }; last: { outcome: string; note: string | null; createdAt: Date } | null; who: string; manager: boolean; author?: string }) {
+  const open = !["SENT_TO_CRM", "DISMISSED", "NOT_INTERESTED"].includes(p.status);
+  const mine = manager || p.assignedToId === who;
+  return (
+    <div className="max-w-[15rem] space-y-1">
+      {last ? <p className="text-[11px] text-muted"><span className="font-medium text-text">{OUTCOME_LABEL[last.outcome] ?? last.outcome}</span> {last.createdAt.toISOString().slice(0, 10)}{author ? ` · ${author}` : ""}{last.note ? `: ${last.note.slice(0, 120)}` : ""}</p> : <p className="text-xs text-muted">Not contacted</p>}
+      {open && mine && (
+        <details className="text-xs">
+          <summary className="cursor-pointer text-primary">Log contact</summary>
+          <form action={logProspectContact} className="mt-1 space-y-1" aria-label={`Log contact with ${p.name}`}>
+            <input type="hidden" name="prospectId" value={p.id} />
+            <select name="outcome" className="input !py-1 text-xs" defaultValue="CONTACTED" aria-label={`What happened with ${p.name}`}>
+              {OUTCOMES.map((o) => <option key={o} value={o}>{OUTCOME_OPTION[o]}</option>)}
+            </select>
+            <textarea name="note" maxLength={1000} rows={2} placeholder="What they said" className="input !py-1 text-xs" aria-label={`Note about ${p.name}`} />
+            <SubmitButton pendingText="Saving…">Save</SubmitButton>
+          </form>
+        </details>
+      )}
+    </div>
+  );
+}
+
 function SocialCell({ s, prospectId, name, canEdit }: { s: Social | null; prospectId: string; name: string; canEdit: boolean }) {
   const form = canEdit && (
     <details className="text-xs">
@@ -155,6 +180,10 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
   const socials = new Map((await db.prospectSocial.findMany({ where: { prospectId: { in: rows.map((r) => r.id) } } })).map((x) => [x.prospectId, x as Social]));
   const checks = new Map((await db.prospectWebsiteCheck.findMany({ where: { prospectId: { in: rows.map((r) => r.id) } } })).map((c) => [c.prospectId, c as Check]));
   const scores = new Map(rows.map((r) => [r.id, scoreProspect(inputFor({ name: r.name, website: r.website, rating: r.rating, ratingCount: r.ratingCount, websiteCheck: checks.get(r.id) ?? null, social: socials.get(r.id) ?? null }))]));
+  const outreachRows = await db.prospectOutreach.findMany({ where: { prospectId: { in: rows.map((r) => r.id) } }, orderBy: { createdAt: "desc" } });
+  const lastOutreach = new Map<string, (typeof outreachRows)[number]>();
+  for (const o of outreachRows) if (!lastOutreach.has(o.prospectId)) lastOutreach.set(o.prospectId, o);
+  const outreachNames = new Map((await db.user.findMany({ where: { id: { in: [...new Set(outreachRows.map((o) => o.userId))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
   const pending = [...checks.values()].some((c) => c.status === "QUEUED" || c.status === "RUNNING");
   const canTick = manager || searcher;
   const byStatus = new Map(counts.map((c) => [c.status, c._count]));
@@ -173,7 +202,7 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Prospector" subtitle="Find businesses by type and city, review them, and hand them to the sales team. A business found here is a prospect, not a lead: it becomes a lead only when it is sent to the CRM." />
+      <PageHeader title="Prospector" subtitle="Find businesses by type and city, assign them to the sales team, and record each contact. A business found here is a prospect, not a lead: it becomes a lead only when it says it is interested." />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {sp.ok && <Notice kind="ok">{sp.ok}</Notice>}
 
@@ -238,7 +267,7 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
           <table className="w-full text-sm">
             <thead className="bg-hover/60 text-left text-xs text-muted"><tr>
               {canTick && <th className="w-8 py-2 pl-4"><span className="sr-only">Select</span></th>}
-              <th className="py-2 pl-4 pr-4">Business</th><th className="pr-4">Phone</th><th className="pr-4">Website</th><th className="pr-4"><Link className="hover:underline" href={href({ sort: "score", dir: "desc", page: undefined })} title="Best opportunity first">Opportunity</Link></th><th className="pr-4">Website check</th><th className="pr-4">Facebook</th><th className="pr-4">Rating</th><th className="pr-4">Status</th><th className="pr-4">Assigned to</th>
+              <th className="py-2 pl-4 pr-4">Business</th><th className="pr-4">Phone</th><th className="pr-4">Website</th><th className="pr-4"><Link className="hover:underline" href={href({ sort: "score", dir: "desc", page: undefined })} title="Best opportunity first">Opportunity</Link></th><th className="pr-4">Website check</th><th className="pr-4">Facebook</th><th className="pr-4">Rating</th><th className="pr-4">Contact</th><th className="pr-4">Status</th><th className="pr-4">Assigned to</th>
             </tr></thead>
             <tbody>
               {rows.map((r) => (
@@ -251,7 +280,8 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
                   <td className="pr-4"><CheckCell c={checks.get(r.id) ?? null} hasWebsite={Boolean(r.website)} /></td>
                   <td className="pr-4"><SocialCell s={socials.get(r.id) ?? null} prospectId={r.id} name={r.name} canEdit={canTick} /></td>
                   <td className="pr-4 whitespace-nowrap">{r.rating ? `${r.rating} (${r.ratingCount ?? 0})` : <span className="text-muted">No reviews</span>}</td>
-                  <td className="pr-4"><Badge tone={TONE[r.status] ?? "neutral"}>{LABEL[r.status] ?? r.status}</Badge></td>
+                  <td className="pr-4"><OutreachCell p={r} last={lastOutreach.get(r.id) ?? null} who={user.id} manager={manager} author={outreachNames.get(lastOutreach.get(r.id)?.userId ?? "")} /></td>
+                  <td className="pr-4"><Badge tone={TONE[r.status] ?? "neutral"}>{LABEL[r.status] ?? r.status}</Badge>{r.leadId && <p className="mt-1 text-xs"><Link className="text-primary hover:underline" href={`/leads/${r.leadId}`}>Open the lead</Link></p>}</td>
                   <td className="pr-4">{r.assignedToId ? names.get(r.assignedToId) ?? "Unknown" : <span className="text-muted">Nobody</span>}</td>
                 </tr>
               ))}
