@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isConfigured } from "@/lib/integration-keys";
 import { googleCaps, usage } from "@/lib/api-budget";
 import { PROSPECT_SORTS, PROSPECT_STATUSES, RESULT_CHOICES, assignableAgents, canSearch, dailyLimitFor, estimate, isManager, prospectScope, prospectWhere, searchesToday } from "@/lib/prospector";
 import { countryOptions } from "@/lib/phone";
@@ -34,9 +35,9 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
   const lp = parseListParams(sp, { sorts: Object.keys(PROSPECT_SORTS), statuses: PROSPECT_STATUSES, ids: ["search"] });
   const manager = isManager(user);
   const searcher = canSearch(user);
-  const configured = Boolean(process.env.GOOGLE_PLACES_API_KEY);
-  const caps = googleCaps();
   const org = user.organizationId;
+  const configured = await isConfigured(db, org, "GOOGLE_PLACES");
+  const caps = googleCaps();
 
   const where = prospectWhere(user, { q: lp.q, status: lp.status, searchId: lp.ids.search });
   const scope = prospectScope(user);
@@ -96,7 +97,7 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
           </div>
         </form>
       ) : (
-        <Notice kind="error">Google Places is not configured, so searching is switched off. The administrator needs to set GOOGLE_PLACES_API_KEY on the server.</Notice>
+        <Notice kind="error">Google Places is not configured, so searching is switched off. A Super Admin can add the Google Places key in Administration, then Integrations.</Notice>
       ))}
 
       <div className="flex flex-wrap items-center gap-3">

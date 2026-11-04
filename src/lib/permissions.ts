@@ -93,6 +93,7 @@ export const PERMISSIONS = {
   "mail.manage": "Create company and employee mailboxes and choose who can use each one (does not open anyone's mail)",
   "email_templates.manage": "Edit the branded email templates and preview them",
   "followups.manage": "Create and run CRM follow-up email sequences",
+  "integrations.manage": "Enter, replace and clear the API keys of outside services (Super Admin only)",
   "prospector.use": "Run Prospector searches that find new businesses (uses the Google budget)",
   "prospector.manage": "Set Prospector daily search limits per person",
   "onboarding.approve": "Approve or reject new staff accounts before they can sign in",
