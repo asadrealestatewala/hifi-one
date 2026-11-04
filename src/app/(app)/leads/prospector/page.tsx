@@ -3,19 +3,59 @@ import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isConfigured } from "@/lib/integration-keys";
 import { googleCaps, usage } from "@/lib/api-budget";
+import { pageSpeedUsage } from "@/lib/website-checks";
 import { PROSPECT_SORTS, PROSPECT_STATUSES, RESULT_CHOICES, assignableAgents, canSearch, dailyLimitFor, estimate, isManager, prospectScope, prospectWhere, searchesToday } from "@/lib/prospector";
 import { countryOptions } from "@/lib/phone";
 import { usersWithPermission } from "@/lib/notifications";
 import { orderFor } from "@/lib/sort";
 import { listHref, parseListParams } from "@/lib/list-params";
 import { Badge, Chips, Empty, Notice, PageHeader, Pager, SearchBox, SubmitButton } from "@/components/ui";
-import { reviewProspects, saveSearchLimits, searchProspects } from "./actions";
+import { checkWebsites, reviewProspects, saveSearchLimits, searchProspects } from "./actions";
+import AutoRefresh from "./AutoRefresh";
 
 export const dynamic = "force-dynamic";
 const BASE = "/leads/prospector";
 const LABEL: Record<string, string> = { NEW: "New", REVIEWED: "Reviewed", ASSIGNED: "Assigned", SENT_TO_CRM: "Sent to CRM", DISMISSED: "Dismissed" };
 const TONE: Record<string, "primary" | "warning" | "success" | "neutral"> = { NEW: "primary", REVIEWED: "warning", ASSIGNED: "primary", SENT_TO_CRM: "success", DISMISSED: "neutral" };
 const usd = (n: number) => `$${n.toFixed(2)}`;
+
+type Check = { status: string; reachable: boolean | null; httpStatus: number | null; https: boolean | null; hasTitle: boolean | null; hasMetaDescription: boolean | null; hasAnalytics: boolean | null; hasGtm: boolean | null; hasMetaPixel: boolean | null; hasContactForm: boolean | null; hasWhatsapp: boolean | null; lowConfidence: boolean | null; psiStatus: string | null; psiNote: string | null; mobileScore: number | null; seoScore: number | null; fcpMs: number | null; lcpMs: number | null; tbtMs: number | null; cls: unknown; speedIndexMs: number | null; error: string | null; checkedAt: Date | null };
+const scoreTone = (n: number) => (n >= 90 ? "success" : n >= 50 ? "warning" : "danger") as "success" | "warning" | "danger";
+const secs = (ms: number | null) => (ms == null ? "n/a" : `${(ms / 1000).toFixed(1)} s`);
+
+// What the website check found, as a short list of gaps the sales team can pitch. Nothing here is guessed: a gap is shown only when the page was read.
+function CheckCell({ c, hasWebsite }: { c: Check | null; hasWebsite: boolean }) {
+  if (!hasWebsite) return <Badge tone="danger">No website</Badge>;
+  if (!c) return <span className="text-muted">Not checked</span>;
+  if (c.status === "QUEUED") return <Badge tone="neutral">Waiting</Badge>;
+  if (c.status === "RUNNING") return <Badge tone="primary">Checking…</Badge>;
+  if (c.status === "NO_WEBSITE") return <Badge tone="danger">No website</Badge>;
+  if (c.status === "FAILED") return <span className="text-xs text-brand">{c.error ?? "The check failed."}</span>;
+  if (c.reachable === false) return <div className="space-y-1"><Badge tone="danger">Site not reachable</Badge><p className="max-w-[16rem] text-xs text-muted">{c.error}</p></div>;
+  if (c.reachable === null) return <p className="max-w-[16rem] text-xs text-muted">{c.error}</p>;
+  const gaps: string[] = [];
+  if (c.https === false) gaps.push("No HTTPS");
+  if (c.hasTitle === false) gaps.push("No page title");
+  if (c.hasMetaDescription === false) gaps.push("No meta description");
+  if (c.hasAnalytics === false) gaps.push("No analytics");
+  if (c.hasMetaPixel === false) gaps.push(c.hasGtm ? "No Meta Pixel seen (may be in Tag Manager)" : "No Meta Pixel");
+  if (c.hasContactForm === false) gaps.push("No contact form");
+  if (c.hasWhatsapp === false) gaps.push("No WhatsApp link");
+  return (
+    <div className="max-w-[18rem] space-y-1.5">
+      <div className="flex flex-wrap gap-1">
+        {c.mobileScore != null && <Badge tone={scoreTone(c.mobileScore)}>Mobile {c.mobileScore}</Badge>}
+        {c.seoScore != null && <Badge tone={scoreTone(c.seoScore)}>SEO {c.seoScore}</Badge>}
+        {gaps.map((g) => <Badge key={g} tone="warning">{g}</Badge>)}
+        {gaps.length === 0 && c.mobileScore == null && <Badge tone="success">No gaps found</Badge>}
+      </div>
+      {c.psiStatus && c.psiStatus !== "OK" && <p className="text-xs text-muted">{c.psiNote}</p>}
+      {c.lowConfidence && <p className="text-xs text-muted">This page builds itself in the browser, so some gaps above may be wrong.</p>}
+      {c.psiStatus === "OK" && <details className="text-xs text-muted"><summary className="cursor-pointer">Speed details</summary>
+        <p>First paint {secs(c.fcpMs)}, largest content {secs(c.lcpMs)}, blocking time {c.tbtMs ?? "n/a"} ms, layout shift {c.cls == null ? "n/a" : String(c.cls)}, speed index {secs(c.speedIndexMs)}.</p></details>}
+    </div>
+  );
+}
 
 function Meter({ label, value, max, text }: { label: string; value: number; max: number; text: string }) {
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 100;
@@ -41,7 +81,7 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
 
   const where = prospectWhere(user, { q: lp.q, status: lp.status, searchId: lp.ids.search });
   const scope = prospectScope(user);
-  const [rows, matched, counts, agents, meter, mine, limit] = await Promise.all([
+  const [rows, matched, counts, agents, meter, mine, limit, psiMeter] = await Promise.all([
     db.prospect.findMany({ where, orderBy: orderFor(lp.sort, PROSPECT_SORTS), skip: lp.page.skip, take: lp.page.take }),
     db.prospect.count({ where }),
     db.prospect.groupBy({ by: ["status"], where: scope, _count: true }),
@@ -49,7 +89,11 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
     manager || user.permissions.has("prospector.manage") ? usage(db, org, "GOOGLE_PLACES", caps) : Promise.resolve(null),
     searcher ? searchesToday(db, org, user.id) : Promise.resolve(0),
     searcher ? dailyLimitFor(db, org, user.id) : Promise.resolve(0),
+    manager || user.permissions.has("prospector.manage") ? pageSpeedUsage(db, org) : Promise.resolve(null),
   ]);
+  const checks = new Map((await db.prospectWebsiteCheck.findMany({ where: { prospectId: { in: rows.map((r) => r.id) } } })).map((c) => [c.prospectId, c as Check]));
+  const pending = [...checks.values()].some((c) => c.status === "QUEUED" || c.status === "RUNNING");
+  const canTick = manager || searcher;
   const byStatus = new Map(counts.map((c) => [c.status, c._count]));
   const total = counts.reduce((a, c) => a + c._count, 0);
   const names = new Map((await db.user.findMany({ where: { id: { in: rows.map((r) => r.assignedToId).filter(Boolean) as string[] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
@@ -73,9 +117,10 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
       {(meter || searcher) && (
         <section className="card space-y-3" aria-label="Usage">
           <h2 className="font-semibold">Usage</h2>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {meter && <Meter label="Google budget this month" value={meter.monthSpentUsd} max={meter.monthlyCapUsd} text={`${usd(meter.monthSpentUsd)} of ${usd(meter.monthlyCapUsd)}`} />}
             {meter && <Meter label="Google requests today" value={meter.dayCalls} max={meter.dailyCap} text={`${meter.dayCalls} of ${meter.dailyCap}`} />}
+            {psiMeter && <Meter label="PageSpeed checks today" value={psiMeter.dayCalls} max={psiMeter.dailyCap} text={`${psiMeter.dayCalls} of ${psiMeter.dailyCap}`} />}
             {searcher && <Meter label="Your searches today" value={mine} max={limit} text={`${mine} of ${limit}`} />}
           </div>
           {meter && <p className="text-xs text-muted">Counted at Google&apos;s list price, before its free monthly allowance, so the real bill is usually lower. The caps are set on the server and cannot be passed.</p>}
@@ -105,13 +150,18 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
         <SearchBox q={lp.q} placeholder="Search name, address, phone, website" hidden={{ status: lp.status, search: lp.ids.search }} />
       </div>
 
-      {manager && <form id="bulk" action={reviewProspects} className="card flex flex-wrap items-end gap-3" aria-label="Actions for ticked prospects">
-        <div><label className="label" htmlFor="agentId">Assign ticked to</label>
-          <select id="agentId" name="agentId" className="input" defaultValue=""><option value="" disabled>Choose a person</option>{agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
-        <button className="btn" name="op" value="assign">Assign</button>
-        <button className="btn-ghost" name="op" value="review">Mark reviewed</button>
-        <button className="btn-ghost" name="op" value="dismiss">Dismiss</button>
-        <button className="btn-ghost" name="op" value="restore">Restore</button>
+      {canTick && <form id="bulk" action={reviewProspects} className="card flex flex-wrap items-end gap-3" aria-label="Actions for ticked prospects">
+        {manager && <>
+          <div><label className="label" htmlFor="agentId">Assign ticked to</label>
+            <select id="agentId" name="agentId" className="input" defaultValue=""><option value="" disabled>Choose a person</option>{agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+          <button className="btn" name="op" value="assign">Assign</button>
+          <button className="btn-ghost" name="op" value="review">Mark reviewed</button>
+          <button className="btn-ghost" name="op" value="dismiss">Dismiss</button>
+          <button className="btn-ghost" name="op" value="restore">Restore</button>
+        </>}
+        <button className="btn-ghost" formAction={checkWebsites} title="Reads each ticked business's website and asks Google PageSpeed for its scores">Check websites</button>
+        <button className="btn-ghost" formAction={checkWebsites} name="force" value="1" title="Repeat the check even if it was done in the last week">Check again</button>
+        {pending && <AutoRefresh />}
       </form>}
 
       <div className="card !p-0 overflow-x-auto">
@@ -120,16 +170,17 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-hover/60 text-left text-xs text-muted"><tr>
-              {manager && <th className="w-8 py-2 pl-4"><span className="sr-only">Select</span></th>}
-              <th className="py-2 pl-4 pr-4">Business</th><th className="pr-4">Phone</th><th className="pr-4">Website</th><th className="pr-4">Rating</th><th className="pr-4">Status</th><th className="pr-4">Assigned to</th>
+              {canTick && <th className="w-8 py-2 pl-4"><span className="sr-only">Select</span></th>}
+              <th className="py-2 pl-4 pr-4">Business</th><th className="pr-4">Phone</th><th className="pr-4">Website</th><th className="pr-4">Website check</th><th className="pr-4">Rating</th><th className="pr-4">Status</th><th className="pr-4">Assigned to</th>
             </tr></thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id} className="border-t border-border align-top transition hover:bg-hover/50">
-                  {manager && <td className="py-2 pl-4">{r.status !== "SENT_TO_CRM" && <input type="checkbox" form="bulk" name="ids" value={r.id} aria-label={`Select ${r.name}`} />}</td>}
+                  {canTick && <td className="py-2 pl-4">{r.status !== "SENT_TO_CRM" && <input type="checkbox" form="bulk" name="ids" value={r.id} aria-label={`Select ${r.name}`} />}</td>}
                   <td className="py-2 pl-4 pr-4"><p className="font-medium">{r.name}</p><p className="max-w-xs text-xs text-muted">{r.address}</p>{r.mapsUrl && <a className="text-xs text-primary hover:underline" href={r.mapsUrl} target="_blank" rel="noopener noreferrer">Open in Google Maps</a>}</td>
                   <td className="pr-4 whitespace-nowrap">{r.phone ? <a className="hover:underline" href={`tel:${r.phone}`}>{r.phone}</a> : <span className="text-muted">None listed</span>}</td>
                   <td className="pr-4">{r.website ? <a className="break-all text-primary hover:underline" href={r.website} target="_blank" rel="noopener noreferrer">{r.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "").slice(0, 32)}</a> : <span className="text-muted">No website</span>}</td>
+                  <td className="pr-4"><CheckCell c={checks.get(r.id) ?? null} hasWebsite={Boolean(r.website)} /></td>
                   <td className="pr-4 whitespace-nowrap">{r.rating ? `${r.rating} (${r.ratingCount ?? 0})` : <span className="text-muted">No reviews</span>}</td>
                   <td className="pr-4"><Badge tone={TONE[r.status] ?? "neutral"}>{LABEL[r.status] ?? r.status}</Badge></td>
                   <td className="pr-4">{r.assignedToId ? names.get(r.assignedToId) ?? "Unknown" : <span className="text-muted">Nobody</span>}</td>
@@ -140,7 +191,7 @@ export default async function Prospector({ searchParams }: { searchParams: Promi
         )}
         <Pager page={lp.page.page} size={lp.page.size} total={matched} href={(n) => href({ page: n > 1 ? String(n) : undefined })} />
       </div>
-      <p className="text-xs text-muted">Business details come from Google Maps. Phone numbers are shown in international format. {lp.ids.search && <Link className="text-primary hover:underline" href={href({ search: undefined, page: undefined })}>Show all searches</Link>}</p>
+      <p className="text-xs text-muted">Business details come from Google Maps. Phone numbers are shown in international format. Website checks read the home page the way a visitor&apos;s browser would, so anything a site adds only with scripts or a tag manager may be missed. {lp.ids.search && <Link className="text-primary hover:underline" href={href({ search: undefined, page: undefined })}>Show all searches</Link>}</p>
 
       {manageLimits && (
         <form action={saveSearchLimits} className="card space-y-3" aria-label="Search limits">

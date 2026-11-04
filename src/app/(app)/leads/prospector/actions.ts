@@ -1,9 +1,11 @@
 "use server";
 
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getKey } from "@/lib/integration-keys";
+import { MAX_QUEUE_PER_CLICK, drainWebsiteChecks, queueChecks } from "@/lib/website-checks";
 import { ProspectorError, assign, dismiss, markReviewed, restore, runSearch, setDailyLimits } from "@/lib/prospector";
 
 const BASE = "/leads/prospector";
@@ -70,4 +72,24 @@ export async function saveSearchLimits(formData: FormData): Promise<void> {
     throw e;
   }
   return flash("ok", "Search limits saved.");
+}
+
+// Puts the ticked prospects in the website-check queue and starts working through it after the page has answered.
+// Anyone who may search or manage can do this, for the prospects they can see; the service checks again.
+export async function checkWebsites(formData: FormData): Promise<void> {
+  const user = await requirePermission("crm.edit");
+  const ids = formData.getAll("ids").map(String).filter(Boolean).slice(0, MAX_QUEUE_PER_CLICK);
+  if (ids.length === 0) return flash("error", "Tick at least one prospect first.");
+  let ok = "";
+  try {
+    const r = await queueChecks(db, user, ids, { force: s(formData, "force") === "1" });
+    await audit(user, { action: "prospect.check_websites", entity: "Prospect", after: { ...r, ids: ids.slice(0, 50) } });
+    if (r.queued > 0) after(() => drainWebsiteChecks(db, { organizationId: user.organizationId }).then(() => undefined, () => undefined));
+    const parts = [`${r.queued} queued`, r.noWebsite ? `${r.noWebsite} have no website` : "", r.fresh ? `${r.fresh} checked in the last week (use Check again to repeat)` : "", r.busy ? `${r.busy} already waiting` : "", r.skipped ? `${r.skipped} not available to you` : ""].filter(Boolean);
+    ok = `Website checks: ${parts.join(", ")}.${r.queued > 0 ? " Results appear here within a few minutes." : ""}`;
+  } catch (e) {
+    if (e instanceof Error && /access/.test(e.message)) return flash("error", e.message);
+    throw e;
+  }
+  return flash("ok", ok);
 }

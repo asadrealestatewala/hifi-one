@@ -9,9 +9,12 @@ export async function register() {
     const { db } = await import("./lib/db");
     const { runJobs } = await import("./lib/jobs");
     const { runFollowUps } = await import("./lib/followups");
+    const { runWebsiteChecks } = await import("./lib/website-checks");
     const tick = () => {
       void runJobs(db, { trigger: "SCHEDULE" }).catch((e) => console.error("Scheduled jobs failed", e));
       void runFollowUps(db).catch((e) => console.error("Follow-up emails failed", e));
+      // Prospector website checks that are still waiting (a click normally starts them at once; this picks up anything left over)
+      void runWebsiteChecks(db).catch((e) => console.error("Prospector website checks failed", e));
     };
     setTimeout(tick, 60_000);
     setInterval(tick, 15 * 60_000);
