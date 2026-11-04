@@ -28,8 +28,14 @@ const nextConfig: NextConfig = {
   eslint: { ignoreDuringBuilds: skipBuildChecks },
   // Uploads travel through server actions; the file size limit itself is enforced by the file service (15 MB)
   experimental: { serverActions: { bodySizeLimit: "16mb" } },
+  // Resized logo and photos are kept for a day (the default re-checks every minute) and are sent as AVIF or WebP.
+  images: { formats: ["image/avif", "image/webp"], minimumCacheTTL: 86400 },
   async headers() {
     return [
+      // Files in /public are not fingerprinted, so Next sends them with max-age=0 and phones re-ask for every one on every visit.
+      // A day of caching, then a quiet refresh in the background, keeps repeat visits fast; a replaced file shows up within a day.
+      { source: "/logo.png", headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }] },
+      { source: "/site/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }] },
       // One-time links and the pages behind them must never be cached by a browser or a proxy
       { source: "/sign/:path*", headers: [{ key: "Cache-Control", value: "no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       {
