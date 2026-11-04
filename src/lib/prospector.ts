@@ -62,7 +62,7 @@ export async function runSearch(db: Db, p: {
 }): Promise<SearchResult> {
   const { actor } = p;
   if (!canSearch(actor)) throw new ProspectorError("You do not have search access. Ask a manager to grant it.");
-  if (!p.apiKey) throw new ProspectorError("Google Places is not configured. Ask the administrator to set GOOGLE_PLACES_API_KEY on the server.");
+  if (!p.apiKey) throw new ProspectorError("Google Places is not configured. A Super Admin can add the Google Places key in Settings > Integrations.");
   const now = p.now ?? new Date();
   const caps = p.caps ?? googleCaps();
   const businessType = clean(p.input.businessType, 80);

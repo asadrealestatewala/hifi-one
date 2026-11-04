@@ -2706,3 +2706,17 @@ model ProspectorUserLimit {
 
   @@id([organizationId, userId])
 }
+
+// ---------- Integration keys entered by a Super Admin in the app (Settings > Integrations) ----------
+// Only the encrypted value is stored (AES-256-GCM, key derived from SESSION_SECRET). It is never sent back to a browser or written to the audit log.
+model IntegrationKey {
+  organizationId String
+  provider       String // GOOGLE_PLACES | GOOGLE_PAGESPEED | SOCIALAPIS
+  valueEnc       String
+  hint           String // last 4 characters, so the right key can be recognised
+  updatedById    String?
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+
+  @@id([organizationId, provider])
+}

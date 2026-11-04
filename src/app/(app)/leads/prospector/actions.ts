@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getKey } from "@/lib/integration-keys";
 import { ProspectorError, assign, dismiss, markReviewed, restore, runSearch, setDailyLimits } from "@/lib/prospector";
 
 const BASE = "/leads/prospector";
@@ -14,9 +15,9 @@ export async function searchProspects(formData: FormData): Promise<void> {
   let ok = "";
   let searchId = "";
   try {
-    // The key is read here, on the server, and goes no further than the request to Google
+    // The key (entered by a Super Admin in Settings > Integrations, else the server's) is read here and goes no further than the request to Google
     const r = await runSearch(db, {
-      actor: user, apiKey: process.env.GOOGLE_PLACES_API_KEY,
+      actor: user, apiKey: await getKey(db, user.organizationId, "GOOGLE_PLACES"),
       input: { businessType: s(formData, "businessType"), city: s(formData, "city"), country: s(formData, "country"), maxResults: Number(s(formData, "maxResults")) },
     });
     await audit(user, { action: "prospector.search", entity: "ProspectSearch", entityId: r.searchId, after: { found: r.found, added: r.added, requests: r.requests, costUsd: r.costUsd } });
