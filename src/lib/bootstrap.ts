@@ -133,7 +133,7 @@ export async function firstSetup(
       await tx.companyProfile.create({
         data: { organizationId: org.id, isDefault: true, legalName: p.companyName.trim(), defaultCurrency: p.currency ?? "USD", timezone: p.timezone ?? "UTC" },
       });
-      await syncPermissionsAndRoles(tx, org.id, { overwrite: true, requireMfaForSensitive: true });
+      await syncPermissionsAndRoles(tx, org.id, { overwrite: true });
       await seedBaseline(tx, org.id);
       const role = await tx.role.findUniqueOrThrow({ where: { organizationId_key: { organizationId: org.id, key: "SUPER_ADMIN" } } });
       const user = await tx.user.create({ data: { organizationId: org.id, email, name: p.adminName.trim(), passwordHash, roles: { create: { roleId: role.id } } } });

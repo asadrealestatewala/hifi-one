@@ -23,7 +23,7 @@ What is in place, how it is checked, and what is not done yet.
 ## Two-step verification and the security checklist
 
 - Each role has a "require two-step verification" switch (Roles & Permissions). Anyone holding such a role is taken to the setup page at their next page load and can open nothing else (pages, downloads, actions) until it is on; the setup, password and health pages stay reachable so nobody is locked out.
-- New installations created through first-run setup require it for Super Admin, CEO, Finance Manager, Accountant and HR Manager. Existing installations and the development seed are left optional so an upgrade never locks people out; turn it on per role, then run the checklist.
+- Two-step verification is optional for everyone (decision 62): new installations no longer require it, and a migration switched off the requirement on existing roles. Staff turn it on themselves under Account security; people who already did keep it until they turn it off. An administrator can still require it for a role.
 - Settings > Security Checklist shows live findings: session secret strength, roles without the requirement, users still to enrol, number of Super Admins, production mode, file storage location, virus scanning and starting passwords.
 
 ## Email
@@ -83,7 +83,7 @@ The calendar address is a bearer secret (48 random hex characters, unique, rotat
 
 ## Not done yet (be aware before going live)
 
-- Two-step verification is available but **not enforced**: nothing forces administrators or finance users to turn it on yet. There is no self-service "forgot password" (it needs email); an administrator creates the reset link.
+- Two-step verification is available but **optional**: nothing forces anyone to turn it on, so a password is the only check unless the person opts in. There is no self-service "forgot password" (it needs email); an administrator creates the reset link.
 - No email delivery: invitation links and starting passwords are shown once and handed over manually.
 - The rate limiter is per server process (see `docs/DEPLOYMENT.md`).
 - The Content-Security-Policy allows inline scripts and styles, which Next.js needs without per-request nonces.
