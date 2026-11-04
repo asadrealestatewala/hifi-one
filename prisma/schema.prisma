@@ -2813,7 +2813,7 @@ model Prospect {
   ratingCount    Int?
   primaryType    String?
   businessStatus String?
-  status         String    @default("NEW") // NEW | REVIEWED | ASSIGNED | SENT_TO_CRM | DISMISSED
+  status         String    @default("NEW") // NEW | REVIEWED | ASSIGNED | CONTACTED | NOT_INTERESTED | SENT_TO_CRM (shown as Converted) | DISMISSED
   assignedToId   String?
   assignedAt     DateTime?
   leadId         String? // set when sent to the CRM
@@ -2822,8 +2822,6 @@ model Prospect {
   scoreService   String? // the service to lead with
   scoreVersion   Int?
   scoredAt       DateTime?
-  outreachStatus String    @default("NOT_CONTACTED") // stage 5: NOT_CONTACTED | CONTACTED | INTERESTED | NOT_INTERESTED, the latest outcome logged
-  outreachAt     DateTime? // when the latest outcome was logged
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -2839,13 +2837,13 @@ model Prospect {
   @@index([organizationId, score])
 }
 
-// Stage 5: what happened each time a salesperson contacted a prospect. A prospect becomes a lead only after an INTERESTED outcome.
+// Stage 5: what happened each time a salesperson contacted a prospect. INTERESTED turns the prospect into a lead; NOT_INTERESTED closes it.
 model ProspectOutreach {
   id             String   @id @default(cuid())
   organizationId String
   prospectId     String
   userId         String
-  outcome        String // CONTACTED | INTERESTED | NOT_INTERESTED | NOT_CONTACTED (a correction)
+  outcome        String // CONTACTED | INTERESTED | NOT_INTERESTED
   note           String?
   createdAt      DateTime @default(now())
 

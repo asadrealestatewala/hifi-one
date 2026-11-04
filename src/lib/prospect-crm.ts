@@ -1,106 +1,99 @@
-// Prospector stage 5: sending prospects to the CRM. A prospect becomes a lead only here, and only a sales manager does it.
-// Each sent prospect becomes a lead in the first open pipeline stage (with its contact), carrying the call note from the score as a lead
-// note, the top service as the service of interest, a priority from the score, and an owner. The prospect is then marked SENT_TO_CRM
-// with a link to its lead, and cannot be sent twice. Free of Next.js imports so it can be tested against the database.
+// Prospector stage 5: from prospect to lead. A prospect is fresh data that nobody has talked to. A manager assigns it, the salesperson
+// calls, and logs the outcome here:
+//   CONTACTED      still being worked on (status Contacted)
+//   NOT_INTERESTED closes the prospect (status Not interested); it is kept so it is not found, assigned or called again
+//   INTERESTED     turns the prospect into a CRM lead in the same step (status Converted, with a link to the lead)
+// A lead never goes back to being a prospect: if it goes cold later it stays in the CRM with a lost status. Converting keeps the owner,
+// carries the call note from the score and the contact history as lead notes, and refuses numbers on the do-not-contact list.
+// Free of Next.js imports so it can be tested against the database.
 import type { PrismaClient } from "@prisma/client";
 import { ensureContactForLead, mirrorLeadActivity } from "./crm-contacts";
 import { notify } from "./notifications";
 import { countryName, phoneTail } from "./phone";
-import { assignableAgents, isManager, ProspectorError, type Actor } from "./prospector";
+import { isManager, ProspectorError, type Actor } from "./prospector";
 import { scoreOne, serviceLabel } from "./prospect-scoring";
 
 type Db = PrismaClient;
-export const MAX_SEND_PER_CLICK = 50;
 export const PROSPECTOR_SOURCE = "Prospector";
+export const OUTCOMES = ["CONTACTED", "INTERESTED", "NOT_INTERESTED"] as const;
+export type Outcome = (typeof OUTCOMES)[number];
+export const OUTCOME_LABEL: Record<string, string> = { CONTACTED: "Contacted", INTERESTED: "Interested", NOT_INTERESTED: "Not interested" };
 export const priorityFor = (score: number | null) => (score !== null && score >= 60 ? "HIGH" : score !== null && score >= 35 ? "MEDIUM" : "LOW");
+const NOTE_MAX = 1000;
+const CLOSED = ["SENT_TO_CRM", "DISMISSED", "NOT_INTERESTED"];
+const closedMessage = (status: string) =>
+  status === "SENT_TO_CRM" ? "This prospect is already a lead. Log activity on the lead instead."
+  : status === "NOT_INTERESTED" ? "This prospect said it is not interested and is closed. A manager can restore it if that changes."
+  : "This prospect was dismissed. A manager can restore it first.";
 
-export type SendSummary = { sent: number; alreadyLead: number; noPhone: number; blocked: number; skipped: number; unavailable: number; left: number; byAgent: { agentId: string; name: string; count: number }[]; leadIds: string[] };
+export type LogResult = { outcome: Outcome; leadId: string | null; linkedExisting: boolean };
 
-// who: "TEAM" shares the leads fairly across the sales team; a user id gives all of them to that person.
-// A prospect that a manager already assigned to someone keeps that person as the owner of its lead.
-export async function sendToCrm(db: Db, actor: Actor, ids: string[], opts: { who: string; now?: Date }): Promise<SendSummary> {
-  if (!isManager(actor)) throw new ProspectorError("Only a sales manager can send prospects to the CRM.");
+// The owner of a prospect logs its contacts; a sales manager can log for anyone. Nobody else can.
+export async function logOutreach(db: Db, actor: Actor, prospectId: string, p: { outcome: string; note?: string; now?: Date }): Promise<LogResult> {
+  if (!(OUTCOMES as readonly string[]).includes(p.outcome)) throw new ProspectorError("Choose what happened: contacted, interested or not interested.");
+  const outcome = p.outcome as Outcome;
+  const note = (p.note ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").trim().slice(0, NOTE_MAX) || null;
   const org = actor.organizationId;
-  const now = opts.now ?? new Date();
-  const wanted = [...new Set(ids)];
-  const out: SendSummary = { sent: 0, alreadyLead: 0, noPhone: 0, blocked: 0, skipped: 0, unavailable: 0, left: 0, byAgent: [], leadIds: [] };
-  const agents = await assignableAgents(db, org);
-  const agentName = new Map(agents.map((a) => [a.id, a.name]));
-  let pool = agents.map((a) => a.id);
-  if (opts.who !== "TEAM") {
-    if (!agentName.has(opts.who)) throw new ProspectorError("Choose an active sales team member, or the whole team.");
-    pool = [opts.who];
-  }
-  if (pool.length === 0) throw new ProspectorError("There is nobody on the sales team to own the leads yet.");
+  const now = p.now ?? new Date();
+  const row = await db.prospect.findFirst({ where: { id: prospectId, organizationId: org } });
+  if (!row || (!isManager(actor) && row.assignedToId !== actor.id)) throw new ProspectorError("Only the salesperson this prospect is assigned to, or a sales manager, can log contact.");
+  if (CLOSED.includes(row.status)) throw new ProspectorError(closedMessage(row.status));
+  const log = { organizationId: org, prospectId, userId: actor.id, outcome, note, createdAt: now };
 
-  // best first, so with a limit per click the strongest are sent
-  const rows = await db.prospect.findMany({ where: { organizationId: org, id: { in: wanted } }, orderBy: [{ score: { sort: "desc", nulls: "last" } }, { createdAt: "asc" }] });
-  out.unavailable = wanted.length - rows.length;
-  const todo = rows.filter((r) => { if (r.status === "SENT_TO_CRM" || r.status === "DISMISSED") { out.skipped++; return false; } return true; });
-  const batch = todo.slice(0, MAX_SEND_PER_CLICK);
-  out.left = todo.length - batch.length;
-  if (batch.length === 0) return out;
-
-  const stage = await db.pipelineStage.findFirst({ where: { organizationId: org, isWon: false, isLost: false }, orderBy: { sortOrder: "asc" } });
-  if (!stage) throw new ProspectorError("The pipeline has no open stage to put new leads in.");
-  const [leads, blocked, load] = await Promise.all([
-    db.lead.findMany({ where: { organizationId: org, phone: { not: null } }, select: { id: true, phone: true } }),
-    db.suppressedContact.findMany({ where: { organizationId: org }, select: { phone: true } }),
-    db.lead.groupBy({ by: ["assignedToId"], where: { organizationId: org, source: PROSPECTOR_SOURCE, assignedToId: { in: pool } }, _count: true }),
-  ]);
-  const leadByTail = new Map(leads.map((l) => [phoneTail(l.phone), l.id] as const).filter(([t]) => t) as [string, string][]);
-  const blockedTails = new Set(blocked.map((b) => phoneTail(b.phone)).filter(Boolean) as string[]);
-  // fair share: the next lead goes to whoever has the fewest from Prospector so far, counting the ones given out in this batch
-  const given = new Map<string, number>(pool.map((id) => [id, load.find((l) => l.assignedToId === id)?._count ?? 0]));
-  const nextOwner = () => [...given.entries()].sort((a, b) => a[1] - b[1] || pool.indexOf(a[0]) - pool.indexOf(b[0]))[0][0];
-  const counts = new Map<string, number>();
-
-  for (const p of batch) {
-    const tail = phoneTail(p.phone);
-    if (!tail) { out.noPhone++; continue; }
-    if (blockedTails.has(tail)) { out.blocked++; continue; }
-    const existing = leadByTail.get(tail);
-    if (existing) {
-      // already in the CRM (found some other way): link it instead of making a second lead
-      const claimed = await db.prospect.updateMany({ where: { id: p.id, status: { notIn: ["SENT_TO_CRM", "DISMISSED"] } }, data: { status: "SENT_TO_CRM", leadId: existing } });
-      if (claimed.count === 1) out.alreadyLead++; else out.skipped++;
-      continue;
-    }
-    const s = await scoreOne(db, org, p.id, now);
-    const owner = p.assignedToId && agentName.has(p.assignedToId) ? p.assignedToId : nextOwner();
-    const service = serviceLabel(s?.topService ?? null);
-    const created = await db.$transaction(async (tx) => {
-      // claim the prospect first: two people pressing the button together cannot both create a lead
-      const claimed = await tx.prospect.updateMany({ where: { id: p.id, status: { notIn: ["SENT_TO_CRM", "DISMISSED"] } }, data: { status: "SENT_TO_CRM" } });
-      if (claimed.count !== 1) return null;
-      const links = [p.website ? `Website: ${p.website}` : null, p.mapsUrl ? `Google Maps: ${p.mapsUrl}` : null].filter(Boolean).join("\n") || null;
-      const lead = await tx.lead.create({
-        data: {
-          organizationId: org, name: p.name.slice(0, 200), company: p.name.slice(0, 160), phone: p.phone, city: p.city, country: p.country ? countryName(p.country) : null,
-          source: PROSPECTOR_SOURCE, serviceInterest: service, priority: priorityFor(s?.score ?? p.score), stageId: stage.id, assignedToId: owner, createdById: actor.id, notes: links,
-          tags: ["prospector", ...(s?.topService ? [s.topService.toLowerCase()] : [])],
-          activities: { create: { actorId: actor.id, kind: "CREATED", body: `Sent from Prospector (opportunity ${s?.score ?? p.score ?? "not scored"} of 100)${p.address ? `. ${p.address}` : ""}` } },
-        },
-      });
-      await tx.prospect.update({ where: { id: p.id }, data: { leadId: lead.id } });
-      if (s) {
-        const note = await tx.leadActivity.create({ data: { leadId: lead.id, actorId: actor.id, kind: "NOTE", body: s.pitch } });
-        await ensureContactForLead(tx, lead.id);
-        await mirrorLeadActivity(tx, note.id);
-      } else await ensureContactForLead(tx, lead.id);
-      return { leadId: lead.id };
+  if (outcome !== "INTERESTED") {
+    // the status condition makes a second click or a second person lose cleanly instead of overwriting a closed prospect
+    const done = await db.$transaction(async (tx) => {
+      const moved = await tx.prospect.updateMany({ where: { id: prospectId, status: { notIn: CLOSED } }, data: { status: outcome === "CONTACTED" ? "CONTACTED" : "NOT_INTERESTED" } });
+      if (moved.count !== 1) return false;
+      await tx.prospectOutreach.create({ data: log });
+      return true;
     });
-    if (!created) { out.skipped++; continue; }
-    out.sent++; out.leadIds.push(created.leadId);
-    leadByTail.set(tail, created.leadId);
-    if (given.has(owner)) given.set(owner, given.get(owner)! + 1); // a prospect that kept its own assignee does not change who is chosen for the rest
-    counts.set(owner, (counts.get(owner) ?? 0) + 1);
+    if (!done) throw new ProspectorError("This prospect was just closed by someone else.");
+    return { outcome, leadId: null, linkedExisting: false };
   }
-  out.byAgent = [...counts.entries()].map(([agentId, count]) => ({ agentId, name: agentName.get(agentId) ?? "Unknown", count }));
-  // one notification per person, not one per lead
-  for (const a of out.byAgent) {
-    if (a.agentId === actor.id) continue;
-    await notify(db, a.agentId, { kind: "lead.assigned", title: a.count === 1 ? "A new lead from Prospector is yours" : `${a.count} new leads from Prospector are yours`, body: "Each has a call note with what to say.", link: "/leads", dedupeKey: `prospector-leads:${a.agentId}:${now.getTime()}` });
+
+  // Interested: becomes a lead now
+  const tail = phoneTail(row.phone);
+  let existingLeadId: string | null = null;
+  if (tail) {
+    const blocked = await db.suppressedContact.findMany({ where: { organizationId: org }, select: { phone: true } });
+    if (blocked.some((b) => phoneTail(b.phone) === tail)) throw new ProspectorError("This number is on the do-not-contact list, so it cannot become a lead.");
+    const leads = await db.lead.findMany({ where: { organizationId: org, phone: { not: null } }, select: { id: true, phone: true } });
+    existingLeadId = leads.find((l) => phoneTail(l.phone) === tail)?.id ?? null;
   }
-  return out;
+  const stage = await db.pipelineStage.findFirst({ where: { organizationId: org, isWon: false, isLost: false }, orderBy: { sortOrder: "asc" } });
+  if (!stage && !existingLeadId) throw new ProspectorError("The pipeline has no open stage to put new leads in.");
+  const s = existingLeadId ? null : await scoreOne(db, org, row.id, now);
+  const owner = row.assignedToId ?? actor.id;
+  const service = serviceLabel(s?.topService ?? null);
+
+  const leadId = await db.$transaction(async (tx) => {
+    // claim the prospect first: two people pressing together cannot both create a lead
+    const claimed = await tx.prospect.updateMany({ where: { id: prospectId, status: { notIn: CLOSED } }, data: { status: "SENT_TO_CRM" } });
+    if (claimed.count !== 1) return null;
+    await tx.prospectOutreach.create({ data: log });
+    if (existingLeadId) { await tx.prospect.update({ where: { id: prospectId }, data: { leadId: existingLeadId } }); return existingLeadId; }
+    const history = await tx.prospectOutreach.findMany({ where: { prospectId }, orderBy: { createdAt: "asc" } });
+    const names = new Map((await tx.user.findMany({ where: { id: { in: [...new Set(history.map((h) => h.userId))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
+    const contactNote = `Contact history before this became a lead:\n${history.map((h) => `${h.createdAt.toISOString().slice(0, 10)} · ${names.get(h.userId) ?? "Someone"} · ${OUTCOME_LABEL[h.outcome] ?? h.outcome}${h.note ? `: ${h.note}` : ""}`).join("\n")}`;
+    const links = [row.website ? `Website: ${row.website}` : null, row.mapsUrl ? `Google Maps: ${row.mapsUrl}` : null].filter(Boolean).join("\n") || null;
+    const lead = await tx.lead.create({
+      data: {
+        organizationId: org, name: row.name.slice(0, 200), company: row.name.slice(0, 160), phone: row.phone, city: row.city, country: row.country ? countryName(row.country) : null,
+        source: PROSPECTOR_SOURCE, serviceInterest: service, priority: priorityFor(s?.score ?? row.score), stageId: stage!.id, assignedToId: owner, createdById: actor.id, notes: links,
+        lastContactAt: now, tags: ["prospector", ...(s?.topService ? [s.topService.toLowerCase()] : [])],
+        activities: { create: { actorId: actor.id, kind: "CREATED", body: `Converted from Prospector after the business said it is interested (opportunity ${s?.score ?? row.score ?? "not scored"} of 100)${row.address ? `. ${row.address}` : ""}` } },
+      },
+    });
+    await tx.prospect.update({ where: { id: prospectId }, data: { leadId: lead.id } });
+    await ensureContactForLead(tx, lead.id);
+    for (const body of [contactNote, s?.pitch].filter(Boolean) as string[]) {
+      const n = await tx.leadActivity.create({ data: { leadId: lead.id, actorId: actor.id, kind: "NOTE", body } });
+      await mirrorLeadActivity(tx, n.id);
+    }
+    return lead.id;
+  });
+  if (!leadId) throw new ProspectorError("This prospect was just converted or closed by someone else.");
+  if (!existingLeadId && owner !== actor.id) await notify(db, owner, { kind: "lead.assigned", title: `${row.name} is now a lead and is yours`, body: "From Prospector, with the contact history and a call note.", link: `/leads/${leadId}`, dedupeKey: `prospect-lead:${leadId}` });
+  return { outcome, leadId, linkedExisting: Boolean(existingLeadId) };
 }

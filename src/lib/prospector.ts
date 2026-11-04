@@ -12,7 +12,7 @@ import { SKU_PRICE_USD } from "./api-budget";
 type Db = PrismaClient;
 export class ProspectorError extends Error {}
 
-export const PROSPECT_STATUSES = ["NEW", "REVIEWED", "ASSIGNED", "SENT_TO_CRM", "DISMISSED"] as const;
+export const PROSPECT_STATUSES = ["NEW", "REVIEWED", "ASSIGNED", "CONTACTED", "NOT_INTERESTED", "SENT_TO_CRM", "DISMISSED"] as const; // SENT_TO_CRM is shown as Converted
 export type ProspectStatus = (typeof PROSPECT_STATUSES)[number];
 export const RESULT_CHOICES = [20, 40, 60] as const;
 export const DEFAULT_DAILY_SEARCHES = 10;
@@ -119,11 +119,13 @@ export async function runSearch(db: Db, p: {
 // or same company name) and anyone on the do-not-contact list. Permanently closed places are dropped.
 export async function saveProspects(db: Db, p: { organizationId: string; searchId: string; country: string; city: string; places: Place[]; now?: Date }) {
   const org = p.organizationId;
-  const [existing, leads, blocked] = await Promise.all([
+  const [existing, leads, blocked, known] = await Promise.all([
     db.prospect.findMany({ where: { organizationId: org, placeId: { in: p.places.map((x) => x.placeId) } }, select: { placeId: true } }),
     db.lead.findMany({ where: { organizationId: org }, select: { phone: true, company: true } }),
     db.suppressedContact.findMany({ where: { organizationId: org }, select: { phone: true } }),
+    db.prospect.findMany({ where: { organizationId: org, phone: { not: null } }, select: { phone: true } }), // every earlier prospect, whatever became of it
   ]);
+  const prospectTails = new Set(known.map((k) => phoneTail(k.phone)).filter(Boolean) as string[]);
   const have = new Set(existing.map((e) => e.placeId));
   const leadTails = new Set(leads.map((l) => phoneTail(l.phone)).filter(Boolean) as string[]);
   const leadNames = new Set(leads.map((l) => l.company?.trim().toLowerCase()).filter(Boolean) as string[]);
@@ -134,7 +136,7 @@ export async function saveProspects(db: Db, p: { organizationId: string; searchI
     if (pl.businessStatus === "CLOSED_PERMANENTLY") { closed++; continue; }
     const phone = normalizeE164(pl.internationalPhone, p.country) ?? normalizeE164(pl.nationalPhone, p.country);
     const tail = phoneTail(phone);
-    if (have.has(pl.placeId) || (tail && (leadTails.has(tail) || blockedTails.has(tail))) || leadNames.has(pl.name.trim().toLowerCase())) { duplicates++; continue; }
+    if (have.has(pl.placeId) || (tail && (leadTails.has(tail) || blockedTails.has(tail) || prospectTails.has(tail))) || leadNames.has(pl.name.trim().toLowerCase())) { duplicates++; continue; }
     rows.push({
       organizationId: org, searchId: p.searchId, placeId: pl.placeId, name: pl.name, address: pl.address, city: p.city, country: p.country, phone, website: pl.website, mapsUrl: pl.mapsUrl,
       rating: pl.rating, ratingCount: pl.ratingCount, primaryType: pl.primaryType, businessStatus: pl.businessStatus, placeFetchedAt: p.now ?? new Date(),
@@ -167,7 +169,11 @@ export async function dismiss(db: Db, actor: Actor, ids: string[]) {
 }
 export async function restore(db: Db, actor: Actor, ids: string[]) {
   const rows = await editable(db, actor, ids);
-  await db.prospect.updateMany({ where: { id: { in: rows.map((r) => r.id) }, status: "DISMISSED" }, data: { status: "NEW" } });
+  const ids2 = rows.map((r) => r.id);
+  await db.prospect.updateMany({ where: { id: { in: ids2 }, status: "DISMISSED" }, data: { status: "NEW" } });
+  // a prospect that said no goes back to the person who had it, or to New when nobody did
+  await db.prospect.updateMany({ where: { id: { in: ids2 }, status: "NOT_INTERESTED", assignedToId: { not: null } }, data: { status: "ASSIGNED" } });
+  await db.prospect.updateMany({ where: { id: { in: ids2 }, status: "NOT_INTERESTED", assignedToId: null }, data: { status: "NEW" } });
   return rows.length;
 }
 export async function assignableAgents(db: Db, organizationId: string) {
@@ -175,11 +181,15 @@ export async function assignableAgents(db: Db, organizationId: string) {
   return db.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true }, orderBy: { name: "asc" } });
 }
 export async function assign(db: Db, actor: Actor, ids: string[], agentId: string) {
-  const rows = await editable(db, actor, ids);
+  const all = await editable(db, actor, ids);
+  const rows = all.filter((r) => r.status !== "NOT_INTERESTED"); // closed: restore it first
   const agents = new Set((await assignableAgents(db, actor.organizationId)).map((a) => a.id));
   if (!agents.has(agentId)) throw new ProspectorError("Choose an active sales team member.");
   const now = new Date();
-  await db.prospect.updateMany({ where: { id: { in: rows.map((r) => r.id) } }, data: { status: "ASSIGNED", assignedToId: agentId, assignedAt: now } });
+  const list = rows.map((r) => r.id);
+  // a prospect that is already being worked (Contacted) keeps that status when it changes hands
+  await db.prospect.updateMany({ where: { id: { in: list }, status: { in: ["NEW", "REVIEWED", "ASSIGNED", "DISMISSED"] } }, data: { status: "ASSIGNED", assignedToId: agentId, assignedAt: now } });
+  await db.prospect.updateMany({ where: { id: { in: list }, status: "CONTACTED" }, data: { assignedToId: agentId, assignedAt: now } });
   if (rows.length > 0 && agentId !== actor.id) {
     await notify(db, agentId, {
       kind: "prospect.assigned", title: rows.length === 1 ? `Prospect assigned to you: ${rows[0].name}` : `${rows.length} prospects assigned to you`, body: "Prospector", link: "/leads/prospector?status=ASSIGNED",

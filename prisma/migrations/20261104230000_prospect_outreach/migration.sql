@@ -1,7 +1,4 @@
--- Prospector stage 5: contact outcome per prospect, with a log of each contact. Additive only.
-ALTER TABLE "Prospect" ADD COLUMN "outreachStatus" TEXT NOT NULL DEFAULT 'NOT_CONTACTED';
-ALTER TABLE "Prospect" ADD COLUMN "outreachAt" TIMESTAMP(3);
-
+-- Prospector stage 5: a log of each contact with a prospect. Additive only.
 CREATE TABLE "ProspectOutreach" (
     "id" TEXT NOT NULL,
     "organizationId" TEXT NOT NULL,

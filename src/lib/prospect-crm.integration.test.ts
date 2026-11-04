@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { MAX_SEND_PER_CLICK, priorityFor, sendToCrm } from "./prospect-crm";
+import { logOutreach, priorityFor } from "./prospect-crm";
 import { rescoreProspects, scoreOne } from "./prospect-scoring";
-import { ProspectorError, type Actor } from "./prospector";
+import { assign, dismiss, restore, ProspectorError, type Actor } from "./prospector";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
 const db = new PrismaClient({ datasourceUrl: url });
@@ -40,118 +40,131 @@ beforeAll(async () => {
 });
 afterAll(async () => { await db.$disconnect(); });
 
-describe("who may send", () => {
-  it("only a sales manager can send; an agent, a viewer and another organization's manager create nothing", async () => {
-    const p = await prospect();
-    await expect(sendToCrm(db, ali, [p.id], { who: "TEAM" })).rejects.toThrow(/sales manager/);
-    await expect(sendToCrm(db, nobody, [p.id], { who: "TEAM" })).rejects.toThrow(/sales manager/);
-    await expect(sendToCrm(db, foreign, [p.id], { who: "TEAM" })).rejects.toThrow(/nobody on the sales team/);
+const owned = (by: Actor, over: Record<string, unknown> = {}) => prospect({ status: "ASSIGNED", assignedToId: by.id, ...over });
+const st = async (id: string) => (await db.prospect.findUniqueOrThrow({ where: { id } })).status;
+
+describe("logging contact keeps a prospect a prospect", () => {
+  it("Contacted moves it to Contacted, and the owner and a manager can both log", async () => {
+    const p = await owned(ali);
+    await logOutreach(db, ali, p.id, { outcome: "CONTACTED", note: "  No answer, try Monday  ", now: NOW });
+    expect(await st(p.id)).toBe("CONTACTED");
+    await logOutreach(db, mgr, p.id, { outcome: "CONTACTED", note: "Called again", now: new Date("2026-11-04T11:00:00Z") });
+    const log = await db.prospectOutreach.findMany({ where: { prospectId: p.id }, orderBy: { createdAt: "asc" } });
+    expect(log.map((l) => [l.userId, l.outcome, l.note])).toEqual([[ali.id, "CONTACTED", "No answer, try Monday"], [mgr.id, "CONTACTED", "Called again"]]);
+    expect((await db.prospect.findUniqueOrThrow({ where: { id: p.id } })).leadId).toBeNull();
     expect(await db.lead.count({ where: { source: "Prospector" } })).toBe(0);
-    expect((await db.prospect.findUniqueOrThrow({ where: { id: p.id } })).status).toBe("NEW");
   });
-  it("refuses an owner who is not on the sales team", async () => {
-    const p = await prospect();
-    await expect(sendToCrm(db, mgr, [p.id], { who: nobody.id })).rejects.toBeInstanceOf(ProspectorError);
-    await expect(sendToCrm(db, mgr, [p.id], { who: "someone-else" })).rejects.toThrow(/sales team member/);
+  it("Not interested closes the prospect, keeps it, and nobody can contact, assign or convert it until a manager restores it", async () => {
+    const p = await owned(ali);
+    await logOutreach(db, ali, p.id, { outcome: "NOT_INTERESTED", note: "Has an agency already" });
+    expect(await st(p.id)).toBe("NOT_INTERESTED");
+    await expect(logOutreach(db, ali, p.id, { outcome: "INTERESTED" })).rejects.toThrow(/not interested and is closed/);
+    await expect(logOutreach(db, mgr, p.id, { outcome: "CONTACTED" })).rejects.toThrow(/closed/);
+    expect(await assign(db, mgr, [p.id], zara.id)).toBe(0);
+    expect((await db.prospect.findUniqueOrThrow({ where: { id: p.id } })).assignedToId).toBe(ali.id);
+    expect(await db.lead.count({ where: { source: "Prospector" } })).toBe(0);
+    await expect(restore(db, ali, [p.id])).rejects.toThrow(/sales manager/);
+    expect(await restore(db, mgr, [p.id])).toBe(1);
+    expect(await st(p.id)).toBe("ASSIGNED"); // back to the person who had it
+    await logOutreach(db, ali, p.id, { outcome: "CONTACTED" });
+    expect(await st(p.id)).toBe("CONTACTED");
+  });
+  it("reassigning a prospect that is being worked keeps it Contacted", async () => {
+    const p = await owned(ali);
+    await logOutreach(db, ali, p.id, { outcome: "CONTACTED" });
+    expect(await assign(db, mgr, [p.id], zara.id)).toBe(1);
+    expect(await db.prospect.findUniqueOrThrow({ where: { id: p.id } })).toMatchObject({ status: "CONTACTED", assignedToId: zara.id });
+  });
+  it("refuses anyone else, other organizations, bad outcomes, and prospects that are already leads or dismissed", async () => {
+    const p = await owned(ali);
+    await expect(logOutreach(db, zara, p.id, { outcome: "CONTACTED" })).rejects.toThrow(/assigned to/);
+    await expect(logOutreach(db, nobody, p.id, { outcome: "INTERESTED" })).rejects.toThrow(/assigned to/);
+    await expect(logOutreach(db, foreign, p.id, { outcome: "CONTACTED" })).rejects.toBeInstanceOf(ProspectorError);
+    await expect(logOutreach(db, ali, p.id, { outcome: "SIGNED" })).rejects.toThrow(/Choose what happened/);
+    await expect(logOutreach(db, ali, "missing", { outcome: "CONTACTED" })).rejects.toBeInstanceOf(ProspectorError);
+    const gone = await owned(ali);
+    await dismiss(db, mgr, [gone.id]);
+    await expect(logOutreach(db, ali, gone.id, { outcome: "CONTACTED" })).rejects.toThrow(/assigned to/); // dismissing clears the owner
+    await expect(logOutreach(db, mgr, gone.id, { outcome: "CONTACTED" })).rejects.toThrow(/dismissed/);
+    const sent = await owned(ali);
+    await logOutreach(db, ali, sent.id, { outcome: "INTERESTED" });
+    await expect(logOutreach(db, ali, sent.id, { outcome: "CONTACTED" })).rejects.toThrow(/already a lead/);
+    expect(await db.prospectOutreach.count({ where: { prospectId: p.id } })).toBe(0);
+    expect(await st(p.id)).toBe("ASSIGNED");
+    expect(await db.lead.count({ where: { source: "Prospector", organizationId: other } })).toBe(0);
   });
 });
 
-describe("the lead that is made", () => {
-  it("carries the contact, the service, a priority from the score and the call note, and marks the prospect as sent", async () => {
+describe("Interested turns the prospect into a lead", () => {
+  it("makes the lead with the contact, service, priority, owner, call note and contact history, and marks the prospect Converted", async () => {
     // a weak site: low mobile speed and SEO, no title, no analytics: scores high
-    const p = await prospect({ website: "https://weak.example", rating: 4.8, ratingCount: 220, mapsUrl: "https://maps.example/x" });
+    const p = await owned(ali, { website: "https://weak.example", rating: 4.8, ratingCount: 220, mapsUrl: "https://maps.example/x" });
     await db.prospectWebsiteCheck.create({ data: { prospectId: p.id, organizationId: org, status: "DONE", reachable: true, https: false, hasTitle: false, hasMetaDescription: false, hasAnalytics: false, hasGtm: false, hasMetaPixel: false, hasContactForm: false, hasWhatsapp: false, lowConfidence: false, psiStatus: "OK", mobileScore: 38, seoScore: 62, checkedAt: NOW } });
     await rescoreProspects(db, org, [p.id], NOW);
-    const scored = await db.prospect.findUniqueOrThrow({ where: { id: p.id } });
-    expect(scored.score).toBeGreaterThanOrEqual(60);
-    const r = await sendToCrm(db, mgr, [p.id], { who: ali.id, now: NOW });
-    expect(r).toMatchObject({ sent: 1, alreadyLead: 0, noPhone: 0, blocked: 0, skipped: 0 });
+    await logOutreach(db, ali, p.id, { outcome: "CONTACTED", note: "Spoke to the receptionist", now: new Date("2026-11-03T09:00:00Z") });
+    const r = await logOutreach(db, ali, p.id, { outcome: "INTERESTED", note: "Wants a new website, call Monday", now: new Date("2026-11-04T09:00:00Z") });
+    expect(r).toMatchObject({ outcome: "INTERESTED", linkedExisting: false });
     const after = await db.prospect.findUniqueOrThrow({ where: { id: p.id } });
-    expect(after.status).toBe("SENT_TO_CRM");
-    const lead = await db.lead.findUniqueOrThrow({ where: { id: after.leadId! }, include: { stage: true, activities: true } });
-    expect(lead).toMatchObject({ name: p.name, company: p.name, phone: p.phone, city: "Lahore", country: "Pakistan", source: "Prospector", priority: "HIGH", assignedToId: ali.id, createdById: mgr.id, organizationId: org });
+    expect(after).toMatchObject({ status: "SENT_TO_CRM", leadId: r.leadId });
+    const lead = await db.lead.findUniqueOrThrow({ where: { id: r.leadId! }, include: { stage: true, activities: true } });
+    expect(lead).toMatchObject({ name: p.name, company: p.name, phone: p.phone, city: "Lahore", country: "Pakistan", source: "Prospector", priority: "HIGH", assignedToId: ali.id, createdById: ali.id, organizationId: org });
     expect(lead.stage.name).toBe("New"); // the first open stage, not Won
     expect(lead.serviceInterest).toBe("SEO and web optimisation");
     expect(lead.tags).toEqual(["prospector", "seo"]);
     expect(lead.notes).toContain("https://weak.example");
-    const fresh = (await scoreOne(db, org, p.id, NOW))!;
-    expect(lead.activities.find((a) => a.kind === "NOTE")?.body).toBe(fresh.pitch);
-    expect(lead.activities.find((a) => a.kind === "CREATED")?.body).toContain("Sent from Prospector");
+    const notes = lead.activities.filter((a) => a.kind === "NOTE").map((a) => a.body ?? "");
+    expect(notes.find((b) => b.startsWith("Contact history"))).toMatch(/2026-11-03 · Ali Agent · Contacted: Spoke to the receptionist\n2026-11-04 · Ali Agent · Interested: Wants a new website, call Monday/);
+    expect(notes).toContain((await scoreOne(db, org, p.id, NOW))!.pitch);
+    expect(lead.activities.find((a) => a.kind === "CREATED")?.body).toContain("said it is interested");
     expect(lead.contactId).not.toBeNull();
-    expect(await db.contactActivity.count({ where: { contactId: lead.contactId!, kind: "NOTE" } })).toBe(1);
-    const notes = await db.notification.findMany({ where: { userId: ali.id, kind: "lead.assigned" } });
-    expect(notes).toHaveLength(1);
+    expect(await db.contactActivity.count({ where: { contactId: lead.contactId!, kind: "NOTE" } })).toBe(2);
+    expect(await db.notification.count({ where: { userId: ali.id, kind: "lead.assigned" } })).toBe(0); // they did it themselves
   });
   it("sets the priority from the score", () => {
     expect([priorityFor(80), priorityFor(60), priorityFor(59), priorityFor(35), priorityFor(34), priorityFor(0), priorityFor(null)]).toEqual(["HIGH", "HIGH", "MEDIUM", "MEDIUM", "LOW", "LOW", "LOW"]);
   });
-  it("cannot be sent twice, even by two people pressing at once", async () => {
-    const ps = await Promise.all([prospect(), prospect(), prospect()]);
-    const ids = ps.map((p) => p.id);
+  it("cannot make two leads, even from two clicks at once", async () => {
+    const p = await owned(ali);
     const before = await db.lead.count({ where: { source: "Prospector" } });
-    const both = await Promise.all([sendToCrm(db, mgr, ids, { who: "TEAM", now: NOW }), sendToCrm(db, mgr, ids, { who: "TEAM", now: NOW })]);
-    expect(both[0].sent + both[1].sent).toBe(3);
-    expect(await db.lead.count({ where: { source: "Prospector" } })).toBe(before + 3);
-    const again = await sendToCrm(db, mgr, ids, { who: "TEAM", now: NOW });
-    expect(again).toMatchObject({ sent: 0, skipped: 3 });
+    const both = await Promise.allSettled([logOutreach(db, ali, p.id, { outcome: "INTERESTED" }), logOutreach(db, mgr, p.id, { outcome: "INTERESTED" })]);
+    expect(both.filter((x) => x.status === "fulfilled")).toHaveLength(1);
+    expect(await db.lead.count({ where: { source: "Prospector" } })).toBe(before + 1);
+    expect(await db.prospectOutreach.count({ where: { prospectId: p.id } })).toBe(1); // the loser left no log entry
   });
-});
-
-describe("who owns the leads", () => {
-  it("shares a batch fairly across the sales team and tells each person once", async () => {
+  it("keeps the owner when a manager records the interest, and tells them", async () => {
     await db.notification.deleteMany({});
-    const ps = await Promise.all([1, 2, 3, 4, 5, 6].map(() => prospect()));
-    const r = await sendToCrm(db, mgr, ps.map((p) => p.id), { who: "TEAM", now: NOW });
-    expect(r.sent).toBe(6);
-    // fair share counts what each person already has from Prospector, so the totals end up level
-    const totals = await Promise.all([mgr.id, ali.id, zara.id].map((id) => db.lead.count({ where: { organizationId: org, source: "Prospector", assignedToId: id } })));
-    expect(Math.max(...totals) - Math.min(...totals)).toBeLessThanOrEqual(1);
-    for (const a of r.byAgent.filter((x) => x.agentId !== mgr.id)) expect(await db.notification.count({ where: { userId: a.agentId, kind: "lead.assigned" } })).toBe(1);
-    expect(await db.notification.count({ where: { userId: mgr.id } })).toBe(0); // the sender is not told about their own click
-    expect(await db.notification.count({ where: { userId: nobody.id } })).toBe(0);
+    const p = await owned(zara);
+    const r = await logOutreach(db, mgr, p.id, { outcome: "INTERESTED" });
+    expect((await db.lead.findUniqueOrThrow({ where: { id: r.leadId! } })).assignedToId).toBe(zara.id);
+    expect(await db.notification.count({ where: { userId: zara.id, kind: "lead.assigned" } })).toBe(1);
+    expect(await db.notification.count({ where: { userId: mgr.id } })).toBe(0);
   });
-  it("keeps the person a manager already assigned the prospect to, and gives everything to one chosen person", async () => {
-    const mine = await prospect({ status: "ASSIGNED", assignedToId: zara.id });
-    const free = await prospect();
-    const r = await sendToCrm(db, mgr, [mine.id, free.id], { who: ali.id, now: NOW });
-    expect(r.sent).toBe(2);
-    expect((await db.lead.findUniqueOrThrow({ where: { id: (await db.prospect.findUniqueOrThrow({ where: { id: mine.id } })).leadId! } })).assignedToId).toBe(zara.id);
-    expect((await db.lead.findUniqueOrThrow({ where: { id: (await db.prospect.findUniqueOrThrow({ where: { id: free.id } })).leadId! } })).assignedToId).toBe(ali.id);
+  it("gives a prospect nobody owned to the manager who recorded the interest", async () => {
+    const p = await prospect();
+    const r = await logOutreach(db, mgr, p.id, { outcome: "INTERESTED", note: "Walked in" });
+    expect((await db.lead.findUniqueOrThrow({ where: { id: r.leadId! } })).assignedToId).toBe(mgr.id);
   });
 });
 
-describe("what is left out", () => {
-  it("leaves out no phone, do-not-contact numbers, dismissed prospects and prospects of other organizations, and links an existing lead instead of copying it", async () => {
-    const noPhone = await prospect({ phone: null });
-    const dnc = await prospect();
+describe("duplicates and blocked numbers", () => {
+  it("refuses a do-not-contact number, links a lead that already has the number, and allows a prospect with no phone", async () => {
+    const dnc = await owned(ali);
     await db.suppressedContact.create({ data: { organizationId: org, phone: dnc.phone! } });
-    const dismissed = await prospect({ status: "DISMISSED" });
+    await expect(logOutreach(db, ali, dnc.id, { outcome: "INTERESTED" })).rejects.toThrow(/do-not-contact/);
+    expect(await st(dnc.id)).toBe("ASSIGNED");
+    expect(await db.prospectOutreach.count({ where: { prospectId: dnc.id } })).toBe(0);
+
     const stage = await db.pipelineStage.findFirstOrThrow({ where: { organizationId: org, name: "New" } });
-    const known = await prospect();
+    const known = await owned(ali);
     const lead = await db.lead.create({ data: { organizationId: org, name: "Known", phone: known.phone!.replace("+92", "0"), stageId: stage.id } });
-    const good = await prospect();
     const before = await db.lead.count({ where: { organizationId: org } });
-    const r = await sendToCrm(db, mgr, [noPhone.id, dnc.id, dismissed.id, known.id, good.id, "missing-id"], { who: "TEAM", now: NOW });
-    expect(r).toMatchObject({ sent: 1, noPhone: 1, blocked: 1, skipped: 1, alreadyLead: 1, unavailable: 1 });
-    expect(await db.lead.count({ where: { organizationId: org } })).toBe(before + 1);
+    const r = await logOutreach(db, ali, known.id, { outcome: "INTERESTED" });
+    expect(r).toMatchObject({ leadId: lead.id, linkedExisting: true });
+    expect(await db.lead.count({ where: { organizationId: org } })).toBe(before);
     expect(await db.prospect.findUniqueOrThrow({ where: { id: known.id } })).toMatchObject({ status: "SENT_TO_CRM", leadId: lead.id });
-    expect((await db.prospect.findUniqueOrThrow({ where: { id: noPhone.id } })).status).toBe("NEW");
-    expect((await db.prospect.findUniqueOrThrow({ where: { id: dnc.id } })).status).toBe("NEW");
-    expect((await db.prospect.findUniqueOrThrow({ where: { id: dismissed.id } })).status).toBe("DISMISSED");
-  });
-  it("sends at most a fixed number per click, best score first, and says how many are left", async () => {
-    const strong = await prospect({ rating: 3.0, ratingCount: 2 }); // no website, few reviews, low rating: 51
-    await db.prospect.createMany({ data: Array.from({ length: MAX_SEND_PER_CLICK + 2 }, (_, i) => ({ organizationId: org, searchId, placeId: `bulk-${i}`, name: `Bulk ${i}`, phone: phone(5000 + i), country: "PK", city: "Lahore", score: 10 })) });
-    const ids = (await db.prospect.findMany({ where: { organizationId: org, OR: [{ id: strong.id }, { placeId: { startsWith: "bulk-" } }] }, select: { id: true } })).map((x) => x.id);
-    const r = await sendToCrm(db, mgr, ids, { who: "TEAM", now: NOW });
-    expect(r.sent).toBe(MAX_SEND_PER_CLICK);
-    expect(r.left).toBe(3);
-    expect((await db.prospect.findUniqueOrThrow({ where: { id: strong.id } })).status).toBe("SENT_TO_CRM");
-  });
-  it("sent prospects can no longer be dismissed or reassigned, and the lead stays when the prospect list is searched again", async () => {
-    const sent = await db.prospect.findFirstOrThrow({ where: { organizationId: org, status: "SENT_TO_CRM", leadId: { not: null } } });
-    const { dismiss } = await import("./prospector");
-    expect(await dismiss(db, mgr, [sent.id])).toBe(0);
-    expect(await db.lead.count({ where: { id: sent.leadId! } })).toBe(1);
+
+    const noPhone = await owned(ali, { phone: null });
+    const n = await logOutreach(db, ali, noPhone.id, { outcome: "INTERESTED" });
+    expect((await db.lead.findUniqueOrThrow({ where: { id: n.leadId! } })).phone).toBeNull();
   });
 });

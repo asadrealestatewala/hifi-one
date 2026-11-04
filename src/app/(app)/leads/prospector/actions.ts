@@ -8,7 +8,7 @@ import { getKey } from "@/lib/integration-keys";
 import { MAX_QUEUE_PER_CLICK, drainWebsiteChecks, queueChecks } from "@/lib/website-checks";
 import { MAX_FETCH_PER_CLICK, SocialAccessError, fetchFacebookData, setFacebookLink } from "@/lib/prospect-social";
 import { rescoreProspects } from "@/lib/prospect-scoring";
-import { MAX_SEND_PER_CLICK, sendToCrm } from "@/lib/prospect-crm";
+import { OUTCOME_LABEL, logOutreach } from "@/lib/prospect-crm";
 import { ProspectorError, assign, isManager, dismiss, markReviewed, restore, runSearch, setDailyLimits } from "@/lib/prospector";
 
 const BASE = "/leads/prospector";
@@ -144,25 +144,23 @@ export async function updateScores(formData: FormData): Promise<void> {
   return flash("ok", `${n} prospect${n === 1 ? "" : "s"} scored again.`);
 }
 
-// Turns the ticked prospects into leads (one contact and lead each, with the call note) and gives them an owner: the whole sales team
-// in fair shares, or one person. Only a sales manager may; the service checks again. A prospect can be sent only once.
-export async function sendProspectsToCrm(formData: FormData): Promise<void> {
+// The salesperson who owns a prospect (or a manager) logs what happened when they contacted the business. Contacted keeps it a prospect,
+// Not interested closes it, and Interested turns it into a CRM lead in the same step and opens the lead.
+export async function logProspectContact(formData: FormData): Promise<void> {
   const user = await requirePermission("crm.edit");
-  const ids = formData.getAll("ids").map(String).filter(Boolean).slice(0, 500);
-  if (ids.length === 0) return flash("error", "Tick at least one prospect first.");
+  const id = s(formData, "prospectId");
+  if (!id) return flash("error", "Choose a prospect first.");
   let ok = "";
+  let leadId: string | null = null;
   try {
-    const r = await sendToCrm(db, user, ids, { who: s(formData, "sendTo") || "TEAM" });
-    await audit(user, { action: "prospect.send_to_crm", entity: "Prospect", after: { sent: r.sent, alreadyLead: r.alreadyLead, byAgent: r.byAgent, leadIds: r.leadIds.slice(0, 50) } });
-    const parts = [
-      `${r.sent} sent to the CRM${r.byAgent.length ? ` (${r.byAgent.map((a) => `${a.name} ${a.count}`).join(", ")})` : ""}`,
-      r.alreadyLead ? `${r.alreadyLead} already a lead, linked` : "", r.noPhone ? `${r.noPhone} left out: no phone number` : "", r.blocked ? `${r.blocked} left out: on the do-not-contact list` : "",
-      r.skipped ? `${r.skipped} already sent or dismissed` : "", r.left ? `${r.left} left, press again (up to ${MAX_SEND_PER_CLICK} at a time)` : "", r.unavailable ? `${r.unavailable} not found` : "",
-    ].filter(Boolean);
-    ok = `${parts.join(". ")}.`;
+    const r = await logOutreach(db, user, id, { outcome: s(formData, "outcome"), note: s(formData, "note") });
+    await audit(user, { action: "prospect.outreach", entity: "Prospect", entityId: id, after: { outcome: r.outcome, leadId: r.leadId, linkedExisting: r.linkedExisting } });
+    leadId = r.leadId;
+    ok = `Saved: ${OUTCOME_LABEL[r.outcome].toLowerCase()}.${r.outcome === "NOT_INTERESTED" ? " The prospect is closed." : ""}`;
   } catch (e) {
     if (e instanceof ProspectorError) return flash("error", e.message);
     throw e;
   }
+  if (leadId) return redirect(`/leads/${leadId}`);
   return flash("ok", ok);
 }
