@@ -9,11 +9,14 @@ import { MAX_QUEUE_PER_CLICK, drainWebsiteChecks, queueChecks } from "@/lib/webs
 import { MAX_FETCH_PER_CLICK, SocialAccessError, fetchFacebookData, setFacebookLink } from "@/lib/prospect-social";
 import { rescoreProspects } from "@/lib/prospect-scoring";
 import { OUTCOME_LABEL, logOutreach } from "@/lib/prospect-crm";
+import { addProspect } from "@/lib/prospect-manual";
 import { ProspectorError, assign, isManager, dismiss, markReviewed, restore, runSearch, setDailyLimits } from "@/lib/prospector";
 
 const BASE = "/leads/prospector";
+const OWN = "/leads/prospector/mine";
 const s = (f: FormData, k: string) => String(f.get(k) ?? "");
-const flash = (kind: "error" | "ok", m: string, extra = ""): never => redirect(`${BASE}?${kind}=${encodeURIComponent(m)}${extra}`);
+const flash = (kind: "error" | "ok", m: string, extra = "", base = BASE): never => redirect(`${base}?${kind}=${encodeURIComponent(m)}${extra}`);
+const backTo = (f: FormData) => (s(f, "back") === OWN ? OWN : BASE); // only our own two pages, never a link from the form
 
 export async function searchProspects(formData: FormData): Promise<void> {
   const user = await requirePermission("prospector.use");
@@ -149,7 +152,7 @@ export async function updateScores(formData: FormData): Promise<void> {
 export async function logProspectContact(formData: FormData): Promise<void> {
   const user = await requirePermission("crm.edit");
   const id = s(formData, "prospectId");
-  if (!id) return flash("error", "Choose a prospect first.");
+  if (!id) return flash("error", "Choose a prospect first.", "", backTo(formData));
   let ok = "";
   let leadId: string | null = null;
   try {
@@ -158,9 +161,28 @@ export async function logProspectContact(formData: FormData): Promise<void> {
     leadId = r.leadId;
     ok = `Saved: ${OUTCOME_LABEL[r.outcome].toLowerCase()}.${r.outcome === "NOT_INTERESTED" ? " The prospect is closed." : ""}`;
   } catch (e) {
-    if (e instanceof ProspectorError) return flash("error", e.message);
+    if (e instanceof ProspectorError) return flash("error", e.message, "", backTo(formData));
     throw e;
   }
   if (leadId) return redirect(`/leads/${leadId}`);
-  return flash("ok", ok);
+  return flash("ok", ok, "", backTo(formData));
+}
+
+// A sales agent adds a prospect they found themselves (referral, own contact, other). It is owned by them and checked against existing
+// prospects, leads and the do-not-contact list before it is saved.
+export async function addOwnProspect(formData: FormData): Promise<void> {
+  const user = await requirePermission("crm.edit");
+  let ok = "";
+  try {
+    const r = await addProspect(db, user, {
+      contactName: s(formData, "contactName"), company: s(formData, "company"), phone: s(formData, "phone"), email: s(formData, "email"), website: s(formData, "website"),
+      country: s(formData, "country"), city: s(formData, "city"), source: s(formData, "source"), sourceDetail: s(formData, "sourceDetail"), notes: s(formData, "notes"), confirm: s(formData, "confirm") === "1",
+    });
+    await audit(user, { action: "prospect.add_manual", entity: "Prospect", entityId: r.id, after: { source: s(formData, "source") } });
+    ok = `${r.name} was added to your prospects. Press Log contact when you speak to them.`;
+  } catch (e) {
+    if (e instanceof ProspectorError) return flash("error", e.message, "", backTo(formData));
+    throw e;
+  }
+  return flash("ok", ok, "", backTo(formData));
 }

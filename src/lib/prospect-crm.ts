@@ -13,6 +13,7 @@ import { countryName, phoneTail } from "./phone";
 import { DuplicateLeadError, claimLeadKeys, findLeadDuplicates, getPolicy, guardNewLead, presentDuplicate } from "./lead-duplicates";
 import { isManager, ProspectorError, type Actor } from "./prospector";
 import { scoreOne, serviceLabel } from "./prospect-scoring";
+import { MANUAL_SOURCE_LABEL } from "./prospect-manual";
 
 type Db = PrismaClient;
 export const PROSPECTOR_SOURCE = "Prospector";
@@ -55,14 +56,15 @@ export async function logOutreach(db: Db, actor: Actor, prospectId: string, p: {
 
   // Interested: becomes a lead now
   const tail = phoneTail(row.phone);
+  const email = row.email?.toLowerCase() ?? null;
   let existingLeadId: string | null = null;
-  if (tail) {
-    const blocked = await db.suppressedContact.findMany({ where: { organizationId: org }, select: { phone: true } });
-    if (blocked.some((b) => phoneTail(b.phone) === tail)) throw new ProspectorError("This number is on the do-not-contact list, so it cannot become a lead.");
+  if (tail || email) {
+    const blocked = await db.suppressedContact.findMany({ where: { organizationId: org }, select: { phone: true, email: true } });
+    if (blocked.some((b) => (tail && phoneTail(b.phone) === tail) || (email && b.email?.toLowerCase() === email))) throw new ProspectorError("This number or email is on the do-not-contact list, so it cannot become a lead.");
   }
   // One person, one lead (lead-duplicates.ts): a lead that already has this phone is linked instead of copied, whatever its status
   const policy = await getPolicy(db, org);
-  if (row.phone && policy.mode !== "OFF") existingLeadId = (await findLeadDuplicates(db, { organizationId: org, phone: row.phone, country: row.country }, policy))[0]?.leadId ?? null;
+  if ((row.phone || email) && policy.mode !== "OFF") existingLeadId = (await findLeadDuplicates(db, { organizationId: org, phone: row.phone, email, country: row.country }, policy))[0]?.leadId ?? null;
   const stage = await db.pipelineStage.findFirst({ where: { organizationId: org, isWon: false, isLost: false }, orderBy: { sortOrder: "asc" } });
   if (!stage && !existingLeadId) throw new ProspectorError("The pipeline has no open stage to put new leads in.");
   const s = existingLeadId ? null : await scoreOne(db, org, row.id, now);
@@ -76,20 +78,21 @@ export async function logOutreach(db: Db, actor: Actor, prospectId: string, p: {
     await tx.prospectOutreach.create({ data: log });
     if (existingLeadId) { await tx.prospect.update({ where: { id: prospectId }, data: { leadId: existingLeadId } }); return existingLeadId; }
     // the shared guard: locks the number, re-checks (someone may have added the lead a moment ago) and claims it below
-    const guard = await guardNewLead(tx, { organizationId: org, phone: row.phone, country: row.country });
+    const guard = await guardNewLead(tx, { organizationId: org, phone: row.phone, email, country: row.country });
     const history = await tx.prospectOutreach.findMany({ where: { prospectId }, orderBy: { createdAt: "asc" } });
     const names = new Map((await tx.user.findMany({ where: { id: { in: [...new Set(history.map((h) => h.userId))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
     const contactNote = `Contact history before this became a lead:\n${history.map((h) => `${h.createdAt.toISOString().slice(0, 10)} · ${names.get(h.userId) ?? "Someone"} · ${OUTCOME_LABEL[h.outcome] ?? h.outcome}${h.note ? `: ${h.note}` : ""}`).join("\n")}`;
-    const links = [row.website ? `Website: ${row.website}` : null, row.mapsUrl ? `Google Maps: ${row.mapsUrl}` : null].filter(Boolean).join("\n") || null;
+    const manual = row.origin === "MANUAL";
+    const links = [manual ? `Added by hand as ${MANUAL_SOURCE_LABEL[row.sourceLabel ?? ""] ?? "Other"}${row.sourceDetail ? `: ${row.sourceDetail}` : ""}` : null, manual ? row.notes : null, row.website ? `Website: ${row.website}` : null, row.mapsUrl ? `Google Maps: ${row.mapsUrl}` : null].filter(Boolean).join("\n") || null;
     const lead = await tx.lead.create({
       data: {
-        organizationId: org, name: row.name.slice(0, 200), company: row.name.slice(0, 160), phone: row.phone, city: row.city, country: row.country ? countryName(row.country) : null,
-        source: PROSPECTOR_SOURCE, serviceInterest: service, priority: priorityFor(s?.score ?? row.score), stageId: stage!.id, assignedToId: owner, createdById: actor.id, notes: links,
-        lastContactAt: now, tags: ["prospector", ...(s?.topService ? [s.topService.toLowerCase()] : [])],
-        activities: { create: { actorId: actor.id, kind: "CREATED", body: `Converted from Prospector after the business said it is interested (opportunity ${s?.score ?? row.score ?? "not scored"} of 100)${row.address ? `. ${row.address}` : ""}` } },
+        organizationId: org, name: (row.contactName ?? row.name).slice(0, 200), company: manual && !row.contactName ? null : row.name.slice(0, 160), phone: row.phone, email, city: row.city, country: row.country ? countryName(row.country) : null,
+        source: manual ? `${PROSPECTOR_SOURCE}: ${MANUAL_SOURCE_LABEL[row.sourceLabel ?? ""] ?? "Other"}` : PROSPECTOR_SOURCE, serviceInterest: service, priority: priorityFor(s?.score ?? row.score), stageId: stage!.id, assignedToId: owner, createdById: actor.id, notes: links,
+        lastContactAt: now, tags: ["prospector", ...(manual ? [(row.sourceLabel ?? "other").toLowerCase().replace("_", "-")] : []), ...(s?.topService ? [s.topService.toLowerCase()] : [])],
+        activities: { create: { actorId: actor.id, kind: "CREATED", body: `Converted from Prospector after ${manual ? "the contact" : "the business"} said it is interested (opportunity ${s?.score ?? row.score ?? "not scored"} of 100)${row.address ? `. ${row.address}` : ""}` } },
       },
     });
-    await claimLeadKeys(tx, { leadId: lead.id, organizationId: org, phone: row.phone, country: row.country }, { policy: guard.policy });
+    await claimLeadKeys(tx, { leadId: lead.id, organizationId: org, phone: row.phone, email, country: row.country }, { policy: guard.policy });
     await tx.prospect.update({ where: { id: prospectId }, data: { leadId: lead.id } });
     await ensureContactForLead(tx, lead.id);
     for (const body of [contactNote, s?.pitch].filter(Boolean) as string[]) {

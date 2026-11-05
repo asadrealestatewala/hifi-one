@@ -18,11 +18,11 @@ export const RESULT_CHOICES = [20, 40, 60] as const;
 export const DEFAULT_DAILY_SEARCHES = 10;
 
 export type Actor = { id: string; organizationId: string; permissions: ReadonlySet<string> };
-// A manager sees every prospect and can review, dismiss and assign. Everyone else sees only prospects assigned to them or found by their own searches.
+// A manager sees every prospect and can review, dismiss and assign. Everyone else sees only prospects assigned to them, added by them or found by their own searches.
 export const isManager = (a: Actor) => a.permissions.has("crm.view_all") && a.permissions.has("crm.edit");
 export const canSearch = (a: Actor) => a.permissions.has("prospector.use");
 export const prospectScope = (a: Actor): Prisma.ProspectWhereInput =>
-  isManager(a) ? { organizationId: a.organizationId } : { organizationId: a.organizationId, OR: [{ assignedToId: a.id }, { search: { userId: a.id } }] };
+  isManager(a) ? { organizationId: a.organizationId } : { organizationId: a.organizationId, OR: [{ assignedToId: a.id }, { addedById: a.id }, { search: { userId: a.id } }] };
 
 const dayStart = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 const clean = (v: unknown, max: number) => String(v ?? "").replace(/[\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
@@ -201,10 +201,12 @@ export async function assign(db: Db, actor: Actor, ids: string[], agentId: strin
 
 // ---------- listing ----------
 export const PROSPECT_SORTS = { name: { field: "name" }, rating: { field: "rating", nullable: true }, created: { field: "createdAt" }, score: { field: "score", nullable: true } } as const;
-export function prospectWhere(actor: Actor, p: { q?: string; status?: string; searchId?: string }): Prisma.ProspectWhereInput {
+export function prospectWhere(actor: Actor, p: { q?: string; status?: string; searchId?: string; manual?: boolean; mineOnly?: boolean }): Prisma.ProspectWhereInput {
   const and: Prisma.ProspectWhereInput[] = [prospectScope(actor)];
   if (p.status) and.push({ status: p.status });
   if (p.searchId) and.push({ searchId: p.searchId });
-  if (p.q) { const q = p.q; and.push({ OR: [{ name: { contains: q, mode: "insensitive" } }, { address: { contains: q, mode: "insensitive" } }, { phone: { contains: q } }, { website: { contains: q, mode: "insensitive" } }] }); }
+  if (p.manual) and.push({ origin: "MANUAL" });
+  if (p.mineOnly) and.push({ OR: [{ assignedToId: actor.id }, { addedById: actor.id }] });
+  if (p.q) { const q = p.q; and.push({ OR: [{ name: { contains: q, mode: "insensitive" } }, { address: { contains: q, mode: "insensitive" } }, { phone: { contains: q } }, { email: { contains: q, mode: "insensitive" } }, { contactName: { contains: q, mode: "insensitive" } }, { website: { contains: q, mode: "insensitive" } }] }); }
   return { AND: and };
 }

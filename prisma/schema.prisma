@@ -2801,8 +2801,8 @@ model ProspectSearch {
 model Prospect {
   id             String    @id @default(cuid())
   organizationId String
-  searchId       String
-  placeId        String // Google place ID: the one value Google lets us keep, and the key for refreshing the rest
+  searchId       String? // null for a prospect an agent added by hand
+  placeId        String // Google place ID, or manual:<uuid> for a prospect an agent added by hand: the one value Google lets us keep, and the key for refreshing the rest
   name           String
   address        String?
   city           String?
@@ -2819,6 +2819,13 @@ model Prospect {
   assignedAt     DateTime?
   leadId         String? // set when sent to the CRM
   placeFetchedAt DateTime  @default(now()) // when the Google fields were last read; refresh by placeId
+  origin         String    @default("SEARCH") // SEARCH (Google) | MANUAL (added by a sales agent: referral, own contact, other)
+  sourceLabel    String? // MANUAL only: REFERRAL | OWN_CONTACT | OTHER
+  sourceDetail   String? // MANUAL only: who referred them, where they were met
+  contactName    String? // MANUAL only: the person; name is then the business (or the person when there is no business)
+  email          String?
+  notes          String? // MANUAL only: what the agent knows
+  addedById      String? // MANUAL only: the agent who added it
   score          Int? // stage 4: 0 to 100, higher = more to fix; null until scored
   scoreService   String? // the service to lead with
   scoreVersion   Int?
@@ -2826,7 +2833,7 @@ model Prospect {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  search       ProspectSearch        @relation(fields: [searchId], references: [id], onDelete: Cascade)
+  search       ProspectSearch?       @relation(fields: [searchId], references: [id], onDelete: Cascade)
   websiteCheck ProspectWebsiteCheck?
   social       ProspectSocial?
   outreach     ProspectOutreach[]
@@ -2834,6 +2841,7 @@ model Prospect {
   @@unique([organizationId, placeId])
   @@index([organizationId, status, createdAt])
   @@index([organizationId, assignedToId])
+  @@index([organizationId, addedById])
   @@index([searchId])
   @@index([organizationId, score])
 }
