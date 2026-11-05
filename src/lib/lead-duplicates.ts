@@ -201,3 +201,21 @@ export async function backfillLeadKeys(db: PrismaClient, organizationId: string)
   }
   return { leads: leads.length, claimsAdded: added, leftUnclaimed: left };
 }
+
+// One way to store a phone number on a lead, however it was typed: +international when it can be worked out (a local 0300 number is read
+// in the lead's country, else the organization's default country), otherwise the digits as typed. Keeps stored numbers, claims and tel: links alike.
+export async function canonicalPhone(db: Db, organizationId: string, raw: string | null | undefined, country?: string | null): Promise<string | null> {
+  if (!(raw ?? "").trim()) return null;
+  const policy = await getPolicy(db, organizationId);
+  return leadKeys({ phone: raw, country }, policy.defaultCountry).phone;
+}
+
+// Is this phone or email on the do-not-contact list? Phones match by their last nine digits, so 0300 1234567 and +92 300 1234567 are the same
+// number, and emails ignore case. Every place that adds or converts a contact asks this one question.
+export async function isSuppressed(db: Db, organizationId: string, p: { phone?: string | null; email?: string | null }): Promise<boolean> {
+  const email = normalizeEmail(p.email);
+  const tail = phoneTail(p.phone);
+  if (!email && !tail) return false;
+  const rows = await db.suppressedContact.findMany({ where: { organizationId }, select: { phone: true, email: true } });
+  return rows.some((r) => (email && normalizeEmail(r.email) === email) || (tail && phoneTail(r.phone) === tail));
+}

@@ -1,15 +1,17 @@
 // A sales agent adds a prospect they found themselves (a referral, their own contact, any other source) when no list was assigned to them.
 // It is the same kind of prospect as one found by a search: owned by the agent, logged with Log contact (Contacted, Not interested,
-// Interested -> becomes a CRM lead), and kept apart from the CRM until then. Before it is saved it is checked against
+// Interested -> becomes a CRM lead), and kept apart from the CRM until then. The quick form asks for a name, a phone (country picker plus the
+// number as people write it locally), an optional email, a source and a note. Before it is saved it is checked against
 //   - the do-not-contact list (phone and email), always refused
 //   - every existing prospect, whatever its status or owner, always refused
 //   - the CRM leads, with the shared duplicate protection (decision 65): refused in BLOCK mode, confirmable in WARN, skipped when OFF
+// Each refusal names the form field it belongs to, so the form can show it next to that field.
 // Free of Next.js imports so it can be tested against the database.
 import { randomUUID } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { normalizeEmail } from "./contacts";
-import { findLeadDuplicates, getPolicy, presentDuplicate } from "./lead-duplicates";
-import { isCountry, normalizeE164, phoneTail } from "./phone";
+import { findLeadDuplicates, getPolicy, isSuppressed, presentDuplicate } from "./lead-duplicates";
+import { isCountry, normalizeE164, phoneProblem, phoneTail } from "./phone";
 import { ProspectorError, type Actor } from "./prospector";
 import { rescoreProspects } from "./prospect-scoring";
 
@@ -22,38 +24,35 @@ const STATUS_WORD: Record<string, string> = { NEW: "new", REVIEWED: "reviewed", 
 const clean = (v: unknown, max: number) => String(v ?? "").replace(/[\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
 const cleanNote = (v: unknown, max: number) => String(v ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").trim().slice(0, max);
 
-export type ManualInput = { contactName?: string; company?: string; phone?: string; email?: string; website?: string; country?: string; city?: string; source?: string; sourceDetail?: string; notes?: string; confirm?: boolean };
+export type ManualInput = { name?: string; phone?: string; country?: string; email?: string; source?: string; note?: string; confirm?: boolean };
 export type AddResult = { id: string; name: string };
 
 function websiteFrom(raw: string): string | null {
   const t = clean(raw, 300);
   if (!t) return null;
   let u: URL;
-  try { u = new URL(/^https?:\/\//i.test(t) ? t : `https://${t}`); } catch { throw new ProspectorError("The website does not look like an address. Use something like example.com."); }
-  if ((u.protocol !== "https:" && u.protocol !== "http:") || !u.hostname.includes(".")) throw new ProspectorError("The website does not look like an address. Use something like example.com.");
-  return u.toString().replace(/\/$/, "");
+  try { u = new URL(/^https?:\/\//i.test(t) ? t : `https://${t}`); } catch { return null; }
+  return (u.protocol === "https:" || u.protocol === "http:") && u.hostname.includes(".") ? u.toString().replace(/\/$/, "") : null;
 }
+export { websiteFrom };
 
 export async function addProspect(db: Db, actor: Actor, input: ManualInput, now = new Date()): Promise<AddResult> {
   if (!actor.permissions.has("crm.edit")) throw new ProspectorError("You do not have permission to add prospects.");
   const org = actor.organizationId;
-  const contactName = clean(input.contactName, 120);
-  const company = clean(input.company, 160);
-  if (!contactName && !company) throw new ProspectorError("Enter the contact's name or the company name.");
+  const name = clean(input.name, 160);
+  if (!name) throw new ProspectorError("Enter the business or person's name.", "name");
   const source = (MANUAL_SOURCES as readonly string[]).includes(String(input.source)) ? (input.source as ManualSource) : null;
-  if (!source) throw new ProspectorError("Choose where this prospect came from: referral, own contact or other.");
-  const sourceDetail = clean(input.sourceDetail, 200) || null;
+  if (!source) throw new ProspectorError("Choose where this prospect came from.", "source");
   const policy = await getPolicy(db, org);
-  const country = isCountry(clean(input.country, 2).toUpperCase()) ? clean(input.country, 2).toUpperCase() : policy.defaultCountry;
+  const picked = clean(input.country, 2).toUpperCase();
+  const country = isCountry(picked) ? picked : policy.defaultCountry;
   const rawPhone = clean(input.phone, 40);
   const phone = rawPhone ? normalizeE164(rawPhone, country) : null;
-  if (rawPhone && !phone) throw new ProspectorError("That phone number does not look right. Include the area or mobile code, for example 0300 1234567.");
+  if (rawPhone && !phone) throw new ProspectorError(phoneProblem(rawPhone, country) ?? "That phone number does not look right.", "phone");
   const rawEmail = clean(input.email, 200);
   const email = rawEmail ? normalizeEmail(rawEmail) : null;
-  if (rawEmail && !email) throw new ProspectorError("That email address does not look right.");
-  if (!phone && !email) throw new ProspectorError("Enter a phone number or an email, so the prospect can be checked against existing ones and contacted.");
-  const website = websiteFrom(String(input.website ?? ""));
-  const name = company || contactName;
+  if (rawEmail && !email) throw new ProspectorError("That email address does not look right. Use the form name@company.com.", "email");
+  if (!phone && !email) throw new ProspectorError("Enter a phone number, or an email if you have no number, so the prospect can be checked against existing ones and contacted.", "phone");
   const tail = phoneTail(phone);
 
   // Two agents adding the same person at the same moment: the second waits for the first, then finds it
@@ -62,39 +61,52 @@ export async function addProspect(db: Db, actor: Actor, input: ManualInput, now 
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`prospect-key:${org}:${k}`}, 0))`;
     }
 
-    const blocked = await tx.suppressedContact.findMany({ where: { organizationId: org, OR: [...(email ? [{ email: { equals: email, mode: "insensitive" as const } }] : []), ...(tail ? [{ phone: { not: null } }] : [])] }, select: { phone: true, email: true } });
-    if (blocked.some((b) => (email && b.email?.toLowerCase() === email) || (tail && phoneTail(b.phone) === tail))) {
-      throw new ProspectorError("This phone number or email is on the do-not-contact list, so it cannot be added.");
+    if (await isSuppressed(tx as unknown as Db, org, { phone, email })) {
+      throw new ProspectorError("This phone number or email is on the do-not-contact list, so it cannot be added.", phone ? "phone" : "email");
     }
 
     const ors: Prisma.ProspectWhereInput[] = [];
     if (email) ors.push({ email: { equals: email, mode: "insensitive" } });
     if (tail) ors.push({ phone: { endsWith: tail } });
-    const same = await tx.prospect.findFirst({ where: { organizationId: org, OR: ors }, orderBy: { createdAt: "asc" }, select: { id: true, name: true, status: true, assignedToId: true, addedById: true } });
+    const same = await tx.prospect.findFirst({ where: { organizationId: org, OR: ors }, orderBy: { createdAt: "asc" }, select: { id: true, name: true, status: true, assignedToId: true, addedById: true, email: true } });
     if (same) {
       const mine = actor.permissions.has("crm.view_all") || same.assignedToId === actor.id || same.addedById === actor.id;
+      const field = email && same.email?.toLowerCase() === email ? "email" : "phone";
       throw new ProspectorError(mine
-        ? `${same.name} is already in Prospector (${STATUS_WORD[same.status] ?? same.status.toLowerCase()}) with this phone number or email. Open it from the list instead of adding it again.`
-        : "This phone number or email is already in Prospector and belongs to another team member. Ask a sales manager if it should be reassigned.");
+        ? `${same.name} is already in Prospector (${STATUS_WORD[same.status] ?? same.status.toLowerCase()}) with this ${field === "email" ? "email" : "phone number"}. Open it from the list instead of adding it again.`
+        : `This ${field === "email" ? "email" : "phone number"} is already in Prospector and belongs to another team member. Ask a sales manager if it should be reassigned.`, field);
     }
 
     if (policy.mode !== "OFF") {
       const dup = (await findLeadDuplicates(tx as unknown as Db, { organizationId: org, phone, email, country }, policy))[0];
       if (dup && (policy.mode === "BLOCK" || !input.confirm)) {
         const text = presentDuplicate(dup, { id: actor.id, permissions: actor.permissions }).text;
-        throw new ProspectorError(policy.mode === "WARN" ? `${text} Tick "Add anyway" if this is a different person.` : text);
+        throw new ProspectorError(policy.mode === "WARN" ? `${text} If this is a different person, tick "Add anyway" and save again.` : text, dup.matchedOn[0] === "email" ? "email" : "phone");
       }
     }
 
     return tx.prospect.create({
       data: {
-        organizationId: org, searchId: null, placeId: `manual:${randomUUID()}`, origin: "MANUAL", name, contactName: contactName || null, phone, email, website, country,
-        city: clean(input.city, 80) || null, sourceLabel: source, sourceDetail, notes: cleanNote(input.notes, 1000) || null, addedById: actor.id,
-        status: "ASSIGNED", assignedToId: actor.id, assignedAt: now, placeFetchedAt: now,
+        organizationId: org, searchId: null, placeId: `manual:${randomUUID()}`, origin: "MANUAL", name, phone, email, country, sourceLabel: source, notes: cleanNote(input.note, 1000) || null,
+        addedById: actor.id, status: "ASSIGNED", assignedToId: actor.id, assignedAt: now, placeFetchedAt: now,
       },
       select: { id: true, name: true },
     });
   });
   await rescoreProspects(db, org, [created.id], now);
   return created;
+}
+
+// An agent takes back a prospect they added by mistake (a wrong number, a duplicate they found later). It is dismissed, not deleted, so it stays
+// on record and a manager can restore it; it can only be done before anyone has contacted it, and only by the person who added it or a manager.
+export async function removeOwnProspect(db: Db, actor: Actor, prospectId: string): Promise<{ name: string }> {
+  const row = await db.prospect.findFirst({ where: { id: prospectId, organizationId: actor.organizationId }, select: { id: true, name: true, origin: true, addedById: true, status: true, assignedToId: true } });
+  const manager = actor.permissions.has("crm.view_all") && actor.permissions.has("crm.edit");
+  if (!row || row.origin !== "MANUAL" || (!manager && row.addedById !== actor.id)) throw new ProspectorError("Only the person who added this prospect, or a sales manager, can remove it.");
+  if (!["NEW", "REVIEWED", "ASSIGNED"].includes(row.status)) throw new ProspectorError("This prospect has already been contacted or closed, so it cannot be removed. Log the outcome instead.");
+  if (!manager && row.assignedToId !== actor.id) throw new ProspectorError("This prospect was reassigned to someone else, so only a manager can remove it.");
+  if (await db.prospectOutreach.count({ where: { prospectId } })) throw new ProspectorError("This prospect already has a contact logged, so it cannot be removed.");
+  const done = await db.prospect.updateMany({ where: { id: prospectId, status: { in: ["NEW", "REVIEWED", "ASSIGNED"] } }, data: { status: "DISMISSED" } });
+  if (done.count !== 1) throw new ProspectorError("This prospect was just changed by someone else. Refresh and try again.");
+  return { name: row.name };
 }

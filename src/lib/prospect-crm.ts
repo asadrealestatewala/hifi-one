@@ -9,8 +9,8 @@
 import type { PrismaClient } from "@prisma/client";
 import { ensureContactForLead, mirrorLeadActivity } from "./crm-contacts";
 import { notify } from "./notifications";
-import { countryName, phoneTail } from "./phone";
-import { DuplicateLeadError, claimLeadKeys, findLeadDuplicates, getPolicy, guardNewLead, presentDuplicate } from "./lead-duplicates";
+import { countryName } from "./phone";
+import { DuplicateLeadError, claimLeadKeys, isSuppressed, findLeadDuplicates, getPolicy, guardNewLead, presentDuplicate } from "./lead-duplicates";
 import { isManager, ProspectorError, type Actor } from "./prospector";
 import { scoreOne, serviceLabel } from "./prospect-scoring";
 import { MANUAL_SOURCE_LABEL } from "./prospect-manual";
@@ -55,13 +55,9 @@ export async function logOutreach(db: Db, actor: Actor, prospectId: string, p: {
   }
 
   // Interested: becomes a lead now
-  const tail = phoneTail(row.phone);
   const email = row.email?.toLowerCase() ?? null;
   let existingLeadId: string | null = null;
-  if (tail || email) {
-    const blocked = await db.suppressedContact.findMany({ where: { organizationId: org }, select: { phone: true, email: true } });
-    if (blocked.some((b) => (tail && phoneTail(b.phone) === tail) || (email && b.email?.toLowerCase() === email))) throw new ProspectorError("This number or email is on the do-not-contact list, so it cannot become a lead.");
-  }
+  if (await isSuppressed(db, org, { phone: row.phone, email })) throw new ProspectorError("This number or email is on the do-not-contact list, so it cannot become a lead.");
   // One person, one lead (lead-duplicates.ts): a lead that already has this phone is linked instead of copied, whatever its status
   const policy = await getPolicy(db, org);
   if ((row.phone || email) && policy.mode !== "OFF") existingLeadId = (await findLeadDuplicates(db, { organizationId: org, phone: row.phone, email, country: row.country }, policy))[0]?.leadId ?? null;

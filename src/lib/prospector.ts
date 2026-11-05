@@ -10,7 +10,8 @@ import { PAGE_SIZE, MAX_RESULTS, PLACES_SKU, PlacesError, searchText, type Place
 import { SKU_PRICE_USD } from "./api-budget";
 
 type Db = PrismaClient;
-export class ProspectorError extends Error {}
+// field names the form field a message belongs to, so a form can show it next to that field
+export class ProspectorError extends Error { constructor(message: string, readonly field?: string) { super(message); } }
 
 export const PROSPECT_STATUSES = ["NEW", "REVIEWED", "ASSIGNED", "CONTACTED", "NOT_INTERESTED", "SENT_TO_CRM", "DISMISSED"] as const; // SENT_TO_CRM is shown as Converted
 export type ProspectStatus = (typeof PROSPECT_STATUSES)[number];

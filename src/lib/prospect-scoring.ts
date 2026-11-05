@@ -9,11 +9,11 @@ type Db = PrismaClient;
 export const MAX_RESCORE = 2000;
 
 type Row = {
-  name: string; website: string | null; rating: unknown; ratingCount: number | null;
+  name: string; origin?: string; website: string | null; rating: unknown; ratingCount: number | null;
   websiteCheck: (NonNullable<ScoreInput["check"]>) | null; social: (NonNullable<ScoreInput["social"]>) | null;
 };
 export function inputFor(r: Row, now?: Date): ScoreInput {
-  return { name: r.name, hasWebsite: Boolean(r.website?.trim()), rating: r.rating == null ? null : Number(r.rating), ratingCount: r.ratingCount, check: r.websiteCheck, social: r.social, now };
+  return { name: r.name, manual: r.origin === "MANUAL", hasWebsite: Boolean(r.website?.trim()), rating: r.rating == null ? null : Number(r.rating), ratingCount: r.ratingCount, check: r.websiteCheck, social: r.social, now };
 }
 export const prospectInclude = {
   websiteCheck: { select: { status: true, reachable: true, https: true, hasTitle: true, hasMetaDescription: true, hasAnalytics: true, hasGtm: true, hasMetaPixel: true, hasContactForm: true, hasWhatsapp: true, lowConfidence: true, mobileScore: true, seoScore: true } },
@@ -25,7 +25,7 @@ export async function rescoreProspects(db: Db, organizationId: string, ids: stri
   if (ids && ids.length === 0) return 0;
   const rows = await db.prospect.findMany({
     where: { organizationId, ...(ids ? { id: { in: ids.slice(0, MAX_RESCORE) } } : {}) },
-    select: { id: true, name: true, website: true, rating: true, ratingCount: true, ...prospectInclude },
+    select: { id: true, name: true, origin: true, website: true, rating: true, ratingCount: true, ...prospectInclude },
     orderBy: { createdAt: "desc" }, take: MAX_RESCORE,
   });
   let saved = 0;
@@ -39,7 +39,7 @@ export async function rescoreProspects(db: Db, organizationId: string, ids: stri
 
 // The full score with reasons and pitch for one prospect, scored fresh from what is known now. Null when it is not in the organization.
 export async function scoreOne(db: Db, organizationId: string, id: string, now = new Date()): Promise<ProspectScore | null> {
-  const r = await db.prospect.findFirst({ where: { id, organizationId }, select: { id: true, name: true, website: true, rating: true, ratingCount: true, ...prospectInclude } });
+  const r = await db.prospect.findFirst({ where: { id, organizationId }, select: { id: true, name: true, origin: true, website: true, rating: true, ratingCount: true, ...prospectInclude } });
   return r ? scoreProspect(inputFor(r as unknown as Row, now)) : null;
 }
 

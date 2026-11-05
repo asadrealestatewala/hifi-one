@@ -1,6 +1,7 @@
 "use server";
 
 import { after } from "next/server";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -9,7 +10,7 @@ import { MAX_QUEUE_PER_CLICK, drainWebsiteChecks, queueChecks } from "@/lib/webs
 import { MAX_FETCH_PER_CLICK, SocialAccessError, fetchFacebookData, setFacebookLink } from "@/lib/prospect-social";
 import { rescoreProspects } from "@/lib/prospect-scoring";
 import { OUTCOME_LABEL, logOutreach } from "@/lib/prospect-crm";
-import { addProspect } from "@/lib/prospect-manual";
+import { addProspect, removeOwnProspect } from "@/lib/prospect-manual";
 import { ProspectorError, assign, isManager, dismiss, markReviewed, restore, runSearch, setDailyLimits } from "@/lib/prospector";
 
 const BASE = "/leads/prospector";
@@ -168,21 +169,41 @@ export async function logProspectContact(formData: FormData): Promise<void> {
   return flash("ok", ok, "", backTo(formData));
 }
 
+// What the quick Add prospect form gets back: either the saved prospect, or a message for the field it belongs to (and what was typed, so nothing is lost).
+export type AddState = { ok?: true; message?: string; field?: string; error?: string; values?: Record<string, string> };
+const VALUE_KEYS = ["name", "country", "phone", "email", "source", "note"] as const;
+
 // A sales agent adds a prospect they found themselves (referral, own contact, other). It is owned by them and checked against existing
-// prospects, leads and the do-not-contact list before it is saved.
-export async function addOwnProspect(formData: FormData): Promise<void> {
+// prospects, leads and the do-not-contact list before it is saved. Errors come back to the form, next to the field, instead of redirecting.
+export async function addOwnProspect(_prev: AddState, formData: FormData): Promise<AddState> {
   const user = await requirePermission("crm.edit");
-  let ok = "";
+  const values = Object.fromEntries(VALUE_KEYS.map((k) => [k, s(formData, k)]));
   try {
-    const r = await addProspect(db, user, {
-      contactName: s(formData, "contactName"), company: s(formData, "company"), phone: s(formData, "phone"), email: s(formData, "email"), website: s(formData, "website"),
-      country: s(formData, "country"), city: s(formData, "city"), source: s(formData, "source"), sourceDetail: s(formData, "sourceDetail"), notes: s(formData, "notes"), confirm: s(formData, "confirm") === "1",
-    });
-    await audit(user, { action: "prospect.add_manual", entity: "Prospect", entityId: r.id, after: { source: s(formData, "source") } });
-    ok = `${r.name} was added to your prospects. Press Log contact when you speak to them.`;
+    const r = await addProspect(db, user, { ...values, confirm: s(formData, "confirm") === "1" });
+    await audit(user, { action: "prospect.add_manual", entity: "Prospect", entityId: r.id, after: { source: values.source } });
+    revalidatePath(BASE);
+    revalidatePath(OWN);
+    return { ok: true, message: `${r.name} was added to your prospects. Press Log contact when you speak to them.` };
   } catch (e) {
-    if (e instanceof ProspectorError) return flash("error", e.message, "", backTo(formData));
+    if (e instanceof ProspectorError) return { error: e.message, field: e.field, values };
     throw e;
   }
-  return flash("ok", ok, "", backTo(formData));
+}
+
+// Takes back a prospect the person added by mistake (it is dismissed, not deleted).
+export async function removeOwnProspectAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("crm.edit");
+  const back = backTo(formData);
+  const id = s(formData, "prospectId");
+  if (!id) return flash("error", "Choose a prospect first.", "", back);
+  let ok = "";
+  try {
+    const r = await removeOwnProspect(db, user, id);
+    await audit(user, { action: "prospect.remove_manual", entity: "Prospect", entityId: id });
+    ok = `${r.name} was removed from your prospects.`;
+  } catch (e) {
+    if (e instanceof ProspectorError) return flash("error", e.message, "", back);
+    throw e;
+  }
+  return flash("ok", ok, "", back);
 }

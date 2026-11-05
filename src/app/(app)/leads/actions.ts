@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { leadScope, normalizePhone } from "@/lib/leads";
 import { convertLead } from "@/lib/conversion";
 import { ensureContactForLead, mirrorLeadActivity } from "@/lib/crm-contacts";
-import { DuplicateLeadError, createLeadGuarded, presentDuplicate } from "@/lib/lead-duplicates";
+import { DuplicateLeadError, canonicalPhone, createLeadGuarded, presentDuplicate } from "@/lib/lead-duplicates";
 import { LedgerError } from "@/lib/ledger-math";
 
 const opt = z.string().trim().max(500).optional().transform((v) => (v ? v : null));
@@ -42,7 +42,8 @@ export async function createLead(formData: FormData) {
   if (d.dealValue !== null && !/^\d{1,12}(\.\d{1,2})?$/.test(d.dealValue)) {
     redirect(`/leads?error=${encodeURIComponent("Deal value must be a positive number")}`);
   }
-  const phone = normalizePhone(d.phone);
+  const phoneTyped = normalizePhone(d.phone);
+  const phone = phoneTyped ? await canonicalPhone(db, user.organizationId, phoneTyped, d.country) : null;
   if (d.expectedCloseDate && Number.isNaN(Date.parse(d.expectedCloseDate))) redirect(`/leads?error=${encodeURIComponent("Enter a valid expected closing date")}`);
   if (d.campaignId && !(await db.campaign.findFirst({ where: { id: d.campaignId, organizationId: user.organizationId } }))) redirect(`/leads?error=${encodeURIComponent("Unknown campaign")}`);
   const stage = await db.pipelineStage.findFirstOrThrow({ where: { organizationId: user.organizationId }, orderBy: { sortOrder: "asc" } });
