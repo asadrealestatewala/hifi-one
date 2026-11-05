@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon";
+import { loadBell, readBellAll, readBellItem, type BellItem } from "@/app/(app)/notifications/actions";
 
 type Quick = { href: string; label: string; icon: string };
 
@@ -19,7 +21,10 @@ function useClickAway(ref: React.RefObject<HTMLElement | null>, close: () => voi
 export default function Topbar({ unread, quick, canSearch, onMenu }: {
   unread: number; quick: Quick[]; canSearch: boolean; onMenu: () => void;
 }) {
-  const [menu, setMenu] = useState<"" | "quick">("");
+  const [menu, setMenu] = useState<"" | "quick" | "bell">("");
+  const [count, setCount] = useState(unread);
+  const [items, setItems] = useState<BellItem[] | null>(null);
+  const router = useRouter();
   const [dark, setDark] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   useClickAway(box, () => setMenu(""));
@@ -31,6 +36,29 @@ export default function Topbar({ unread, quick, canSearch, onMenu }: {
     document.documentElement.dataset.theme = next;
     try { localStorage.setItem("hifi.theme", next); } catch { /* private mode: the choice just is not remembered */ }
     setDark(!dark);
+  };
+
+  useEffect(() => { setCount(unread); }, [unread]);
+
+  // The bell opens a panel over the current page, so the page and its unsaved state stay put.
+  const toggleBell = async () => {
+    if (menu === "bell") { setMenu(""); return; }
+    setMenu("bell");
+    try { const r = await loadBell(); setItems(r.items); setCount(r.unread); } catch { setItems((cur) => cur ?? []); }
+  };
+  const open = async (n: BellItem) => {
+    setMenu("");
+    if (!n.read) {
+      setCount((c) => Math.max(0, c - 1));
+      setItems((cur) => cur && cur.map((i) => (i.id === n.id ? { ...i, read: true } : i)));
+      void readBellItem(n.id).catch(() => {});
+    }
+    if (n.link) router.push(n.link);
+  };
+  const readAll = async () => {
+    setCount(0);
+    setItems((cur) => cur && cur.map((i) => ({ ...i, read: true })));
+    void readBellAll().catch(() => {});
   };
 
   return (
@@ -70,10 +98,32 @@ export default function Topbar({ unread, quick, canSearch, onMenu }: {
           <Icon name={dark ? "sun" : "moon"} />
         </button>
 
-        <Link href="/notifications" className="relative rounded-lg p-2 text-muted hover:bg-hover hover:text-foreground" aria-label={`Notifications, ${unread} unread`}>
-          <Icon name="bell" />
-          {unread > 0 && <span className="absolute right-1 top-1 min-w-[16px] rounded-full bg-brand px-1 text-center text-[10px] font-semibold leading-4 text-white">{unread > 99 ? "99+" : unread}</span>}
-        </Link>
+        <div className="sm:relative">
+          <button type="button" onClick={toggleBell} aria-expanded={menu === "bell"} aria-haspopup="dialog" className="relative rounded-lg p-2 text-muted hover:bg-hover hover:text-foreground" aria-label={`Notifications, ${count} unread`}>
+            <Icon name="bell" />
+            {count > 0 && <span className="absolute right-1 top-1 min-w-[16px] rounded-full bg-brand px-1 text-center text-[10px] font-semibold leading-4 text-white">{count > 99 ? "99+" : count}</span>}
+          </button>
+          {menu === "bell" && (
+            <div role="dialog" aria-label="Notifications" className="absolute inset-x-3 top-full z-30 mt-2 flex max-h-[70vh] flex-col rounded-xl border border-border bg-surface shadow-lg sm:inset-x-auto sm:right-0 sm:w-96">
+              <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+                <p className="text-sm font-semibold">Notifications</p>
+                {count > 0 && <button type="button" onClick={readAll} className="text-xs text-primary hover:underline">Mark all as read</button>}
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {items === null && <p className="p-4 text-sm text-muted">Loading…</p>}
+                {items?.length === 0 && <p className="p-4 text-sm text-muted">Nothing yet.</p>}
+                {items?.map((n) => (
+                  <button key={n.id} type="button" onClick={() => open(n)} className={`block w-full border-b border-border px-4 py-3 text-left last:border-b-0 hover:bg-hover ${n.read ? "" : "bg-brand/5"}`}>
+                    <span className="block text-sm font-semibold">{n.title}</span>
+                    {n.body && <span className="line-clamp-2 block text-sm text-muted">{n.body}</span>}
+                    <span className="block text-xs text-muted">{new Date(n.at).toLocaleString()}</span>
+                  </button>
+                ))}
+              </div>
+              <Link href="/notifications" onClick={() => setMenu("")} className="border-t border-border px-4 py-3 text-center text-sm font-medium text-primary hover:bg-hover">View all</Link>
+            </div>
+          )}
+        </div>
 
       </div>
     </header>
