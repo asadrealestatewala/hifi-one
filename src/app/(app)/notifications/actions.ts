@@ -6,7 +6,9 @@ import { markAllRead, markRead } from "@/lib/notifications";
 export type BellItem = { id: string; title: string; body: string | null; link: string | null; at: string; read: boolean };
 
 // Latest notifications for the bell panel. No revalidation: the page underneath is left alone.
-export async function loadBell(): Promise<{ items: BellItem[]; unread: number }> {
+export type BellData = { items: BellItem[]; unread: number };
+
+export async function loadBell(): Promise<BellData> {
   const user = await requireUser({ allowMustChange: true, allowMfaSetup: true });
   const [rows, unread] = await Promise.all([
     db.notification.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 15 }),
