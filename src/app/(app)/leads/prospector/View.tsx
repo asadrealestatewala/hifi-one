@@ -53,12 +53,18 @@ const daysAgo = (d: Date) => { const n = Math.floor((Date.now() - d.getTime()) /
 
 // Followers, likes and the last post date of the business's Facebook page, with a small form to add or correct the link
 const OUTCOME_OPTION: Record<string, string> = { CONTACTED: "Contacted, still working on it", INTERESTED: "Interested, make it a lead", NOT_INTERESTED: "Not interested, close it" };
-function OutreachCell({ p, last, who, manager, author, back }: { back: string; p: { id: string; name: string; status: string; assignedToId: string | null; origin: string; addedById: string | null }; last: { outcome: string; note: string | null; createdAt: Date } | null; who: string; manager: boolean; author?: string }) {
+type OutreachProspect = { id: string; name: string; status: string; assignedToId: string | null; origin: string; addedById: string | null };
+type LastOutreach = { outcome: string; note: string | null; createdAt: Date } | null;
+function LastContact({ last, author }: { last: LastOutreach; author?: string }) {
+  return last ? <p className="text-[11px] text-muted"><span className="font-medium text-text">{OUTCOME_LABEL[last.outcome] ?? last.outcome}</span> {last.createdAt.toISOString().slice(0, 10)}{author ? ` · ${author}` : ""}{last.note ? `: ${last.note.slice(0, 120)}` : ""}</p> : <p className="text-xs text-muted">Not contacted</p>;
+}
+// Log contact, Delete (a hand-added prospect nobody has contacted yet) and, for a manager, Restore of a dismissed one
+function RowActions({ p, last, who, manager, back }: { back: string; p: OutreachProspect; last: LastOutreach; who: string; manager: boolean }) {
   const open = !["SENT_TO_CRM", "DISMISSED", "NOT_INTERESTED"].includes(p.status);
   const mine = manager || p.assignedToId === who;
+  const canDelete = p.origin === "MANUAL" && !last && ["NEW", "REVIEWED", "ASSIGNED"].includes(p.status) && (manager || p.addedById === who);
   return (
     <div className="max-w-[15rem] space-y-1">
-      {last ? <p className="text-[11px] text-muted"><span className="font-medium text-text">{OUTCOME_LABEL[last.outcome] ?? last.outcome}</span> {last.createdAt.toISOString().slice(0, 10)}{author ? ` · ${author}` : ""}{last.note ? `: ${last.note.slice(0, 120)}` : ""}</p> : <p className="text-xs text-muted">Not contacted</p>}
       {open && mine && (
         <details className="text-xs">
           <summary className="cursor-pointer text-primary">Log contact</summary>
@@ -73,15 +79,26 @@ function OutreachCell({ p, last, who, manager, author, back }: { back: string; p
           </form>
         </details>
       )}
-      {p.origin === "MANUAL" && !last && ["NEW", "REVIEWED", "ASSIGNED"].includes(p.status) && (manager || p.addedById === who) && (
-        <form action={removeOwnProspectAction} aria-label={`Remove ${p.name}`}>
+      {canDelete && (
+        <form action={removeOwnProspectAction} aria-label={`Delete ${p.name}`}>
           <input type="hidden" name="prospectId" value={p.id} />
           <input type="hidden" name="back" value={back} />
-          <ConfirmButton className="text-xs text-muted hover:underline" title="Remove this prospect?" message={<>{p.name} will be taken off your list. Use this for a wrong number or a duplicate. A manager can restore it.</>} confirmLabel="Remove">Remove</ConfirmButton>
+          <ConfirmButton className="text-xs text-brand hover:underline" title="Delete this prospect?" message={<>{p.name} will be taken off the list. Use this for a wrong number or a duplicate. A sales manager can restore it.</>} confirmLabel="Delete">Delete</ConfirmButton>
+        </form>
+      )}
+      {manager && p.status === "DISMISSED" && (
+        <form action={reviewProspects} aria-label={`Restore ${p.name}`}>
+          <input type="hidden" name="ids" value={p.id} />
+          <input type="hidden" name="op" value="restore" />
+          <input type="hidden" name="back" value={back} />
+          <SubmitButton pendingText="Restoring…">Restore</SubmitButton>
         </form>
       )}
     </div>
   );
+}
+function OutreachCell({ p, last, who, manager, author, back }: { back: string; p: OutreachProspect; last: LastOutreach; who: string; manager: boolean; author?: string }) {
+  return <div className="max-w-[15rem] space-y-1"><LastContact last={last} author={author} /><RowActions p={p} last={last} who={who} manager={manager} back={back} /></div>;
 }
 
 function SocialCell({ s, prospectId, name, canEdit }: { s: Social | null; prospectId: string; name: string; canEdit: boolean }) {
@@ -177,7 +194,10 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
   const caps = googleCaps();
 
   const manualOnly = lp.ids.added === "1";
-  const where = prospectWhere(user, { q: lp.q, status: lp.status, searchId: lp.ids.search, manual: manualOnly, mineOnly: mineView });
+  // My Prospects keeps deleted (dismissed) ones out of sight: a person never sees them again, a manager sees them only under the Dismissed filter, where they can be restored
+  const hideDismissed = mineView && (!manager || !lp.status);
+  const statusFilter = mineView && !manager && lp.status === "DISMISSED" ? undefined : lp.status;
+  const where = prospectWhere(user, { q: lp.q, status: statusFilter, searchId: lp.ids.search, manual: manualOnly, mineOnly: mineView, hideDismissed });
   const scope = prospectWhere(user, { manual: manualOnly, mineOnly: mineView }); // the chip numbers count what the list can show, not every prospect the person may see
   const [rows, matched, counts, agents, meter, mine, limit, psiMeter, fbMeter] = await Promise.all([
     db.prospect.findMany({ where, orderBy: orderFor(lp.sort, PROSPECT_SORTS), skip: lp.page.skip, take: lp.page.take }),
@@ -199,10 +219,10 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
   const outreachNames = new Map((await db.user.findMany({ where: { id: { in: [...new Set(outreachRows.map((o) => o.userId))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
   const pending = [...checks.values()].some((c) => c.status === "QUEUED" || c.status === "RUNNING");
   const canAdd = user.permissions.has("crm.edit");
-  const manualCount = await db.prospect.count({ where: prospectWhere(user, { manual: true, mineOnly: mineView }) });
+  const manualCount = await db.prospect.count({ where: prospectWhere(user, { manual: true, mineOnly: mineView, hideDismissed: mineView }) });
   const canTick = !mineView && (manager || searcher);
   const byStatus = new Map(counts.map((c) => [c.status, c._count]));
-  const total = counts.reduce((a, c) => a + c._count, 0);
+  const total = counts.reduce((a, c) => a + (mineView && c.status === "DISMISSED" ? 0 : c._count), 0);
   const names = new Map((await db.user.findMany({ where: { id: { in: rows.map((r) => r.assignedToId).filter(Boolean) as string[] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
 
   const manageLimits = !mineView && user.permissions.has("prospector.manage");
@@ -256,7 +276,7 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
       {canAdd && <AddProspect countries={callingCodeOptions().map((c) => ({ code: c.code, label: c.label }))} defaultCountry={(await getPolicy(db, org)).defaultCountry} />}
 
       <div className="flex flex-wrap items-center gap-3">
-        <Chips current={lp.status ?? "ALL"} items={[{ key: "ALL", label: "All", count: total, href: href({ status: undefined, page: undefined }) }, ...PROSPECT_STATUSES.map((st) => ({ key: st, label: LABEL[st], count: byStatus.get(st) ?? 0, href: href({ status: st, page: undefined }) }))]} />
+        <Chips current={lp.status ?? "ALL"} items={[{ key: "ALL", label: "All", count: total, href: href({ status: undefined, page: undefined }) }, ...PROSPECT_STATUSES.filter((st) => !(mineView && !manager && st === "DISMISSED")).map((st) => ({ key: st, label: LABEL[st], count: byStatus.get(st) ?? 0, href: href({ status: st, page: undefined }) }))]} />
         <Link className={manualOnly ? "btn" : "btn-ghost"} href={href({ added: manualOnly ? undefined : "1", page: undefined })} aria-pressed={manualOnly}>Added by hand{manualCount > 0 ? ` (${manualCount})` : ""}</Link>
         <SearchBox q={lp.q} placeholder="Search name, address, phone, website" hidden={{ status: lp.status, search: lp.ids.search, added: lp.ids.added }} />
       </div>
@@ -283,26 +303,28 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
           <div className="p-6"><Empty title={total === 0 ? "No prospects yet" : "No prospects match"}>{total === 0 ? (mineView ? "Prospects assigned to you or added by you will appear here. Press Add prospect to add one you found yourself." : searcher ? "Use the search above to find businesses." : manager ? "Ask for search access, or wait for a colleague to run a search." : "Prospects assigned to you will appear here.") : "Try another status or search."}</Empty></div>
         ) : (
           <>
-          {mineView && (
-            <ul className="divide-y divide-border md:hidden" aria-label="My prospects">
-              {rows.map((r) => (
-                <li key={r.id} className="space-y-2 p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="font-medium">{r.name}</p>
-                      {r.origin === "MANUAL" && <p className="text-xs text-muted"><Badge tone="neutral">{MANUAL_SOURCE_LABEL[r.sourceLabel ?? ""] ?? "Added by hand"}</Badge></p>}
-                    </div>
-                    <Badge tone={TONE[r.status] ?? "neutral"}>{LABEL[r.status] ?? r.status}</Badge>
-                  </div>
-                  <p className="text-sm">{r.phone ? <a className="text-primary hover:underline" href={`tel:${r.phone}`}>{r.phone}</a> : <span className="text-muted">No phone</span>}{r.email && <> · <a className="text-primary hover:underline" href={`mailto:${r.email}`}>{r.email}</a></>}</p>
-                  {r.notes && <p className="text-xs text-muted">{r.notes.slice(0, 200)}</p>}
-                  {r.leadId && <p className="text-xs"><Link className="text-primary hover:underline" href={`/leads/${r.leadId}`}>Open the lead</Link></p>}
-                  <OutreachCell p={r} last={lastOutreach.get(r.id) ?? null} who={user.id} manager={manager} author={outreachNames.get(lastOutreach.get(r.id)?.userId ?? "")} back={BASE} />
-                </li>
-              ))}
-            </ul>
-          )}
-          <table className={mineView ? "hidden w-full text-sm md:table" : "w-full text-sm"}>
+          {mineView ? (
+            <table className="w-full text-sm">
+              <thead className="bg-hover/60 text-left text-xs text-muted"><tr>
+                <th className="py-2 pl-4 pr-3">Prospect</th><th className="pr-3">Phone</th><th className="pr-3">Status</th><th className="hidden pr-3 md:table-cell">Last contact</th><th className="pr-4">Action</th>
+              </tr></thead>
+              <tbody>
+                {rows.map((r) => {
+                  const last = lastOutreach.get(r.id) ?? null;
+                  return (
+                    <tr key={r.id} className="border-t border-border align-top transition hover:bg-hover/50">
+                      <td className="py-2 pl-4 pr-3"><p className="font-medium">{r.name}</p>{r.origin === "MANUAL" && <p className="mt-0.5"><Badge tone="neutral">{MANUAL_SOURCE_LABEL[r.sourceLabel ?? ""] ?? "Added by hand"}</Badge></p>}{r.notes && <p className="mt-0.5 max-w-xs text-xs text-muted">{r.notes.slice(0, 120)}</p>}</td>
+                      <td className="pr-3 py-2">{r.phone ? <a className="whitespace-nowrap text-primary hover:underline" href={`tel:${r.phone}`}>{r.phone}</a> : <span className="text-muted">No phone</span>}{r.email && <p className="break-all text-xs"><a className="text-primary hover:underline" href={`mailto:${r.email}`}>{r.email}</a></p>}</td>
+                      <td className="pr-3 py-2"><Badge tone={TONE[r.status] ?? "neutral"}>{LABEL[r.status] ?? r.status}</Badge>{r.leadId && <p className="mt-1 text-xs"><Link className="text-primary hover:underline" href={`/leads/${r.leadId}`}>Open the lead</Link></p>}<div className="mt-1 md:hidden"><LastContact last={last} author={outreachNames.get(last?.userId ?? "")} /></div></td>
+                      <td className="hidden pr-3 py-2 md:table-cell"><LastContact last={last} author={outreachNames.get(last?.userId ?? "")} /></td>
+                      <td className="pr-4 py-2"><RowActions p={r} last={last} who={user.id} manager={manager} back={BASE} /></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : (
+          <table className="w-full text-sm">
             <thead className="bg-hover/60 text-left text-xs text-muted"><tr>
               {canTick && <th className="w-8 py-2 pl-4"><span className="sr-only">Select</span></th>}
               <th className="py-2 pl-4 pr-4">Business</th><th className="pr-4">Phone</th><th className="pr-4">Website</th><th className="pr-4"><Link className="hover:underline" href={href({ sort: "score", dir: "desc", page: undefined })} title="Best opportunity first">Opportunity</Link></th><th className="pr-4">Website check</th><th className="pr-4">Facebook</th><th className="pr-4">Rating</th><th className="pr-4">Contact</th><th className="pr-4">Status</th><th className="pr-4">Assigned to</th>
@@ -325,6 +347,7 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
               ))}
             </tbody>
           </table>
+          )}
           </>
         )}
         <Pager page={lp.page.page} size={lp.page.size} total={matched} href={(n) => href({ page: n > 1 ? String(n) : undefined })} />

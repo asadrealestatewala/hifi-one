@@ -68,10 +68,13 @@ export async function addProspect(db: Db, actor: Actor, input: ManualInput, now 
     const ors: Prisma.ProspectWhereInput[] = [];
     if (email) ors.push({ email: { equals: email, mode: "insensitive" } });
     if (tail) ors.push({ phone: { endsWith: tail } });
-    const same = await tx.prospect.findFirst({ where: { organizationId: org, OR: ors }, orderBy: { createdAt: "asc" }, select: { id: true, name: true, status: true, assignedToId: true, addedById: true, email: true } });
-    if (same) {
+    const same = await tx.prospect.findFirst({ where: { organizationId: org, OR: ors }, orderBy: { createdAt: "asc" }, select: { id: true, name: true, status: true, assignedToId: true, addedById: true, email: true, origin: true } });
+    // The person deleted this very prospect earlier (a wrong note, a typo) and is adding it again: bring that record back instead of refusing
+    const revive = same && same.status === "DISMISSED" && same.origin === "MANUAL" && same.addedById === actor.id ? same.id : null;
+    if (same && !revive) {
       const mine = actor.permissions.has("crm.view_all") || same.assignedToId === actor.id || same.addedById === actor.id;
       const field = email && same.email?.toLowerCase() === email ? "email" : "phone";
+      if (same.status === "DISMISSED") throw new ProspectorError(`${mine ? same.name : "A prospect"} with this ${field === "email" ? "email" : "phone number"} was dismissed. Ask a sales manager to restore it.`, field);
       throw new ProspectorError(mine
         ? `${same.name} is already in Prospector (${STATUS_WORD[same.status] ?? same.status.toLowerCase()}) with this ${field === "email" ? "email" : "phone number"}. Open it from the list instead of adding it again.`
         : `This ${field === "email" ? "email" : "phone number"} is already in Prospector and belongs to another team member. Ask a sales manager if it should be reassigned.`, field);
@@ -85,6 +88,13 @@ export async function addProspect(db: Db, actor: Actor, input: ManualInput, now 
       }
     }
 
+    if (revive) {
+      return tx.prospect.update({
+        where: { id: revive },
+        data: { name, phone, email, country, sourceLabel: source, notes: cleanNote(input.note, 1000) || null, status: "ASSIGNED", assignedToId: actor.id, assignedAt: now },
+        select: { id: true, name: true },
+      });
+    }
     return tx.prospect.create({
       data: {
         organizationId: org, searchId: null, placeId: `manual:${randomUUID()}`, origin: "MANUAL", name, phone, email, country, sourceLabel: source, notes: cleanNote(input.note, 1000) || null,

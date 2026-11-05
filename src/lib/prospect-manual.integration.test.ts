@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { addProspect, removeOwnProspect } from "./prospect-manual";
 import { logOutreach } from "./prospect-crm";
-import { prospectWhere, ProspectorError, type Actor } from "./prospector";
+import { prospectWhere, ProspectorError, restore, type Actor } from "./prospector";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
 const db = new PrismaClient({ datasourceUrl: url });
@@ -104,6 +104,26 @@ describe("an agent adds a prospect they found themselves", () => {
     await expect(removeOwnProspect(db, ali, b.id)).rejects.toThrow(/already been contacted or closed/);
     const g = await db.prospect.create({ data: { organizationId: org, placeId: "g-1", name: "Google one", status: "ASSIGNED", assignedToId: ali.id } });
     await expect(removeOwnProspect(db, mgr, g.id)).rejects.toThrow(/Only the person who added/);
+  });
+  it("a deleted prospect can be added again by the person who deleted it (the record comes back, no duplicate); others are told to ask a manager", async () => {
+    const a = await add(ali, { name: "Typo name", phone: "0300 5550070", note: "wrong note" });
+    await removeOwnProspect(db, ali, a.id);
+    await fails(add(zara, { name: "Same person", phone: "0300 5550070" }), /dismissed\. Ask a sales manager to restore it/);
+    const again = await add(ali, { name: "Right name", phone: "0300 5550070", note: "right note" });
+    expect(again.id).toBe(a.id);
+    expect(await db.prospect.count({ where: { organizationId: org, phone: "+923005550070" } })).toBe(1);
+    expect(await db.prospect.findUniqueOrThrow({ where: { id: a.id } })).toMatchObject({ name: "Right name", notes: "right note", status: "ASSIGNED", assignedToId: ali.id });
+  });
+  it("My Prospects hides deleted prospects by default, and a manager restores one to its owner's list", async () => {
+    const a = await add(ali, { name: "Hide me", phone: "0300 5550071" });
+    await removeOwnProspect(db, ali, a.id);
+    const shown = async (who: Actor, status?: string) => (await db.prospect.findMany({ where: prospectWhere(who, { mineOnly: who === ali, hideDismissed: !status, status }) })).map((r) => r.id);
+    expect(await shown(ali)).not.toContain(a.id);
+    expect(await shown(mgr, "DISMISSED")).toContain(a.id);
+    await expect(restore(db, ali, [a.id])).rejects.toThrow(/sales manager/);
+    expect(await restore(db, mgr, [a.id])).toBe(1);
+    expect((await db.prospect.findUniqueOrThrow({ where: { id: a.id } })).status).toBe("ASSIGNED");
+    expect(await shown(ali)).toContain(a.id);
   });
   it("another organization's data is never matched", async () => {
     expect((await add(foreign, { phone: "0300 5550001" })).id).toBeTruthy();

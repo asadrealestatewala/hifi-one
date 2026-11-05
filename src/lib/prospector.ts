@@ -171,7 +171,9 @@ export async function dismiss(db: Db, actor: Actor, ids: string[]) {
 export async function restore(db: Db, actor: Actor, ids: string[]) {
   const rows = await editable(db, actor, ids);
   const ids2 = rows.map((r) => r.id);
-  await db.prospect.updateMany({ where: { id: { in: ids2 }, status: "DISMISSED" }, data: { status: "NEW" } });
+  // a dismissed prospect goes back to the person who still holds it (a hand-added one they deleted), or to New when nobody does
+  await db.prospect.updateMany({ where: { id: { in: ids2 }, status: "DISMISSED", assignedToId: { not: null } }, data: { status: "ASSIGNED" } });
+  await db.prospect.updateMany({ where: { id: { in: ids2 }, status: "DISMISSED", assignedToId: null }, data: { status: "NEW" } });
   // a prospect that said no goes back to the person who had it, or to New when nobody did
   await db.prospect.updateMany({ where: { id: { in: ids2 }, status: "NOT_INTERESTED", assignedToId: { not: null } }, data: { status: "ASSIGNED" } });
   await db.prospect.updateMany({ where: { id: { in: ids2 }, status: "NOT_INTERESTED", assignedToId: null }, data: { status: "NEW" } });
@@ -202,11 +204,12 @@ export async function assign(db: Db, actor: Actor, ids: string[], agentId: strin
 
 // ---------- listing ----------
 export const PROSPECT_SORTS = { name: { field: "name" }, rating: { field: "rating", nullable: true }, created: { field: "createdAt" }, score: { field: "score", nullable: true } } as const;
-export function prospectWhere(actor: Actor, p: { q?: string; status?: string; searchId?: string; manual?: boolean; mineOnly?: boolean }): Prisma.ProspectWhereInput {
+export function prospectWhere(actor: Actor, p: { q?: string; status?: string; searchId?: string; manual?: boolean; mineOnly?: boolean; hideDismissed?: boolean }): Prisma.ProspectWhereInput {
   const and: Prisma.ProspectWhereInput[] = [prospectScope(actor)];
   if (p.status) and.push({ status: p.status });
   if (p.searchId) and.push({ searchId: p.searchId });
   if (p.manual) and.push({ origin: "MANUAL" });
+  if (p.hideDismissed) and.push({ status: { not: "DISMISSED" } });
   if (p.mineOnly) and.push({ OR: [{ assignedToId: actor.id }, { addedById: actor.id }] });
   if (p.q) { const q = p.q; and.push({ OR: [{ name: { contains: q, mode: "insensitive" } }, { address: { contains: q, mode: "insensitive" } }, { phone: { contains: q } }, { email: { contains: q, mode: "insensitive" } }, { contactName: { contains: q, mode: "insensitive" } }, { website: { contains: q, mode: "insensitive" } }] }); }
   return { AND: and };
