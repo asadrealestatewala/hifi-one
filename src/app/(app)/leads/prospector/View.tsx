@@ -159,7 +159,9 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
   const sp = await searchParams;
   const lp = parseListParams(sp, { sorts: Object.keys(PROSPECT_SORTS), statuses: PROSPECT_STATUSES, ids: ["search", "added"] });
   const manager = isManager(user);
-  const searcher = canSearch(user);
+  // My Prospects is only the person's own list and the add form: no usage meters, no Google search, no bulk or limit tools (those stay on Prospector)
+  const searcher = !mineView && canSearch(user);
+  const tools = !mineView && (manager || user.permissions.has("prospector.manage"));
   const org = user.organizationId;
   const configured = await isConfigured(db, org, "GOOGLE_PLACES");
   const caps = googleCaps();
@@ -172,11 +174,11 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
     db.prospect.count({ where }),
     db.prospect.groupBy({ by: ["status"], where: scope, _count: true }),
     manager ? assignableAgents(db, org) : Promise.resolve([]),
-    manager || user.permissions.has("prospector.manage") ? usage(db, org, "GOOGLE_PLACES", caps) : Promise.resolve(null),
+    tools ? usage(db, org, "GOOGLE_PLACES", caps) : Promise.resolve(null),
     searcher ? searchesToday(db, org, user.id) : Promise.resolve(0),
     searcher ? dailyLimitFor(db, org, user.id) : Promise.resolve(0),
-    manager || user.permissions.has("prospector.manage") ? pageSpeedUsage(db, org) : Promise.resolve(null),
-    manager || user.permissions.has("prospector.manage") ? socialUsage(db, org) : Promise.resolve(null),
+    tools ? pageSpeedUsage(db, org) : Promise.resolve(null),
+    tools ? socialUsage(db, org) : Promise.resolve(null),
   ]);
   const socials = new Map((await db.prospectSocial.findMany({ where: { prospectId: { in: rows.map((r) => r.id) } } })).map((x) => [x.prospectId, x as Social]));
   const checks = new Map((await db.prospectWebsiteCheck.findMany({ where: { prospectId: { in: rows.map((r) => r.id) } } })).map((c) => [c.prospectId, c as Check]));
@@ -186,12 +188,12 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
   for (const o of outreachRows) if (!lastOutreach.has(o.prospectId)) lastOutreach.set(o.prospectId, o);
   const outreachNames = new Map((await db.user.findMany({ where: { id: { in: [...new Set(outreachRows.map((o) => o.userId))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
   const pending = [...checks.values()].some((c) => c.status === "QUEUED" || c.status === "RUNNING");
-  const canTick = manager || searcher;
+  const canTick = !mineView && (manager || searcher);
   const byStatus = new Map(counts.map((c) => [c.status, c._count]));
   const total = counts.reduce((a, c) => a + c._count, 0);
   const names = new Map((await db.user.findMany({ where: { id: { in: rows.map((r) => r.assignedToId).filter(Boolean) as string[] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
 
-  const manageLimits = user.permissions.has("prospector.manage");
+  const manageLimits = !mineView && user.permissions.has("prospector.manage");
   const searchers = manageLimits ? await db.user.findMany({ where: { id: { in: await usersWithPermission(db, org, "prospector.use") } }, select: { id: true, name: true }, orderBy: { name: "asc" } }) : [];
   const overrides = manageLimits ? await db.prospectorUserLimit.findMany({ where: { organizationId: org } }) : [];
   const defaultLimit = manageLimits ? await dailyLimitFor(db, org, "none") : 0;
@@ -291,7 +293,7 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
 
       <div className="card !p-0 overflow-x-auto">
         {rows.length === 0 ? (
-          <div className="p-6"><Empty title={total === 0 ? "No prospects yet" : "No prospects match"}>{total === 0 ? (searcher ? "Use the search above to find businesses." : manager ? "Ask for search access, or wait for a colleague to run a search." : "Prospects assigned to you will appear here.") : "Try another status or search."}</Empty></div>
+          <div className="p-6"><Empty title={total === 0 ? "No prospects yet" : "No prospects match"}>{total === 0 ? (mineView ? "Prospects assigned to you or added by you will appear here. Use the form above to add one you found yourself." : searcher ? "Use the search above to find businesses." : manager ? "Ask for search access, or wait for a colleague to run a search." : "Prospects assigned to you will appear here.") : "Try another status or search."}</Empty></div>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-hover/60 text-left text-xs text-muted"><tr>
