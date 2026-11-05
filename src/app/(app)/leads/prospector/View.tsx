@@ -7,16 +7,19 @@ import { pageSpeedUsage } from "@/lib/website-checks";
 import { socialUsage } from "@/lib/prospect-social";
 import { BAND_LABEL, SERVICES, scoreProspect, type ProspectScore } from "@/lib/prospect-score";
 import { inputFor } from "@/lib/prospect-scoring";
-import { PROSPECT_SORTS, PROSPECT_STATUSES, RESULT_CHOICES, assignableAgents, canSearch, dailyLimitFor, estimate, isManager, prospectScope, prospectWhere, searchesToday } from "@/lib/prospector";
-import { countryOptions } from "@/lib/phone";
+import { PROSPECT_SORTS, PROSPECT_STATUSES, RESULT_CHOICES, assignableAgents, canSearch, dailyLimitFor, estimate, isManager, prospectWhere, searchesToday } from "@/lib/prospector";
+import { callingCodeOptions, countryOptions } from "@/lib/phone";
 import { usersWithPermission } from "@/lib/notifications";
 import { orderFor } from "@/lib/sort";
 import { listHref, parseListParams } from "@/lib/list-params";
 import { OUTCOME_LABEL, OUTCOMES } from "@/lib/prospect-crm";
-import { MANUAL_SOURCES, MANUAL_SOURCE_LABEL } from "@/lib/prospect-manual";
+import { MANUAL_SOURCE_LABEL } from "@/lib/prospect-manual";
+import { getPolicy } from "@/lib/lead-duplicates";
 import { Badge, Chips, Empty, Notice, PageHeader, Pager, SearchBox, SubmitButton } from "@/components/ui";
-import { checkWebsites, getFacebookData, reviewProspects, saveFacebookLink, saveSearchLimits, logProspectContact, addOwnProspect, searchProspects, updateScores } from "./actions";
+import { checkWebsites, getFacebookData, reviewProspects, saveFacebookLink, saveSearchLimits, logProspectContact, removeOwnProspectAction, searchProspects, updateScores } from "./actions";
 import AutoRefresh from "./AutoRefresh";
+import AddProspect from "./AddProspect";
+import ConfirmButton from "@/components/ui/ConfirmButton";
 
 const LABEL: Record<string, string> = { NEW: "New", REVIEWED: "Reviewed", ASSIGNED: "Assigned", CONTACTED: "Contacted", NOT_INTERESTED: "Not interested", SENT_TO_CRM: "Converted", DISMISSED: "Dismissed" };
 const TONE: Record<string, "primary" | "warning" | "success" | "neutral"> = { NEW: "primary", REVIEWED: "warning", ASSIGNED: "primary", CONTACTED: "primary", NOT_INTERESTED: "warning", SENT_TO_CRM: "success", DISMISSED: "neutral" };
@@ -50,7 +53,7 @@ const daysAgo = (d: Date) => { const n = Math.floor((Date.now() - d.getTime()) /
 
 // Followers, likes and the last post date of the business's Facebook page, with a small form to add or correct the link
 const OUTCOME_OPTION: Record<string, string> = { CONTACTED: "Contacted, still working on it", INTERESTED: "Interested, make it a lead", NOT_INTERESTED: "Not interested, close it" };
-function OutreachCell({ p, last, who, manager, author, back }: { back: string; p: { id: string; name: string; status: string; assignedToId: string | null }; last: { outcome: string; note: string | null; createdAt: Date } | null; who: string; manager: boolean; author?: string }) {
+function OutreachCell({ p, last, who, manager, author, back }: { back: string; p: { id: string; name: string; status: string; assignedToId: string | null; origin: string; addedById: string | null }; last: { outcome: string; note: string | null; createdAt: Date } | null; who: string; manager: boolean; author?: string }) {
   const open = !["SENT_TO_CRM", "DISMISSED", "NOT_INTERESTED"].includes(p.status);
   const mine = manager || p.assignedToId === who;
   return (
@@ -69,6 +72,13 @@ function OutreachCell({ p, last, who, manager, author, back }: { back: string; p
             <SubmitButton pendingText="Saving…">Save</SubmitButton>
           </form>
         </details>
+      )}
+      {p.origin === "MANUAL" && !last && ["NEW", "REVIEWED", "ASSIGNED"].includes(p.status) && (manager || p.addedById === who) && (
+        <form action={removeOwnProspectAction} aria-label={`Remove ${p.name}`}>
+          <input type="hidden" name="prospectId" value={p.id} />
+          <input type="hidden" name="back" value={back} />
+          <ConfirmButton className="text-xs text-muted hover:underline" title="Remove this prospect?" message={<>{p.name} will be taken off your list. Use this for a wrong number or a duplicate. A manager can restore it.</>} confirmLabel="Remove">Remove</ConfirmButton>
+        </form>
       )}
     </div>
   );
@@ -168,7 +178,7 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
 
   const manualOnly = lp.ids.added === "1";
   const where = prospectWhere(user, { q: lp.q, status: lp.status, searchId: lp.ids.search, manual: manualOnly, mineOnly: mineView });
-  const scope = prospectScope(user);
+  const scope = prospectWhere(user, { manual: manualOnly, mineOnly: mineView }); // the chip numbers count what the list can show, not every prospect the person may see
   const [rows, matched, counts, agents, meter, mine, limit, psiMeter, fbMeter] = await Promise.all([
     db.prospect.findMany({ where, orderBy: orderFor(lp.sort, PROSPECT_SORTS), skip: lp.page.skip, take: lp.page.take }),
     db.prospect.count({ where }),
@@ -182,12 +192,14 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
   ]);
   const socials = new Map((await db.prospectSocial.findMany({ where: { prospectId: { in: rows.map((r) => r.id) } } })).map((x) => [x.prospectId, x as Social]));
   const checks = new Map((await db.prospectWebsiteCheck.findMany({ where: { prospectId: { in: rows.map((r) => r.id) } } })).map((c) => [c.prospectId, c as Check]));
-  const scores = new Map(rows.map((r) => [r.id, scoreProspect(inputFor({ name: r.name, website: r.website, rating: r.rating, ratingCount: r.ratingCount, websiteCheck: checks.get(r.id) ?? null, social: socials.get(r.id) ?? null }))]));
+  const scores = new Map(rows.map((r) => [r.id, scoreProspect(inputFor({ name: r.name, origin: r.origin, website: r.website, rating: r.rating, ratingCount: r.ratingCount, websiteCheck: checks.get(r.id) ?? null, social: socials.get(r.id) ?? null }))]));
   const outreachRows = await db.prospectOutreach.findMany({ where: { prospectId: { in: rows.map((r) => r.id) } }, orderBy: { createdAt: "desc" } });
   const lastOutreach = new Map<string, (typeof outreachRows)[number]>();
   for (const o of outreachRows) if (!lastOutreach.has(o.prospectId)) lastOutreach.set(o.prospectId, o);
   const outreachNames = new Map((await db.user.findMany({ where: { id: { in: [...new Set(outreachRows.map((o) => o.userId))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
   const pending = [...checks.values()].some((c) => c.status === "QUEUED" || c.status === "RUNNING");
+  const canAdd = user.permissions.has("crm.edit");
+  const manualCount = await db.prospect.count({ where: prospectWhere(user, { manual: true, mineOnly: mineView }) });
   const canTick = !mineView && (manager || searcher);
   const byStatus = new Map(counts.map((c) => [c.status, c._count]));
   const total = counts.reduce((a, c) => a + c._count, 0);
@@ -205,7 +217,7 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
 
   return (
     <div className="space-y-6">
-      <PageHeader title={mineView ? "My Prospects" : "Prospector"} subtitle={mineView ? "Prospects assigned to you or added by you. Add one you found yourself, and press Log contact on a row after you speak to them." : "Find businesses by type and city, assign them to the sales team, and record each contact. A business found here is a prospect, not a lead: it becomes a lead only when it says it is interested."} />
+      <PageHeader title={mineView ? "My Prospects" : "Prospector"} subtitle={mineView ? "Prospects assigned to you or added by you. Press Add prospect for someone you found yourself, and Log contact on a row after you speak to them." : "Find businesses by type and city, assign them to the sales team, and record each contact. A business found here is a prospect, not a lead: it becomes a lead only when it says it is interested."} />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {sp.ok && <Notice kind="ok">{sp.ok}</Notice>}
 
@@ -241,36 +253,11 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
         <Notice kind="error">Google Places is not configured, so searching is switched off. A Super Admin can add the Google Places key in Administration, then Integrations.</Notice>
       ))}
 
-      {user.permissions.has("crm.edit") && (
-        <details className="card" open={sp.added === "1" ? false : undefined}>
-          <summary className="cursor-pointer font-semibold">Add a prospect you found yourself</summary>
-          <p className="mt-1 text-xs text-muted">For a referral, your own contact or any other source. It is checked against existing prospects, leads and the do-not-contact list, and it is yours to work: press Log contact on its row when you speak to them.</p>
-          <form action={addOwnProspect} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Add a prospect">
-            <input type="hidden" name="back" value={BASE} />
-            <div><label className="label" htmlFor="ap-contact">Contact name</label><input id="ap-contact" name="contactName" maxLength={120} className="input" /></div>
-            <div><label className="label" htmlFor="ap-company">Company</label><input id="ap-company" name="company" maxLength={160} className="input" /></div>
-            <div><label className="label" htmlFor="ap-source">Source</label>
-              <select id="ap-source" name="source" required defaultValue="REFERRAL" className="input">{MANUAL_SOURCES.map((x) => <option key={x} value={x}>{MANUAL_SOURCE_LABEL[x]}</option>)}</select></div>
-            <div><label className="label" htmlFor="ap-phone">Phone</label><input id="ap-phone" name="phone" type="tel" maxLength={40} placeholder="0300 1234567" className="input" /></div>
-            <div><label className="label" htmlFor="ap-email">Email</label><input id="ap-email" name="email" type="email" maxLength={200} className="input" /></div>
-            <div><label className="label" htmlFor="ap-country">Phone country</label>
-              <select id="ap-country" name="country" defaultValue="PK" className="input">{countries.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}</select></div>
-            <div><label className="label" htmlFor="ap-website">Website</label><input id="ap-website" name="website" maxLength={300} placeholder="example.com" className="input" /></div>
-            <div><label className="label" htmlFor="ap-city">City</label><input id="ap-city" name="city" maxLength={80} className="input" /></div>
-            <div><label className="label" htmlFor="ap-detail">Who referred them, or where you met</label><input id="ap-detail" name="sourceDetail" maxLength={200} className="input" /></div>
-            <div className="sm:col-span-2 lg:col-span-3"><label className="label" htmlFor="ap-notes">Notes</label><textarea id="ap-notes" name="notes" rows={2} maxLength={1000} className="input" /></div>
-            <div className="flex flex-wrap items-center gap-3 sm:col-span-2 lg:col-span-3">
-              <SubmitButton pendingText="Checking and saving…">Add prospect</SubmitButton>
-              <label className="flex items-center gap-1 text-xs text-muted"><input type="checkbox" name="confirm" value="1" /> Add anyway if a similar lead is only a warning</label>
-              <p className="text-xs text-muted">Enter a name or company, and a phone or an email.</p>
-            </div>
-          </form>
-        </details>
-      )}
+      {canAdd && <AddProspect countries={callingCodeOptions().map((c) => ({ code: c.code, label: c.label }))} defaultCountry={(await getPolicy(db, org)).defaultCountry} />}
 
       <div className="flex flex-wrap items-center gap-3">
         <Chips current={lp.status ?? "ALL"} items={[{ key: "ALL", label: "All", count: total, href: href({ status: undefined, page: undefined }) }, ...PROSPECT_STATUSES.map((st) => ({ key: st, label: LABEL[st], count: byStatus.get(st) ?? 0, href: href({ status: st, page: undefined }) }))]} />
-        <Link className={manualOnly ? "btn" : "btn-ghost"} href={href({ added: manualOnly ? undefined : "1", page: undefined })} aria-pressed={manualOnly}>Added by hand</Link>
+        <Link className={manualOnly ? "btn" : "btn-ghost"} href={href({ added: manualOnly ? undefined : "1", page: undefined })} aria-pressed={manualOnly}>Added by hand{manualCount > 0 ? ` (${manualCount})` : ""}</Link>
         <SearchBox q={lp.q} placeholder="Search name, address, phone, website" hidden={{ status: lp.status, search: lp.ids.search, added: lp.ids.added }} />
       </div>
 
@@ -293,9 +280,29 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
 
       <div className="card !p-0 overflow-x-auto">
         {rows.length === 0 ? (
-          <div className="p-6"><Empty title={total === 0 ? "No prospects yet" : "No prospects match"}>{total === 0 ? (mineView ? "Prospects assigned to you or added by you will appear here. Use the form above to add one you found yourself." : searcher ? "Use the search above to find businesses." : manager ? "Ask for search access, or wait for a colleague to run a search." : "Prospects assigned to you will appear here.") : "Try another status or search."}</Empty></div>
+          <div className="p-6"><Empty title={total === 0 ? "No prospects yet" : "No prospects match"}>{total === 0 ? (mineView ? "Prospects assigned to you or added by you will appear here. Press Add prospect to add one you found yourself." : searcher ? "Use the search above to find businesses." : manager ? "Ask for search access, or wait for a colleague to run a search." : "Prospects assigned to you will appear here.") : "Try another status or search."}</Empty></div>
         ) : (
-          <table className="w-full text-sm">
+          <>
+          {mineView && (
+            <ul className="divide-y divide-border md:hidden" aria-label="My prospects">
+              {rows.map((r) => (
+                <li key={r.id} className="space-y-2 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium">{r.name}</p>
+                      {r.origin === "MANUAL" && <p className="text-xs text-muted"><Badge tone="neutral">{MANUAL_SOURCE_LABEL[r.sourceLabel ?? ""] ?? "Added by hand"}</Badge></p>}
+                    </div>
+                    <Badge tone={TONE[r.status] ?? "neutral"}>{LABEL[r.status] ?? r.status}</Badge>
+                  </div>
+                  <p className="text-sm">{r.phone ? <a className="text-primary hover:underline" href={`tel:${r.phone}`}>{r.phone}</a> : <span className="text-muted">No phone</span>}{r.email && <> · <a className="text-primary hover:underline" href={`mailto:${r.email}`}>{r.email}</a></>}</p>
+                  {r.notes && <p className="text-xs text-muted">{r.notes.slice(0, 200)}</p>}
+                  {r.leadId && <p className="text-xs"><Link className="text-primary hover:underline" href={`/leads/${r.leadId}`}>Open the lead</Link></p>}
+                  <OutreachCell p={r} last={lastOutreach.get(r.id) ?? null} who={user.id} manager={manager} author={outreachNames.get(lastOutreach.get(r.id)?.userId ?? "")} back={BASE} />
+                </li>
+              ))}
+            </ul>
+          )}
+          <table className={mineView ? "hidden w-full text-sm md:table" : "w-full text-sm"}>
             <thead className="bg-hover/60 text-left text-xs text-muted"><tr>
               {canTick && <th className="w-8 py-2 pl-4"><span className="sr-only">Select</span></th>}
               <th className="py-2 pl-4 pr-4">Business</th><th className="pr-4">Phone</th><th className="pr-4">Website</th><th className="pr-4"><Link className="hover:underline" href={href({ sort: "score", dir: "desc", page: undefined })} title="Best opportunity first">Opportunity</Link></th><th className="pr-4">Website check</th><th className="pr-4">Facebook</th><th className="pr-4">Rating</th><th className="pr-4">Contact</th><th className="pr-4">Status</th><th className="pr-4">Assigned to</th>
@@ -308,7 +315,7 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
                   <td className="pr-4 whitespace-nowrap">{r.phone ? <a className="hover:underline" href={`tel:${r.phone}`}>{r.phone}</a> : <span className="text-muted">None listed</span>}{r.email && <p className="text-xs"><a className="hover:underline" href={`mailto:${r.email}`}>{r.email}</a></p>}</td>
                   <td className="pr-4">{r.website ? <a className="break-all text-primary hover:underline" href={r.website} target="_blank" rel="noopener noreferrer">{r.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "").slice(0, 32)}</a> : <span className="text-muted">No website</span>}</td>
                   <td className="pr-4"><ScoreCell s={scores.get(r.id)!} /></td>
-                  <td className="pr-4"><CheckCell c={checks.get(r.id) ?? null} hasWebsite={Boolean(r.website)} /></td>
+                  <td className="pr-4">{r.origin === "MANUAL" && !r.website ? <span className="text-xs text-muted">Not known</span> : <CheckCell c={checks.get(r.id) ?? null} hasWebsite={Boolean(r.website)} />}</td>
                   <td className="pr-4"><SocialCell s={socials.get(r.id) ?? null} prospectId={r.id} name={r.name} canEdit={canTick} /></td>
                   <td className="pr-4 whitespace-nowrap">{r.rating ? `${r.rating} (${r.ratingCount ?? 0})` : <span className="text-muted">No reviews</span>}</td>
                   <td className="pr-4"><OutreachCell p={r} last={lastOutreach.get(r.id) ?? null} who={user.id} manager={manager} author={outreachNames.get(lastOutreach.get(r.id)?.userId ?? "")} back={BASE} /></td>
@@ -318,10 +325,11 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
               ))}
             </tbody>
           </table>
+          </>
         )}
         <Pager page={lp.page.page} size={lp.page.size} total={matched} href={(n) => href({ page: n > 1 ? String(n) : undefined })} />
       </div>
-      <p className="text-xs text-muted">Business details come from Google Maps. Phone numbers are shown in international format. Website checks read the home page the way a visitor&apos;s browser would, so anything a site adds only with scripts or a tag manager may be missed. {lp.ids.search && <Link className="text-primary hover:underline" href={href({ search: undefined, page: undefined })}>Show all searches</Link>}</p>
+      {!mineView && <p className="text-xs text-muted">Business details come from Google Maps. Phone numbers are shown in international format. Website checks read the home page the way a visitor&apos;s browser would, so anything a site adds only with scripts or a tag manager may be missed. {lp.ids.search && <Link className="text-primary hover:underline" href={href({ search: undefined, page: undefined })}>Show all searches</Link>}</p>}
 
       {manageLimits && (
         <form action={saveSearchLimits} className="card space-y-3" aria-label="Search limits">

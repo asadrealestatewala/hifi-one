@@ -33,6 +33,7 @@ export const DEFAULT_WEIGHTS: Weights = {
 export type ScoreInput = {
   name: string;
   hasWebsite: boolean;
+  manual?: boolean; // added by hand: there is no Google listing, so a missing website or review count is unknown, not a gap
   rating: number | null;
   ratingCount: number | null;
   check: null | {
@@ -75,8 +76,9 @@ export function scoreProspect(input: ScoreInput, weights: Partial<Weights> = DEF
   const missing: string[] = [];
   const add = (id: RuleId, factor: number, text: string) => { const points = Math.round(w[id] * factor * 10) / 10; if (points > 0) reasons.push({ id, service: RULE_SERVICE[id], points, text }); };
 
-  // ---- Google listing: always known ----
-  if (input.ratingCount !== null) {
+  // ---- Google listing: always known, except for a prospect an agent added by hand ----
+  if (input.manual && input.ratingCount === null) missing.push("Google reviews not known (no Google listing)");
+  else if (input.ratingCount !== null) {
     if (input.ratingCount < 20) add("FEW_REVIEWS", 1, `Only ${input.ratingCount} Google review${input.ratingCount === 1 ? "" : "s"}`);
     else if (input.ratingCount < 50) add("FEW_REVIEWS", 0.5, `Only ${input.ratingCount} Google reviews`);
   } else add("FEW_REVIEWS", 1, "No Google reviews");
@@ -85,7 +87,7 @@ export function scoreProspect(input: ScoreInput, weights: Partial<Weights> = DEF
   // ---- Website ----
   const c = input.check;
   let siteRead = false; // did we actually read a home page
-  if (!input.hasWebsite) add("NO_WEBSITE", 1, "No website at all");
+  if (!input.hasWebsite) { if (input.manual) missing.push("Website not known yet: ask them"); else add("NO_WEBSITE", 1, "No website at all"); }
   else if (!c || c.status === "QUEUED" || c.status === "RUNNING" || c.status === "NO_WEBSITE" || c.status === "FAILED") missing.push("Website not checked yet");
   else if (c.reachable === false) add("SITE_DOWN", 1, "Website could not be reached");
   else if (c.reachable === null) missing.push("Website refused our check, so its page could not be read");

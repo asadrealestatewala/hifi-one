@@ -3,7 +3,8 @@
 import type { PrismaClient } from "@prisma/client";
 import { mapHeaders, normalizeEmail, normalizePhone, parseCsv } from "./contacts";
 import { ensureContactForLead } from "./crm-contacts";
-import { DuplicateLeadError, claimLeadKeys, getPolicy, guardNewLead, leadKeys, presentDuplicate, type Viewer } from "./lead-duplicates";
+import { DuplicateLeadError, canonicalPhone, claimLeadKeys, getPolicy, guardNewLead, isSuppressed, leadKeys, presentDuplicate, type Viewer } from "./lead-duplicates";
+import { phoneTail } from "./phone";
 
 export class WorklistError extends Error { constructor(message: string, readonly existingLeadId?: string) { super(message); } }
 export const MAX_ROWS = 5000;
@@ -43,7 +44,7 @@ export async function importWorklist(
     for (const c of k.phoneCandidates) leadByPhone.set(c, l.id);
   }
   const blockedEmail = new Set(suppressed.map((s) => s.email).filter(Boolean));
-  const blockedPhone = new Set(suppressed.map((s) => normalizePhone(s.phone)).filter(Boolean));
+  const blockedTails = new Set(suppressed.map((s) => phoneTail(s.phone)).filter(Boolean));
 
   const skipped: { row: number; reason: string }[] = [];
   const seen = new Set<string>();
@@ -64,7 +65,7 @@ export async function importWorklist(
     keys.forEach((k) => seen.add(k));
     const raw: Record<string, string> = {};
     headers.forEach((h, c) => { if (h.trim()) raw[h.trim()] = (r[c] ?? "").trim(); });
-    const isSuppressed = (email && blockedEmail.has(email)) || (phone && blockedPhone.has(phone));
+    const isSuppressed = (email && blockedEmail.has(email)) || (phone && blockedTails.has(phoneTail(phone)));
     const rowKeys = leadKeys({ email, phone }, policy.defaultCountry);
     const duplicateLeadId = (rowKeys.email && leadByEmail.get(rowKeys.email)) || rowKeys.phoneCandidates.map((c) => leadByPhone.get(c)).find(Boolean) || null;
     if (isSuppressed) sup++;
@@ -102,24 +103,22 @@ export async function convertRow(db: PrismaClient, p: { organizationId: string; 
     // Re-check at conversion time: the contact may have been added to the CRM or suppression list since the import
     const email = row.email;
     const phone = row.phone;
-    const blocked = await tx.suppressedContact.findFirst({
-      where: { organizationId: p.organizationId, OR: [...(email ? [{ email }] : []), ...(phone ? [{ phone }] : [])] },
-    });
-    if (blocked) throw new WorklistError("This contact is on the do-not-contact list and cannot become a lead.");
+    if (await isSuppressed(tx, p.organizationId, { email, phone })) throw new WorklistError("This contact is on the do-not-contact list and cannot become a lead.");
     try { await guardNewLead(tx, { organizationId: p.organizationId, email, phone }); } catch (e) {
       if (e instanceof DuplicateLeadError) throw new WorklistError(presentDuplicate(e.matches[0], p.viewer ?? null).text, e.matches[0]?.leadId);
       throw e;
     }
     const stage = await tx.pipelineStage.findFirst({ where: { organizationId: p.organizationId }, orderBy: { sortOrder: "asc" } });
     if (!stage) throw new WorklistError("The pipeline has no stages.");
+    const leadPhone = await canonicalPhone(tx, p.organizationId, phone);
     const lead = await tx.lead.create({
       data: {
-        organizationId: p.organizationId, name: row.name, company: row.company, email, phone, source: row.worklist.source ?? "Prospecting worklist", stageId: stage.id,
+        organizationId: p.organizationId, name: row.name, company: row.company, email, phone: leadPhone, source: row.worklist.source ?? "Prospecting worklist", stageId: stage.id,
         assignedToId: p.actorId, createdById: p.actorId,
         activities: { create: { kind: "CREATED", actorId: p.actorId, body: `Converted from prospecting worklist "${row.worklist.name}", row ${row.rowNumber}` } },
       },
     });
-    await claimLeadKeys(tx, { leadId: lead.id, organizationId: p.organizationId, email, phone });
+    await claimLeadKeys(tx, { leadId: lead.id, organizationId: p.organizationId, email, phone: leadPhone });
     await ensureContactForLead(tx, lead.id);
     await tx.worklistRow.update({ where: { id: row.id }, data: { status: "CONVERTED", convertedLeadId: lead.id } });
     return { leadId: lead.id, created: true };
@@ -136,12 +135,15 @@ export async function worklistMetrics(db: PrismaClient, worklistId: string) {
 
 export async function addSuppression(db: PrismaClient, p: { organizationId: string; email?: string; phone?: string; reason?: string }) {
   const email = normalizeEmail(p.email);
-  const phone = normalizePhone(p.phone);
+  const phone = normalizePhone(p.phone) ? await canonicalPhone(db, p.organizationId, p.phone) : null;
   if (!email && !phone) throw new WorklistError("Enter a valid email or phone number.");
   await db.suppressedContact.create({ data: { organizationId: p.organizationId, email, phone, reason: p.reason?.trim() || null } });
-  // Existing worklist rows for this contact stop being contactable immediately
-  await db.worklistRow.updateMany({
-    where: { worklist: { organizationId: p.organizationId }, status: { in: ["NEW", "CONTACTED"] }, OR: [...(email ? [{ email }] : []), ...(phone ? [{ phone }] : [])] },
-    data: { status: "DO_NOT_CONTACT" },
+  // Existing worklist rows for this contact stop being contactable immediately, whether their number was typed locally or internationally
+  const tail = phoneTail(phone);
+  const open = await db.worklistRow.findMany({
+    where: { worklist: { organizationId: p.organizationId }, status: { in: ["NEW", "CONTACTED"] }, OR: [...(email ? [{ email }] : []), ...(tail ? [{ phone: { endsWith: tail } }] : [])] },
+    select: { id: true, phone: true, email: true },
   });
+  const ids = open.filter((r) => (email && r.email === email) || (tail && phoneTail(r.phone) === tail)).map((r) => r.id);
+  if (ids.length) await db.worklistRow.updateMany({ where: { id: { in: ids } }, data: { status: "DO_NOT_CONTACT" } });
 }

@@ -6,7 +6,7 @@ import crypto from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { normalizeEmail, normalizePhone } from "./contacts";
 import { ensureContactForLead } from "./crm-contacts";
-import { DuplicateLeadError, createLeadGuarded, findLeadDuplicates, getPolicy } from "./lead-duplicates";
+import { DuplicateLeadError, canonicalPhone, createLeadGuarded, findLeadDuplicates, getPolicy } from "./lead-duplicates";
 import { leadAssigned } from "./events";
 import { notifyMany, usersWithPermission } from "./notifications";
 
@@ -81,10 +81,10 @@ export async function captureForSource(db: Db, p: { source: Source; input: Captu
   const email = emailRaw ? normalizeEmail(emailRaw) : null;
   if (emailRaw && !email) throw new CaptureError("Enter a valid email address.", 400, "email");
   const phoneRaw = cut(i.phone, 40);
-  const phone = phoneRaw ? normalizePhone(phoneRaw) : null;
-  if (phoneRaw && !phone) throw new CaptureError("Enter a valid phone number.", 400, "phone");
-  if (!email && !phone) throw new CaptureError("Give an email address or a phone number so we can reply.", 400, "email");
-  const leadName = name.trim() || (email ?? phone)!;
+  const phoneClean = phoneRaw ? normalizePhone(phoneRaw) : null;
+  if (phoneRaw && !phoneClean) throw new CaptureError("Enter a valid phone number.", 400, "phone");
+  if (!email && !phoneClean) throw new CaptureError("Give an email address or a phone number so we can reply.", 400, "email");
+  const leadName = name.trim() || (email ?? phoneClean)!;
   if (leadName.length < 2) throw new CaptureError("Enter your name.", 400, "name");
   const company = cut(i.company, 160) || null;
   const message = cut(i.message ?? i.notes, 2000) || null;
@@ -93,6 +93,8 @@ export async function captureForSource(db: Db, p: { source: Source; input: Captu
   try { const u = new URL(landing); if (u.protocol === "https:" || u.protocol === "http:") landingUrl = u.toString().slice(0, 500); } catch { /* not a link: ignored */ }
   const utm = { utmSource: cut(i.utm_source, 80) || null, utmMedium: cut(i.utm_medium, 80) || null, utmCampaign: cut(i.utm_campaign, 120) || null };
   const org = source.organizationId;
+  // stored the same way as every other lead phone (+international), so the duplicate check and the CRM always agree
+  const phone = phoneClean ? await canonicalPhone(db, org, phoneClean) : null;
   const now = p.now ?? new Date();
 
   const resubmitted = async (existing: { id: string; name: string; assignedToId: string | null }) => {

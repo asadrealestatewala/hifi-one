@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { addProspect } from "./prospect-manual";
+import { addProspect, removeOwnProspect } from "./prospect-manual";
 import { logOutreach } from "./prospect-crm";
 import { prospectWhere, ProspectorError, type Actor } from "./prospector";
 
@@ -9,7 +9,7 @@ const db = new PrismaClient({ datasourceUrl: url });
 let org: string, other: string, ali: Actor, zara: Actor, mgr: Actor, viewer: Actor, foreign: Actor;
 const NOW = new Date("2026-11-05T10:00:00Z");
 const actor = (id: string, organizationId: string, perms: string[]): Actor => ({ id, organizationId, permissions: new Set(perms) });
-const add = (a: Actor, over: Record<string, unknown> = {}) => addProspect(db, a, { contactName: "Bilal Ahmed", company: "Ahmed Traders", phone: "0300 5550001", source: "REFERRAL", sourceDetail: "Sara from Gulberg", ...over }, NOW);
+const add = (a: Actor, over: Record<string, unknown> = {}) => addProspect(db, a, { name: "Ahmed Traders", phone: "0300 5550001", country: "PK", source: "REFERRAL", note: "Sara from Gulberg says they need a website", ...over }, NOW);
 const fails = (p: Promise<unknown>, text: RegExp) => expect(p).rejects.toThrow(text);
 
 beforeAll(async () => {
@@ -29,9 +29,9 @@ afterAll(async () => { await db.$disconnect(); });
 
 describe("an agent adds a prospect they found themselves", () => {
   it("saves it owned by the agent, as a prospect and not a lead, with a normalised phone and email", async () => {
-    const r = await add(ali, { email: "  Bilal@Ahmed.PK ", website: "ahmed.pk" });
+    const r = await add(ali, { email: "  Bilal@Ahmed.PK " });
     const p = await db.prospect.findUniqueOrThrow({ where: { id: r.id } });
-    expect(p).toMatchObject({ origin: "MANUAL", status: "ASSIGNED", assignedToId: ali.id, addedById: ali.id, searchId: null, name: "Ahmed Traders", contactName: "Bilal Ahmed", phone: "+923005550001", email: "bilal@ahmed.pk", website: "https://ahmed.pk", sourceLabel: "REFERRAL", sourceDetail: "Sara from Gulberg" });
+    expect(p).toMatchObject({ origin: "MANUAL", status: "ASSIGNED", assignedToId: ali.id, addedById: ali.id, searchId: null, name: "Ahmed Traders", phone: "+923005550001", email: "bilal@ahmed.pk", country: "PK", sourceLabel: "REFERRAL", notes: "Sara from Gulberg says they need a website" });
     expect(p.placeId.startsWith("manual:")).toBe(true);
     expect(p.score).not.toBeNull();
     expect(await db.lead.count()).toBe(0);
@@ -44,14 +44,24 @@ describe("an agent adds a prospect they found themselves", () => {
     expect((await db.prospect.findMany({ where: prospectWhere(ali, { mineOnly: true, manual: true }) })).length).toBe(1);
     expect((await db.prospect.findMany({ where: prospectWhere(mgr, { mineOnly: true }) })).length).toBe(0);
   });
-  it("needs edit access, a name or company, a source, and a phone or email", async () => {
+  it("needs edit access, a name, a source, and a phone or email, and names the field each problem belongs to", async () => {
     await fails(add(viewer), /permission/);
-    await fails(add(ali, { contactName: "", company: "", phone: "0300 5550002" }), /name or the company/);
-    await fails(add(ali, { source: "" }), /where this prospect came from/);
-    await fails(add(ali, { phone: "", email: "" }), /phone number or an email/);
-    await fails(add(ali, { phone: "abc" }), /phone number does not look right/);
-    await fails(add(ali, { phone: "", email: "nope" }), /email address does not look right/);
-    await fails(add(ali, { phone: "0300 5550003", website: "javascript:alert(1)" }), /website/);
+    const field = async (over: Record<string, unknown>) => add(ali, over).then(() => "saved", (e: ProspectorError) => e.field ?? "general");
+    expect(await field({ name: "" })).toBe("name");
+    expect(await field({ source: "" })).toBe("source");
+    expect(await field({ phone: "", email: "" })).toBe("phone");
+    expect(await field({ phone: "abc" })).toBe("phone");
+    expect(await field({ phone: "0300 55", name: "Short" })).toBe("phone");
+    expect(await field({ phone: "", email: "nope" })).toBe("email");
+  });
+  it("reads a local number in the chosen country, and says exactly what is wrong with one it cannot read", async () => {
+    expect((await add(ali, { name: "Local A", phone: "0300-5550101" })).id).toBeTruthy();
+    expect((await add(ali, { name: "Local B", phone: "(020) 7946 0958", country: "GB" })).id).toBeTruthy();
+    expect((await add(ali, { name: "Intl", phone: "+971 50 555 0102", country: "PK" })).id).toBeTruthy();
+    expect(await db.prospect.findMany({ where: { name: { in: ["Local A", "Local B", "Intl"] } }, select: { name: true, phone: true }, orderBy: { name: "asc" } })).toEqual([{ name: "Intl", phone: "+971505550102" }, { name: "Local A", phone: "+923005550101" }, { name: "Local B", phone: "+442079460958" }]);
+    await fails(add(ali, { name: "Too short", phone: "0300 123" }), /too short for Pakistan.*For example 0300 1234567/);
+    await fails(add(ali, { name: "Too long", phone: "0300 123456789" }), /too long for Pakistan/);
+    await fails(add(ali, { name: "Letters", phone: "03OO 1234567" }), /digits only/);
   });
   it("refuses a number or email that is already a prospect, in any spelling, and does not reveal other people's prospects", async () => {
     await fails(add(ali, { phone: "+92 300 5550001" }), /Ahmed Traders is already in Prospector/);
@@ -60,7 +70,7 @@ describe("an agent adds a prospect they found themselves", () => {
     expect(await db.prospect.count({ where: { phone: "+923005550001" } })).toBe(1);
   });
   it("two agents adding the same person at the same moment make one prospect", async () => {
-    const results = await Promise.allSettled([add(ali, { phone: "0300 5550010" }), add(zara, { phone: "0300 5550010" })]);
+    const results = await Promise.allSettled([add(ali, { name: "Race A", phone: "0300 5550010" }), add(zara, { name: "Race B", phone: "0300 5550010" })]);
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     expect(await db.prospect.count({ where: { phone: "+923005550010" } })).toBe(1);
   });
@@ -77,10 +87,23 @@ describe("an agent adds a prospect they found themselves", () => {
     await fails(add(mgr, { phone: "0300 5550030" }), /Existing Lead/);
     await db.crmSettings.upsert({ where: { organizationId: org }, create: { organizationId: org, duplicateMode: "WARN" }, update: { duplicateMode: "WARN" } });
     await fails(add(ali, { phone: "0300 5550030" }), /Add anyway/);
-    expect((await add(ali, { phone: "0300 5550030", confirm: true })).id).toBeTruthy();
+    expect((await add(ali, { name: "Warn ok", phone: "0300 5550030", confirm: true })).id).toBeTruthy();
     await db.crmSettings.update({ where: { organizationId: org }, data: { duplicateMode: "OFF" } });
-    expect((await add(ali, { phone: "", email: "lead@x.pk" })).id).toBeTruthy();
+    expect((await add(ali, { name: "Off mode", phone: "", email: "lead@x.pk" })).id).toBeTruthy();
     await db.crmSettings.update({ where: { organizationId: org }, data: { duplicateMode: "BLOCK" } });
+  });
+  it("removing a prospect added by mistake: only before any contact, only by its adder or a manager, kept as dismissed", async () => {
+    const a = await add(ali, { name: "Typo", phone: "0300 5550060" });
+    await expect(removeOwnProspect(db, zara, a.id)).rejects.toBeInstanceOf(ProspectorError);
+    await expect(removeOwnProspect(db, viewer, a.id)).rejects.toBeInstanceOf(ProspectorError);
+    await removeOwnProspect(db, ali, a.id);
+    expect((await db.prospect.findUniqueOrThrow({ where: { id: a.id } })).status).toBe("DISMISSED");
+    await expect(removeOwnProspect(db, ali, a.id)).rejects.toThrow(/already been contacted or closed/);
+    const b = await add(ali, { name: "Called", phone: "0300 5550061" });
+    await logOutreach(db, ali, b.id, { outcome: "CONTACTED" });
+    await expect(removeOwnProspect(db, ali, b.id)).rejects.toThrow(/already been contacted or closed/);
+    const g = await db.prospect.create({ data: { organizationId: org, placeId: "g-1", name: "Google one", status: "ASSIGNED", assignedToId: ali.id } });
+    await expect(removeOwnProspect(db, mgr, g.id)).rejects.toThrow(/Only the person who added/);
   });
   it("another organization's data is never matched", async () => {
     expect((await add(foreign, { phone: "0300 5550001" })).id).toBeTruthy();
@@ -98,12 +121,11 @@ describe("a hand-added prospect uses the same Log contact flow", () => {
     await fails(add(ali, { phone: "0300 5550040" }), /closed as not interested/);
   });
   it("Interested creates one lead owned by the agent with the person, company, email, source and notes", async () => {
-    const a = await add(ali, { phone: "0300 5550050", email: "dana@shop.pk", contactName: "Dana", company: "Dana Shop", source: "OWN_CONTACT", sourceDetail: "Met at expo", notes: "Wants a website" });
+    const a = await add(ali, { name: "Dana Shop", phone: "0300 5550050", email: "dana@shop.pk", source: "OWN_CONTACT", note: "Met at expo, wants a website" });
     const r = await logOutreach(db, ali, a.id, { outcome: "INTERESTED", note: "Wants a quote", now: NOW });
     const lead = await db.lead.findUniqueOrThrow({ where: { id: r.leadId! }, include: { activities: true } });
-    expect(lead).toMatchObject({ name: "Dana", company: "Dana Shop", phone: "+923005550050", email: "dana@shop.pk", source: "Prospector: Own contact", assignedToId: ali.id });
-    expect(lead.notes).toContain("Met at expo");
-    expect(lead.notes).toContain("Wants a website");
+    expect(lead).toMatchObject({ name: "Dana Shop", company: null, phone: "+923005550050", email: "dana@shop.pk", source: "Prospector: Own contact", assignedToId: ali.id });
+    expect(lead.notes).toContain("Met at expo, wants a website");
     expect(lead.tags).toContain("own-contact");
     expect((await db.prospect.findUniqueOrThrow({ where: { id: a.id } })).status).toBe("SENT_TO_CRM");
     expect(await db.leadKey.count({ where: { leadId: lead.id } })).toBe(2);

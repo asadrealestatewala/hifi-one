@@ -156,3 +156,15 @@ describe("the pitch note", () => {
     expect(s.pitch.split("\n").filter((l) => l.startsWith("- "))).toHaveLength(5);
   });
 });
+
+describe("a prospect an agent added by hand", () => {
+  it("is not scored down for a website or reviews nobody has looked up: they are listed as not known", () => {
+    const s = scoreProspect({ name: "Referral Traders", manual: true, hasWebsite: false, rating: null, ratingCount: null, check: null, social: null, now: NOW });
+    expect(s.score).toBe(0);
+    expect(s.reasons).toEqual([]);
+    expect(s.missing).toEqual(expect.arrayContaining([expect.stringMatching(/Website not known/), expect.stringMatching(/Google reviews not known/)]));
+  });
+  it("a business found on Google with no website still scores the gap", () => {
+    expect(scoreProspect(strong({ hasWebsite: false, check: null, social: null })).reasons.map((r) => r.id)).toContain("NO_WEBSITE");
+  });
+});
