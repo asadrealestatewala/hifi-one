@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { WorklistError, addSuppression, importWorklist, worklistMetrics } from "@/lib/worklists";
+import { isExcelFile, xlsxToCsv } from "@/lib/spreadsheet";
 import { Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -12,8 +13,17 @@ async function upload(formData: FormData) {
   const user = await requirePermission("crm.edit");
   const file = formData.get("file");
   const pasted = String(formData.get("csv") ?? "");
-  const text = file instanceof File && file.size > 0 ? await file.text() : pasted;
   if (file instanceof File && file.size > 5_000_000) redirect(`/leads/worklists?error=${encodeURIComponent("File is too large (5 MB limit).")}`);
+  let text = pasted;
+  if (file instanceof File && file.size > 0) {
+    if (isExcelFile(file.name)) {
+      try {
+        text = await xlsxToCsv(Buffer.from(await file.arrayBuffer()));
+      } catch (e) {
+        redirect(`/leads/worklists?error=${encodeURIComponent(e instanceof Error ? e.message : "Could not read that Excel file.")}`);
+      }
+    } else text = await file.text();
+  }
   let id: string;
   let summary: string;
   try {
@@ -75,12 +85,12 @@ export default async function Worklists({ searchParams }: { searchParams: Promis
       {canEdit && (
         <>
           <form action={upload} className="card grid gap-3 sm:grid-cols-2">
-            <h2 className="font-semibold sm:col-span-2">Import a list (CSV)</h2>
-            <p className="text-xs text-muted sm:col-span-2">Needs a header row. Recognised columns: Name, Company, Email, Phone, Country, Source. Other columns are kept as they are. Invalid and duplicate rows are skipped and reported. Excel files: save as CSV first.</p>
+            <h2 className="font-semibold sm:col-span-2">Import a list (Excel or CSV)</h2>
+            <p className="text-xs text-muted sm:col-span-2">Needs a header row. Recognised columns: Name, Company, Email, Phone, Country, Source. Other columns are kept as they are. Invalid and duplicate rows are skipped and reported. Excel (.xlsx) files use the first sheet. Old .xls files: save as .xlsx first.</p>
             <div><label className="label" htmlFor="name">Worklist name</label><input id="name" name="name" required className="input" /></div>
             <div><label className="label" htmlFor="source">Source</label><input id="source" name="source" placeholder="Trade expo, directory…" className="input" /></div>
             <div><label className="label" htmlFor="targetDate">Target completion</label><input id="targetDate" name="targetDate" type="date" className="input" /></div>
-            <div><label className="label" htmlFor="file">CSV file</label><input id="file" name="file" type="file" accept=".csv,text/csv" className="input" /></div>
+            <div><label className="label" htmlFor="file">Excel or CSV file</label><input id="file" name="file" type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="input" /></div>
             <div className="sm:col-span-2"><label className="label" htmlFor="csv">…or paste CSV text</label><textarea id="csv" name="csv" rows={4} className="input font-mono text-xs" /></div>
             <div className="sm:col-span-2"><button className="btn">Import</button></div>
           </form>
