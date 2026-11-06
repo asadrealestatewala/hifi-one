@@ -67,7 +67,7 @@ function RowActions({ p, last, who, manager, back, stacked = false }: { back: st
   // stacked = phone layout: full-width controls, the Log contact form opens across the whole row, Delete sits beside or under it
   const field = stacked ? "input" : "input !py-1 text-xs";
   return (
-    <div className={stacked ? "flex flex-wrap items-center gap-x-4 gap-y-3" : "max-w-[15rem] space-y-1"}>
+    <div className={stacked ? "flex flex-wrap items-center gap-x-4 gap-y-3" : "w-56 max-w-[15rem] space-y-1"}>
       {open && mine && (
         <details className={stacked ? "open:w-full" : "text-xs"}>
           <summary className={stacked ? "btn-ghost inline-flex cursor-pointer list-none !py-2 text-sm [&::-webkit-details-marker]:hidden" : "cursor-pointer text-xs text-primary"}>Log contact</summary>
@@ -101,7 +101,7 @@ function RowActions({ p, last, who, manager, back, stacked = false }: { back: st
   );
 }
 function OutreachCell({ p, last, who, manager, author, back }: { back: string; p: OutreachProspect; last: LastOutreach; who: string; manager: boolean; author?: string }) {
-  return <div className="max-w-[15rem] space-y-1"><LastContact last={last} author={author} /><RowActions p={p} last={last} who={who} manager={manager} back={back} /></div>;
+  return <div className="w-56 max-w-[15rem] space-y-1"><LastContact last={last} author={author} /><RowActions p={p} last={last} who={who} manager={manager} back={back} /></div>;
 }
 
 function SocialCell({ s, prospectId, name, canEdit }: { s: Social | null; prospectId: string; name: string; canEdit: boolean }) {
