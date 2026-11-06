@@ -75,7 +75,7 @@ export default async function Leads({ searchParams }: { searchParams: Promise<{ 
                   <tr key={l.id} className="border-t border-border transition hover:bg-hover/50">
                     <td className="px-4 py-3"><Link className="font-medium hover:underline" href={`/leads/${l.id}`}>{l.name}</Link><span className="block text-xs text-muted">L-{l.number}{l.company && ` · ${l.company}`}{l.city && ` · ${l.city}`}</span></td>
                     <td className="pr-4"><Badge tone="primary">{l.stage.name}</Badge></td>
-                    <td className="pr-4"><Badge tone={sc.score >= 60 ? "success" : sc.score >= 30 ? "warning" : "neutral"}>{sc.score}</Badge></td>
+                    <td className="pr-4"><span className="cursor-help" title={`Why ${sc.score}:\n${sc.reasons.join("\n")}`}><Badge tone={sc.score >= 60 ? "success" : sc.score >= 30 ? "warning" : "neutral"}>{sc.score}</Badge></span></td>
                     <td className="pr-4 text-muted">{l.campaignId ? campaignName.get(l.campaignId) ?? "" : ""}</td>
                     <td className="pr-4">{l.dealValue ? formatMoney(l.dealValue, l.currency) : ""}</td>
                     <td className="pr-4 text-muted">{l.lastContactAt ? l.lastContactAt.toLocaleDateString() : "never"}</td>
