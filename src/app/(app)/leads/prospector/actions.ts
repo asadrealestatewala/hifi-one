@@ -42,8 +42,9 @@ export async function searchProspects(formData: FormData): Promise<void> {
 // Review, dismiss, restore and assign work on the ticked rows (or one row's own button). Only sales managers may; the service checks again.
 export async function reviewProspects(formData: FormData): Promise<void> {
   const user = await requirePermission("crm.edit");
+  const back = backTo(formData);
   const ids = formData.getAll("ids").map(String).filter(Boolean).slice(0, 500);
-  if (ids.length === 0) return flash("error", "Tick at least one prospect first.");
+  if (ids.length === 0) return flash("error", "Tick at least one prospect first.", "", back);
   const op = s(formData, "op");
   try {
     let n = 0, label = "";
@@ -52,13 +53,13 @@ export async function reviewProspects(formData: FormData): Promise<void> {
     else if (op === "restore") { n = await restore(db, user, ids); label = "restored"; }
     else if (op === "assign") {
       const agent = s(formData, "agentId");
-      if (!agent) return flash("error", "Choose who to assign them to.");
+      if (!agent) return flash("error", "Choose who to assign them to.", "", back);
       n = await assign(db, user, ids, agent); label = "assigned";
-    } else return flash("error", "Unknown action.");
+    } else return flash("error", "Unknown action.", "", back);
     await audit(user, { action: `prospect.${op}`, entity: "Prospect", after: { count: n, ids: ids.slice(0, 50) } });
-    return flash("ok", `${n} prospect${n === 1 ? "" : "s"} ${label}.`);
+    return flash("ok", `${n} prospect${n === 1 ? "" : "s"} ${label}.`, "", back);
   } catch (e) {
-    if (e instanceof ProspectorError) return flash("error", e.message);
+    if (e instanceof ProspectorError) return flash("error", e.message, "", back);
     throw e;
   }
 }
@@ -190,7 +191,7 @@ export async function addOwnProspect(_prev: AddState, formData: FormData): Promi
   }
 }
 
-// Takes back a prospect the person added by mistake (it is dismissed, not deleted).
+// Deletes a prospect the person added by hand and has not contacted. It is dismissed, not erased, so a manager can restore it.
 export async function removeOwnProspectAction(formData: FormData): Promise<void> {
   const user = await requirePermission("crm.edit");
   const back = backTo(formData);
@@ -200,7 +201,7 @@ export async function removeOwnProspectAction(formData: FormData): Promise<void>
   try {
     const r = await removeOwnProspect(db, user, id);
     await audit(user, { action: "prospect.remove_manual", entity: "Prospect", entityId: id });
-    ok = `${r.name} was removed from your prospects.`;
+    ok = `${r.name} was deleted.`;
   } catch (e) {
     if (e instanceof ProspectorError) return flash("error", e.message, "", back);
     throw e;
