@@ -14,6 +14,7 @@ const P: Record<string, string> = {
   search: "m21 21-4.3-4.3M17 10.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z",
   bell: "M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16Zm4 4a2 2 0 0 0 4 0",
   plus: "M12 5v14M5 12h14",
+  upload: "M12 16V4m0 0L7 9m5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3",
   chevron: "m9 6 6 6-6 6",
   down: "m6 9 6 6 6-6",
   menu: "M4 6h16M4 12h16M4 18h16",
