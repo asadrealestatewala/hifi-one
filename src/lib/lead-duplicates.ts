@@ -216,6 +216,17 @@ export async function isSuppressed(db: Db, organizationId: string, p: { phone?: 
   const email = normalizeEmail(p.email);
   const tail = phoneTail(p.phone);
   if (!email && !tail) return false;
+  return (await suppressionMatcher(db, organizationId))(p);
+}
+
+// The same rule for a whole file: the list is read once, then each row is asked. Used by the prospect import so 1,000 rows are not 1,000 reads.
+export async function suppressionMatcher(db: Db, organizationId: string): Promise<(p: { phone?: string | null; email?: string | null }) => boolean> {
   const rows = await db.suppressedContact.findMany({ where: { organizationId }, select: { phone: true, email: true } });
-  return rows.some((r) => (email && normalizeEmail(r.email) === email) || (tail && phoneTail(r.phone) === tail));
+  const emails = new Set(rows.map((r) => normalizeEmail(r.email)).filter(Boolean) as string[]);
+  const tails = new Set(rows.map((r) => phoneTail(r.phone)).filter(Boolean) as string[]);
+  return (p) => {
+    const email = normalizeEmail(p.email);
+    const tail = phoneTail(p.phone);
+    return Boolean((email && emails.has(email)) || (tail && tails.has(tail)));
+  };
 }

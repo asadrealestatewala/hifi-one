@@ -11,6 +11,8 @@ import { MAX_FETCH_PER_CLICK, SocialAccessError, fetchFacebookData, setFacebookL
 import { rescoreProspects } from "@/lib/prospect-scoring";
 import { OUTCOME_LABEL, logOutreach } from "@/lib/prospect-crm";
 import { addProspect, removeOwnProspect } from "@/lib/prospect-manual";
+import { FIELDS, detectSheet, importProspects, planImport, type Field, type ImportInput, type Mapping, type Skipped } from "@/lib/prospect-import";
+import { readWorkbook, type WorkbookSheet } from "@/lib/spreadsheet";
 import { ProspectorError, assign, isManager, dismiss, markReviewed, restore, runSearch, setDailyLimits } from "@/lib/prospector";
 
 const BASE = "/leads/prospector";
@@ -207,4 +209,75 @@ export async function removeOwnProspectAction(formData: FormData): Promise<void>
     throw e;
   }
   return flash("ok", ok, "", back);
+}
+
+// ---------- import prospects from a spreadsheet (sales managers) ----------
+export type ImportSheetView = { index: number; name: string; rows: number; headers: string[]; map: Record<string, string>; sample: string[][] };
+export type ImportView = {
+  error?: string; fileName?: string; sheets?: ImportSheetView[];
+  preview?: { counts: Record<string, number>; ignored: number; label: string; country: string; sample: { name: string; phone: string | null; website: string | null; sheet: string; closed: boolean }[]; skipped: Skipped[] };
+  done?: { imported: number; closed: number; assigned: number; label: string; counts: Record<string, number>; skipped: Skipped[] };
+};
+const MAX_UPLOAD = 8 * 1024 * 1024;
+async function readUpload(formData: FormData): Promise<{ name: string; sheets: WorkbookSheet[] }> {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) throw new ProspectorError("Choose an Excel (.xlsx) or CSV file first.");
+  if (file.size > MAX_UPLOAD) throw new ProspectorError("That file is over 8 MB. Split it and import the parts.");
+  if (!/\.(xlsx|xlsm|csv)$/i.test(file.name)) throw new ProspectorError(/\.xls$/i.test(file.name) ? "Old .xls files are not supported. Open it in Excel and save as .xlsx or CSV." : "Use an Excel (.xlsx) or CSV file.");
+  try {
+    const sheets = await readWorkbook(Buffer.from(await file.arrayBuffer()), file.name);
+    return { name: file.name, sheets: sheets.filter((sh) => sh.rows.some((r) => r.some((c) => c.trim()))) };
+  } catch (e) {
+    throw new ProspectorError(e instanceof Error ? e.message : "Could not read that file.");
+  }
+}
+
+// One action behind the three buttons of the import sheet: "inspect" reads the file and guesses the columns, "preview" shows what would happen
+// without saving, "import" saves. The file is sent each time and read again here, so what is shown is always what is saved.
+export async function runProspectImport(_prev: ImportView, formData: FormData): Promise<ImportView> {
+  const user = await requirePermission("crm.edit");
+  const intent = s(formData, "intent");
+  try {
+    if (!isManager(user)) throw new ProspectorError("Only a sales manager can import prospects.");
+    const { name, sheets } = await readUpload(formData);
+    if (sheets.length === 0) throw new ProspectorError("That file has no rows.");
+    const shapes = sheets.map((sh) => detectSheet(sh.rows));
+    const views: ImportSheetView[] = sheets.map((sh, index) => ({
+      index, name: sh.name, rows: Math.max(0, sh.rows.length - shapes[index].headerRow - 1), headers: shapes[index].headers,
+      map: Object.fromEntries(FIELDS.map((f) => [f, shapes[index].map[f] === undefined ? "" : String(shapes[index].map[f])])),
+      sample: sh.rows.slice(shapes[index].headerRow + 1).filter((r) => r.some((c) => c.trim())).slice(0, 3),
+    }));
+    if (intent === "inspect") return { fileName: name, sheets: views };
+
+    // the person's own column choices win over the guess
+    const chosen = new Set(formData.getAll("sheet").map(String));
+    const input: ImportInput = {
+      sheets: sheets.map((sh, index) => {
+        const map: Mapping = {};
+        for (const f of FIELDS) {
+          const v = s(formData, `map:${index}:${f}`);
+          if (v !== "" && /^\d{1,3}$/.test(v)) map[f as Field] = Number(v);
+        }
+        views[index].map = Object.fromEntries(FIELDS.map((f) => [f, map[f] === undefined ? "" : String(map[f])]));
+        return { name: sh.name, rows: sh.rows, headerRow: shapes[index].headerRow, map, include: chosen.has(String(index)) };
+      }),
+      country: s(formData, "country"), label: s(formData, "label"), closeNotInterested: s(formData, "closeNo") === "1", assignToId: s(formData, "assignToId") || null,
+    };
+    if (intent === "preview") {
+      const plan = await planImport(db, user, input);
+      return {
+        fileName: name, sheets: views,
+        preview: { counts: plan.counts, ignored: plan.ignored, label: plan.label, country: plan.country, sample: plan.rows.slice(0, 8).map((r) => ({ name: r.name, phone: r.phone, website: r.website, sheet: r.sheet, closed: r.closed })), skipped: plan.skipped.slice(0, 80) },
+      };
+    }
+    if (intent !== "import") throw new ProspectorError("Unknown action.");
+    const r = await importProspects(db, user, input);
+    await audit(user, { action: "prospect.import", entity: "Prospect", after: { file: name, imported: r.imported, closed: r.closed, assigned: r.assigned, skipped: r.skipped.length, label: r.label } });
+    revalidatePath(BASE);
+    revalidatePath(OWN);
+    return { fileName: name, done: { imported: r.imported, closed: r.closed, assigned: r.assigned, label: r.label, counts: r.counts, skipped: r.skipped.slice(0, 80) } };
+  } catch (e) {
+    if (e instanceof ProspectorError) return { error: e.message };
+    throw e;
+  }
 }

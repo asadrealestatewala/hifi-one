@@ -19,6 +19,7 @@ import { Badge, Chips, Empty, Notice, PageHeader, Pager, SearchBox, SubmitButton
 import { checkWebsites, getFacebookData, reviewProspects, saveFacebookLink, saveSearchLimits, logProspectContact, removeOwnProspectAction, searchProspects, updateScores } from "./actions";
 import AutoRefresh from "./AutoRefresh";
 import AddProspect from "./AddProspect";
+import ImportProspects from "./ImportProspects";
 import ConfirmButton from "@/components/ui/ConfirmButton";
 
 const LABEL: Record<string, string> = { NEW: "New", REVIEWED: "Reviewed", ASSIGNED: "Assigned", CONTACTED: "Contacted", NOT_INTERESTED: "Not interested", SENT_TO_CRM: "Converted", DISMISSED: "Dismissed" };
@@ -221,6 +222,7 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
   const outreachNames = new Map((await db.user.findMany({ where: { id: { in: [...new Set(outreachRows.map((o) => o.userId))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
   const pending = [...checks.values()].some((c) => c.status === "QUEUED" || c.status === "RUNNING");
   const canAdd = user.permissions.has("crm.edit");
+  const defaultCountry = canAdd ? (await getPolicy(db, org)).defaultCountry : "PK";
   const manualCount = await db.prospect.count({ where: prospectWhere(user, { manual: true, mineOnly: mineView, hideDismissed: mineView }) });
   const canTick = !mineView && (manager || searcher);
   const byStatus = new Map(counts.map((c) => [c.status, c._count]));
@@ -275,11 +277,16 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
         <Notice kind="error">Google Places is not configured, so searching is switched off. A Super Admin can add the Google Places key in Administration, then Integrations.</Notice>
       ))}
 
-      {canAdd && <AddProspect countries={callingCodeOptions().map((c) => ({ code: c.code, label: c.label }))} defaultCountry={(await getPolicy(db, org)).defaultCountry} />}
+      {canAdd && (
+        <div className="flex flex-wrap items-start gap-2">
+          <AddProspect countries={callingCodeOptions().map((c) => ({ code: c.code, label: c.label }))} defaultCountry={defaultCountry} />
+          {manager && !mineView && <ImportProspects countries={callingCodeOptions().map((c) => ({ code: c.code, label: c.label }))} defaultCountry={defaultCountry} agents={agents.map((a) => ({ id: a.id, label: a.name }))} />}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <Chips current={lp.status ?? "ALL"} items={[{ key: "ALL", label: "All", count: total, href: href({ status: undefined, page: undefined }) }, ...PROSPECT_STATUSES.filter((st) => !(mineView && !manager && st === "DISMISSED")).map((st) => ({ key: st, label: LABEL[st], count: byStatus.get(st) ?? 0, href: href({ status: st, page: undefined }) }))]} />
-        <Link className={manualOnly ? "btn" : "btn-ghost"} href={href({ added: manualOnly ? undefined : "1", page: undefined })} aria-pressed={manualOnly}>Added by hand{manualCount > 0 ? ` (${manualCount})` : ""}</Link>
+        <Link className={manualOnly ? "btn" : "btn-ghost"} href={href({ added: manualOnly ? undefined : "1", page: undefined })} aria-pressed={manualOnly}>Added or imported{manualCount > 0 ? ` (${manualCount})` : ""}</Link>
         <SearchBox q={lp.q} placeholder="Search name, address, phone, website" hidden={{ status: lp.status, search: lp.ids.search, added: lp.ids.added }} />
       </div>
 
@@ -318,7 +325,7 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
                       </div>
                       <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                         {r.phone ? <a className="whitespace-nowrap text-primary hover:underline" href={`tel:${r.phone}`}>{r.phone}</a> : <span className="text-muted">No phone</span>}
-                        {r.origin === "MANUAL" && <Badge tone="neutral">{MANUAL_SOURCE_LABEL[r.sourceLabel ?? ""] ?? "Added by hand"}</Badge>}
+                        {r.origin === "MANUAL" && <Badge tone="neutral">{(MANUAL_SOURCE_LABEL[r.sourceLabel ?? ""] ?? r.sourceLabel ?? "Added by hand")}</Badge>}
                       </p>
                       {r.email && <p className="break-all text-xs"><a className="text-primary hover:underline" href={`mailto:${r.email}`}>{r.email}</a></p>}
                       {r.notes && <p className="text-xs text-muted">{r.notes.slice(0, 160)}</p>}
@@ -338,7 +345,7 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
                     const last = lastOutreach.get(r.id) ?? null;
                     return (
                       <tr key={r.id} className="border-t border-border align-top transition hover:bg-hover/50">
-                        <td className="py-2 pl-4 pr-3"><p className="font-medium">{r.name}</p>{r.origin === "MANUAL" && <p className="mt-0.5"><Badge tone="neutral">{MANUAL_SOURCE_LABEL[r.sourceLabel ?? ""] ?? "Added by hand"}</Badge></p>}{r.notes && <p className="mt-0.5 max-w-xs text-xs text-muted">{r.notes.slice(0, 120)}</p>}</td>
+                        <td className="py-2 pl-4 pr-3"><p className="font-medium">{r.name}</p>{r.origin === "MANUAL" && <p className="mt-0.5"><Badge tone="neutral">{(MANUAL_SOURCE_LABEL[r.sourceLabel ?? ""] ?? r.sourceLabel ?? "Added by hand")}</Badge></p>}{r.notes && <p className="mt-0.5 max-w-xs text-xs text-muted">{r.notes.slice(0, 120)}</p>}</td>
                         <td className="py-2 pr-3">{r.phone ? <a className="whitespace-nowrap text-primary hover:underline" href={`tel:${r.phone}`}>{r.phone}</a> : <span className="text-muted">No phone</span>}{r.email && <p className="break-all text-xs"><a className="text-primary hover:underline" href={`mailto:${r.email}`}>{r.email}</a></p>}</td>
                         <td className="py-2 pr-3"><Badge tone={TONE[r.status] ?? "neutral"}>{LABEL[r.status] ?? r.status}</Badge>{r.leadId && <p className="mt-1 text-xs"><Link className="text-primary hover:underline" href={`/leads/${r.leadId}`}>Open the lead</Link></p>}</td>
                         <td className="py-2 pr-3"><LastContact last={last} author={outreachNames.get(last?.userId ?? "")} /></td>
@@ -359,7 +366,7 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
               {rows.map((r) => (
                 <tr key={r.id} className="border-t border-border align-top transition hover:bg-hover/50">
                   {canTick && <td className="py-2 pl-4">{r.status !== "SENT_TO_CRM" && <input type="checkbox" form="bulk" name="ids" value={r.id} aria-label={`Select ${r.name}`} />}</td>}
-                  <td className="py-2 pl-4 pr-4"><p className="font-medium">{r.name}</p>{r.origin === "MANUAL" && <p className="text-xs text-muted">{r.contactName ? `${r.contactName} · ` : ""}<Badge tone="neutral">{MANUAL_SOURCE_LABEL[r.sourceLabel ?? ""] ?? "Added by hand"}</Badge>{r.sourceDetail ? ` ${r.sourceDetail}` : ""}</p>}{r.notes && <p className="max-w-xs text-xs text-muted">{r.notes.slice(0, 160)}</p>}<p className="max-w-xs text-xs text-muted">{r.address}</p>{r.mapsUrl && <a className="text-xs text-primary hover:underline" href={r.mapsUrl} target="_blank" rel="noopener noreferrer">Open in Google Maps</a>}</td>
+                  <td className="py-2 pl-4 pr-4"><p className="font-medium">{r.name}</p>{r.origin === "MANUAL" && <p className="text-xs text-muted">{r.contactName ? `${r.contactName} · ` : ""}<Badge tone="neutral">{(MANUAL_SOURCE_LABEL[r.sourceLabel ?? ""] ?? r.sourceLabel ?? "Added by hand")}</Badge>{r.sourceDetail ? ` ${r.sourceDetail}` : ""}</p>}{r.notes && <p className="max-w-xs text-xs text-muted">{r.notes.slice(0, 160)}</p>}<p className="max-w-xs text-xs text-muted">{r.address}</p>{r.mapsUrl && <a className="text-xs text-primary hover:underline" href={r.mapsUrl} target="_blank" rel="noopener noreferrer">Open in Google Maps</a>}</td>
                   <td className="pr-4 whitespace-nowrap">{r.phone ? <a className="hover:underline" href={`tel:${r.phone}`}>{r.phone}</a> : <span className="text-muted">None listed</span>}{r.email && <p className="text-xs"><a className="hover:underline" href={`mailto:${r.email}`}>{r.email}</a></p>}</td>
                   <td className="pr-4">{r.website ? <a className="break-all text-primary hover:underline" href={r.website} target="_blank" rel="noopener noreferrer">{r.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "").slice(0, 32)}</a> : <span className="text-muted">No website</span>}</td>
                   <td className="pr-4"><ScoreCell s={scores.get(r.id)!} /></td>
