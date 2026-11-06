@@ -59,22 +59,24 @@ function LastContact({ last, author }: { last: LastOutreach; author?: string }) 
   return last ? <p className="text-[11px] text-muted"><span className="font-medium text-text">{OUTCOME_LABEL[last.outcome] ?? last.outcome}</span> {last.createdAt.toISOString().slice(0, 10)}{author ? ` · ${author}` : ""}{last.note ? `: ${last.note.slice(0, 120)}` : ""}</p> : <p className="text-xs text-muted">Not contacted</p>;
 }
 // Log contact, Delete (a hand-added prospect nobody has contacted yet) and, for a manager, Restore of a dismissed one
-function RowActions({ p, last, who, manager, back }: { back: string; p: OutreachProspect; last: LastOutreach; who: string; manager: boolean }) {
+function RowActions({ p, last, who, manager, back, stacked = false }: { back: string; p: OutreachProspect; last: LastOutreach; who: string; manager: boolean; stacked?: boolean }) {
   const open = !["SENT_TO_CRM", "DISMISSED", "NOT_INTERESTED"].includes(p.status);
   const mine = manager || p.assignedToId === who;
   const canDelete = p.origin === "MANUAL" && !last && ["NEW", "REVIEWED", "ASSIGNED"].includes(p.status) && (manager || p.addedById === who);
+  // stacked = phone layout: full-width controls, the Log contact form opens across the whole row, Delete sits beside or under it
+  const field = stacked ? "input" : "input !py-1 text-xs";
   return (
-    <div className="max-w-[15rem] space-y-1">
+    <div className={stacked ? "flex flex-wrap items-center gap-x-4 gap-y-3" : "max-w-[15rem] space-y-1"}>
       {open && mine && (
-        <details className="text-xs">
-          <summary className="cursor-pointer text-primary">Log contact</summary>
-          <form action={logProspectContact} className="mt-1 space-y-1" aria-label={`Log contact with ${p.name}`}>
+        <details className={stacked ? "open:w-full" : "text-xs"}>
+          <summary className={stacked ? "btn-ghost inline-flex cursor-pointer list-none !py-2 text-sm [&::-webkit-details-marker]:hidden" : "cursor-pointer text-xs text-primary"}>Log contact</summary>
+          <form action={logProspectContact} className={stacked ? "mt-3 space-y-3" : "mt-1 space-y-1"} aria-label={`Log contact with ${p.name}`}>
             <input type="hidden" name="prospectId" value={p.id} />
             <input type="hidden" name="back" value={back} />
-            <select name="outcome" className="input !py-1 text-xs" defaultValue="CONTACTED" aria-label={`What happened with ${p.name}`}>
+            <select name="outcome" className={`${field} w-full`} defaultValue="CONTACTED" aria-label={`What happened with ${p.name}`}>
               {OUTCOMES.map((o) => <option key={o} value={o}>{OUTCOME_OPTION[o]}</option>)}
             </select>
-            <textarea name="note" maxLength={1000} rows={2} placeholder="What they said" className="input !py-1 text-xs" aria-label={`Note about ${p.name}`} />
+            <textarea name="note" maxLength={1000} rows={stacked ? 3 : 2} placeholder="What they said" className={`${field} w-full`} aria-label={`Note about ${p.name}`} />
             <SubmitButton pendingText="Saving…">Save</SubmitButton>
           </form>
         </details>
@@ -83,7 +85,7 @@ function RowActions({ p, last, who, manager, back }: { back: string; p: Outreach
         <form action={removeOwnProspectAction} aria-label={`Delete ${p.name}`}>
           <input type="hidden" name="prospectId" value={p.id} />
           <input type="hidden" name="back" value={back} />
-          <ConfirmButton className="text-xs text-brand hover:underline" title="Delete this prospect?" message={<>{p.name} will be taken off the list. Use this for a wrong number or a duplicate. A sales manager can restore it.</>} confirmLabel="Delete">Delete</ConfirmButton>
+          <ConfirmButton className={stacked ? "py-2 text-sm text-brand hover:underline" : "text-xs text-brand hover:underline"} title="Delete this prospect?" message={<>{p.name} will be taken off the list. Use this for a wrong number or a duplicate. A sales manager can restore it.</>} confirmLabel="Delete">Delete</ConfirmButton>
         </form>
       )}
       {manager && p.status === "DISMISSED" && (
@@ -304,25 +306,49 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
         ) : (
           <>
           {mineView ? (
-            <table className="w-full text-sm">
-              <thead className="bg-hover/60 text-left text-xs text-muted"><tr>
-                <th className="py-2 pl-4 pr-3">Prospect</th><th className="pr-3">Phone</th><th className="pr-3">Status</th><th className="hidden pr-3 md:table-cell">Last contact</th><th className="pr-4">Action</th>
-              </tr></thead>
-              <tbody>
+            <>
+              <ul className="divide-y divide-border md:hidden" aria-label="My prospects">
                 {rows.map((r) => {
                   const last = lastOutreach.get(r.id) ?? null;
                   return (
-                    <tr key={r.id} className="border-t border-border align-top transition hover:bg-hover/50">
-                      <td className="py-2 pl-4 pr-3"><p className="font-medium">{r.name}</p>{r.origin === "MANUAL" && <p className="mt-0.5"><Badge tone="neutral">{MANUAL_SOURCE_LABEL[r.sourceLabel ?? ""] ?? "Added by hand"}</Badge></p>}{r.notes && <p className="mt-0.5 max-w-xs text-xs text-muted">{r.notes.slice(0, 120)}</p>}</td>
-                      <td className="pr-3 py-2">{r.phone ? <a className="whitespace-nowrap text-primary hover:underline" href={`tel:${r.phone}`}>{r.phone}</a> : <span className="text-muted">No phone</span>}{r.email && <p className="break-all text-xs"><a className="text-primary hover:underline" href={`mailto:${r.email}`}>{r.email}</a></p>}</td>
-                      <td className="pr-3 py-2"><Badge tone={TONE[r.status] ?? "neutral"}>{LABEL[r.status] ?? r.status}</Badge>{r.leadId && <p className="mt-1 text-xs"><Link className="text-primary hover:underline" href={`/leads/${r.leadId}`}>Open the lead</Link></p>}<div className="mt-1 md:hidden"><LastContact last={last} author={outreachNames.get(last?.userId ?? "")} /></div></td>
-                      <td className="hidden pr-3 py-2 md:table-cell"><LastContact last={last} author={outreachNames.get(last?.userId ?? "")} /></td>
-                      <td className="pr-4 py-2"><RowActions p={r} last={last} who={user.id} manager={manager} back={BASE} /></td>
-                    </tr>
+                    <li key={r.id} className="space-y-2 px-4 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="min-w-0 break-words font-medium">{r.name}</p>
+                        <Badge tone={TONE[r.status] ?? "neutral"}>{LABEL[r.status] ?? r.status}</Badge>
+                      </div>
+                      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                        {r.phone ? <a className="whitespace-nowrap text-primary hover:underline" href={`tel:${r.phone}`}>{r.phone}</a> : <span className="text-muted">No phone</span>}
+                        {r.origin === "MANUAL" && <Badge tone="neutral">{MANUAL_SOURCE_LABEL[r.sourceLabel ?? ""] ?? "Added by hand"}</Badge>}
+                      </p>
+                      {r.email && <p className="break-all text-xs"><a className="text-primary hover:underline" href={`mailto:${r.email}`}>{r.email}</a></p>}
+                      {r.notes && <p className="text-xs text-muted">{r.notes.slice(0, 160)}</p>}
+                      <LastContact last={last} author={outreachNames.get(last?.userId ?? "")} />
+                      {r.leadId && <p className="text-xs"><Link className="text-primary hover:underline" href={`/leads/${r.leadId}`}>Open the lead</Link></p>}
+                      <RowActions stacked p={r} last={last} who={user.id} manager={manager} back={BASE} />
+                    </li>
                   );
                 })}
-              </tbody>
-            </table>
+              </ul>
+              <table className="hidden w-full text-sm md:table">
+                <thead className="bg-hover/60 text-left text-xs text-muted"><tr>
+                  <th className="py-2 pl-4 pr-3">Prospect</th><th className="pr-3">Phone</th><th className="pr-3">Status</th><th className="pr-3">Last contact</th><th className="pr-4">Action</th>
+                </tr></thead>
+                <tbody>
+                  {rows.map((r) => {
+                    const last = lastOutreach.get(r.id) ?? null;
+                    return (
+                      <tr key={r.id} className="border-t border-border align-top transition hover:bg-hover/50">
+                        <td className="py-2 pl-4 pr-3"><p className="font-medium">{r.name}</p>{r.origin === "MANUAL" && <p className="mt-0.5"><Badge tone="neutral">{MANUAL_SOURCE_LABEL[r.sourceLabel ?? ""] ?? "Added by hand"}</Badge></p>}{r.notes && <p className="mt-0.5 max-w-xs text-xs text-muted">{r.notes.slice(0, 120)}</p>}</td>
+                        <td className="py-2 pr-3">{r.phone ? <a className="whitespace-nowrap text-primary hover:underline" href={`tel:${r.phone}`}>{r.phone}</a> : <span className="text-muted">No phone</span>}{r.email && <p className="break-all text-xs"><a className="text-primary hover:underline" href={`mailto:${r.email}`}>{r.email}</a></p>}</td>
+                        <td className="py-2 pr-3"><Badge tone={TONE[r.status] ?? "neutral"}>{LABEL[r.status] ?? r.status}</Badge>{r.leadId && <p className="mt-1 text-xs"><Link className="text-primary hover:underline" href={`/leads/${r.leadId}`}>Open the lead</Link></p>}</td>
+                        <td className="py-2 pr-3"><LastContact last={last} author={outreachNames.get(last?.userId ?? "")} /></td>
+                        <td className="py-2 pr-4"><RowActions p={r} last={last} who={user.id} manager={manager} back={BASE} /></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </>
           ) : (
           <table className="w-full text-sm">
             <thead className="bg-hover/60 text-left text-xs text-muted"><tr>
