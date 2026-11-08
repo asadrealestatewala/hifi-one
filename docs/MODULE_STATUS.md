@@ -32,7 +32,7 @@ Master prompt section in brackets.
 - **Not verified:** the forgot-password email (needs SMTP).
 
 ## HR [8]
-- **Done:** employee profiles with restricted sensitive fields, attendance with breaks and HR correction, leave with balances and approvals, payroll runs with separation of duties and payslips, approved commissions and bonuses paid through payroll (done 2026-10-31, tested at data level; run page, payslip and PDF not checked in a browser), assets and assignment, employee documents with expiry, offices and departments.
+- **Done:** employee profiles with restricted sensitive fields, attendance with breaks and HR correction, leave with balances and approvals, payroll runs with separation of duties and payslips, approved commissions and bonuses paid through payroll (done 2026-10-31, tested at data level; run page, payslip and PDF not checked in a browser), assets and assignment, employee documents with expiry, offices and departments. Employee documents (2026-11-09): fixed document types including Health or medical, HR asks for a document from the staff page or People & HR › Employee Documents, the employee uploads it on My Documents, HR verifies or rejects with a reason (rejection reopens the request), HR is notified of uploads and overdue requests are reminded weekly by the document_expiry job; documents stay visible to the employee and `hr.view_sensitive` holders only (tested in `employee-docs.integration.test.ts`; not checked in a browser).
 - **Not built:** shifts, holidays calendar, onboarding and offboarding, training, performance reviews, recruitment, loans.
 
 ## Workfolio-style monitoring [9] (called Workfolio in the menu)
