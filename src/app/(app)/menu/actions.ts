@@ -13,6 +13,7 @@ const KEY = "menu";
 // Only groups and items they are allowed to see can be stored; anything else is dropped by sanitizeMenu.
 export async function saveMenuAction(prefs: { order: string[]; hidden: string[]; colors: Record<string, string>; theme: string }): Promise<MenuSaved> {
   const user = await requireUser({ allowMustChange: true, allowMfaSetup: true });
+  if (user.viewAs) return { ok: false }; // never overwrite a Super Admin's own menu while they preview a role
   const clean = sanitizeMenu(prefs, visibleNav(user.permissions));
   await db.userPreference.upsert({ where: { userId_key: { userId: user.id, key: KEY } }, create: { userId: user.id, key: KEY, value: clean }, update: { value: clean } });
   await audit(user, { action: "menu.arrange", entity: "UserPreference", entityId: user.id });
@@ -22,6 +23,7 @@ export async function saveMenuAction(prefs: { order: string[]; hidden: string[];
 
 export async function resetMenuAction(): Promise<MenuSaved> {
   const user = await requireUser({ allowMustChange: true, allowMfaSetup: true });
+  if (user.viewAs) return { ok: false };
   await db.userPreference.deleteMany({ where: { userId: user.id, key: KEY } });
   await audit(user, { action: "menu.reset", entity: "UserPreference", entityId: user.id });
   revalidatePath("/", "layout");
