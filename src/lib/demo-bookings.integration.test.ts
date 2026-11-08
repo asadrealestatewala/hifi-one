@@ -98,7 +98,7 @@ describe("booking the demo", () => {
     expect(kinds).toContain("CREATED");
     expect(kinds).toContain("APPOINTMENT");
     expect(lead.activities.find((a) => a.kind === "APPOINTMENT")!.body).toMatch(/Demo booked for Wed,? 11 Nov, 11:00, at the business, given by Tariq Trainer\. Ask for Mr Noor/);
-    expect(lead.activities.find((a) => a.kind === "NOTE")!.body).toMatch(/Contact history.*Field visit: Demo requested/s);
+    expect(lead.activities.find((a) => a.kind === "NOTE")!.body).toMatch(/Contact history[\s\S]*Field visit: Demo requested/);
     const p = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
     expect(p).toMatchObject({ status: "SENT_TO_CRM", leadId });
     expect(await db.demoBooking.findUniqueOrThrow({ where: { id: bookingId } })).toMatchObject({ status: "SCHEDULED", leadId, trainerId: tariq.id, scheduledById: ona.id, mode: "ON_SITE" });
