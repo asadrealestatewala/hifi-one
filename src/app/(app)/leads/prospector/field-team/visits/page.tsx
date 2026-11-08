@@ -61,7 +61,7 @@ export default async function FieldVisitsReport({ searchParams }: { searchParams
             <div className="flex gap-2">{day.route && <a className="btn-ghost" href={day.route} target="_blank" rel="noreferrer">Open route in Google Maps{day.routeTruncated ? " (first 10)" : ""}</a>}<Link className="btn-ghost" href={href({ day: undefined })}>Close</Link></div>
           </div>
           {day.pins.length > 0 && (
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+            <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
               <svg viewBox="-6 -6 112 112" role="img" aria-label={`Where the ${day.located} located visits were, in order, relative to each other`} className="aspect-square w-full rounded-xl border border-border bg-hover/40">
                 <polyline fill="none" stroke="currentColor" strokeOpacity="0.25" strokeWidth="0.8" strokeDasharray="2 2" points={day.pins.map((p) => `${(p.x * 100).toFixed(1)},${(p.y * 100).toFixed(1)}`).join(" ")} />
                 {day.pins.map((p) => (
@@ -71,7 +71,7 @@ export default async function FieldVisitsReport({ searchParams }: { searchParams
                   </g>
                 ))}
               </svg>
-              <ol className="divide-y divide-border text-sm">
+              <ol className="min-w-0 divide-y divide-border text-sm">
                 {day.stops.map((s) => (
                   <li key={s.id} className="flex items-start justify-between gap-3 py-2">
                     <div className="min-w-0"><p className="font-medium"><span className="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-hover text-xs">{s.n}</span>{time(s.visitedAt)} · {s.name}</p><p className="truncate text-xs text-muted">{[s.reason, s.address, s.lat !== null ? `±${s.accuracyM ?? "?"} m` : "no location"].filter(Boolean).join(" · ")}</p></div>
