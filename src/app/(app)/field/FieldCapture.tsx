@@ -21,7 +21,7 @@ const OUTCOMES: { key: string; label: string; hint: string; tone: string }[] = [
   { key: "INTERESTED", label: "Interested", hint: "Wants to know more", tone: "border-success/50" },
   { key: "DEMO_REQUESTED", label: "Demo requested", hint: "Asked for a demo", tone: "border-success/50" },
 ];
-const OUTCOME_LABEL = Object.fromEntries(OUTCOMES.map((o) => [o.key, o.label]));
+const OUTCOME_LABEL: Record<string, string> = { ...Object.fromEntries(OUTCOMES.map((o) => [o.key, o.label])), DEMO_CANCELLED: "Demo not booked" };
 const MAX_PHOTOS = 6;
 type Fix = { lat: number; lng: number; accuracyM: number; at: number } | null;
 

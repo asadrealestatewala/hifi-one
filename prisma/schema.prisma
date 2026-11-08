@@ -2846,6 +2846,7 @@ model Prospect {
   social       ProspectSocial?
   outreach     ProspectOutreach[]
   visits       ProspectVisit[]
+  demos        DemoBooking[]
 
   @@unique([organizationId, placeId])
   @@index([organizationId, status, createdAt])
@@ -2875,6 +2876,7 @@ model SaasProduct {
   prospects Prospect[]
   profiles  SalesAgentProfile[]
   visits    ProspectVisit[]
+  demos     DemoBooking[]
 
   @@unique([organizationId, code])
   @@index([organizationId, active, sortOrder])
@@ -2925,6 +2927,40 @@ model ProspectVisit {
   @@index([prospectId, visitedAt])
   @@index([organizationId, agentId, visitedAt])
   @@index([organizationId, productId, visitedAt])
+}
+
+// Phase 3 (decision 73): a demo a business asked a field agent for. The onboarding team books the time; booking it is what turns the prospect
+// into a CRM lead (owner: the agent who found it). REQUESTED (waiting for the onboarding team) -> SCHEDULED (lead exists) -> DONE | NO_SHOW;
+// CANCELLED from either. A cancelled request sends the prospect back to the agent's go-back list; a cancelled scheduled demo leaves the lead.
+model DemoBooking {
+  id             String    @id @default(cuid())
+  organizationId String
+  prospectId     String
+  productId      String?
+  requestedById  String // the agent the business asked
+  requestedAt    DateTime
+  visitId        String? // the visit at which it was asked
+  preferredNote  String? // when the owner said suits them, in the agent's words
+  status         String    @default("REQUESTED") // REQUESTED | SCHEDULED | DONE | NO_SHOW | CANCELLED
+  scheduledAt    DateTime?
+  scheduledById  String?
+  trainerId      String? // who gives the demo
+  mode           String? // ON_SITE | ONLINE
+  note           String?
+  leadId         String? // the lead made (or linked) when the demo was booked
+  closedAt       DateTime?
+  closedById     String?
+  closeReason    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  prospect Prospect     @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  product  SaasProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, requestedAt])
+  @@index([organizationId, requestedById, status])
+  @@index([organizationId, trainerId, scheduledAt])
+  @@index([prospectId])
 }
 
 // Stage 5: what happened each time a salesperson contacted a prospect. INTERESTED turns the prospect into a lead; NOT_INTERESTED closes it.

@@ -21,7 +21,7 @@ import { findClientMatch, findLeadDuplicates, getPolicy, isSuppressed, presentDu
 import { isCountry, normalizeE164, phoneProblem, phoneTail } from "./phone";
 import { rescoreProspects } from "./prospect-scoring";
 import { isManager, ProspectorError, type Actor } from "./prospector";
-import { usersWithPermission } from "./notifications";
+import { notify, usersWithPermission } from "./notifications";
 
 type Db = PrismaClient;
 type Tx = Prisma.TransactionClient;
@@ -35,8 +35,11 @@ export type VisitOutcome = (typeof VISIT_OUTCOMES)[number];
 export const VISIT_OUTCOME_LABEL: Record<VisitOutcome, string> = {
   NOT_AVAILABLE: "Not available", CLOSED: "Closed", OWNER_ABSENT: "Owner absent", NOT_INTERESTED: "Not interested", INTERESTED: "Interested", DEMO_REQUESTED: "Demo requested",
 };
-// Outcomes after which the agent should go back
-export const REVISIT_OUTCOMES: readonly VisitOutcome[] = ["NOT_AVAILABLE", "CLOSED", "OWNER_ABSENT"];
+// Outcomes after which the agent should go back. DEMO_CANCELLED is not a visit outcome: the onboarding team sets it on the prospect when a
+// requested demo could not be booked (decision 73), so the agent sees the shop in the go-back list again.
+export const DEMO_CANCELLED = "DEMO_CANCELLED";
+export const REVISIT_OUTCOMES: readonly string[] = ["NOT_AVAILABLE", "CLOSED", "OWNER_ABSENT", DEMO_CANCELLED];
+export const LAST_OUTCOME_LABEL: Record<string, string> = { ...VISIT_OUTCOME_LABEL, [DEMO_CANCELLED]: "Demo cancelled" };
 export const FIELD_SOURCE = "FIELD_VISIT"; // Prospect.sourceLabel for a prospect that began as a visit
 export const DEFAULT_DAILY_TARGET = 40;
 export const MAX_PHOTOS_PER_VISIT = 6; // one visiting card, the rest the premises
@@ -193,7 +196,7 @@ export type VisitInput = {
   visitedAt?: string | Date; lat?: number | string | null; lng?: number | string | null; accuracyM?: number | string | null;
   differentBusiness?: boolean; // the agent says the nearby same-name prospect is another branch
 };
-export type VisitResult = { visitId: string; prospectId: string; prospectName: string; created: boolean; revisit: boolean; needsDetails: boolean; replayed: boolean; outcome: VisitOutcome; alsoProspectFor: string[]; status: string };
+export type VisitResult = { visitId: string; prospectId: string; prospectName: string; created: boolean; revisit: boolean; needsDetails: boolean; replayed: boolean; outcome: VisitOutcome; alsoProspectFor: string[]; status: string; demoBookingId: string | null };
 
 const num = (v: unknown): number | null => { if (v === null || v === undefined || String(v).trim() === "") return null; const n = Number(v); return Number.isFinite(n) ? n : null; };
 
@@ -217,7 +220,7 @@ export async function recordVisit(db: Db, actor: Actor, input: VisitInput, now =
   const clientRef = clean(input.clientRef, 64) || null;
   if (clientRef) {
     const seen = await db.prospectVisit.findUnique({ where: { organizationId_agentId_clientRef: { organizationId: org, agentId: actor.id, clientRef } }, include: { prospect: { select: { name: true, status: true, phone: true, email: true } } } });
-    if (seen) return { visitId: seen.id, prospectId: seen.prospectId, prospectName: seen.prospect.name, created: false, revisit: false, needsDetails: !seen.prospect.phone && !seen.prospect.email, replayed: true, outcome: seen.outcome as VisitOutcome, alsoProspectFor: [], status: seen.prospect.status };
+    if (seen) return { visitId: seen.id, prospectId: seen.prospectId, prospectName: seen.prospect.name, created: false, revisit: false, needsDetails: !seen.prospect.phone && !seen.prospect.email, replayed: true, outcome: seen.outcome as VisitOutcome, alsoProspectFor: [], status: seen.prospect.status, demoBookingId: null };
   }
 
   if (!(VISIT_OUTCOMES as readonly string[]).includes(String(input.outcome))) throw new ProspectorError("Choose what happened at the visit.", "outcome");
@@ -333,8 +336,20 @@ export async function recordVisit(db: Db, actor: Actor, input: VisitInput, now =
     if (outcome === "NOT_INTERESTED" || outcome === "INTERESTED" || outcome === "DEMO_REQUESTED") {
       await tx.prospectOutreach.create({ data: { organizationId: org, prospectId, userId: actor.id, outcome: outcome === "NOT_INTERESTED" ? "NOT_INTERESTED" : "CONTACTED", note: [`Field visit: ${VISIT_OUTCOME_LABEL[outcome]}`, reason, note].filter(Boolean).join(". ").slice(0, 1000), createdAt: visitedAt } });
     }
+    // Demo requested: one open request per business for the onboarding team (decision 73). Asking again adds to the note instead of a second row.
+    let demoBookingId: string | null = null;
+    if (outcome === "DEMO_REQUESTED") {
+      const preferred = [reason, followUpOn ? `Go back on ${followUpOn}` : null, note].filter(Boolean).join(". ").slice(0, 1000) || null;
+      const open = await tx.demoBooking.findFirst({ where: { prospectId, status: { in: ["REQUESTED", "SCHEDULED"] } }, select: { id: true, status: true, preferredNote: true } });
+      if (open) {
+        if (open.status === "REQUESTED") await tx.demoBooking.update({ where: { id: open.id }, data: { preferredNote: [open.preferredNote, preferred ? `${fmtDate(visitedAt)}: ${preferred}` : null].filter(Boolean).join("\n").slice(0, 2000) || null, visitId: visit.id } });
+        demoBookingId = open.id;
+      } else {
+        demoBookingId = (await tx.demoBooking.create({ data: { organizationId: org, prospectId, productId, requestedById: actor.id, requestedAt: visitedAt, visitId: visit.id, preferredNote: preferred }, select: { id: true } })).id;
+      }
+    }
     const after = await tx.prospect.findUniqueOrThrow({ where: { id: prospectId }, select: { phone: true, email: true, status: true } });
-    return { visitId: visit.id, prospectId, prospectName, created, revisit: !created, needsDetails: !after.phone && !after.email, replayed: false, outcome, alsoProspectFor, status: after.status } satisfies VisitResult;
+    return { visitId: visit.id, prospectId, prospectName, created, revisit: !created, needsDetails: !after.phone && !after.email, replayed: false, outcome, alsoProspectFor, status: after.status, demoBookingId } satisfies VisitResult;
   }).catch((e: unknown) => {
     // Two phones sent the same clientRef at the same moment: the unique index decides, and the loser reads the winner
     if (clientRef && typeof e === "object" && e !== null && (e as { code?: string }).code === "P2002") return null;
@@ -342,6 +357,11 @@ export async function recordVisit(db: Db, actor: Actor, input: VisitInput, now =
   });
   if (!result) return recordVisit(db, actor, { clientRef: clientRef! }, now);
   if (result.created) await rescoreProspects(db, org, [result.prospectId], now);
+  if (result.demoBookingId) {
+    // the onboarding team hears about it once per request; a second ask at the same shop does not ring again
+    const team = await usersWithPermission(db, org, "prospector.schedule_demo", actor.id);
+    for (const userId of team) await notify(db, userId, { kind: "demo.requested", title: `${result.prospectName} asked for a demo`, body: `Field visit by ${(await db.user.findUnique({ where: { id: actor.id }, select: { name: true } }))?.name ?? "an agent"}. Book a time in the demo queue.`, link: "/leads/prospector/demos", dedupeKey: `demo-request:${result.demoBookingId}:${userId}` });
+  }
   return result;
 }
 
@@ -418,7 +438,12 @@ export async function fieldHome(db: Db, actor: Actor, opts: { now?: Date; tzOffs
   });
   const photoCounts = visits.length ? await db.storedFile.groupBy({ by: ["ownerId"], where: { organizationId: org, ownerType: "PROSPECT_VISIT", ownerId: { in: visits.map((v) => v.id) }, deletedAt: null }, _count: { _all: true } }) : [];
   const photos = new Map(photoCounts.map((p) => [p.ownerId, p._count._all]));
-  return { profile, today, revisits, visits: visits.map((v) => ({ ...v, photos: photos.get(v.id) ?? 0, needsDetails: !v.prospect.phone && !v.prospect.email })) };
+  // The demos this agent asked for: waiting for the onboarding team, or booked (then the business is a lead of theirs)
+  const demos = await db.demoBooking.findMany({
+    where: { organizationId: org, requestedById: actor.id, status: { in: ["REQUESTED", "SCHEDULED"] } }, orderBy: [{ status: "desc" }, { requestedAt: "desc" }], take: 50,
+    select: { id: true, status: true, requestedAt: true, scheduledAt: true, mode: true, leadId: true, prospect: { select: { id: true, name: true } } },
+  });
+  return { profile, today, revisits, demos, visits: visits.map((v) => ({ ...v, photos: photos.get(v.id) ?? 0, needsDetails: !v.prospect.phone && !v.prospect.email })) };
 }
 
 // Minutes east of UTC for a named zone at a moment, so "today" is the agent's day, not the server's

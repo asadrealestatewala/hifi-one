@@ -104,12 +104,17 @@ export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: 
 
   if (ownerType === "PROSPECT_VISIT") {
     // Photos a field agent took at a visit (premises, visiting card). Seen by the agent who made the visit, whoever the prospect is assigned to,
-    // and sales managers; added only by the visiting agent (same device, same day's work) or a manager; removed by a manager or the agent.
-    const v = await db.prospectVisit.findFirst({ where: { id: ownerId, organizationId: a.organizationId }, select: { agentId: true, prospect: { select: { assignedToId: true, addedById: true } } } });
+    // the onboarding team that books the demo (decision 73), whoever owns the lead it became, and sales managers; added only by the visiting
+    // agent (same device, same day's work) or a manager; removed by a manager or the agent.
+    const v = await db.prospectVisit.findFirst({ where: { id: ownerId, organizationId: a.organizationId }, select: { agentId: true, prospect: { select: { assignedToId: true, addedById: true, leadId: true } } } });
     if (!v || !staff) return false;
     const manager = has("crm.view_all") && has("crm.edit");
     const mine = v.agentId === a.id;
-    if (mode === "read") return has("crm.view") && (manager || mine || v.prospect.assignedToId === a.id || v.prospect.addedById === a.id);
+    if (mode === "read") {
+      if (!has("crm.view")) return false;
+      if (manager || mine || v.prospect.assignedToId === a.id || v.prospect.addedById === a.id || has("prospector.schedule_demo")) return true;
+      return Boolean(v.prospect.leadId) && (await db.lead.count({ where: { id: v.prospect.leadId!, OR: [{ assignedToId: a.id }, { createdById: a.id }] } })) > 0;
+    }
     return has("field.capture") && (mine || manager);
   }
 
