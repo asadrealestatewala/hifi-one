@@ -28,6 +28,7 @@ export default async function Circulars({ searchParams }: { searchParams: Promis
           <div><label htmlFor="kind" className="label">Type</label><select id="kind" name="kind" className="input">{Object.entries(CIRCULAR_KINDS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
         </div>
         <div><label htmlFor="body" className="label">Message</label><textarea id="body" name="body" className="input min-h-32" maxLength={4000} required placeholder="Details, dates and what staff need to do." /></div>
+        <div><label htmlFor="files" className="label">Attachments (optional)</label><input id="files" name="files" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/png,image/jpeg" className="input" /><p className="mt-1 text-xs text-muted">Up to 3 files: PDF, JPG or PNG, 15 MB each. Staff can open them from the popup and from their notification.</p></div>
         <fieldset className="space-y-3">
           <legend className="label">Send to</legend>
           <label className="flex items-center gap-2 text-sm"><input type="radio" name="audience" value="ALL" defaultChecked /> All active staff ({people.length})</label>

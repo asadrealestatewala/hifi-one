@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element -- attachments are private, signed, time-limited links; next/image cannot optimise them */
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
@@ -55,7 +56,10 @@ export default function CircularPopup() {
           <h2 id="circular-title" className="text-lg font-semibold">{c.title}</h2>
           <p className="text-xs text-muted">From {c.from} · {new Date(c.at).toLocaleString()}</p>
         </div>
-        <div className="overflow-y-auto whitespace-pre-wrap px-5 py-4 text-sm">{c.body}</div>
+        <div className="space-y-3 overflow-y-auto px-5 py-4 text-sm">
+          <p className="whitespace-pre-wrap">{c.body}</p>
+          {c.attachments.length > 0 && <ul className="space-y-2">{c.attachments.map((f) => <li key={f.id}>{f.image && <a href={f.url} target="_blank" rel="noopener"><img src={f.url} alt={f.name} className="mb-1 max-h-48 rounded-lg border border-border" /></a>}<a className="font-medium underline" href={f.url} target="_blank" rel="noopener">{f.name}</a></li>)}</ul>}
+        </div>
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-5 py-3">
           {error && <p role="alert" className="mr-auto text-xs text-brand">{error}</p>}
           <button type="button" className="btn-ghost" onClick={snooze}>Later</button>

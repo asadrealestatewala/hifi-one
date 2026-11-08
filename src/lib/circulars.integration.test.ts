@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
+import { FileError, saveFile, openFile } from "./files";
+import { MemoryStorage } from "./storage";
 import { CircularError, acknowledgeCircular, circularReport, myCirculars, openCirculars, sendCircular } from "./circulars";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
@@ -61,5 +63,20 @@ describe("HR circulars", () => {
     expect(rep?.acknowledged).toBe(1);
     expect(rep?.recipients[0].name).toBe("bilal"); // not-yet-read first
     expect(await circularReport(db, other, r.id)).toBeNull();
+  });
+
+  it("attachments: only senders add them; recipients and senders can open them; other staff and outsiders cannot", async () => {
+    const actor = (id: string, perms: string[], organizationId = org) => ({ id, organizationId, userType: "EMPLOYEE", clientId: null, vendorId: null, permissions: new Set(perms) });
+    const storage = new MemoryStorage();
+    const png = Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"), Buffer.alloc(32)]);
+    const id = "circ-attach-1";
+    await expect(saveFile(db, storage, { actor: actor(b, []), ownerType: "CIRCULAR", ownerId: id, name: "x.png", bytes: png, scanner: null })).rejects.toBeInstanceOf(FileError);
+    const f = await saveFile(db, storage, { actor: actor(hr, ["circulars.send"]), ownerType: "CIRCULAR", ownerId: id, name: "roster.png", bytes: png, scanner: null });
+    await sendCircular(db, { id, organizationId: org, sentById: hr, ...base, title: "With picture", audience: { type: "PEOPLE", userIds: [a] } });
+    expect(await openFile(db, storage, actor(a, []), f.id)).not.toBeNull();
+    expect(await openFile(db, storage, actor(hr, ["circulars.send"]), f.id)).not.toBeNull();
+    expect(await openFile(db, storage, actor(b, []), f.id)).toBeNull(); // staff it was not addressed to
+    expect(await openFile(db, storage, actor(outsider, ["circulars.send"], other), f.id)).toBeNull();
+    expect((await openCirculars(db, a)).find((c) => c.id === id)?.attachments.map((x) => x.name)).toEqual(["roster.png"]);
   });
 });
