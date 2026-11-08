@@ -36,7 +36,7 @@
 - **Preferences.** `UserPreference(userId, key)` holds per-user settings such as the dashboard layout.
 - **Audit.** `AuditLog` records who did what to which record for every sensitive action; `SettingChange` keeps before/after for company settings.
 
-- **Field sales (decision 71):** `SaasProduct` is a product the sales teams sell; `SalesAgentProfile` puts a salesperson on one product as OFFICE or FIELD; `Prospect.productId` says which product a business is a prospect for, and the duplicate rule for prospects is per product (clients and leads stay one per person). `ProspectVisit` is one trip by a field agent to a prospect (outcome, reason, GPS point, `clientRef` unique per agent so an offline retry saves once); photos are `StoredFile` rows with `ownerType PROSPECT_VISIT`.
+- **Field sales (decision 71):** `SaasProduct` is a product the sales teams sell; `SalesAgentProfile` puts a salesperson on one product as OFFICE or FIELD; `Prospect.productId` says which product a business is a prospect for, and the duplicate rule for prospects is per product (clients and leads stay one per person). `ProspectVisit` is one trip by a field agent to a prospect (outcome, reason, GPS point, `clientRef` unique per agent so an offline retry saves once); photos are `StoredFile` rows with `ownerType PROSPECT_VISIT`. `DemoBooking` (decision 73) is one demo a business asked a field agent for: REQUESTED until the onboarding team books it (SCHEDULED, with `scheduledAt`, `trainerId`, `mode` and the `leadId` the booking created or linked), then DONE, NO_SHOW or CANCELLED with a reason; one open booking per prospect.
 
 ## Constraints that carry business rules
 

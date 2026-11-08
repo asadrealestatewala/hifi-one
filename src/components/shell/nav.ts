@@ -20,6 +20,7 @@ export const NAV: NavGroup[] = [
     { href: "/leads/prospector/mine", label: "My Prospects", permission: "crm.edit" },
     { href: "/field", label: "Field Visits", permission: "field.capture" },
     { href: "/leads/prospector/field-team", label: "Field Sales Team", permission: "field.review" },
+    { href: "/leads/prospector/demos", label: "Demo Queue", permission: "prospector.schedule_demo" },
     { href: "/leads/worklists", label: "Prospecting Worklists", permission: "crm.view" },
     { href: "/settings/lead-sources", label: "Website Lead Forms", permission: "leadsources.manage" },
     { href: "/leads/follow-ups", label: "Follow-up Automation", permission: "followups.manage" },

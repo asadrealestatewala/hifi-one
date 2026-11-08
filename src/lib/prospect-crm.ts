@@ -6,7 +6,7 @@
 // A lead never goes back to being a prospect: if it goes cold later it stays in the CRM with a lost status. Converting keeps the owner,
 // carries the call note from the score and the contact history as lead notes, and refuses numbers on the do-not-contact list.
 // Free of Next.js imports so it can be tested against the database.
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { ensureContactForLead, mirrorLeadActivity } from "./crm-contacts";
 import { notify } from "./notifications";
 import { countryName } from "./phone";
@@ -37,7 +37,7 @@ export async function logOutreach(db: Db, actor: Actor, prospectId: string, p: {
   const note = (p.note ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").trim().slice(0, NOTE_MAX) || null;
   const org = actor.organizationId;
   const now = p.now ?? new Date();
-  const row = await db.prospect.findFirst({ where: { id: prospectId, organizationId: org }, include: { product: { select: { code: true, name: true } } } });
+  const row = await loadProspect(db, org, prospectId);
   if (!row || (!isManager(actor) && row.assignedToId !== actor.id)) throw new ProspectorError("Only the salesperson this prospect is assigned to, or a sales manager, can log contact.");
   if (CLOSED.includes(row.status)) throw new ProspectorError(closedMessage(row.status));
   const log = { organizationId: org, prospectId, userId: actor.id, outcome, note, createdAt: now };
@@ -54,7 +54,38 @@ export async function logOutreach(db: Db, actor: Actor, prospectId: string, p: {
     return { outcome, leadId: null, linkedExisting: false };
   }
 
-  // Interested: becomes a lead now
+  // Interested: becomes a lead now, with the outreach log written in the same step as the claim
+  const r = await convertProspectToLead(db, actor, row, {
+    now, beforeCreate: (tx) => tx.prospectOutreach.create({ data: log }).then(() => undefined),
+    createdBody: (s) => `Converted from Prospector after ${row.origin === "MANUAL" ? "the contact" : "the business"} said it is interested (opportunity ${s?.score ?? row.score ?? "not scored"} of 100)${row.address ? `. ${row.address}` : ""}`,
+    notifyBody: "From Prospector, with the contact history and a call note.",
+  });
+  return { outcome, leadId: r.leadId, linkedExisting: r.linkedExisting };
+}
+
+type ProspectRow = NonNullable<Awaited<ReturnType<typeof loadProspect>>>;
+export const loadProspect = (db: Db, organizationId: string, prospectId: string) =>
+  db.prospect.findFirst({ where: { id: prospectId, organizationId }, include: { product: { select: { code: true, name: true } } } });
+
+export type ConvertOptions = {
+  now?: Date;
+  owner?: string | null; // who gets the lead; default the prospect's assignee, else the actor
+  beforeCreate?: (tx: Prisma.TransactionClient) => Promise<void>; // runs inside the transaction once the prospect is claimed
+  createdBody: (score: Awaited<ReturnType<typeof scoreOne>> | null) => string; // the CREATED activity
+  extraNotes?: string[]; // more lead notes (each its own activity)
+  notifyTitle?: (name: string) => string;
+  notifyBody?: string;
+  activityKind?: string; // the first activity's kind; CREATED by default
+};
+export type ConvertResult = { leadId: string; linkedExisting: boolean; owner: string };
+
+// The one path from prospect to lead, shared by "Interested" on a call and by booking a demo (decision 73). The caller has checked who may.
+// Refuses do-not-contact numbers; links a lead that already has the number instead of copying it; claims the prospect first so two people
+// pressing together cannot both create a lead; carries the product, the contact history and the source as lead notes and tags.
+export async function convertProspectToLead(db: Db, actor: Actor, row: ProspectRow, o: ConvertOptions): Promise<ConvertResult> {
+  const org = actor.organizationId;
+  const now = o.now ?? new Date();
+  const prospectId = row.id;
   const email = row.email?.toLowerCase() ?? null;
   let existingLeadId: string | null = null;
   if (await isSuppressed(db, org, { phone: row.phone, email })) throw new ProspectorError("This number or email is on the do-not-contact list, so it cannot become a lead.");
@@ -64,20 +95,20 @@ export async function logOutreach(db: Db, actor: Actor, prospectId: string, p: {
   const stage = await db.pipelineStage.findFirst({ where: { organizationId: org, isWon: false, isLost: false }, orderBy: { sortOrder: "asc" } });
   if (!stage && !existingLeadId) throw new ProspectorError("The pipeline has no open stage to put new leads in.");
   const s = existingLeadId ? null : await scoreOne(db, org, row.id, now);
-  const owner = row.assignedToId ?? actor.id;
+  const owner = o.owner ?? row.assignedToId ?? actor.id;
   const service = serviceLabel(s?.topService ?? null);
 
   const leadId = await db.$transaction(async (tx) => {
     // claim the prospect first: two people pressing together cannot both create a lead
     const claimed = await tx.prospect.updateMany({ where: { id: prospectId, status: { notIn: CLOSED } }, data: { status: "SENT_TO_CRM" } });
     if (claimed.count !== 1) return null;
-    await tx.prospectOutreach.create({ data: log });
+    await o.beforeCreate?.(tx);
     if (existingLeadId) { await tx.prospect.update({ where: { id: prospectId }, data: { leadId: existingLeadId } }); return existingLeadId; }
     // the shared guard: locks the number, re-checks (someone may have added the lead a moment ago) and claims it below
     const guard = await guardNewLead(tx, { organizationId: org, phone: row.phone, email, country: row.country });
     const history = await tx.prospectOutreach.findMany({ where: { prospectId }, orderBy: { createdAt: "asc" } });
     const names = new Map((await tx.user.findMany({ where: { id: { in: [...new Set(history.map((h) => h.userId))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
-    const contactNote = `Contact history before this became a lead:\n${history.map((h) => `${h.createdAt.toISOString().slice(0, 10)} · ${names.get(h.userId) ?? "Someone"} · ${OUTCOME_LABEL[h.outcome] ?? h.outcome}${h.note ? `: ${h.note}` : ""}`).join("\n")}`;
+    const contactNote = history.length ? `Contact history before this became a lead:\n${history.map((h) => `${h.createdAt.toISOString().slice(0, 10)} · ${names.get(h.userId) ?? "Someone"} · ${OUTCOME_LABEL[h.outcome] ?? h.outcome}${h.note ? `: ${h.note}` : ""}`).join("\n")}` : null;
     const manual = row.origin === "MANUAL";
     const links = [row.product ? `Product: ${row.product.name}` : null, manual ? `Added by hand as ${MANUAL_SOURCE_LABEL[row.sourceLabel ?? ""] ?? row.sourceLabel ?? "Other"}${row.sourceDetail ? `: ${row.sourceDetail}` : ""}` : null, manual ? row.notes : null, row.website ? `Website: ${row.website}` : null, row.mapsUrl ? `Google Maps: ${row.mapsUrl}` : null].filter(Boolean).join("\n") || null;
     const lead = await tx.lead.create({
@@ -85,13 +116,13 @@ export async function logOutreach(db: Db, actor: Actor, prospectId: string, p: {
         organizationId: org, name: (row.contactName ?? row.name).slice(0, 200), company: manual && !row.contactName ? null : row.name.slice(0, 160), phone: row.phone, email, city: row.city, country: row.country ? countryName(row.country) : null,
         source: manual ? `${PROSPECTOR_SOURCE}: ${MANUAL_SOURCE_LABEL[row.sourceLabel ?? ""] ?? "Other"}` : PROSPECTOR_SOURCE, serviceInterest: service, priority: priorityFor(s?.score ?? row.score), stageId: stage!.id, assignedToId: owner, createdById: actor.id, notes: links,
         lastContactAt: now, tags: ["prospector", ...(row.product ? [`product:${row.product.code.toLowerCase()}`] : []), ...(manual ? [(row.sourceLabel ?? "other").toLowerCase().replace("_", "-")] : []), ...(s?.topService ? [s.topService.toLowerCase()] : [])],
-        activities: { create: { actorId: actor.id, kind: "CREATED", body: `Converted from Prospector after ${manual ? "the contact" : "the business"} said it is interested (opportunity ${s?.score ?? row.score ?? "not scored"} of 100)${row.address ? `. ${row.address}` : ""}` } },
+        activities: { create: { actorId: actor.id, kind: o.activityKind ?? "CREATED", body: o.createdBody(s) } },
       },
     });
     await claimLeadKeys(tx, { leadId: lead.id, organizationId: org, phone: row.phone, email, country: row.country }, { policy: guard.policy });
     await tx.prospect.update({ where: { id: prospectId }, data: { leadId: lead.id } });
     await ensureContactForLead(tx, lead.id);
-    for (const body of [contactNote, s?.pitch].filter(Boolean) as string[]) {
+    for (const body of [contactNote, s?.pitch, ...(o.extraNotes ?? [])].filter(Boolean) as string[]) {
       const n = await tx.leadActivity.create({ data: { leadId: lead.id, actorId: actor.id, kind: "NOTE", body } });
       await mirrorLeadActivity(tx, n.id);
     }
@@ -102,6 +133,6 @@ export async function logOutreach(db: Db, actor: Actor, prospectId: string, p: {
     throw e;
   });
   if (!leadId) throw new ProspectorError("This prospect was just converted or closed by someone else.");
-  if (!existingLeadId && owner !== actor.id) await notify(db, owner, { kind: "lead.assigned", title: `${row.name} is now a lead and is yours`, body: "From Prospector, with the contact history and a call note.", link: `/leads/${leadId}`, dedupeKey: `prospect-lead:${leadId}` });
-  return { outcome, leadId, linkedExisting: Boolean(existingLeadId) };
+  if (!existingLeadId && owner !== actor.id) await notify(db, owner, { kind: "lead.assigned", title: o.notifyTitle ? o.notifyTitle(row.name) : `${row.name} is now a lead and is yours`, body: o.notifyBody, link: `/leads/${leadId}`, dedupeKey: `prospect-lead:${leadId}` });
+  return { leadId, linkedExisting: Boolean(existingLeadId), owner };
 }

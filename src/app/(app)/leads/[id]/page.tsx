@@ -12,6 +12,7 @@ import { addNote } from "../actions";
 import { logActivityAction, updateLeadDetails } from "../crm-actions";
 import { enrollAction, stopEnrollmentAction } from "../follow-ups/actions";
 import StageSelect from "./StageSelect";
+import FieldVisitsPanel from "./FieldVisitsPanel";
 import { STOP_REASONS } from "@/lib/followups";
 
 export const dynamic = "force-dynamic";
@@ -154,6 +155,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
               ) : <p className="text-xs text-muted">Add an email address to this lead to send follow-ups.</p>)}
             </section>
           )}
+          <FieldVisitsPanel user={user} leadId={lead.id} />
           <section className="card space-y-3">
             <h2 className="font-semibold">Timeline</h2>
             {canEdit && (
