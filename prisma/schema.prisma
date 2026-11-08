@@ -804,6 +804,39 @@ model DailyReport {
   @@index([organizationId, workDate])
 }
 
+// The system's own end-of-day record for one employee and working day, written by the end_of_day_report job at office
+// close (and on demand). It freezes what the day looked like at that moment: attendance, tasks, logged hours, sales activity
+// against the person's daily target, and whether the daily report came in. Monthly scorecards are sums of these rows.
+model DayScorecard {
+  id                String   @id @default(cuid())
+  organizationId    String
+  userId            String
+  workDate          String // YYYY-MM-DD in the company time zone
+  generatedAt       DateTime @default(now())
+  expected          Boolean  @default(true) // false on approved leave (kept so the month shows the leave day)
+  clockIn           String? // HH:MM company-local
+  clockOut          String?
+  attendanceMinutes Int      @default(0)
+  lateMinutes       Int      @default(0) // after office start plus grace
+  tasksDone         Int      @default(0)
+  tasksOverdue      Int      @default(0) // still open and past due at close
+  hoursLogged       Decimal  @default(0) @db.Decimal(6, 2) // project time entries
+  salesKind         String? // OFFICE | FIELD when the person is a sales agent
+  activity          Int      @default(0) // visits (field) or prospects added plus calls logged (office)
+  target            Int? // the person's daily target, null when not a sales agent
+  prospectsAdded    Int      @default(0)
+  outreach          Int      @default(0)
+  visits            Int      @default(0)
+  demosRequested    Int      @default(0)
+  reportStatus      String   @default("MISSING") // SENT | LATE | MISSING
+  rating            Int? // the manager's rating of the daily report, when given
+  score             Int      @default(0) // 0..100, see scorecards.ts for the parts
+  scoreParts        Json?
+
+  @@unique([userId, workDate])
+  @@index([organizationId, workDate])
+}
+
 // ---------- Phase 4: payroll ----------
 
 model SalaryStructure {

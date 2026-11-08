@@ -6,6 +6,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { accrueCommissions } from "./commissions";
 import { missingReports } from "./daily-reports";
+import { OFFICE, generateEndOfDay } from "./scorecards";
 import { formatMoney } from "./money";
 import { notifyMany, usersWithPermission } from "./notifications";
 import { purgeMonitoring } from "./monitoring";
@@ -14,7 +15,7 @@ import { defaultStorage } from "./storage";
 
 type Db = PrismaClient;
 export type JobContext = { db: Db; organizationId: string; today: string; now: Date; actorId: string };
-export type JobDef = { key: string; label: string; what: string; run: (c: JobContext) => Promise<string> };
+export type JobDef = { key: string; label: string; what: string; notBefore?: string; run: (c: JobContext) => Promise<string> }; // notBefore: HH:MM company-local; the scheduler waits for it (a forced manual run does not)
 
 const SYSTEM_ACTOR = "system-job";
 const day = (d: Date) => d.toISOString().slice(0, 10);
@@ -112,6 +113,23 @@ export const JOBS: JobDef[] = [
     },
   },
   {
+    key: "end_of_day_report", label: "End-of-day report", what: "At office close, writes the day's record for every employee (attendance, tasks, hours, sales activity against target, daily report) for HR's end-of-day report and the monthly scorecards, nudges anyone whose daily report is still missing, and tells HR the summary.",
+    notBefore: OFFICE.end,
+    async run({ db, organizationId, today, now }) {
+      const tz = (await db.companyProfile.findFirst({ where: { organizationId, isDefault: true }, select: { timezone: true } }))?.timezone ?? "UTC";
+      const r = await generateEndOfDay(db, { organizationId, workDate: today, timeZone: tz, now });
+      for (const m of r.missing) {
+        await notifyMany(db, [m.userId], { kind: "report.due", title: "Send today's daily report before you leave", body: "It takes a minute on My Daily Report.", link: "/me/report", dedupeKey: `report-due:${m.userId}:${today}` });
+      }
+      if (r.rows.length > 0) {
+        const hr = await usersWithPermission(db, organizationId, "attendance.view_all");
+        const bits = [`${r.reported} of ${r.expected} reported`, r.absent.length ? `${r.absent.length} with no attendance` : null, r.belowTarget.length ? `${r.belowTarget.length} agent${r.belowTarget.length === 1 ? "" : "s"} below target` : null].filter(Boolean).join(", ");
+        await notifyMany(db, hr, { kind: "report.eod", title: `End-of-day report for ${today} is ready`, body: bits, link: `/hr/reports/eod?date=${today}`, dedupeKey: `eod:${organizationId}:${today}` });
+      }
+      return `${r.expected} expected, ${r.reported} reported, ${r.missing.length} missing, ${r.belowTarget.length} below target, ${r.absent.length} absent`;
+    },
+  },
+  {
     key: "monitoring_purge", label: "Workfolio retention", what: "Deletes screenshots and activity records that passed the retention period in the monitoring policy.",
     async run({ db }) {
       const r = await purgeMonitoring(db, defaultStorage());
@@ -145,6 +163,11 @@ async function companyToday(db: Db, organizationId: string, now: Date) {
   try { return now.toLocaleDateString("en-CA", { timeZone: tz }); } catch { return day(now); }
 }
 
+async function companyTime(db: Db, organizationId: string, now: Date) {
+  const tz = (await db.companyProfile.findFirst({ where: { organizationId, isDefault: true }, select: { timezone: true } }))?.timezone ?? "UTC";
+  try { return now.toLocaleTimeString("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false }); } catch { return now.toISOString().slice(11, 16); }
+}
+
 export type RunOptions = { now?: Date; only?: string[]; trigger?: "SCHEDULE" | "MANUAL" | "SCRIPT"; force?: boolean; organizationId?: string; startedById?: string };
 export type RunResult = { organizationId: string; key: string; status: "OK" | "FAILED" | "SKIPPED"; summary: string };
 
@@ -154,9 +177,11 @@ export async function runJobs(db: Db, o: RunOptions = {}): Promise<RunResult[]> 
   const out: RunResult[] = [];
   for (const org of orgs) {
     const today = await companyToday(db, org.id, now);
+    const localTime = await companyTime(db, org.id, now);
     for (const job of JOBS.filter((j) => !o.only || o.only.includes(j.key))) {
       const done = await db.jobRun.findFirst({ where: { organizationId: org.id, key: job.key, runDate: today, status: "OK" } });
       if (done && !o.force) { out.push({ organizationId: org.id, key: job.key, status: "SKIPPED", summary: "Already ran today" }); continue; }
+      if (job.notBefore && !o.force && localTime < job.notBefore) { out.push({ organizationId: org.id, key: job.key, status: "SKIPPED", summary: `Waits until ${job.notBefore}` }); continue; }
       // A run that never finished (the server stopped) must not block the job for ever
       await db.jobRun.updateMany({ where: { organizationId: org.id, key: job.key, status: "RUNNING", startedAt: { lt: new Date(now.getTime() - 30 * 60_000) } }, data: { status: "FAILED", error: "Timed out", finishedAt: now } });
       // The database allows only one RUNNING row per job and organization, so a second runner is refused here, not later
