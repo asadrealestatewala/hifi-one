@@ -11,6 +11,7 @@ import { needsMfaSetup } from "./mfa-policy";
 import { parseLoginIdentifier } from "./login-identifier";
 import { signInBlock } from "./onboarding";
 import { ALL_PERMISSIONS, type PermissionKey } from "./permissions";
+import { VIEW_AS_COOKIE, canPreviewRole, previewPermissions } from "./view-as";
 
 const COOKIE = "hifi_session";
 const SESSION_HOURS = 12;
@@ -38,6 +39,10 @@ export type SessionUser = {
   roleKeys: string[];
   totpEnabled: boolean;
   mfaRequired: boolean;
+  // True for a person who really holds Super Admin, also while they preview another role (permissions and roles then show the previewed role)
+  realSuperAdmin: boolean;
+  // Set while a Super Admin previews another role
+  viewAs: { roleKey: string; roleName: string } | null;
 };
 
 const MFA_COOKIE = "hifi_mfa_pending";
@@ -150,6 +155,7 @@ export async function logout() {
     }
   }
   jar.delete(COOKIE);
+  jar.delete(VIEW_AS_COOKIE);
 }
 
 // Resolves a session token (cookie value or mobile bearer token) to the signed-in user, or null if it is invalid, revoked or expired.
@@ -196,11 +202,38 @@ export async function userFromToken(token: string | undefined | null): Promise<S
     roleKeys: activeRoles.map((r) => r.role.key),
     totpEnabled: session.user.totpEnabled,
     mfaRequired: activeRoles.some((r) => r.role.requireMfa),
+    realSuperAdmin: activeRoles.some((r) => r.role.key === "SUPER_ADMIN"),
+    viewAs: null,
   };
 }
 
+// Browser sessions only (the mobile app never previews). A real Super Admin with a valid preview cookie gets the previewed role's permissions,
+// capped to what they really hold. Two-step verification facts stay the real ones, so a preview never locks them out or lets them skip it.
 async function loadSessionUser(): Promise<SessionUser | null> {
-  return userFromToken((await cookies()).get(COOKIE)?.value);
+  const jar = await cookies();
+  const base = await userFromToken(jar.get(COOKIE)?.value);
+  const view = jar.get(VIEW_AS_COOKIE)?.value;
+  if (!base || !base.realSuperAdmin || !view) return base;
+  try {
+    const { payload } = await jwtVerify(view, secret());
+    if (payload.purpose !== "view-as" || payload.uid !== base.id || typeof payload.roleKey !== "string" || !canPreviewRole(payload.roleKey)) return base;
+    const role = await db.role.findUnique({ where: { organizationId_key: { organizationId: base.organizationId, key: payload.roleKey } }, include: { permissions: { include: { permission: true } } } });
+    if (!role) return base;
+    return {
+      ...base,
+      permissions: previewPermissions(base.permissions, role.permissions.map((p) => p.permission.key as PermissionKey)),
+      roles: [role.name],
+      roleKeys: [role.key],
+      viewAs: { roleKey: role.key, roleName: role.name },
+    };
+  } catch {
+    return base;
+  }
+}
+
+// The preview cookie proves which role a Super Admin chose; it is only honoured for that same signed-in Super Admin.
+export async function viewAsToken(userId: string, roleKey: string, expiresAt: Date) {
+  return new SignJWT({ uid: userId, roleKey, purpose: "view-as" }).setProtectedHeader({ alg: "HS256" }).setExpirationTime(expiresAt).sign(secret());
 }
 
 // Second step for the mobile app: the pending token proves step one (password); the code proves step two.

@@ -18,8 +18,8 @@ function useClickAway(ref: React.RefObject<HTMLElement | null>, close: () => voi
   }, [ref, close]);
 }
 
-export default function Topbar({ unread, quick, canSearch, onMenu }: {
-  unread: number; quick: Quick[]; canSearch: boolean; onMenu: () => void;
+export default function Topbar({ unread, quick, canSearch, onMenu, extra }: {
+  unread: number; quick: Quick[]; canSearch: boolean; onMenu: () => void; extra?: React.ReactNode;
 }) {
   const [menu, setMenu] = useState<"" | "quick" | "bell">("");
   const [count, setCount] = useState(unread);
@@ -93,6 +93,8 @@ export default function Topbar({ unread, quick, canSearch, onMenu }: {
             )}
           </div>
         )}
+
+        {extra}
 
         <button type="button" onClick={flip} className="rounded-lg p-2 text-muted hover:bg-hover hover:text-foreground" aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}>
           <Icon name={dark ? "sun" : "moon"} />
