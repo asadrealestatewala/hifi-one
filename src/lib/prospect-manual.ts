@@ -10,7 +10,8 @@
 import { randomUUID } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { normalizeEmail } from "./contacts";
-import { findLeadDuplicates, getPolicy, isSuppressed, presentDuplicate } from "./lead-duplicates";
+import { findClientMatch, findLeadDuplicates, getPolicy, isSuppressed, presentDuplicate } from "./lead-duplicates";
+import { agentProfile, FIELD_SOURCE } from "./field-visits";
 import { isCountry, normalizeE164, phoneProblem, phoneTail } from "./phone";
 import { ProspectorError, type Actor } from "./prospector";
 import { rescoreProspects } from "./prospect-scoring";
@@ -18,7 +19,7 @@ import { rescoreProspects } from "./prospect-scoring";
 type Db = PrismaClient;
 export const MANUAL_SOURCES = ["REFERRAL", "OWN_CONTACT", "OTHER"] as const;
 export type ManualSource = (typeof MANUAL_SOURCES)[number];
-export const MANUAL_SOURCE_LABEL: Record<string, string> = { REFERRAL: "Referral", OWN_CONTACT: "Own contact", OTHER: "Other" };
+export const MANUAL_SOURCE_LABEL: Record<string, string> = { REFERRAL: "Referral", OWN_CONTACT: "Own contact", OTHER: "Other", [FIELD_SOURCE]: "Field visit" };
 const STATUS_WORD: Record<string, string> = { NEW: "new", REVIEWED: "reviewed", ASSIGNED: "assigned", CONTACTED: "contacted", NOT_INTERESTED: "closed as not interested", SENT_TO_CRM: "already a lead", DISMISSED: "dismissed" };
 
 const clean = (v: unknown, max: number) => String(v ?? "").replace(/[\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
@@ -54,6 +55,8 @@ export async function addProspect(db: Db, actor: Actor, input: ManualInput, now 
   if (rawEmail && !email) throw new ProspectorError("That email address does not look right. Use the form name@company.com.", "email");
   if (!phone && !email) throw new ProspectorError("Enter a phone number, or an email if you have no number, so the prospect can be checked against existing ones and contacted.", "phone");
   const tail = phoneTail(phone);
+  // The prospect belongs to the product the agent works (decision 71); an agent on no product adds a prospect with none, as before
+  const productId = (await agentProfile(db, org, actor.id)).productId;
 
   // Two agents adding the same person at the same moment: the second waits for the first, then finds it
   const created = await db.$transaction(async (tx) => {
@@ -65,19 +68,25 @@ export async function addProspect(db: Db, actor: Actor, input: ManualInput, now 
       throw new ProspectorError("This phone number or email is on the do-not-contact list, so it cannot be added.", phone ? "phone" : "email");
     }
 
+    // A business that already buys from us is never a prospect again, for any product
+    const client = await findClientMatch(tx as unknown as Db, org, { phone, email });
+    if (client) throw new ProspectorError(`${client.name}${client.code ? ` (${client.code})` : ""} is already a client of ours, so it cannot be added as a prospect.`, phone ? "phone" : "email");
+
     const ors: Prisma.ProspectWhereInput[] = [];
     if (email) ors.push({ email: { equals: email, mode: "insensitive" } });
     if (tail) ors.push({ phone: { endsWith: tail } });
-    const same = await tx.prospect.findFirst({ where: { organizationId: org, OR: ors }, orderBy: { createdAt: "asc" }, select: { id: true, name: true, status: true, assignedToId: true, addedById: true, email: true, origin: true } });
+    // One business, one prospect per product: the same number held by a prospect of another product is allowed (decision 71)
+    const same = await tx.prospect.findFirst({ where: { organizationId: org, productId: productId ?? null, OR: ors }, orderBy: { createdAt: "asc" }, select: { id: true, name: true, status: true, assignedToId: true, addedById: true, email: true, origin: true, createdAt: true, product: { select: { name: true } } } });
     // The person deleted this very prospect earlier (a wrong note, a typo) and is adding it again: bring that record back instead of refusing
     const revive = same && same.status === "DISMISSED" && same.origin === "MANUAL" && same.addedById === actor.id ? same.id : null;
     if (same && !revive) {
       const mine = actor.permissions.has("crm.view_all") || same.assignedToId === actor.id || same.addedById === actor.id;
       const field = email && same.email?.toLowerCase() === email ? "email" : "phone";
       if (same.status === "DISMISSED") throw new ProspectorError(`${mine ? same.name : "A prospect"} with this ${field === "email" ? "email" : "phone number"} was dismissed. Ask a sales manager to restore it.`, field);
+      const when = same.createdAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
       throw new ProspectorError(mine
         ? `${same.name} is already in Prospector (${STATUS_WORD[same.status] ?? same.status.toLowerCase()}) with this ${field === "email" ? "email" : "phone number"}. Open it from the list instead of adding it again.`
-        : `This ${field === "email" ? "email" : "phone number"} is already in Prospector and belongs to another team member. Ask a sales manager if it should be reassigned.`, field);
+        : `${same.name} is already a prospect${same.product ? ` for ${same.product.name}` : ""} (added ${when}) with this ${field === "email" ? "email" : "phone number"} and belongs to another team member. Ask a sales manager if it should be reassigned.`, field);
     }
 
     if (policy.mode !== "OFF") {
@@ -97,7 +106,7 @@ export async function addProspect(db: Db, actor: Actor, input: ManualInput, now 
     }
     return tx.prospect.create({
       data: {
-        organizationId: org, searchId: null, placeId: `manual:${randomUUID()}`, origin: "MANUAL", name, phone, email, country, sourceLabel: source, notes: cleanNote(input.note, 1000) || null,
+        organizationId: org, searchId: null, placeId: `manual:${randomUUID()}`, origin: "MANUAL", productId, captureKind: "OFFICE", name, phone, email, country, sourceLabel: source, notes: cleanNote(input.note, 1000) || null,
         addedById: actor.id, status: "ASSIGNED", assignedToId: actor.id, assignedAt: now, placeFetchedAt: now,
       },
       select: { id: true, name: true },
