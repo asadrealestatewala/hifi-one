@@ -235,3 +235,40 @@ describe("visit photos follow the visit", () => {
     expect(await authorizeOwner(db, file(ali.id, ["crm.view"]), "PROSPECT_VISIT", "missing", "read")).toBe(false);
   });
 });
+
+describe("photos, the agent's screen and the day boundary", () => {
+  it("attaches up to 6 photos through the file service, skips a repeated upload by its hash, and reports what it refused", async () => {
+    const { MemoryStorage } = await import("./storage");
+    const { attachVisitPhotos } = await import("./field-visits");
+    const storage = new MemoryStorage();
+    const v = await db.prospectVisit.findFirstOrThrow({ where: { agentId: ali.id } });
+    const jpg = (n: number) => Buffer.concat([Buffer.from("ffd8ffe000104a464946", "hex"), Buffer.alloc(64, n)]);
+    const fa = { id: ali.id, organizationId: org, userType: "EMPLOYEE", clientId: null, vendorId: null, permissions: new Set(["crm.view", "crm.edit", "field.capture"]) };
+    const first = await attachVisitPhotos(db, storage, fa, v.id, [{ name: "card.jpg", bytes: jpg(1), category: "VISITING_CARD" }, { name: "front.jpg", bytes: jpg(2), category: "PREMISES" }, { name: "bad.txt", bytes: Buffer.from("hello"), category: "PREMISES" }]);
+    expect(first).toMatchObject({ saved: 3, skipped: 0, errors: [] }); // a text file is a valid upload type; the phone only sends images anyway
+    const again = await attachVisitPhotos(db, storage, fa, v.id, [{ name: "card.jpg", bytes: jpg(1), category: "VISITING_CARD" }, ...[3, 4, 5, 6, 7].map((n) => ({ name: `p${n}.jpg`, bytes: jpg(n), category: "PREMISES" }))]);
+    expect(again).toMatchObject({ saved: 3, skipped: 1 });
+    expect(again.errors[0]).toMatch(/Only 6 photos/);
+    const files = await db.storedFile.findMany({ where: { ownerType: "PROSPECT_VISIT", ownerId: v.id } });
+    expect(files.length).toBe(6);
+    expect(files.map((f) => f.category).sort()).toEqual(["PREMISES", "PREMISES", "PREMISES", "PREMISES", "PREMISES", "VISITING_CARD"]);
+    // another agent cannot add photos to a visit that is not theirs
+    const v2 = await db.prospectVisit.findFirstOrThrow({ where: { agentId: ali.id, id: { not: v.id } } });
+    const other = await attachVisitPhotos(db, storage, { ...fa, id: sana.id }, v2.id, [{ name: "x.jpg", bytes: jpg(9), category: "PREMISES" }]);
+    expect(other.saved).toBe(0);
+    expect(other.errors[0]).toMatch(/cannot add files/);
+  });
+  it("fieldHome gives the agent their product, count, revisits and today's visits with photo counts", async () => {
+    const { fieldHome, zoneOffsetMinutes } = await import("./field-visits");
+    const h = await fieldHome(db, ali, { now: NOW, tzOffsetMinutes: 300 });
+    expect(h.profile.productName).toBe("Pharmivo");
+    expect(h.today.count).toBe(3);
+    expect(h.revisits.map((r) => r.name)).toEqual(["Sehat Pharmacy"]);
+    expect(h.visits.length).toBe(5);
+    expect(h.visits.reduce((n, v) => n + v.photos, 0)).toBe(6);
+    expect(h.visits.some((v) => v.needsDetails)).toBe(true);
+    expect(zoneOffsetMinutes("Asia/Karachi", NOW)).toBe(300);
+    expect(zoneOffsetMinutes("UTC", NOW)).toBe(0);
+    expect(zoneOffsetMinutes("Not/AZone", NOW)).toBe(0);
+  });
+});
