@@ -781,6 +781,29 @@ model LeaveRequest {
   @@index([userId, status])
 }
 
+// One employee's end-of-day report: what was done, what blocked them, what comes next. One per person per working day.
+// The manager (or HR) can acknowledge it with a note and a 1 to 5 rating, which feeds the performance scorecards.
+model DailyReport {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String
+  workDate       String // YYYY-MM-DD in the company time zone
+  summary        String
+  blockers       String?
+  plan           String? // for the next working day
+  hoursWorked    Decimal?  @db.Decimal(4, 1) // what the employee says; attendance is shown beside it, never overwritten
+  late           Boolean   @default(false) // submitted after the work date
+  submittedAt    DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  reviewedById   String?
+  reviewedAt     DateTime?
+  reviewNote     String?
+  rating         Int? // 1..5 by the reviewer
+
+  @@unique([userId, workDate])
+  @@index([organizationId, workDate])
+}
+
 // ---------- Phase 4: payroll ----------
 
 model SalaryStructure {

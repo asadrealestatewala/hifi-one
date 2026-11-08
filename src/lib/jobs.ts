@@ -5,6 +5,7 @@
 // existing once-per-allocation rule. Free of Next.js imports so it can be tested against the database.
 import type { PrismaClient } from "@prisma/client";
 import { accrueCommissions } from "./commissions";
+import { missingReports } from "./daily-reports";
 import { formatMoney } from "./money";
 import { notifyMany, usersWithPermission } from "./notifications";
 import { purgeMonitoring } from "./monitoring";
@@ -93,6 +94,21 @@ export const JOBS: JobDef[] = [
         await notifyMany(db, [t.assigneeId!], { kind: "task.overdue", title: `Now overdue: ${t.title}`, body: t.project.name, link: `/projects/${t.projectId}?task=${t.id}`, dedupeKey: `task-overdue:${t.id}` });
       }
       return `${n} task reminder${n === 1 ? "" : "s"}`;
+    },
+  },
+  {
+    key: "daily_report_missing", label: "Daily report reminders", what: "Each morning, reminds anyone who did not send yesterday's daily report (working days only, not on leave) and tells HR how many are missing.",
+    async run({ db, organizationId, today }) {
+      const tz = (await db.companyProfile.findFirst({ where: { organizationId, isDefault: true }, select: { timezone: true } }))?.timezone ?? "UTC";
+      const yesterday = addDays(today, -1);
+      const missing = await missingReports(db, organizationId, yesterday, tz);
+      for (const m of missing) {
+        await notifyMany(db, [m.userId], { kind: "report.missing", title: `Your daily report for ${yesterday} is missing`, body: "Write it on My Daily Report. It takes a minute.", link: `/me/report?date=${yesterday}`, dedupeKey: `report-missing:${m.userId}:${yesterday}` });
+      }
+      if (missing.length > 0) {
+        await notifyMany(db, await usersWithPermission(db, organizationId, "attendance.view_all"), { kind: "report.missing", title: `${missing.length} daily report${missing.length === 1 ? "" : "s"} missing for ${yesterday}`, body: missing.slice(0, 5).map((m) => m.name).join(", ") + (missing.length > 5 ? "…" : ""), link: `/hr/reports?date=${yesterday}&show=missing`, dedupeKey: `report-missing-hr:${organizationId}:${yesterday}` });
+      }
+      return `${missing.length} missing report${missing.length === 1 ? "" : "s"} for ${yesterday}`;
     },
   },
   {

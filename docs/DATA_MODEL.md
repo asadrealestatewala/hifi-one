@@ -49,3 +49,4 @@ Unique per organization: `Client(name)`, `Account(code)`, `NumberSequence(key)`.
 ## Not modelled yet
 
 Brands under a client, deliverables as their own entity (campaign deliverables are content items and tasks in linked projects), purchase orders separate from work orders, ad-platform metrics, saved views for arbitrary lists (smart lists exist for leads).
+- **Daily reports.** `DailyReport` is one employee's report for one company-local working day (unique per person and date): summary, blockers, plan, stated hours, `late` when written after the day, and the reviewer's note and 1 to 5 rating once acknowledged (then locked). Attendance, finished tasks and field visits are read from their own tables for the same day, never copied in.
