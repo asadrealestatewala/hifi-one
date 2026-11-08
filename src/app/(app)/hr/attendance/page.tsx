@@ -1,10 +1,12 @@
+import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Notice, PageHeader, Stat } from "@/components/ui";
 import { HrError, correctClockOut } from "@/lib/hr";
-import { fmtMinutes, workedMinutes } from "@/lib/hr-rules";
+import { dateInZone, fmtMinutes, workedMinutes } from "@/lib/hr-rules";
+import { describeVisit, visitsOn } from "@/lib/site-visits";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +34,9 @@ export default async function HrAttendance({ searchParams }: { searchParams: Pro
   const people = await db.user.findMany({ where: { organizationId: user.organizationId }, select: { id: true, name: true } });
   const ids = people.map((p) => p.id);
   const name = new Map(people.map((p) => [p.id, p.name]));
+  const profile = await db.companyProfile.findFirst({ where: { organizationId: user.organizationId, isDefault: true }, select: { timezone: true } });
+  const today = dateInZone(new Date(), profile?.timezone ?? "UTC");
+  const outToday = await visitsOn(db, user.organizationId, today);
   const [openRecs, recent] = await Promise.all([
     db.attendanceRecord.findMany({ where: { userId: { in: ids }, clockOut: null }, orderBy: { workDate: "asc" } }),
     db.attendanceRecord.findMany({ where: { userId: { in: ids } }, orderBy: [{ workDate: "desc" }, { clockIn: "desc" }], take: 60, include: { breaks: true } }),
@@ -45,6 +50,12 @@ export default async function HrAttendance({ searchParams }: { searchParams: Pro
         <Stat label="People" value={people.length} />
       </div>
       {error && <Notice kind="error">{error}</Notice>}
+      <section className="card space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">Out for work today</h2><Link href="/hr/visits" className="text-sm text-muted hover:underline">All site visits →</Link></div>
+        {outToday.length === 0 ? <p className="text-sm text-muted">Nobody has an approved site visit, field day or work-from-home day today.</p> : (
+          <ul className="text-sm divide-y divide-border">{outToday.map((v) => <li key={v.id} className="py-1.5"><span className="font-medium">{name.get(v.userId) ?? "Unknown"}</span> <span className="text-muted">· {describeVisit(v)} · {v.purpose}</span></li>)}</ul>
+        )}
+      </section>
       <section className="card space-y-2">
         <h2 className="font-semibold">Open sessions</h2>
         <p className="text-xs text-muted">A session left open is never closed automatically. Enter the real clock-out time and a reason to correct it; the correction is recorded against your name.</p>

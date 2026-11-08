@@ -440,6 +440,7 @@ model Client {
   campaigns        CampaignClient[]
   cloutCampaigns   CloutCampaign[]
   cloutQuotas      CloutQuota[]
+  siteVisits       SiteVisitRequest[]
 
   @@unique([organizationId, name])
 }
@@ -778,6 +779,32 @@ model LeaveRequest {
 
   leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
 
+  @@index([userId, status])
+}
+
+// An employee asks to be away from the office for work: a site or client visit, a day of field work, or working from
+// home. The manager (or HR) approves it, so the day is not read as an absence and the calendar and attendance show it.
+model SiteVisitRequest {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String
+  kind           String // SITE_VISIT | FIELD_WORK | WORK_FROM_HOME
+  startDate      String // YYYY-MM-DD
+  endDate        String // YYYY-MM-DD, same as startDate for one day
+  startTime      String? // HH:MM, for part of a day
+  endTime        String?
+  location       String? // where (required unless working from home)
+  clientId       String?
+  purpose        String
+  status         String    @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
+  approverId     String?
+  decidedAt      DateTime?
+  decisionNote   String?
+  createdAt      DateTime  @default(now())
+
+  client Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, startDate, status])
   @@index([userId, status])
 }
 

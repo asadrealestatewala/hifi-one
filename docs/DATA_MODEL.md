@@ -49,3 +49,4 @@ Unique per organization: `Client(name)`, `Account(code)`, `NumberSequence(key)`.
 ## Not modelled yet
 
 Brands under a client, deliverables as their own entity (campaign deliverables are content items and tasks in linked projects), purchase orders separate from work orders, ad-platform metrics, saved views for arbitrary lists (smart lists exist for leads).
+- **Site visits.** `SiteVisitRequest` is one employee's request to work away from the office (SITE_VISIT, FIELD_WORK or WORK_FROM_HOME) over a date range with optional times, place, optional `clientId` and purpose; PENDING → APPROVED or REJECTED (with `decisionNote`) by the manager or HR, or CANCELLED by the employee while pending or before it starts. It never changes attendance records; screens read both side by side.
