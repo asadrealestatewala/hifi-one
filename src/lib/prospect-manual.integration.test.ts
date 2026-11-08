@@ -150,7 +150,7 @@ describe("a hand-added prospect uses the same Log contact flow", () => {
     expect((await db.prospect.findUniqueOrThrow({ where: { id: a.id } })).status).toBe("SENT_TO_CRM");
     expect(await db.leadKey.count({ where: { leadId: lead.id } })).toBe(2);
     // the lead now blocks a second prospect with the same email
-    await fails(add(zara, { phone: "", email: "dana@shop.pk" }), /already exists|already in Prospector/);
+    await fails(add(zara, { phone: "", email: "dana@shop.pk" }), /already exists|already in Prospector|already a prospect/);
   });
   it("an email-only prospect converts, and the conversion is refused if the email went on the do-not-contact list meanwhile", async () => {
     const a = await add(ali, { phone: "", email: "late@x.pk" });

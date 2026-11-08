@@ -41,6 +41,13 @@ export const CHART: [string, string, string, string?][] = [
   ["8000", "Other Expenses", "OTHER_EXPENSE"], ["8100", "Loss on Asset Disposal", "OTHER_EXPENSE", "LOSS_DISPOSAL"],
 ];
 
+// The SaaS products the sales teams sell (decision 71). Managers edit the list in Field Sales Team; this only gives a new organization the three.
+export const SAAS_PRODUCTS: { code: string; name: string; businessLabel: string; website: string | null }[] = [
+  { code: "AGENTIFY", name: "Agentify ERP", businessLabel: "Real estate agency", website: "https://agentifyerp.co" },
+  { code: "VELOCITY", name: "Velocity ERP", businessLabel: "Car dealer or workshop", website: "https://velocityerp.co" },
+  { code: "PHARMIVO", name: "Pharmivo", businessLabel: "Pharmacy", website: null },
+];
+
 export const LEAVE_TYPES: [string, number, boolean][] = [["Annual", 14, true], ["Casual", 8, true], ["Sick", 8, true], ["Unpaid", 0, false]];
 
 // Permissions are global. Roles are per organization; with overwrite the system roles are reset to the
@@ -85,6 +92,9 @@ export async function seedBaseline(db: Db, organizationId: string) {
   }
   for (const [i, name] of SERVICE_CATEGORIES.entries()) {
     await db.serviceCategory.upsert({ where: { organizationId_name: { organizationId, name } }, update: {}, create: { organizationId, name, sortOrder: i } });
+  }
+  for (const [i, p] of SAAS_PRODUCTS.entries()) {
+    await db.saasProduct.upsert({ where: { organizationId_code: { organizationId, code: p.code } }, update: {}, create: { organizationId, ...p, sortOrder: i } });
   }
   for (const [name, days, paid] of LEAVE_TYPES) {
     await db.leaveType.upsert({ where: { organizationId_name: { organizationId, name } }, update: {}, create: { organizationId, name, daysPerYear: days, paid } });

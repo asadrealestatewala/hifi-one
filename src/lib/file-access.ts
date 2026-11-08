@@ -11,7 +11,7 @@ export type FileActor = {
   permissions: ReadonlySet<string>;
 };
 
-export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION"] as const;
+export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT"] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 export type Mode = "read" | "upload" | "delete";
 
@@ -100,6 +100,17 @@ export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: 
     const app = await db.jobApplication.findFirst({ where: { id: ownerId, organizationId: a.organizationId }, select: { id: true } });
     if (!app) return false;
     return mode === "read" ? has("hr.view") : has("hr.manage");
+  }
+
+  if (ownerType === "PROSPECT_VISIT") {
+    // Photos a field agent took at a visit (premises, visiting card). Seen by the agent who made the visit, whoever the prospect is assigned to,
+    // and sales managers; added only by the visiting agent (same device, same day's work) or a manager; removed by a manager or the agent.
+    const v = await db.prospectVisit.findFirst({ where: { id: ownerId, organizationId: a.organizationId }, select: { agentId: true, prospect: { select: { assignedToId: true, addedById: true } } } });
+    if (!v || !staff) return false;
+    const manager = has("crm.view_all") && has("crm.edit");
+    const mine = v.agentId === a.id;
+    if (mode === "read") return has("crm.view") && (manager || mine || v.prospect.assignedToId === a.id || v.prospect.addedById === a.id);
+    return has("field.capture") && (mine || manager);
   }
 
   if (ownerType === "EMPLOYEE") {

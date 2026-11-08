@@ -37,7 +37,7 @@ export async function logOutreach(db: Db, actor: Actor, prospectId: string, p: {
   const note = (p.note ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").trim().slice(0, NOTE_MAX) || null;
   const org = actor.organizationId;
   const now = p.now ?? new Date();
-  const row = await db.prospect.findFirst({ where: { id: prospectId, organizationId: org } });
+  const row = await db.prospect.findFirst({ where: { id: prospectId, organizationId: org }, include: { product: { select: { code: true, name: true } } } });
   if (!row || (!isManager(actor) && row.assignedToId !== actor.id)) throw new ProspectorError("Only the salesperson this prospect is assigned to, or a sales manager, can log contact.");
   if (CLOSED.includes(row.status)) throw new ProspectorError(closedMessage(row.status));
   const log = { organizationId: org, prospectId, userId: actor.id, outcome, note, createdAt: now };
@@ -79,12 +79,12 @@ export async function logOutreach(db: Db, actor: Actor, prospectId: string, p: {
     const names = new Map((await tx.user.findMany({ where: { id: { in: [...new Set(history.map((h) => h.userId))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
     const contactNote = `Contact history before this became a lead:\n${history.map((h) => `${h.createdAt.toISOString().slice(0, 10)} · ${names.get(h.userId) ?? "Someone"} · ${OUTCOME_LABEL[h.outcome] ?? h.outcome}${h.note ? `: ${h.note}` : ""}`).join("\n")}`;
     const manual = row.origin === "MANUAL";
-    const links = [manual ? `Added by hand as ${MANUAL_SOURCE_LABEL[row.sourceLabel ?? ""] ?? row.sourceLabel ?? "Other"}${row.sourceDetail ? `: ${row.sourceDetail}` : ""}` : null, manual ? row.notes : null, row.website ? `Website: ${row.website}` : null, row.mapsUrl ? `Google Maps: ${row.mapsUrl}` : null].filter(Boolean).join("\n") || null;
+    const links = [row.product ? `Product: ${row.product.name}` : null, manual ? `Added by hand as ${MANUAL_SOURCE_LABEL[row.sourceLabel ?? ""] ?? row.sourceLabel ?? "Other"}${row.sourceDetail ? `: ${row.sourceDetail}` : ""}` : null, manual ? row.notes : null, row.website ? `Website: ${row.website}` : null, row.mapsUrl ? `Google Maps: ${row.mapsUrl}` : null].filter(Boolean).join("\n") || null;
     const lead = await tx.lead.create({
       data: {
         organizationId: org, name: (row.contactName ?? row.name).slice(0, 200), company: manual && !row.contactName ? null : row.name.slice(0, 160), phone: row.phone, email, city: row.city, country: row.country ? countryName(row.country) : null,
         source: manual ? `${PROSPECTOR_SOURCE}: ${MANUAL_SOURCE_LABEL[row.sourceLabel ?? ""] ?? "Other"}` : PROSPECTOR_SOURCE, serviceInterest: service, priority: priorityFor(s?.score ?? row.score), stageId: stage!.id, assignedToId: owner, createdById: actor.id, notes: links,
-        lastContactAt: now, tags: ["prospector", ...(manual ? [(row.sourceLabel ?? "other").toLowerCase().replace("_", "-")] : []), ...(s?.topService ? [s.topService.toLowerCase()] : [])],
+        lastContactAt: now, tags: ["prospector", ...(row.product ? [`product:${row.product.code.toLowerCase()}`] : []), ...(manual ? [(row.sourceLabel ?? "other").toLowerCase().replace("_", "-")] : []), ...(s?.topService ? [s.topService.toLowerCase()] : [])],
         activities: { create: { actorId: actor.id, kind: "CREATED", body: `Converted from Prospector after ${manual ? "the contact" : "the business"} said it is interested (opportunity ${s?.score ?? row.score ?? "not scored"} of 100)${row.address ? `. ${row.address}` : ""}` } },
       },
     });

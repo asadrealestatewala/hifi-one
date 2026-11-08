@@ -2830,20 +2830,101 @@ model Prospect {
   scoreService   String? // the service to lead with
   scoreVersion   Int?
   scoredAt       DateTime?
+  // Field sales (decision 71): which SaaS product the business is a prospect for, and how it was captured. Duplicates are checked within one product.
+  productId      String?
+  captureKind    String? // OFFICE (cold calling, desk) | FIELD (visited in person); null for older rows and Google searches
+  lat            Decimal?  @db.Decimal(9, 6) // where the field agent stood when the visit was saved (last visit wins)
+  lng            Decimal?  @db.Decimal(9, 6)
+  lastVisitAt    DateTime?
+  lastOutcome    String? // the last visit's outcome, see ProspectVisit.outcome
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   search       ProspectSearch?       @relation(fields: [searchId], references: [id], onDelete: Cascade)
+  product      SaasProduct?          @relation(fields: [productId], references: [id], onDelete: SetNull)
   websiteCheck ProspectWebsiteCheck?
   social       ProspectSocial?
   outreach     ProspectOutreach[]
+  visits       ProspectVisit[]
 
   @@unique([organizationId, placeId])
   @@index([organizationId, status, createdAt])
   @@index([organizationId, assignedToId])
   @@index([organizationId, addedById])
+  @@index([organizationId, productId])
   @@index([searchId])
   @@index([organizationId, score])
+}
+
+// ---------- Field sales (decision 71) ----------
+// A SaaS product the sales teams sell (Agentify ERP, Velocity ERP, Pharmivo). Each agent works one product at a time; prospects carry the product,
+// and the duplicate rule is "one business, one prospect per product". Managers edit the list, so a fourth product is configuration, not code.
+model SaasProduct {
+  id               String   @id @default(cuid())
+  organizationId   String
+  code             String // AGENTIFY | VELOCITY | PHARMIVO | anything a manager adds, upper case letters and digits
+  name             String // Agentify ERP
+  businessLabel    String // what a prospect is called: Real estate agency, Car dealer, Pharmacy
+  website          String?
+  dailyVisitTarget Int      @default(40) // visits a field agent is expected to log per day
+  active           Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  prospects Prospect[]
+  profiles  SalesAgentProfile[]
+  visits    ProspectVisit[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, active, sortOrder])
+}
+
+// Which product a salesperson works, whether from the office (cold calling) or in the field (visiting businesses), and their own daily target.
+model SalesAgentProfile {
+  organizationId   String
+  userId           String
+  productId        String?
+  kind             String    @default("OFFICE") // OFFICE | FIELD
+  dailyVisitTarget Int? // null: the product's default
+  updatedById      String?
+  updatedAt        DateTime  @updatedAt
+  createdAt        DateTime  @default(now())
+
+  product SaasProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@id([organizationId, userId])
+  @@index([organizationId, productId, kind])
+}
+
+// One trip to a business by a field agent. The Prospect row is the business; each visit is its own row, so a shop that was closed on Monday
+// can be visited again on Thursday without a duplicate prospect. Photos (storefront, hoarding, visiting card) are StoredFile rows with
+// ownerType PROSPECT_VISIT. Location is taken once, when the visit is saved; nobody is tracked between visits.
+model ProspectVisit {
+  id             String    @id @default(cuid())
+  organizationId String
+  prospectId     String
+  productId      String?
+  agentId        String
+  visitedAt      DateTime // when the agent was there (device time, checked against the server clock)
+  lat            Decimal?  @db.Decimal(9, 6)
+  lng            Decimal?  @db.Decimal(9, 6)
+  accuracyM      Int? // GPS accuracy in metres as the phone reported it
+  locationSource String    @default("NONE") // GPS | NONE (denied, unavailable or too inaccurate)
+  outcome        String // NOT_AVAILABLE | CLOSED | OWNER_ABSENT | NOT_INTERESTED | INTERESTED | DEMO_REQUESTED
+  reason         String? // why: what the agent was told or saw
+  note           String?
+  followUpOn     String? // YYYY-MM-DD the agent plans to go back
+  clientRef      String? // id the phone gave the visit while offline, so a retried upload never saves it twice
+  createdAt      DateTime  @default(now())
+
+  prospect Prospect     @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  product  SaasProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, agentId, clientRef])
+  @@index([prospectId, visitedAt])
+  @@index([organizationId, agentId, visitedAt])
+  @@index([organizationId, productId, visitedAt])
 }
 
 // Stage 5: what happened each time a salesperson contacted a prospect. INTERESTED turns the prospect into a lead; NOT_INTERESTED closes it.

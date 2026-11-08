@@ -210,6 +210,20 @@ export async function canonicalPhone(db: Db, organizationId: string, raw: string
   return leadKeys({ phone: raw, country }, policy.defaultCountry).phone;
 }
 
+// Is this phone or email already a client's? Clients are few, and their phones were typed freely (0300-1234567), so the list is read and
+// compared by the last nine digits, the same way do-not-contact numbers are. Used before a business is added as a prospect (decision 71).
+export async function findClientMatch(db: Db, organizationId: string, p: { phone?: string | null; email?: string | null }): Promise<{ id: string; name: string; code: string | null } | null> {
+  const email = normalizeEmail(p.email);
+  const tail = phoneTail(p.phone);
+  if (!email && !tail) return null;
+  const rows = await db.client.findMany({
+    where: { organizationId, OR: [...(email ? [{ email: { equals: email, mode: "insensitive" as const } }] : []), ...(tail ? [{ phone: { not: null } }] : [])] },
+    select: { id: true, name: true, code: true, phone: true, email: true }, orderBy: { createdAt: "asc" },
+  });
+  const hit = rows.find((c) => (email && normalizeEmail(c.email) === email) || (tail && phoneTail(c.phone) === tail));
+  return hit ? { id: hit.id, name: hit.name, code: hit.code } : null;
+}
+
 // Is this phone or email on the do-not-contact list? Phones match by their last nine digits, so 0300 1234567 and +92 300 1234567 are the same
 // number, and emails ignore case. Every place that adds or converts a contact asks this one question.
 export async function isSuppressed(db: Db, organizationId: string, p: { phone?: string | null; email?: string | null }): Promise<boolean> {
