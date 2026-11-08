@@ -23,7 +23,7 @@ export default async function FieldTeam({ searchParams }: { searchParams: Promis
 
   return (
     <div className="max-w-5xl space-y-6">
-      <PageHeader title="Field sales team" subtitle="Each product has office agents who call and field agents who visit businesses. A prospect belongs to one product, and the same business can be a prospect for another product, but never twice for the same one." actions={<Link className="btn-ghost" href="/leads/prospector">Back to Prospector</Link>} />
+      <PageHeader title="Field sales team" subtitle="Each product has office agents who call and field agents who visit businesses. A prospect belongs to one product, and the same business can be a prospect for another product, but never twice for the same one." actions={<><Link className="btn" href="/leads/prospector/field-team/visits">Visit reports</Link><Link className="btn-ghost" href="/leads/prospector">Back to Prospector</Link></>} />
       {sp.ok && <Notice kind="ok">{sp.ok}</Notice>}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
 
