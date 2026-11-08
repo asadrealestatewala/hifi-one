@@ -1,3 +1,4 @@
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
@@ -42,7 +43,7 @@ export default async function Invite({ params, searchParams }: { params: Promise
             {error && <Notice kind="error">{error}</Notice>}
             <input type="hidden" name="token" value={token} />
             <div><label className="label" htmlFor="name">Your name</label><input id="name" name="name" required className="input" /></div>
-            <div><label className="label" htmlFor="password">Password (10+ characters)</label><input id="password" name="password" type="password" required minLength={10} autoComplete="new-password" className="input" /></div>
+            <div><label className="label" htmlFor="password">Password (10+ characters)</label><PasswordInput id="password" name="password" required minLength={10} autoComplete="new-password" /></div>
             <button className="btn w-full">Create account</button>
           </form>
         )}

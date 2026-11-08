@@ -1,3 +1,4 @@
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import Image from "next/image";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -70,8 +71,8 @@ export default async function Onboarding({ params, searchParams }: { params: Pro
               </div>
               {info.needsPassword && (
                 <>
-                  <div><label className="label" htmlFor="password">Choose a password (10+ characters)</label><input id="password" name="password" type="password" required minLength={10} autoComplete="new-password" className="input" /></div>
-                  <div><label className="label" htmlFor="confirm">Repeat the password</label><input id="confirm" name="confirm" type="password" required minLength={10} autoComplete="new-password" className="input" /></div>
+                  <div><label className="label" htmlFor="password">Choose a password (10+ characters)</label><PasswordInput id="password" name="password" required minLength={10} autoComplete="new-password" /></div>
+                  <div><label className="label" htmlFor="confirm">Repeat the password</label><PasswordInput id="confirm" name="confirm" required minLength={10} autoComplete="new-password" /></div>
                 </>
               )}
               <button className="btn w-full">Verify my email</button>

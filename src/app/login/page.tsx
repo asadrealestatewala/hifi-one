@@ -1,3 +1,4 @@
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getSessionUser, login } from "@/lib/auth";
@@ -41,7 +42,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           {notice && <p className="rounded-lg bg-success/10 px-3 py-2 text-sm text-success">{notice}</p>}
           {error && <Notice kind="error">{error}</Notice>}
           <div><label className="label" htmlFor="identifier">Email or phone number</label><input id="identifier" name="identifier" type="text" inputMode="email" required autoComplete="username" placeholder="you@company.com or +923001234567" className="input" /></div>
-          <div><label className="label" htmlFor="password">Password</label><input id="password" name="password" type="password" required autoComplete="current-password" className="input" /></div>
+          <div><label className="label" htmlFor="password">Password</label><PasswordInput id="password" name="password" required autoComplete="current-password" /></div>
           <button className="btn w-full !py-2.5">Sign in</button>
           <p className="text-center text-sm"><a href="/login/forgot" className="text-primary underline">Forgot your password?</a></p>
         </form>

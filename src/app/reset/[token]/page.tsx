@@ -1,3 +1,4 @@
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import Image from "next/image";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -41,8 +42,8 @@ export default async function Reset({ params, searchParams }: { params: Promise<
             <p className="text-sm">Choose a new password for <strong>{info.who}</strong>.</p>
             {error && <Notice kind="error">{error}</Notice>}
             <input type="hidden" name="token" value={token} />
-            <div><label className="label" htmlFor="password">New password (10+ characters)</label><input id="password" name="password" type="password" required minLength={10} autoComplete="new-password" className="input" /></div>
-            <div><label className="label" htmlFor="confirm">Repeat password</label><input id="confirm" name="confirm" type="password" required minLength={10} autoComplete="new-password" className="input" /></div>
+            <div><label className="label" htmlFor="password">New password (10+ characters)</label><PasswordInput id="password" name="password" required minLength={10} autoComplete="new-password" /></div>
+            <div><label className="label" htmlFor="confirm">Repeat password</label><PasswordInput id="confirm" name="confirm" required minLength={10} autoComplete="new-password" /></div>
             <button className="btn w-full">Set password</button>
           </form>
         )}

@@ -1,3 +1,4 @@
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import Image from "next/image";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -76,8 +77,8 @@ export default async function Setup({ searchParams }: { searchParams: Promise<{ 
           <div><label className="label" htmlFor="adminEmail">Administrator email</label><input id="adminEmail" name="adminEmail" type="email" required className="input" /></div>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div><label className="label" htmlFor="password">Password (12+ characters)</label><input id="password" name="password" type="password" required minLength={12} autoComplete="new-password" className="input" /></div>
-          <div><label className="label" htmlFor="confirm">Repeat password</label><input id="confirm" name="confirm" type="password" required minLength={12} autoComplete="new-password" className="input" /></div>
+          <div><label className="label" htmlFor="password">Password (12+ characters)</label><PasswordInput id="password" name="password" required minLength={12} autoComplete="new-password" /></div>
+          <div><label className="label" htmlFor="confirm">Repeat password</label><PasswordInput id="confirm" name="confirm" required minLength={12} autoComplete="new-password" /></div>
         </div>
         <button className="btn w-full">Create installation</button>
         <p className="text-xs text-muted">

@@ -1,3 +1,4 @@
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { audit, requireUser } from "@/lib/auth";
@@ -31,8 +32,8 @@ export default async function Password({ searchParams }: { searchParams: Promise
       {force && <p className="text-sm bg-brand/10 text-brand rounded-lg px-3 py-2">You are using a starting password. Choose your own before continuing.</p>}
       <form action={change} className="card space-y-4">
         {error && <Notice kind="error">{error}</Notice>}
-        <div><label className="label" htmlFor="current">Current password</label><input id="current" name="current" type="password" required autoComplete="current-password" className="input" /></div>
-        <div><label className="label" htmlFor="next">New password (10+ characters)</label><input id="next" name="next" type="password" required minLength={10} autoComplete="new-password" className="input" /></div>
+        <div><label className="label" htmlFor="current">Current password</label><PasswordInput id="current" name="current" required autoComplete="current-password" /></div>
+        <div><label className="label" htmlFor="next">New password (10+ characters)</label><PasswordInput id="next" name="next" required minLength={10} autoComplete="new-password" /></div>
         <button className="btn">Change password</button>
         <p className="text-xs text-muted">You will be signed out on all devices.</p>
       </form>
