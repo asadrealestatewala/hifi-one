@@ -1,5 +1,6 @@
 "use client";
 
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { useActionState } from "react";
 import { confirmMfa, newRecoveryCodes, startMfa, turnOffMfa, type MfaState } from "./actions";
 
@@ -36,14 +37,14 @@ export default function SecurityPanel({ enabled, pending, remaining }: { enabled
           <p className="text-sm text-muted">You will be asked for a code from your authenticator app each time you sign in. Unused recovery codes: {remaining}.</p>
           {codesState.codes && <Codes codes={codesState.codes} />}
           <form action={regenerate} className="flex flex-wrap items-end gap-2">
-            <div><label className="label" htmlFor="pw1">Password</label><input id="pw1" name="password" type="password" required autoComplete="current-password" className="input" /></div>
+            <div><label className="label" htmlFor="pw1">Password</label><PasswordInput id="pw1" name="password" required autoComplete="current-password" /></div>
             <button className="btn-ghost" disabled={regenerating}>Make new recovery codes</button>
           </form>
           {codesState.error && <p role="alert" className="text-sm text-brand">{codesState.error}</p>}
         </div>
         <form action={turnOff} className="card flex flex-wrap items-end gap-2">
           <div className="w-full"><h2 className="font-semibold">Turn off two-step verification</h2><p className="text-xs text-muted">Not recommended, especially for administrators and finance users.</p></div>
-          <div><label className="label" htmlFor="pw2">Password</label><input id="pw2" name="password" type="password" required autoComplete="current-password" className="input" /></div>
+          <div><label className="label" htmlFor="pw2">Password</label><PasswordInput id="pw2" name="password" required autoComplete="current-password" /></div>
           <button className="btn-ghost" disabled={turningOff}>Turn off</button>
           {offState.error && <p role="alert" className="w-full text-sm text-brand">{offState.error}</p>}
         </form>
