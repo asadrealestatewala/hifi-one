@@ -291,7 +291,17 @@ export async function requireClientUser(): Promise<SessionUser & { clientId: str
 }
 
 // Server-side authorization: call at the top of every protected page and action.
-export async function requirePermission(permission: PermissionKey): Promise<SessionUser> {
+// A JSON route (fetched by a script on a phone, never opened in a tab) passes { json: true } and gets a 401 or 403 Response back instead of a
+// redirect to the login page, which a fetch could not follow usefully; the caller returns that Response as is.
+export async function requirePermission(permission: PermissionKey): Promise<SessionUser>;
+export async function requirePermission(permission: PermissionKey, opts: { json: true }): Promise<SessionUser | Response>;
+export async function requirePermission(permission: PermissionKey, opts?: { json: true }): Promise<SessionUser | Response> {
+  if (opts?.json) {
+    const user = await getSessionUser();
+    if (!user || needsMfaSetup(user) || user.mustChangePassword) return Response.json({ error: "Your sign-in has expired. Sign in again; anything waiting on the phone is kept." }, { status: 401 });
+    if (!user.permissions.has(permission)) return Response.json({ error: "You do not have permission to do this." }, { status: 403 });
+    return user;
+  }
   const user = await requireUser();
   if (!user.permissions.has(permission)) redirect("/forbidden");
   return user;

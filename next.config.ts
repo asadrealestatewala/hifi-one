@@ -34,6 +34,8 @@ const nextConfig: NextConfig = {
     return [
       // Files in /public are not fingerprinted, so Next sends them with max-age=0 and phones re-ask for every one on every visit.
       // A day of caching, then a quiet refresh in the background, keeps repeat visits fast; a replaced file shows up within a day.
+      // The field-visits service worker must never be served stale, or an old version would keep running for a day
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache" }, { key: "Service-Worker-Allowed", value: "/" }] },
       { source: "/logo.png", headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }] },
       { source: "/site/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }] },
       // One-time links and the pages behind them must never be cached by a browser or a proxy
@@ -44,7 +46,8 @@ const nextConfig: NextConfig = {
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Permissions-Policy", value: "camera=(self), microphone=(self), display-capture=(self), geolocation=(), payment=()" },
+          // geolocation=(self): the field-visits screen reads the phone's position once when a visit is saved (decision 71); nothing tracks in the background
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(self), display-capture=(self), geolocation=(self), payment=()" },
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
           { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
           { key: "X-DNS-Prefetch-Control", value: "off" },

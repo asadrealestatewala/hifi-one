@@ -366,3 +366,67 @@ export const revisitWhere = (actor: Actor): Prisma.ProspectWhereInput => ({
 });
 
 export { isManager };
+
+// ---------- photos ----------
+// Up to 6 per visit: one visiting card and the premises (storefront, hoarding, display board, inside). Each goes through the file service
+// (type sniffed, size cap, virus scan when configured) under owner PROSPECT_VISIT, so the access rule follows the visit. A photo the phone
+// sends twice (a retried upload) is recognised by its hash and not stored again.
+export const PHOTO_CATEGORIES = ["VISITING_CARD", "PREMISES"] as const;
+export type PhotoCategory = (typeof PHOTO_CATEGORIES)[number];
+export const PHOTO_LABEL: Record<PhotoCategory, string> = { VISITING_CARD: "Visiting card", PREMISES: "Premises" };
+
+export async function attachVisitPhotos(
+  db: Db, storage: import("./storage").StorageProvider, actor: import("./file-access").FileActor,
+  visitId: string, photos: { name: string; bytes: Buffer; category: string }[],
+): Promise<{ saved: number; skipped: number; errors: string[] }> {
+  const { createHash } = await import("node:crypto");
+  const { saveFile, FileError } = await import("./files");
+  const existing = await db.storedFile.findMany({ where: { organizationId: actor.organizationId, ownerType: "PROSPECT_VISIT", ownerId: visitId, deletedAt: null }, select: { sha256: true } });
+  const seen = new Set(existing.map((f) => f.sha256));
+  let room = MAX_PHOTOS_PER_VISIT - existing.length;
+  let saved = 0, skipped = 0;
+  const errors: string[] = [];
+  for (const p of photos) {
+    const category = (PHOTO_CATEGORIES as readonly string[]).includes(p.category) ? p.category : "PREMISES";
+    const hash = createHash("sha256").update(p.bytes).digest("hex");
+    if (seen.has(hash)) { skipped++; continue; }
+    if (room <= 0) { errors.push(`Only ${MAX_PHOTOS_PER_VISIT} photos are kept per visit; the rest were left out.`); break; }
+    try {
+      await saveFile(db, storage, { actor, ownerType: "PROSPECT_VISIT", ownerId: visitId, name: p.name || `${category.toLowerCase()}.jpg`, bytes: p.bytes, category });
+      seen.add(hash); room--; saved++;
+    } catch (e) {
+      if (e instanceof FileError) errors.push(e.message); else throw e;
+    }
+  }
+  return { saved, skipped, errors };
+}
+
+// ---------- the agent's own screen ----------
+// What the field screen needs on load: the agent's product and target, today's count, prospects to go back to, and today's visits.
+export async function fieldHome(db: Db, actor: Actor, opts: { now?: Date; tzOffsetMinutes?: number } = {}) {
+  const now = opts.now ?? new Date();
+  const org = actor.organizationId;
+  const [profile, today, revisits] = await Promise.all([
+    agentProfile(db, org, actor.id),
+    visitsToday(db, org, actor.id, opts),
+    db.prospect.findMany({ where: revisitWhere(actor), orderBy: { lastVisitAt: "desc" }, take: 50, select: { id: true, name: true, phone: true, address: true, lastVisitAt: true, lastOutcome: true, contactName: true } }),
+  ]);
+  const start = dayStart(now, opts.tzOffsetMinutes ?? 0);
+  const visits = await db.prospectVisit.findMany({
+    where: { organizationId: org, agentId: actor.id, visitedAt: { gte: start } }, orderBy: { visitedAt: "desc" }, take: 100,
+    select: { id: true, visitedAt: true, outcome: true, locationSource: true, prospect: { select: { id: true, name: true, phone: true, email: true, status: true } } },
+  });
+  const photoCounts = visits.length ? await db.storedFile.groupBy({ by: ["ownerId"], where: { organizationId: org, ownerType: "PROSPECT_VISIT", ownerId: { in: visits.map((v) => v.id) }, deletedAt: null }, _count: { _all: true } }) : [];
+  const photos = new Map(photoCounts.map((p) => [p.ownerId, p._count._all]));
+  return { profile, today, revisits, visits: visits.map((v) => ({ ...v, photos: photos.get(v.id) ?? 0, needsDetails: !v.prospect.phone && !v.prospect.email })) };
+}
+
+// Minutes east of UTC for a named zone at a moment, so "today" is the agent's day, not the server's
+export function zoneOffsetMinutes(timeZone: string, at = new Date()): number {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }).formatToParts(at);
+    const n = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
+    const asUtc = Date.UTC(n("year"), n("month") - 1, n("day"), n("hour"), n("minute"), n("second"));
+    return Math.round((asUtc - at.getTime()) / 60_000);
+  } catch { return 0; }
+}
