@@ -44,6 +44,7 @@ export const NAV: NavGroup[] = [
   { id: "projects", title: "Project Operations", icon: "briefcase", items: [
     { href: "/projects", label: "Projects & Tasks", permission: "projects.view" },
     { href: "/content", label: "Content Calendar", permission: "content.view" },
+    { href: "/chat", label: "Team Chat", permission: "chat.use" },
     { href: "/meetings", label: "Meetings & Workshops", permission: "meetings.use" },
   ] },
   { id: "finance", title: "Finance & Accounting", icon: "wallet", items: [

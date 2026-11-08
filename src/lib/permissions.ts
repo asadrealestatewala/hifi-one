@@ -73,6 +73,7 @@ export const PERMISSIONS = {
   "monitoring.screenshots": "Open other people's screenshots (every view is logged and visible to them)",
   "monitoring.configure": "Set the monitoring policy, enrol and revoke devices",
   "meetings.use": "Schedule, host and join video meetings and workshops",
+  "chat.use": "Use team chat: direct messages, groups and project rooms with colleagues",
   "meetings.recordings": "Record the meetings you host and watch or download meeting recordings",
   "quotes.view": "View quotations",
   "quotes.manage": "Create, send and record decisions on quotations",
@@ -166,5 +167,5 @@ const EXTRA: Record<string, PermissionKey[]> = {
 };
 for (const r of ROLE_DEFS) {
   if (r.permissions === "ALL" || EXTERNAL_ROLES.has(r.key)) continue;
-  r.permissions = [...new Set<PermissionKey>([...r.permissions, "self.attendance", "self.leave", "self.payslip", "self.expense", "assistant.use", "monitoring.own", "meetings.use", ...(EXTRA[r.key] ?? [])])];
+  r.permissions = [...new Set<PermissionKey>([...r.permissions, "self.attendance", "self.leave", "self.payslip", "self.expense", "assistant.use", "monitoring.own", "meetings.use", "chat.use", ...(EXTRA[r.key] ?? [])])];
 }

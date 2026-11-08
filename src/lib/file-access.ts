@@ -11,7 +11,7 @@ export type FileActor = {
   permissions: ReadonlySet<string>;
 };
 
-export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT"] as const;
+export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT", "CHAT_MESSAGE"] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 export type Mode = "read" | "upload" | "delete";
 
@@ -48,6 +48,15 @@ export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: 
       return a.userType === "CLIENT" && a.clientId !== null && a.clientId === c.clientId && CLIENT_VISIBLE.includes(c.status); // never drafts
     }
     return has("content.manage") && CONTENT_EDITABLE.includes(c.status);
+  }
+
+  if (ownerType === "CHAT_MESSAGE") {
+    // A picture sent in team chat: only people currently in that room may see it; only the sender adds or removes it
+    const m = await db.chatMessage.findFirst({ where: { id: ownerId, deletedAt: null, room: { organizationId: a.organizationId } }, select: { senderId: true, roomId: true } });
+    if (!m || !has("chat.use")) return false;
+    const member = await db.chatMember.findFirst({ where: { roomId: m.roomId, userId: a.id, leftAt: null }, select: { userId: true } });
+    if (!member) return false;
+    return mode === "read" ? true : m.senderId === a.id;
   }
 
   if (ownerType === "USER_PHOTO") {
