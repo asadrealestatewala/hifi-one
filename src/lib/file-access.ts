@@ -11,7 +11,7 @@ export type FileActor = {
   permissions: ReadonlySet<string>;
 };
 
-export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT"] as const;
+export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT", "CIRCULAR"] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 export type Mode = "read" | "upload" | "delete";
 
@@ -116,6 +116,17 @@ export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: 
       return Boolean(v.prospect.leadId) && (await db.lead.count({ where: { id: v.prospect.leadId!, OR: [{ assignedToId: a.id }, { createdById: a.id }] } })) > 0;
     }
     return has("field.capture") && (mine || manager);
+  }
+
+  if (ownerType === "CIRCULAR") {
+    // A PDF or picture attached to an HR circular. Added (before the circular is sent) and removed only by people who may send circulars;
+    // read by those people and by the staff the circular was addressed to, nobody else.
+    if (!staff) return false;
+    if (mode !== "read") return has("circulars.send");
+    const c = await db.circular.findFirst({ where: { id: ownerId, organizationId: a.organizationId }, select: { id: true } });
+    if (!c) return false;
+    if (has("circulars.send")) return true;
+    return (await db.circularRecipient.count({ where: { circularId: c.id, userId: a.id } })) > 0;
   }
 
   if (ownerType === "EMPLOYEE") {

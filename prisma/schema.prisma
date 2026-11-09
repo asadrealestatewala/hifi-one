@@ -1150,6 +1150,36 @@ model Notification {
   @@index([userId, readAt, createdAt])
 }
 
+// HR circulars (work from home, national day leave...). One row per circular; one recipient row per person, which is also the read/acknowledge record.
+model Circular {
+  id             String   @id @default(cuid())
+  organizationId String
+  kind           String   @default("GENERAL") // GENERAL | WORK_FROM_HOME | HOLIDAY | POLICY | URGENT
+  title          String
+  body           String
+  audience       String   @default("ALL") // ALL | ROLES | PEOPLE (who it was addressed to; the recipient rows are the record)
+  audienceLabel  String?
+  sentById       String
+  createdAt      DateTime @default(now())
+
+  recipients CircularRecipient[]
+
+  @@index([organizationId, createdAt])
+}
+
+model CircularRecipient {
+  id         String    @id @default(cuid())
+  circularId String
+  userId     String
+  ackAt      DateTime? // the person pressed "I have read this"
+  createdAt  DateTime  @default(now())
+
+  circular Circular @relation(fields: [circularId], references: [id], onDelete: Cascade)
+
+  @@unique([circularId, userId])
+  @@index([userId, ackAt])
+}
+
 model ContentItem {
   id             String   @id @default(cuid())
   organizationId String
@@ -1331,8 +1361,37 @@ model StoredFile {
   createdAt      DateTime  @default(now())
   deletedAt      DateTime?
   deletedById    String?
+  // Employee documents only: PENDING once the employee uploads, then VERIFIED or REJECTED by HR (null for other records)
+  reviewStatus   String?
+  reviewNote     String?
+  reviewedById   String?
+  reviewedAt     DateTime?
 
   @@index([organizationId, ownerType, ownerId])
+  @@index([organizationId, ownerType, reviewStatus])
+}
+
+// HR asks an employee for one document (a CNIC copy, a medical certificate, a contract). The employee uploads it from
+// My Documents, which links the file here and marks it SUBMITTED; HR then verifies or rejects it (a rejection lets the
+// employee upload again). The HR overview shows who still owes what.
+model DocumentRequest {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String // the employee the document is asked from
+  category       String // one of the fixed employee document categories (label)
+  note           String?
+  dueOn          String? // YYYY-MM-DD
+  status         String    @default("REQUESTED") // REQUESTED | SUBMITTED | VERIFIED | REJECTED | CANCELLED
+  fileId         String? // the latest upload against this request
+  requestedById  String
+  createdAt      DateTime  @default(now())
+  submittedAt    DateTime?
+  decidedById    String?
+  decidedAt      DateTime?
+  decisionNote   String?
+
+  @@index([organizationId, status])
+  @@index([userId, status])
 }
 
 model DocumentSetting {
