@@ -31,7 +31,7 @@ export default function QuestCard({ name, goals, xp, level, levelName, levelStar
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-hover" role="progressbar" aria-valuenow={Math.round(into * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Progress to next level"><div className="h-full rounded-full bg-gradient-to-r from-primary to-accent transition-all duration-700" style={{ width: `${into * 100}%` }} /></div>
         </div>
-        <ul className="grid grid-cols-3 gap-3">
+        <ul className={`grid gap-3 ${goals.length > 3 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
           {goals.map((g) => {
             const done = g.value >= g.target;
             return (
