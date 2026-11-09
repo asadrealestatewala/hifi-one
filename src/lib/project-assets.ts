@@ -3,6 +3,7 @@
 import crypto from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { type FileActor, projectAssetRights } from "./file-access";
+import { ASSET_MAX_BYTES } from "./file-validation";
 import { FileError, saveFile } from "./files";
 import type { StorageProvider } from "./storage";
 
@@ -44,7 +45,7 @@ export async function addAssetFile(
     created = true;
   }
   try {
-    const file = await saveFile(db, storage, { actor: p.actor, ownerType: OWNER, ownerId: asset.id, name: p.fileName, bytes: p.bytes, limits: "ASSET" });
+    const file = await saveFile(db, storage, { actor: p.actor, ownerType: OWNER, ownerId: asset.id, name: p.fileName, bytes: p.bytes, media: true, svg: true, maxBytes: ASSET_MAX_BYTES });
     await db.projectAsset.update({ where: { id: asset.id }, data: {} }); // bumps updatedAt
     return { asset, file, created };
   } catch (e) {

@@ -9,7 +9,8 @@ export async function notifyOffline(db: PrismaClient, m: ChatMessageDto, recipie
   const targets = recipients.filter((id) => id !== m.senderId && !isOnline(id));
   if (targets.length === 0) return;
   const muted = new Set((await db.chatMember.findMany({ where: { roomId: m.roomId, userId: { in: targets }, muted: true }, select: { userId: true } })).map((x) => x.userId));
-  const text = m.kind === "IMAGE" && !m.body ? "Sent a picture" : m.body;
+  const label = { IMAGE: "Sent a picture", VIDEO: "Sent a video", AUDIO: "Sent a voice message", FILE: "Sent a file" }[m.kind];
+  const text = !m.body && label ? label : m.body;
   for (const id of targets) {
     if (muted.has(id)) continue;
     await pushToUser(db, id, { title: roomName === senderName ? senderName : `${senderName} in ${roomName}`, body: text }).catch(() => {});

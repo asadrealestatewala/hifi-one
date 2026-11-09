@@ -5,7 +5,6 @@ export class FileError extends Error {}
 export const MAX_BYTES = 15 * 1024 * 1024;
 // The project asset library takes bigger files (promo videos) and a few creative formats that other records refuse.
 export const ASSET_MAX_BYTES = 100 * 1024 * 1024;
-export type UploadLimits = "STANDARD" | "ASSET";
 
 type Rule = { type: string; check: (b: Buffer) => boolean };
 const startsWith = (b: Buffer, hex: string, offset = 0) => b.subarray(offset, offset + hex.length / 2).toString("hex").toLowerCase() === hex;
@@ -37,20 +36,28 @@ const RULES: Record<string, Rule> = {
   txt: { type: "text/plain", check: text },
 };
 
-// Creative formats, only for the asset library. An SVG is text that a browser could run, so it is refused when it holds anything active
+// SVG, only where a caller asks for it (the project asset library). An SVG is text that a browser could run, so it is refused when it holds anything active
 // (scripts, event handlers, embedded pages, external references); the library also serves it sandboxed, never as a page.
 export const svgIsPassive = (b: Buffer) => {
   const t = b.toString("utf8");
   return /<svg[\s>]/i.test(t) && !/<script|<foreignObject|<iframe|<embed|<object|<!ENTITY|<!DOCTYPE[^>]*\[|\son[a-z]+\s*=|javascript:|data:text\/html|(?:xlink:)?href\s*=\s*["']\s*(?:https?:|\/\/)/i.test(t);
 };
-const ASSET_RULES: Record<string, Rule> = {
-  svg: { type: "image/svg+xml", check: (b) => text(b) && svgIsPassive(b) },
+const SVG_RULE: Rule = { type: "image/svg+xml", check: (b) => text(b) && svgIsPassive(b) };
+
+// Extra types accepted only where a caller asks for them (team chat: voice notes and videos). Everywhere else the list above applies.
+const MEDIA_RULES: Record<string, Rule> = {
+  mov: { type: "video/quicktime", check: (b) => startsWith(b, "66747970", 4) },
   webm: { type: "video/webm", check: (b) => startsWith(b, "1a45dfa3") },
-  mov: { type: "video/quicktime", check: (b) => startsWith(b, "66747970", 4) || startsWith(b, "6d6f6f76", 4) || startsWith(b, "77696465", 4) || startsWith(b, "6d646174", 4) },
+  weba: { type: "audio/webm", check: (b) => startsWith(b, "1a45dfa3") },
+  ogg: { type: "audio/ogg", check: (b) => startsWith(b, "4f676753") },
+  m4a: { type: "audio/mp4", check: (b) => startsWith(b, "66747970", 4) },
+  mp3: { type: "audio/mpeg", check: (b) => startsWith(b, "494433") || startsWith(b, "fffb") || startsWith(b, "fff3") || startsWith(b, "fff2") },
+  wav: { type: "audio/wav", check: (b) => startsWith(b, "52494646") && startsWith(b, "57415645", 8) },
 };
 
 export const ALLOWED_EXTENSIONS = Object.keys(RULES);
-export const ASSET_EXTENSIONS = [...Object.keys(RULES), ...Object.keys(ASSET_RULES)];
+export const MEDIA_EXTENSIONS = Object.keys(MEDIA_RULES);
+export const ASSET_EXTENSIONS = [...ALLOWED_EXTENSIONS, ...MEDIA_EXTENSIONS, "svg"];
 
 // Display names are cleaned for the screen and for the Content-Disposition header. They never touch the file system.
 export function safeName(name: string): string {
@@ -59,14 +66,14 @@ export function safeName(name: string): string {
   return cleaned || "file";
 }
 
-export function validateUpload(name: string, buffer: Buffer, limits: UploadLimits = "STANDARD"): { contentType: string; filename: string } {
+export function validateUpload(name: string, buffer: Buffer, opts: { media?: boolean; maxBytes?: number; svg?: boolean } = {}): { contentType: string; filename: string } {
+  const limit = opts.maxBytes ?? MAX_BYTES;
   const filename = safeName(name);
-  const max = limits === "ASSET" ? ASSET_MAX_BYTES : MAX_BYTES;
   if (buffer.length === 0) throw new FileError("The file is empty.");
-  if (buffer.length > max) throw new FileError(`The file is too large (limit ${Math.round(max / 1024 / 1024)} MB).`);
+  if (buffer.length > limit) throw new FileError(`The file is too large (limit ${Math.round(limit / 1024 / 1024)} MB).`);
   const ext = filename.includes(".") ? filename.split(".").pop()!.toLowerCase() : "";
-  const rule = RULES[ext] ?? (limits === "ASSET" ? ASSET_RULES[ext] : undefined);
-  if (!rule) throw new FileError(`This file type is not allowed. Allowed: ${(limits === "ASSET" ? ASSET_EXTENSIONS : ALLOWED_EXTENSIONS).join(", ")}.`);
+  const rule = RULES[ext] ?? (opts.media ? MEDIA_RULES[ext] : undefined) ?? (opts.svg && ext === "svg" ? SVG_RULE : undefined);
+  if (!rule) throw new FileError(`This file type is not allowed. Allowed: ${[...ALLOWED_EXTENSIONS, ...(opts.media ? MEDIA_EXTENSIONS : []), ...(opts.svg ? ["svg"] : [])].join(", ")}.`);
   // Programs and scripts are refused even when renamed
   if (startsWith(buffer, "4d5a") || startsWith(buffer, "7f454c46") || startsWith(buffer, "2321") || startsWith(buffer, "cafebabe")) throw new FileError("Program files are not allowed.");
   if (!rule.check(buffer)) throw new FileError(`The contents do not match a .${ext} file.`);

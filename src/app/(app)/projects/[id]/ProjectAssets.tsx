@@ -117,7 +117,7 @@ export default async function ProjectAssets({ user, projectId, folder, flash }: 
           <datalist id="asset-folders">{suggestions.map((f) => <option key={f} value={f} />)}</datalist>
           <div className="flex flex-wrap items-center gap-3">
             <button className="btn">Upload</button>
-            <span className="text-xs text-muted">Up to {Math.round(ASSET_MAX_BYTES / 1048576)} MB per file. PDF, PNG, JPG, SVG, GIF, WebP, MP4, MOV, WebM, DOCX, XLSX, CSV, TXT. Large videos can take a minute.</span>
+            <span className="text-xs text-muted">Up to {Math.round(ASSET_MAX_BYTES / 1048576)} MB per file. PDF, PNG, JPG, SVG, GIF, WebP, MP4, MOV, WebM, audio, DOCX, XLSX, CSV, TXT. Large videos can take a minute.</span>
           </div>
         </form>
       )}

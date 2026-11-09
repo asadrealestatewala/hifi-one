@@ -7,7 +7,7 @@ import {
   AssetError, addAssetFile, checkSharePassword, createShare, deleteAsset, fileForShare, hashSharePassword, isUnlocked, listAssets, makeUnlock,
   resolveShare, revokeShare, shareContent, updateAsset,
 } from "./project-assets";
-import { validateUpload } from "./file-validation";
+import { ASSET_MAX_BYTES, validateUpload } from "./file-validation";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
 const db = new PrismaClient({ datasourceUrl: url });
@@ -64,8 +64,9 @@ describe("project asset library", () => {
   it("allows big videos only in the library; other records keep the 15 MB limit", () => {
     const big = Buffer.concat([Buffer.alloc(4), Buffer.from("ftypisom"), Buffer.alloc(20 * 1024 * 1024)]);
     expect(() => validateUpload("v.mp4", big)).toThrow(/too large/);
-    expect(validateUpload("v.mp4", big, "ASSET").contentType).toBe("video/mp4");
+    expect(validateUpload("v.mp4", big, { media: true, maxBytes: ASSET_MAX_BYTES }).contentType).toBe("video/mp4");
     expect(() => validateUpload("a.svg", svgOk)).toThrow(/not allowed/);
+    expect(validateUpload("a.svg", svgOk, { svg: true }).contentType).toBe("image/svg+xml");
   });
 
   it("denies people who are not on the project, clients, and other organisations", async () => {

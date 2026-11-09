@@ -11,7 +11,8 @@ export class ChatError extends Error {}
 
 export const MAX_BODY = 4000;
 export const MAX_GROUP_MEMBERS = 200;
-const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+export const MAX_ATTACHMENT = 50 * 1024 * 1024; // pictures, videos, voice notes and documents sent in chat
+export const kindOf = (contentType: string) => (contentType.startsWith("image/") ? "IMAGE" : contentType.startsWith("video/") ? "VIDEO" : contentType.startsWith("audio/") ? "AUDIO" : "FILE");
 
 export type ChatActor = { id: string; organizationId: string; name: string };
 export type ChatMessageDto = {
@@ -212,23 +213,21 @@ export async function history(db: PrismaClient, actor: ChatActor, roomId: string
 
 export async function sendMessage(
   db: PrismaClient, storage: StorageProvider, actor: ChatActor, fileActor: FileActor,
-  roomId: string, p: { body?: string; image?: { name: string; bytes: Buffer } },
+  roomId: string, p: { body?: string; attachment?: { name: string; bytes: Buffer } },
 ) {
   await membership(db, actor, roomId);
   const body = clean(p.body, MAX_BODY);
-  if (!body && !p.image) throw new ChatError("Write a message or attach a picture.");
-  if (p.image) {
-    try {
-      const { contentType } = validateUpload(p.image.name, p.image.bytes);
-      if (!IMAGE_TYPES.includes(contentType)) throw new ChatError("Only pictures (PNG, JPG, GIF or WebP) can be sent for now.");
-    } catch (e) { throw e instanceof FileError ? new ChatError(e.message) : e; }
+  if (!body && !p.attachment) throw new ChatError("Write a message or attach a file.");
+  let kind = "TEXT";
+  if (p.attachment) {
+    try { kind = kindOf(validateUpload(p.attachment.name, p.attachment.bytes, { media: true, maxBytes: MAX_ATTACHMENT }).contentType); } catch (e) { throw e instanceof FileError ? new ChatError(e.message) : e; }
   }
-  const msg = await db.chatMessage.create({ data: { roomId, senderId: actor.id, kind: p.image ? "IMAGE" : "TEXT", body } });
-  if (p.image) {
+  const msg = await db.chatMessage.create({ data: { roomId, senderId: actor.id, kind, body } });
+  if (p.attachment) {
     try {
-      await saveFile(db, storage, { actor: fileActor, ownerType: "CHAT_MESSAGE", ownerId: msg.id, name: p.image.name, bytes: p.image.bytes });
+      await saveFile(db, storage, { actor: fileActor, ownerType: "CHAT_MESSAGE", ownerId: msg.id, name: p.attachment.name, bytes: p.attachment.bytes, media: true, maxBytes: MAX_ATTACHMENT });
     } catch (e) {
-      await db.chatMessage.delete({ where: { id: msg.id } }); // no empty picture message is left behind
+      await db.chatMessage.delete({ where: { id: msg.id } }); // no empty attachment message is left behind
       throw e instanceof FileError ? new ChatError(e.message) : e;
     }
   }
