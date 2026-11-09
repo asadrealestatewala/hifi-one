@@ -333,6 +333,7 @@ model PipelineStage {
 
 model Lead {
   id                String    @id @default(cuid())
+  conversionRequests LeadConversionRequest[]
   organizationId    String
   number            Int       @default(autoincrement())
   name              String
@@ -3365,4 +3366,25 @@ model ProjectAssetShare {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
+}
+
+// An agent without crm.convert asks for a lead to be moved to Closed Won; a manager approves (runs the conversion) or rejects.
+// At most one PENDING request per lead (partial unique index in the migration).
+model LeadConversionRequest {
+  id             String    @id @default(cuid())
+  organizationId String
+  leadId         String
+  lead           Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  wonStageId     String
+  requestedById  String
+  note           String?
+  status         String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  decidedById    String?
+  decidedAt      DateTime?
+  decisionNote   String?
+  createdAt      DateTime  @default(now())
+
+  @@index([organizationId, status, createdAt])
+  @@index([leadId])
+  @@index([requestedById, createdAt])
 }

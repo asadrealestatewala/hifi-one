@@ -16,6 +16,7 @@ const initials = (n: string) => n.split(/\s+/).map((p) => p[0]).slice(0, 2).join
 export default function Board({ stages, cards: initial, canEdit, totals }: { stages: Stage[]; cards: Card[]; canEdit: boolean; totals: Record<string, string> }) {
   const [cards, setCards] = useState(initial);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
   const [, start] = useTransition();
@@ -27,13 +28,14 @@ export default function Board({ stages, cards: initial, canEdit, totals }: { sta
     setCards(cards.map((c) => (c.id === id ? { ...c, stageId, days: 0 } : c))); // optimistic
     start(async () => {
       const r = await moveLead(id, stageId);
-      if (!r.ok) { setCards(prev); setError(r.error); } else setError(null); // a failed move rolls back to the saved state
+      if (!r.ok) { setCards(prev); setError(r.error); } else if (r.info) { setCards(prev); setError(null); setInfo(r.info); } else { setError(null); setInfo(null); } // a failed move rolls back to the saved state
     });
   }
 
   return (
     <div className="space-y-3">
       {error && <Notice kind="error">{error}</Notice>}
+      {info && <Notice kind="ok">{info}</Notice>}
       <div className="flex gap-4 overflow-x-auto pb-4">
         {stages.map((s) => {
           const col = cards.filter((c) => c.stageId === s.id);
