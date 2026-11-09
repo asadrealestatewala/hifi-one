@@ -136,5 +136,12 @@ describe("approval and payment", () => {
     expect(Number(usd.paid)).toBe(50);
     expect(Number(usd.earned)).toBeGreaterThan(0);
     expect(s.entries.every((x) => x.status !== "VOID")).toBe(true);
+    const withClient = s.entries.filter((x) => x.kind === "COMMISSION");
+    expect(withClient.length).toBeGreaterThan(0);
+    expect(withClient.every((x) => x.clientName && x.invoiceNumber)).toBe(true);
+    expect(s.byClient.length).toBeGreaterThan(0);
+    // another person's statement never contains this person's entries
+    const other = await statementFor(db, org, boss);
+    expect(other.entries.some((x) => s.entries.some((y) => y.id === x.id))).toBe(false);
   });
 });
