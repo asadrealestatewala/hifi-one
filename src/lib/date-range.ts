@@ -18,3 +18,20 @@ export function rangeFilter(r: DateRange): { gte?: Date; lte?: Date } | undefine
 }
 
 export const rangeLabel = (r: DateRange) => (r.from && r.to ? (r.from === r.to ? r.from : `${r.from} to ${r.to}`) : r.from ? `from ${r.from}` : r.to ? `until ${r.to}` : "");
+
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86_400_000);
+
+// Quick periods for list filters, as whole UTC days (the same days the from/to boxes use)
+export function rangePresets(now = new Date()): { key: string; label: string; from: string; to: string }[] {
+  const today = new Date(`${iso(now)}T00:00:00Z`);
+  const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+  const lastMonthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
+  return [
+    { key: "today", label: "Today", from: iso(today), to: iso(today) },
+    { key: "yesterday", label: "Yesterday", from: iso(addDays(today, -1)), to: iso(addDays(today, -1)) },
+    { key: "7d", label: "Last 7 days", from: iso(addDays(today, -6)), to: iso(today) },
+    { key: "month", label: "This month", from: iso(monthStart), to: iso(today) },
+    { key: "lastmonth", label: "Last month", from: iso(lastMonthStart), to: iso(addDays(monthStart, -1)) },
+  ];
+}

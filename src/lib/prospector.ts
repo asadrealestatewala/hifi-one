@@ -1,6 +1,7 @@
 // Prospector: find businesses with Google Places, keep them as prospects, let managers review, dismiss and assign them.
 // A prospect is not a lead: it becomes one only when sent to the CRM (a later stage), because a lead means someone showed interest.
 // Free of Next.js imports so it can be tested against the database.
+import { rangeFilter, type DateRange } from "./date-range";
 import { rescoreProspects } from "./prospect-scoring";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { BudgetError, canAfford, googleCaps, releaseCall, reserveCall, type Caps } from "./api-budget";
@@ -218,13 +219,16 @@ export async function claimProspect(db: Db, actor: Actor, id: string): Promise<{
 
 // ---------- listing ----------
 export const PROSPECT_SORTS = { name: { field: "name" }, rating: { field: "rating", nullable: true }, created: { field: "createdAt" }, score: { field: "score", nullable: true } } as const;
-export function prospectWhere(actor: Actor, p: { q?: string; status?: string; searchId?: string; manual?: boolean; mineOnly?: boolean; hideDismissed?: boolean }): Prisma.ProspectWhereInput {
+export function prospectWhere(actor: Actor, p: { q?: string; status?: string; searchId?: string; manual?: boolean; mineOnly?: boolean; hideDismissed?: boolean; range?: DateRange; dateBy?: "added" | "contact" }): Prisma.ProspectWhereInput {
   const and: Prisma.ProspectWhereInput[] = [prospectScope(actor)];
   if (p.status) and.push({ status: p.status });
   if (p.searchId) and.push({ searchId: p.searchId });
   if (p.manual) and.push({ origin: "MANUAL" });
   if (p.hideDismissed) and.push({ status: { not: "DISMISSED" } });
   if (p.mineOnly) and.push({ OR: [{ assignedToId: actor.id }, { addedById: actor.id }] });
+  // Date filter: when the prospect was added, or when anyone last logged contact on it (any contact in the range counts)
+  const when = p.range ? rangeFilter(p.range) : undefined;
+  if (when) and.push(p.dateBy === "contact" ? { outreach: { some: { createdAt: when } } } : { createdAt: when });
   if (p.q) { const q = p.q; and.push({ OR: [{ name: { contains: q, mode: "insensitive" } }, { address: { contains: q, mode: "insensitive" } }, { phone: { contains: q } }, { email: { contains: q, mode: "insensitive" } }, { contactName: { contains: q, mode: "insensitive" } }, { website: { contains: q, mode: "insensitive" } }] }); }
   return { AND: and };
 }

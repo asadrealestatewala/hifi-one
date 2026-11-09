@@ -15,7 +15,7 @@ import { listHref, parseListParams } from "@/lib/list-params";
 import { CHANNELS, CHANNEL_LABEL, OUTCOME_LABEL, OUTCOMES, RESULTS, RESULT_LABEL } from "@/lib/prospect-crm";
 import { MANUAL_SOURCE_LABEL } from "@/lib/prospect-manual";
 import { getPolicy } from "@/lib/lead-duplicates";
-import { Badge, Chips, Empty, Notice, PageHeader, Pager, SearchBox, SubmitButton } from "@/components/ui";
+import { Badge, Chips, DateFilterBar, Empty, Notice, PageHeader, Pager, SearchBox, SubmitButton } from "@/components/ui";
 import { checkWebsites, claimProspectAction, getFacebookData, reviewProspects, saveFacebookLink, saveSearchLimits, logProspectContact, removeOwnProspectAction, searchProspects, updateScores } from "./actions";
 import AutoRefresh from "./AutoRefresh";
 import AddProspect from "./AddProspect";
@@ -214,8 +214,10 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
   // My Prospects keeps deleted (dismissed) ones out of sight: a person never sees them again, a manager sees them only under the Dismissed filter, where they can be restored
   const hideDismissed = mineView && (!manager || !lp.status);
   const statusFilter = mineView && !manager && lp.status === "DISMISSED" ? undefined : lp.status;
-  const where = prospectWhere(user, { q: lp.q, status: statusFilter, searchId: lp.ids.search, manual: manualOnly, mineOnly: mineView, hideDismissed });
-  const scope = prospectWhere(user, { manual: manualOnly, mineOnly: mineView }); // the chip numbers count what the list can show, not every prospect the person may see
+  const dateBy = sp.by === "contact" ? "contact" : "added";
+  const hasRange = Boolean(lp.range.from || lp.range.to);
+  const where = prospectWhere(user, { q: lp.q, status: statusFilter, searchId: lp.ids.search, manual: manualOnly, mineOnly: mineView, hideDismissed, range: lp.range, dateBy });
+  const scope = prospectWhere(user, { manual: manualOnly, mineOnly: mineView, range: lp.range, dateBy }); // the chip numbers count what the list can show, not every prospect the person may see
   const [rows, matched, counts, agents, meter, mine, limit, psiMeter, fbMeter] = await Promise.all([
     db.prospect.findMany({ where, orderBy: orderFor(lp.sort, PROSPECT_SORTS), skip: lp.page.skip, take: lp.page.take }),
     db.prospect.count({ where }),
@@ -249,7 +251,7 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
   const overrides = manageLimits ? await db.prospectorUserLimit.findMany({ where: { organizationId: org } }) : [];
   const defaultLimit = manageLimits ? await dailyLimitFor(db, org, "none") : 0;
 
-  const cur = { q: lp.q, status: lp.status, search: lp.ids.search, added: lp.ids.added, sort: lp.sortChosen ? lp.sort.key : undefined, dir: lp.sortChosen ? lp.sort.dir : undefined };
+  const cur = { q: lp.q, status: lp.status, search: lp.ids.search, added: lp.ids.added, sort: lp.sortChosen ? lp.sort.key : undefined, dir: lp.sortChosen ? lp.sort.dir : undefined, from: lp.range.from, to: lp.range.to, by: dateBy === "contact" ? "contact" : undefined };
   const href = (over: Record<string, string | undefined>) => listHref(BASE, cur, over);
   const countries = countryOptions();
   const e20 = estimate(20).costUsd;
@@ -302,8 +304,10 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
       <div className="flex flex-wrap items-center gap-3">
         <Chips current={lp.status ?? "ALL"} items={[{ key: "ALL", label: "All", count: total, href: href({ status: undefined, page: undefined }) }, ...PROSPECT_STATUSES.filter((st) => !(mineView && !manager && st === "DISMISSED")).map((st) => ({ key: st, label: LABEL[st], count: byStatus.get(st) ?? 0, href: href({ status: st, page: undefined }) }))]} />
         <Link className={manualOnly ? "btn" : "btn-ghost"} href={href({ added: manualOnly ? undefined : "1", page: undefined })} aria-pressed={manualOnly}>Added or imported{manualCount > 0 ? ` (${manualCount})` : ""}</Link>
-        <SearchBox q={lp.q} placeholder="Search name, address, phone, website" hidden={{ status: lp.status, search: lp.ids.search, added: lp.ids.added }} />
+        <SearchBox q={lp.q} placeholder="Search name, address, phone, website" hidden={{ status: lp.status, search: lp.ids.search, added: lp.ids.added, from: lp.range.from, to: lp.range.to, by: cur.by }} />
       </div>
+
+      <DateFilterBar base={BASE} current={{ q: lp.q, status: lp.status, search: lp.ids.search, added: lp.ids.added, sort: cur.sort, dir: cur.dir }} range={lp.range} by={dateBy === "contact" ? "contact" : undefined} byOptions={[{ value: "added", label: "Date added" }, { value: "contact", label: "Last contacted" }]} />
 
       {canTick && <form id="bulk" action={reviewProspects} className="card flex flex-wrap items-end gap-3" aria-label="Actions for ticked prospects">
         {manager && <>
@@ -324,7 +328,7 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
 
       <div className="card !p-0 overflow-x-auto">
         {rows.length === 0 ? (
-          <div className="p-6"><Empty title={total === 0 ? "No prospects yet" : "No prospects match"}>{total === 0 ? (mineView ? "Prospects assigned to you or added by you will appear here. Press Add prospect to add one you found yourself." : searcher ? "Use the search above to find businesses." : manager ? "Ask for search access, or wait for a colleague to run a search." : "Prospects assigned to you will appear here.") : "Try another status or search."}</Empty></div>
+          <div className="p-6"><Empty title={total === 0 && !hasRange ? "No prospects yet" : "No prospects match"}>{total === 0 && !hasRange ? (mineView ? "Prospects assigned to you or added by you will appear here. Press Add prospect to add one you found yourself." : searcher ? "Use the search above to find businesses." : manager ? "Ask for search access, or wait for a colleague to run a search." : "Prospects assigned to you will appear here.") : "Try another status, search or date range."}</Empty></div>
         ) : (
           <>
           {mineView ? (
