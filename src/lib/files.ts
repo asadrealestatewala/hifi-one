@@ -3,7 +3,7 @@
 import crypto from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { authorizeOwner, type FileActor, OWNER_TYPES } from "./file-access";
-import { FileError, validateUpload } from "./file-validation";
+import { FileError, validateUpload, type UploadLimits } from "./file-validation";
 import { newStorageKey, type StorageProvider } from "./storage";
 import { scannerFromEnv, type Scanner } from "./virus-scan";
 
@@ -12,13 +12,13 @@ export { FileError };
 export async function saveFile(
   db: PrismaClient,
   storage: StorageProvider,
-  p: { actor: FileActor; ownerType: string; ownerId: string; name: string; bytes: Buffer; category?: string; expiresOn?: string; scanner?: Scanner | null },
+  p: { actor: FileActor; ownerType: string; ownerId: string; name: string; bytes: Buffer; category?: string; expiresOn?: string; scanner?: Scanner | null; limits?: UploadLimits },
 ) {
   if (!(OWNER_TYPES as readonly string[]).includes(p.ownerType)) throw new FileError("Unknown record type.");
   // Authorization first: nothing is read or stored for someone who may not add files here
   if (!(await authorizeOwner(db, p.actor, p.ownerType, p.ownerId, "upload"))) throw new FileError("You cannot add files to this record.");
   if (p.expiresOn && !/^\d{4}-\d{2}-\d{2}$/.test(p.expiresOn)) throw new FileError("Enter a valid expiry date.");
-  const { contentType, filename } = validateUpload(p.name, p.bytes);
+  const { contentType, filename } = validateUpload(p.name, p.bytes, p.limits);
   // Scan before anything is stored. No scanner configured: the file is saved and honestly marked UNSCANNED. Scanner configured but down: refuse.
   const scanner = p.scanner === undefined ? scannerFromEnv() : p.scanner;
   let scanStatus = "UNSCANNED";

@@ -11,12 +11,25 @@ export type FileActor = {
   permissions: ReadonlySet<string>;
 };
 
-export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT", "CIRCULAR", "CHAT_MESSAGE"] as const;
+export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT", "CIRCULAR", "CHAT_MESSAGE", "PROJECT_ASSET"] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 export type Mode = "read" | "upload" | "delete";
 
 const CLIENT_VISIBLE = ["CLIENT_REVIEW", "CHANGES_REQUESTED", "APPROVED", "SCHEDULED", "PUBLISHED"];
 const CONTENT_EDITABLE = ["DRAFT", "INTERNAL_REVIEW", "CHANGES_REQUESTED"];
+
+// What a person may do in one project's asset library. Reading follows the project's own visibility; adding needs the right to edit tasks
+// on a project you belong to (or manage); removing, renaming folders and sharing are for the project manager and people who manage projects.
+export async function projectAssetRights(db: PrismaClient, a: FileActor, projectId: string): Promise<{ read: boolean; upload: boolean; manage: boolean }> {
+  const none = { read: false, upload: false, manage: false };
+  if (a.userType !== "EMPLOYEE") return none;
+  const p = await db.project.findFirst({ where: { id: projectId, organizationId: a.organizationId }, include: { members: { select: { userId: true } } } });
+  if (!p || !a.permissions.has("projects.view")) return none;
+  const manager = p.managerId === a.id || a.permissions.has("projects.manage");
+  const inProject = a.permissions.has("projects.view_all") || p.managerId === a.id || p.members.some((m) => m.userId === a.id);
+  if (!inProject) return none;
+  return { read: true, upload: manager || a.permissions.has("tasks.edit"), manage: manager };
+}
 
 export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: string, ownerId: string, mode: Mode): Promise<boolean> {
   const staff = a.userType === "EMPLOYEE";
@@ -75,6 +88,14 @@ export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: 
     if (mode === "read") return true;
     const manager = a.permissions.has("projects.manage") || t.project.managerId === a.id;
     return (manager || t.assigneeId === a.id) && has("tasks.edit") && !["COMPLETED", "CANCELLED"].includes(t.project.status);
+  }
+
+  if (ownerType === "PROJECT_ASSET") {
+    // A version of a file in a project's asset library: same visibility as the project; project members add, the project manager removes
+    const as = await db.projectAsset.findFirst({ where: { id: ownerId, organizationId: a.organizationId, deletedAt: null }, select: { projectId: true } });
+    if (!as) return false;
+    const r = await projectAssetRights(db, a, as.projectId);
+    return mode === "read" ? r.read : mode === "upload" ? r.upload : r.manage;
   }
 
   if (ownerType === "CONTACT") {

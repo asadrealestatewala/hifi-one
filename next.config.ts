@@ -26,7 +26,7 @@ const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
   typescript: { ignoreBuildErrors: skipBuildChecks },
   eslint: { ignoreDuringBuilds: skipBuildChecks },
-  // Uploads travel through server actions; the file size limit itself is enforced by the file service (15 MB)
+  // Uploads travel through server actions; the file size limit itself is enforced by the file service (15 MB; the project asset library uses its own route and allows 100 MB)
   experimental: { serverActions: { bodySizeLimit: "16mb" } },
   // Resized logo and photos are kept for a day (the default re-checks every minute) and are sent as AVIF or WebP.
   images: { formats: ["image/avif", "image/webp"], minimumCacheTTL: 86400 },
@@ -39,6 +39,7 @@ const nextConfig: NextConfig = {
       { source: "/logo.png", headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }] },
       { source: "/site/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }] },
       // One-time links and the pages behind them must never be cached by a browser or a proxy
+      { source: "/a/:path*", headers: [{ key: "Cache-Control", value: "no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       { source: "/sign/:path*", headers: [{ key: "Cache-Control", value: "no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       {
         source: "/:path*",

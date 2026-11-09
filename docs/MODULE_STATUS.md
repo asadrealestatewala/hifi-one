@@ -157,6 +157,10 @@ Found by comparing with the reference ERP; evidence in `docs/REFERENCE_ERP_AUDIT
 - **Not verified:** a real multi-device call with live camera, screen share and audio (the sandbox has no second device); long recordings near the 1.5 GB cap.
 - **Not built:** transcripts, retention or auto-delete rules, recording by someone other than the host, server-side recording.
 
+## Project assets and preview links (added 2026-11-09, decision 80)
+
+Done: per-project library with folders, tags, versions, image/video/PDF previews, public preview links (expiry, password, switch off, view count), audit entries, tests (`project-assets.integration.test.ts`, guards). Checked in a browser locally (upload, new version, password link, range video). Not built: zip download, asset comments, client-portal access. Needs the nginx file copied to the server for uploads above 16 MB.
+
 ## Project updates feed and phase (added 2026-11-01, decision 52)
 - **Done (service tested, guards pass; tsc and eslint clean):** updates feed with kinds, per-entry client visibility, project phase with tracker on the staff project page and the client portal project page, audit.
 - **Not built:** notifying the client when an update is shown, editing an entry, configurable phases, attachments or images on entries, a client-side reply.

@@ -611,6 +611,8 @@ model Project {
   milestones  Milestone[]
   timeEntries TimeEntry[]
   cloutPosts  CloutPost[]
+  assets      ProjectAsset[]
+  assetShares ProjectAssetShare[]
 
   @@unique([organizationId, number])
   @@index([organizationId, status])
@@ -3238,4 +3240,46 @@ model ChatMessage {
   room ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
   @@index([roomId, createdAt])
+
+// A named file in a project's asset library (brand guide, logo, video, creative). The bytes of each version are StoredFile rows
+// (ownerType PROJECT_ASSET, ownerId = this id); the newest one is the current version.
+model ProjectAsset {
+  id             String    @id @default(cuid())
+  organizationId String
+  projectId      String
+  folder         String    @default("General")
+  name           String
+  description    String?
+  tags           String[]
+  createdById    String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, folder])
+  @@index([organizationId])
+}
+
+// A public preview link to a project's library (all of it, or one folder). The secret in the address is the key; it can expire,
+// carry a password and be switched off. Viewers can look at and download files, never change anything.
+model ProjectAssetShare {
+  id             String    @id @default(cuid())
+  organizationId String
+  projectId      String
+  folder         String? // null = the whole library
+  label          String?
+  token          String    @unique
+  passwordHash   String?
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  viewCount      Int       @default(0)
+  lastViewedAt   DateTime?
+  createdById    String
+  createdAt      DateTime  @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
 }
