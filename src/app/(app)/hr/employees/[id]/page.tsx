@@ -11,6 +11,8 @@ import Avatar from "@/components/ui/Avatar";
 import StaffForm from "../StaffForm";
 import SetupLink from "./SetupLink";
 import { staffStatusAction } from "../actions";
+import { cancelDocumentRequestAction, requestDocumentAction } from "../../documents/actions";
+import { EMPLOYEE_DOC_CATEGORIES } from "@/lib/employee-docs";
 
 export const dynamic = "force-dynamic";
 
@@ -53,12 +55,13 @@ export default async function EmployeePage({ params, searchParams }: { params: P
   const canManage = user.permissions.has("hr.manage");
   const sensitive = user.permissions.has("hr.view_sensitive");
   const canAccess = user.permissions.has("users.manage");
-  const [photoCount, campaigns, projects, departments, managers] = await Promise.all([
+  const [photoCount, campaigns, projects, departments, managers, docRequests] = await Promise.all([
     db.storedFile.count({ where: { organizationId: org, ownerType: "USER_PHOTO", ownerId: p.userId, deletedAt: null } }),
     db.campaignMember.findMany({ where: { userId: p.userId, campaign: { organizationId: org } }, include: { campaign: { select: { id: true, name: true, code: true, status: true, archivedAt: true } } } }),
     db.project.findMany({ where: { organizationId: org, OR: [{ managerId: p.userId }, { members: { some: { userId: p.userId } } }] }, select: { id: true, name: true, number: true, status: true, managerId: true }, orderBy: { number: "asc" } }),
     canManage ? db.department.findMany({ where: { organizationId: org }, orderBy: { name: "asc" }, select: { id: true, name: true } }) : Promise.resolve([]),
     canManage ? db.user.findMany({ where: { organizationId: org, userType: "EMPLOYEE", active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }) : Promise.resolve([]),
+    sensitive ? db.documentRequest.findMany({ where: { organizationId: org, userId: p.userId, status: { not: "CANCELLED" } }, orderBy: { createdAt: "desc" }, take: 20 }) : Promise.resolve([]),
   ]);
   const op = (value: string) => <><input type="hidden" name="id" value={p.id} /><input type="hidden" name="op" value={value} /></>;
   return (
@@ -145,7 +148,43 @@ export default async function EmployeePage({ params, searchParams }: { params: P
           </div>
         </section>
       )}
-      {sensitive && <FilesPanel user={user} ownerType="EMPLOYEE" ownerId={p.userId} returnTo={`/hr/employees/${p.id}`} title="Employee documents" withCategory withExpiry flash={{ fileError: sp.fileError, fileOk: sp.fileOk }} />}
+      {sensitive && (
+        <>
+          <FilesPanel user={user} ownerType="EMPLOYEE" ownerId={p.userId} returnTo={`/hr/employees/${p.id}`} title="Employee documents" categories={EMPLOYEE_DOC_CATEGORIES} withExpiry review flash={{ fileError: sp.fileError, fileOk: sp.fileOk }} />
+          <section className="card space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-semibold">Documents asked for</h2>
+              <Link href="/hr/documents" className="text-sm text-muted hover:underline">All employees →</Link>
+            </div>
+            {docRequests.length === 0 ? <p className="text-sm text-muted">Nothing has been asked of {u.name} yet.</p> : (
+              <ul className="divide-y divide-border text-sm">
+                {docRequests.map((r) => (
+                  <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                    <span>{r.category}{r.note && <span className="text-muted"> · {r.note}</span>}{r.dueOn && <span className="text-muted"> · by {r.dueOn}</span>}</span>
+                    <span className="flex items-center gap-2">
+                      <StatusBadge status={r.status === "SUBMITTED" ? "UNDER_REVIEW" : r.status === "REQUESTED" ? "PENDING" : r.status} />
+                      {canManage && ["REQUESTED", "SUBMITTED", "REJECTED"].includes(r.status) && (
+                        <form action={cancelDocumentRequestAction}><input type="hidden" name="requestId" value={r.id} /><input type="hidden" name="returnTo" value={`/hr/employees/${p.id}`} />
+                          <ConfirmButton title="Withdraw this request?" message="The employee will no longer see it on My Documents." confirmLabel="Withdraw">Withdraw</ConfirmButton></form>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {canManage && (
+              <form action={requestDocumentAction} className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
+                <input type="hidden" name="userId" value={p.userId} /><input type="hidden" name="returnTo" value={`/hr/employees/${p.id}`} />
+                <div><label className="label" htmlFor="doc-cat">Ask for</label>
+                  <select id="doc-cat" name="category" required className="input !w-56" defaultValue=""><option value="" disabled>Document type…</option>{EMPLOYEE_DOC_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
+                <div><label className="label" htmlFor="doc-due">Needed by</label><input id="doc-due" name="dueOn" type="date" className="input" /></div>
+                <div><label className="label" htmlFor="doc-note">Note</label><input id="doc-note" name="note" className="input !w-64" placeholder="Optional" maxLength={300} /></div>
+                <SubmitButton pendingText="Sending…">Send request</SubmitButton>
+              </form>
+            )}
+          </section>
+        </>
+      )}
     </div>
   );
 }

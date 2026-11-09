@@ -65,6 +65,7 @@ export const NAV: NavGroup[] = [
     { href: "/hr/onboarding", label: "Onboarding Approvals", permission: "hr.view" },
     { href: "/hr/circulars", label: "Circulars", permission: "circulars.send" },
     { href: "/hr/attendance", label: "Attendance (all)", permission: "attendance.view_all" },
+    { href: "/hr/documents", label: "Employee Documents", permission: "hr.view_sensitive" },
     { href: "/payroll", label: "Payroll", permission: "payroll.view" },
     { href: "/hr/monitoring", label: "Workfolio", permission: "monitoring.view_team" },
   ] },
