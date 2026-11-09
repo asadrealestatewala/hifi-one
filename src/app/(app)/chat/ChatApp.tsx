@@ -224,10 +224,10 @@ export default function ChatApp({ meId, meName, initialRoom, canCall }: { meId: 
                 <span className="block truncate text-sm font-semibold">{active.name}</span>
                 <span className="block truncate text-xs text-muted">{active.kind === "DIRECT" ? "Direct message" : `${active.kind === "PROJECT" ? "Project room · " : ""}${active.members.length} people: ${active.members.map((m) => (m.id === meId ? "You" : m.name.split(" ")[0])).join(", ")}`}</span>
               </button>
-              {active.kind === "DIRECT" && canCall && (
+              {canCall && (
                 <>
-                  <button className="rounded-lg p-2 text-lg hover:bg-hover disabled:opacity-50" onClick={() => void call("audio")} disabled={calling} aria-label={`Voice call ${active.name}`} title="Voice call">📞</button>
-                  <button className="rounded-lg p-2 text-lg hover:bg-hover disabled:opacity-50" onClick={() => void call("video")} disabled={calling} aria-label={`Video call ${active.name}`} title="Video call">🎥</button>
+                  <button className="rounded-lg p-2 text-lg hover:bg-hover disabled:opacity-50" onClick={() => void call("audio")} disabled={calling} aria-label={`${active.kind === "DIRECT" ? "Voice call" : "Group voice call in"} ${active.name}`} title={active.kind === "DIRECT" ? "Voice call" : "Group voice call"}>📞</button>
+                  <button className="rounded-lg p-2 text-lg hover:bg-hover disabled:opacity-50" onClick={() => void call("video")} disabled={calling} aria-label={`${active.kind === "DIRECT" ? "Video call" : "Group video call in"} ${active.name}`} title={active.kind === "DIRECT" ? "Video call" : "Group video call"}>🎥</button>
                 </>
               )}
               <button className="btn-ghost" onClick={() => setDialog("info")}>Details</button>
@@ -236,7 +236,7 @@ export default function ChatApp({ meId, meName, initialRoom, canCall }: { meId: 
               {hasMore && <div className="pb-3 text-center"><button className="btn-ghost" onClick={older}>Load earlier messages</button></div>}
               {loading && msgs.length === 0 && <p className="p-4 text-center text-sm text-muted">Loading…</p>}
               {!loading && msgs.length === 0 && !error && <p className="p-4 text-center text-sm text-muted">No messages yet. Say hello 👋</p>}
-              <Messages msgs={msgs} room={active} meId={meId} reads={reads[active.id] ?? {}} onDelete={async (id) => { try { await api(`/api/chat/messages/${id}`, { method: "DELETE" }); } catch (e) { setError((e as Error).message); } }} />
+              <Messages msgs={msgs} room={active} meId={meId} canJoin={canCall} reads={reads[active.id] ?? {}} onDelete={async (id) => { try { await api(`/api/chat/messages/${id}`, { method: "DELETE" }); } catch (e) { setError((e as Error).message); } }} />
               <div ref={listEnd} />
             </div>
             {error && <p role="alert" className="border-t border-border bg-brand/10 px-3 py-2 text-sm text-brand" onClick={() => setError(null)}>{error}</p>}
@@ -258,7 +258,7 @@ function RoomAvatar({ room, size = 40 }: { room: Room; size?: number }) {
   return <Avatar name={room.name.replace(/^[A-Z]+-\d+\s*/, "") || room.name} size={size} />;
 }
 
-function Messages({ msgs, room, meId, reads, onDelete }: { msgs: Msg[]; room: Room; meId: string; reads: Record<string, string>; onDelete: (id: string) => void }) {
+function Messages({ msgs, room, meId, reads, onDelete, canJoin }: { msgs: Msg[]; room: Room; meId: string; reads: Record<string, string>; onDelete: (id: string) => void; canJoin: boolean }) {
   const others = room.members.filter((m) => m.id !== meId);
   const out: React.ReactNode[] = [];
   let lastDay = "";
@@ -266,7 +266,7 @@ function Messages({ msgs, room, meId, reads, onDelete }: { msgs: Msg[]; room: Ro
     const day = new Date(m.createdAt).toDateString();
     if (day !== lastDay) { lastDay = day; out.push(<div key={`d-${m.id}`} className="my-3 text-center"><span className="rounded-full bg-hover px-3 py-0.5 text-[11px] text-muted">{dayLabel(m.createdAt)}</span></div>); }
     if (m.kind === "SYSTEM") { out.push(<p key={m.id} className="my-2 text-center text-xs text-muted">{m.body}</p>); return; }
-    if (m.kind === "CALL") { out.push(<CallNote key={m.id} m={m} meId={meId} />); return; }
+    if (m.kind === "CALL") { out.push(<CallNote key={m.id} m={m} meId={meId} joinable={canJoin && room.kind !== "DIRECT"} />); return; }
     const mine = m.senderId === meId;
     const prev = msgs[i - 1];
     const newGroup = !prev || prev.senderId !== m.senderId || prev.kind === "SYSTEM" || new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() > 5 * 60_000 || new Date(prev.createdAt).toDateString() !== day;
@@ -299,17 +299,34 @@ function Messages({ msgs, room, meId, reads, onDelete }: { msgs: Msg[]; room: Ro
   return <>{out}</>;
 }
 
-function CallNote({ m, meId }: { m: Msg; meId: string }) {
+function CallNote({ m, meId, joinable }: { m: Msg; meId: string; joinable: boolean }) {
+  const [joining, setJoining] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   let c: { mode: "audio" | "video"; status: string; durationSec?: number } | null = null;
   try { c = JSON.parse(m.body); } catch { /* shown as a plain call */ }
   const mine = m.senderId === meId;
   const kind = c?.mode === "video" ? "Video call" : "Voice call";
   const text = !c ? "Call" : c.status === "RINGING" ? `${kind} · ringing…` : c.status === "ANSWERED" ? `${kind} · in progress` : c.status === "ENDED" ? `${kind} · ${dur(c.durationSec ?? 0)}` : c.status === "DECLINED" ? `${kind} · ${mine ? "declined" : "you declined"}` : mine ? `${kind} · no answer` : `Missed ${kind.toLowerCase()}`;
   const missed = !!c && !mine && c.status === "MISSED";
+  // A group call that is under way (or still ringing for someone who has not answered) can be joined from the conversation
+  const canJoin = joinable && !!c && (c.status === "ANSWERED" || (c.status === "RINGING" && !mine));
+  async function join() {
+    setJoining(true); setErr(null);
+    try {
+      const res = await fetch(`/api/chat/calls/${m.id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "answer" }) });
+      const d = (await res.json().catch(() => ({}))) as { roomUrl?: string; error?: string };
+      if (!res.ok || !d.roomUrl) { setErr(d.error ?? "Could not join the call."); setJoining(false); return; }
+      window.location.href = d.roomUrl;
+    } catch { setErr("Could not reach the server. Try again."); setJoining(false); }
+  }
   return (
-    <p className={`my-2 text-center text-xs ${missed ? "font-medium text-brand" : "text-muted"}`}>
-      <span aria-hidden>{c?.mode === "video" ? "🎥" : "📞"}</span> {mine ? "You" : m.senderName?.split(" ")[0] ?? "Someone"} · {text} · {timeOf(m.createdAt)}
-    </p>
+    <div className="my-2 text-center text-xs">
+      <p className={missed ? "font-medium text-brand" : "text-muted"}>
+        <span aria-hidden>{c?.mode === "video" ? "🎥" : "📞"}</span> {mine ? "You" : m.senderName?.split(" ")[0] ?? "Someone"} · {text} · {timeOf(m.createdAt)}
+      </p>
+      {canJoin && <button className="btn mt-1 !px-3 !py-1 text-xs" onClick={() => void join()} disabled={joining}>{joining ? "Joining…" : "Join call"}</button>}
+      {err && <p role="alert" className="mt-1 text-brand">{err}</p>}
+    </div>
   );
 }
 const dur = (s: number) => (s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.floor((s % 3600) / 60)} min` : s >= 60 ? `${Math.floor(s / 60)} min ${s % 60} s` : `${s} s`);

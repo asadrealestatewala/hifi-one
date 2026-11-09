@@ -1,6 +1,7 @@
-// One-to-one voice and video calls started from a direct chat. A call is an instant meeting room (the existing WebRTC room with
+// Voice and video calls started from a conversation: one-to-one in a direct chat, group calls in a group or project room. A call is an instant meeting room (the existing WebRTC room with
 // its signalling and ICE_SERVERS) whose purpose is CALL, plus a CALL message in the conversation that records how it went:
-// ringing, answered, declined, missed or ended with a duration. The callee is rung over the live chat stream.
+// ringing, answered, declined, missed or ended with a duration. Everyone else in the conversation is rung over the live chat stream;
+// in a group the first person to answer starts the call and the rest can join while it lasts (up to the room's 8 people).
 // Free of Next.js imports so it can be tested against the database.
 import crypto from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
@@ -37,6 +38,8 @@ async function loadCall(db: PrismaClient, actor: ChatActor, messageId: string) {
   return { msg, call };
 }
 
+const isGroupRoom = async (db: PrismaClient, roomId: string) => (await db.chatRoom.findUnique({ where: { id: roomId }, select: { kind: true } }))?.kind !== "DIRECT";
+
 async function setState(db: PrismaClient, msgId: string, call: CallState) {
   const m = await db.chatMessage.update({ where: { id: msgId }, data: { body: JSON.stringify(call) } });
   const sender = m.senderId ? (await db.user.findUnique({ where: { id: m.senderId }, select: { name: true } }))?.name ?? null : null;
@@ -49,15 +52,15 @@ const endMeetingRow = (db: PrismaClient, meetingId: string) =>
 export async function startCall(db: PrismaClient, actor: ChatActor, roomId: string, mode: string) {
   if (mode !== "audio" && mode !== "video") throw new ChatError("Choose a voice or video call.");
   const m = await callMember(db, actor, roomId);
-  if (m.room.kind !== "DIRECT") throw new ChatError("Calls work in direct conversations for now.");
+  const group = m.room.kind !== "DIRECT";
   await sweepStaleCalls(db, roomId);
-  const other = await db.chatMember.findFirst({ where: { roomId, userId: { not: actor.id }, leftAt: null } });
-  const callee = other ? await db.user.findFirst({ where: { id: other.userId, organizationId: actor.organizationId, active: true, userType: "EMPLOYEE" }, select: { id: true, name: true } }) : null;
-  if (!callee) throw new ChatError("That person is not available for calls.");
+  const others = await db.chatMember.findMany({ where: { roomId, userId: { not: actor.id }, leftAt: null }, select: { userId: true } });
+  const callees = await db.user.findMany({ where: { id: { in: others.map((o) => o.userId) }, organizationId: actor.organizationId, active: true, userType: "EMPLOYEE" }, select: { id: true, name: true } });
+  if (callees.length === 0) throw new ChatError(group ? "Nobody else in this conversation is available for calls." : "That person is not available for calls.");
   const live = await db.chatMessage.findMany({ where: { roomId, kind: "CALL", createdAt: { gt: new Date(Date.now() - 12 * 3600_000) } }, orderBy: { createdAt: "desc" }, take: 5 });
   if (live.some((x) => { const c = parseCall(x.body); return c && (c.status === "RINGING" || c.status === "ANSWERED"); })) throw new ChatError("There is already a call in this conversation.");
   const meeting = await db.meeting.create({
-    data: { organizationId: actor.organizationId, hostId: actor.id, title: `${mode === "video" ? "Video" : "Voice"} call: ${actor.name} and ${callee.name}`, kind: "MEETING", purpose: "CALL", durationMin: 60, joinToken: crypto.randomBytes(16).toString("hex"), waitingRoom: true }, // staff join directly; the guest link of a call room is never shown, and strangers would wait in the lobby anyway
+    data: { organizationId: actor.organizationId, hostId: actor.id, title: group ? `${mode === "video" ? "Video" : "Voice"} call: ${m.room.name ?? "Group"}` : `${mode === "video" ? "Video" : "Voice"} call: ${actor.name} and ${callees[0].name}`, kind: "MEETING", purpose: "CALL", durationMin: 60, joinToken: crypto.randomBytes(16).toString("hex"), waitingRoom: true }, // staff join directly; the guest link of a call room is never shown, and strangers would wait in the lobby anyway
   });
   let ticket: string;
   try { ticket = (await joinAsStaff(db, { meetingId: meeting.id, user: actor })).participant.ticket; } catch (e) { throw e instanceof MeetingError ? new ChatError(e.message) : e; }
@@ -65,17 +68,20 @@ export async function startCall(db: PrismaClient, actor: ChatActor, roomId: stri
   const msg = await db.chatMessage.create({ data: { roomId, senderId: actor.id, kind: "CALL", body: JSON.stringify(call) } });
   await db.chatRoom.update({ where: { id: roomId }, data: { lastMessageAt: msg.createdAt } });
   await db.chatMember.update({ where: { roomId_userId: { roomId, userId: actor.id } }, data: { lastReadAt: msg.createdAt } });
-  return { message: dto(msg, actor.name), recipients: [actor.id, callee.id], calleeId: callee.id, meetingId: meeting.id, ticket, call };
+  return { message: dto(msg, actor.name), recipients: [actor.id, ...callees.map((c) => c.id)], calleeIds: callees.map((c) => c.id), group, roomName: m.room.name, meetingId: meeting.id, ticket, call };
 }
 
 export async function answerCall(db: PrismaClient, actor: ChatActor, messageId: string) {
   const { msg, call } = await loadCall(db, actor, messageId);
-  if (msg.senderId === actor.id) throw new ChatError("You started this call.");
-  if (call.status !== "RINGING") throw new ChatError("This call is no longer ringing.");
-  if (Date.now() - msg.createdAt.getTime() > (RING_SECONDS + 10) * 1000) { await expireCall(db, messageId); throw new ChatError("This call is no longer ringing."); }
+  const group = await isGroupRoom(db, msg.roomId);
+  const mine = msg.senderId === actor.id;
+  // In a group, anyone in the conversation (the caller too, after leaving) can join a call that is under way
+  const joinable = call.status === "RINGING" ? !mine : group && call.status === "ANSWERED";
+  if (!joinable) throw new ChatError(mine && call.status === "RINGING" ? "You started this call." : group ? "This call has ended." : "This call is no longer ringing.");
+  if (call.status === "RINGING" && Date.now() - msg.createdAt.getTime() > (RING_SECONDS + 10) * 1000) { await expireCall(db, messageId); throw new ChatError("This call is no longer ringing."); }
   let ticket: string;
   try { ticket = (await joinAsStaff(db, { meetingId: call.meetingId, user: actor })).participant.ticket; } catch (e) { throw e instanceof MeetingError ? new ChatError(e.message) : e; }
-  const out = await setState(db, msg.id, { ...call, status: "ANSWERED", answeredAt: new Date().toISOString() });
+  const out = call.status === "ANSWERED" ? { message: dto(msg, null), recipients: [] as string[] } : await setState(db, msg.id, { ...call, status: "ANSWERED", answeredAt: new Date().toISOString() });
   return { ...out, meetingId: call.meetingId, mode: call.mode, ticket };
 }
 
@@ -83,6 +89,8 @@ export async function declineCall(db: PrismaClient, actor: ChatActor, messageId:
   const { msg, call } = await loadCall(db, actor, messageId);
   if (msg.senderId === actor.id) throw new ChatError("You started this call.");
   if (call.status !== "RINGING") throw new ChatError("This call is no longer ringing.");
+  // In a group one person declining only dismisses their own ring; the others can still answer
+  if (await isGroupRoom(db, msg.roomId)) return null;
   await endMeetingRow(db, call.meetingId);
   return setState(db, msg.id, { ...call, status: "DECLINED" });
 }
