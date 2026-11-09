@@ -49,4 +49,5 @@ Unique per organization: `Client(name)`, `Account(code)`, `NumberSequence(key)`.
 ## Not modelled yet
 
 Brands under a client, deliverables as their own entity (campaign deliverables are content items and tasks in linked projects), purchase orders separate from work orders, ad-platform metrics, saved views for arbitrary lists (smart lists exist for leads).
+- **Daily reports.** `DailyReport` is one employee's report for one company-local working day (unique per person and date): summary, blockers, plan, stated hours, `late` when written after the day, and the reviewer's note and 1 to 5 rating once acknowledged (then locked). Attendance, finished tasks and field visits are read from their own tables for the same day, never copied in.
 - **Site visits.** `SiteVisitRequest` is one employee's request to work away from the office (SITE_VISIT, FIELD_WORK or WORK_FROM_HOME) over a date range with optional times, place, optional `clientId` and purpose; PENDING → APPROVED or REJECTED (with `decisionNote`) by the manager or HR, or CANCELLED by the employee while pending or before it starts. It never changes attendance records; screens read both side by side.
