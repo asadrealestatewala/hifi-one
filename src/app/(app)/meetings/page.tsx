@@ -14,7 +14,7 @@ export default async function Meetings({ searchParams }: { searchParams: Promise
   const sp = await searchParams;
   const org = user.organizationId;
   const [meetings, projects, clients] = await Promise.all([
-    db.meeting.findMany({ where: { organizationId: org }, orderBy: [{ scheduledAt: "desc" }, { createdAt: "desc" }], take: 60 }),
+    db.meeting.findMany({ where: { organizationId: org, purpose: { not: "CALL" } }, orderBy: [{ scheduledAt: "desc" }, { createdAt: "desc" }], take: 60 }),
     db.project.findMany({ where: { organizationId: org, status: "ACTIVE" }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     db.client.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);

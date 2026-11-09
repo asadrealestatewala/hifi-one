@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Avatar from "@/components/ui/Avatar";
+import { subscribeChat } from "@/lib/chat-stream";
 import { EMOJI } from "./emoji";
 
 type Room = {
@@ -17,7 +18,7 @@ const MAX_VOICE_SECONDS = 300;
 const ACCEPT = "image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime,audio/mpeg,audio/mp4,audio/ogg,audio/wav,application/pdf,.docx,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.gif,.webp,.mp4,.mov,.webm,.mp3,.m4a,.ogg,.wav";
 const EXT_OK = /\.(png|jpe?g|gif|webp|mp4|mov|webm|weba|mp3|m4a|ogg|wav|pdf|docx|xlsx|csv|txt)$/i;
 const sizeLabel = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
-const LAST_LABEL: Record<string, string> = { IMAGE: "📷 Picture", VIDEO: "🎥 Video", AUDIO: "🎤 Voice message", FILE: "📎 File" };
+const LAST_LABEL: Record<string, string> = { CALL: "📞 Call", IMAGE: "📷 Picture", VIDEO: "🎥 Video", AUDIO: "🎤 Voice message", FILE: "📎 File" };
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -43,7 +44,7 @@ const preview = (r: Room, meName: string) => {
   return who + text;
 };
 
-export default function ChatApp({ meId, meName, initialRoom }: { meId: string; meName: string; initialRoom: string | null }) {
+export default function ChatApp({ meId, meName, initialRoom, canCall }: { meId: string; meName: string; initialRoom: string | null; canCall: boolean }) {
   const [rooms, setRooms] = useState<Room[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(initialRoom);
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -54,6 +55,7 @@ export default function ChatApp({ meId, meName, initialRoom }: { meId: string; m
   const [filter, setFilter] = useState("");
   const [dialog, setDialog] = useState<null | "new" | "info">(null);
   const [live, setLive] = useState(false);
+  const [calling, setCalling] = useState(false);
   const activeRef = useRef<string | null>(activeId);
   const listEnd = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -95,44 +97,40 @@ export default function ChatApp({ meId, meName, initialRoom }: { meId: string; m
   }, [activeId, loadMessages]);
 
   useEffect(() => {
-    let es: EventSource | null = null;
-    let closed = false;
     let first = true;
-    const connect = () => {
-      es = new EventSource("/api/chat/events");
-      es.addEventListener("hello", () => {
+    const off = subscribeChat((event, raw) => {
+      if (event === "_error") { setLive(false); return; }
+      if (event === "hello") {
         setLive(true);
         if (!first) { void loadRooms(); if (activeRef.current) void loadMessages(activeRef.current); }
         first = false;
-      });
-      es.addEventListener("message", (ev) => {
-        const { message } = JSON.parse((ev as MessageEvent).data) as { message: Msg };
+      } else if (event === "message") {
+        const { message } = raw as { message: Msg };
         if (message.roomId === activeRef.current) {
           setMsgs((cur) => (cur.some((m) => m.id === message.id) ? cur : [...cur, message]));
           if (document.visibilityState === "visible" && message.senderId !== meId) markRead(message.roomId);
         }
         reloadSoon();
-      });
-      es.addEventListener("read", (ev) => {
-        const d = JSON.parse((ev as MessageEvent).data) as { roomId: string; userId: string; at: string };
+      } else if (event === "call-update") {
+        const { message } = raw as { message: Msg };
+        setMsgs((cur) => cur.map((m) => (m.id === message.id ? message : m)));
+        reloadSoon();
+      } else if (event === "read") {
+        const d = raw as { roomId: string; userId: string; at: string };
         setReads((cur) => ({ ...cur, [d.roomId]: { ...(cur[d.roomId] ?? {}), [d.userId]: d.at } }));
-      });
-      es.addEventListener("deleted", (ev) => {
-        const d = JSON.parse((ev as MessageEvent).data) as { roomId: string; messageId: string };
+      } else if (event === "deleted") {
+        const d = raw as { roomId: string; messageId: string };
         setMsgs((cur) => cur.map((m) => (m.id === d.messageId ? { ...m, deleted: true, body: "", attachments: [] } : m)));
         reloadSoon();
-      });
-      es.addEventListener("room", (ev) => {
-        const d = JSON.parse((ev as MessageEvent).data) as { roomId: string };
+      } else if (event === "room") {
+        const d = raw as { roomId: string };
         reloadSoon();
         if (d.roomId === activeRef.current) void loadMessages(d.roomId);
-      });
-      es.onerror = () => { setLive(false); if (es?.readyState === EventSource.CLOSED && !closed) { es.close(); setTimeout(connect, 3000); } };
-    };
-    connect();
+      }
+    });
     const onVisible = () => { if (document.visibilityState === "visible" && activeRef.current) markRead(activeRef.current); };
     document.addEventListener("visibilitychange", onVisible);
-    return () => { closed = true; es?.close(); document.removeEventListener("visibilitychange", onVisible); };
+    return () => { off(); document.removeEventListener("visibilitychange", onVisible); };
   }, [loadRooms, loadMessages, markRead, meId, reloadSoon]);
 
   // Keep the newest message in view unless the person scrolled up to read older ones
@@ -161,6 +159,15 @@ export default function ChatApp({ meId, meName, initialRoom }: { meId: string; m
       setMsgs((cur) => [...d.messages, ...cur]); setHasMore(d.hasMore);
       requestAnimationFrame(() => { if (el) el.scrollTop = el.scrollHeight - prevH; });
     } catch (e) { setError((e as Error).message); }
+  }
+
+  async function call(mode: "audio" | "video") {
+    if (!activeId || calling) return;
+    setCalling(true); setError(null);
+    try {
+      const d = await api<{ roomUrl: string }>(`/api/chat/rooms/${activeId}/call`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode }) });
+      window.location.href = d.roomUrl;
+    } catch (e) { setError((e as Error).message); setCalling(false); }
   }
 
   const open = (id: string) => { setActiveId(id); history.replaceState(null, "", `/chat?room=${id}`); };
@@ -217,6 +224,12 @@ export default function ChatApp({ meId, meName, initialRoom }: { meId: string; m
                 <span className="block truncate text-sm font-semibold">{active.name}</span>
                 <span className="block truncate text-xs text-muted">{active.kind === "DIRECT" ? "Direct message" : `${active.kind === "PROJECT" ? "Project room · " : ""}${active.members.length} people: ${active.members.map((m) => (m.id === meId ? "You" : m.name.split(" ")[0])).join(", ")}`}</span>
               </button>
+              {active.kind === "DIRECT" && canCall && (
+                <>
+                  <button className="rounded-lg p-2 text-lg hover:bg-hover disabled:opacity-50" onClick={() => void call("audio")} disabled={calling} aria-label={`Voice call ${active.name}`} title="Voice call">📞</button>
+                  <button className="rounded-lg p-2 text-lg hover:bg-hover disabled:opacity-50" onClick={() => void call("video")} disabled={calling} aria-label={`Video call ${active.name}`} title="Video call">🎥</button>
+                </>
+              )}
               <button className="btn-ghost" onClick={() => setDialog("info")}>Details</button>
             </header>
             <div ref={scroller} className="flex-1 overflow-y-auto bg-background px-3 py-3" onScroll={(e) => { const t = e.currentTarget; stickToBottom.current = t.scrollHeight - t.scrollTop - t.clientHeight < 80; }}>
@@ -253,6 +266,7 @@ function Messages({ msgs, room, meId, reads, onDelete }: { msgs: Msg[]; room: Ro
     const day = new Date(m.createdAt).toDateString();
     if (day !== lastDay) { lastDay = day; out.push(<div key={`d-${m.id}`} className="my-3 text-center"><span className="rounded-full bg-hover px-3 py-0.5 text-[11px] text-muted">{dayLabel(m.createdAt)}</span></div>); }
     if (m.kind === "SYSTEM") { out.push(<p key={m.id} className="my-2 text-center text-xs text-muted">{m.body}</p>); return; }
+    if (m.kind === "CALL") { out.push(<CallNote key={m.id} m={m} meId={meId} />); return; }
     const mine = m.senderId === meId;
     const prev = msgs[i - 1];
     const newGroup = !prev || prev.senderId !== m.senderId || prev.kind === "SYSTEM" || new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() > 5 * 60_000 || new Date(prev.createdAt).toDateString() !== day;
@@ -284,6 +298,21 @@ function Messages({ msgs, room, meId, reads, onDelete }: { msgs: Msg[]; room: Ro
   });
   return <>{out}</>;
 }
+
+function CallNote({ m, meId }: { m: Msg; meId: string }) {
+  let c: { mode: "audio" | "video"; status: string; durationSec?: number } | null = null;
+  try { c = JSON.parse(m.body); } catch { /* shown as a plain call */ }
+  const mine = m.senderId === meId;
+  const kind = c?.mode === "video" ? "Video call" : "Voice call";
+  const text = !c ? "Call" : c.status === "RINGING" ? `${kind} · ringing…` : c.status === "ANSWERED" ? `${kind} · in progress` : c.status === "ENDED" ? `${kind} · ${dur(c.durationSec ?? 0)}` : c.status === "DECLINED" ? `${kind} · ${mine ? "declined" : "you declined"}` : mine ? `${kind} · no answer` : `Missed ${kind.toLowerCase()}`;
+  const missed = !!c && !mine && c.status === "MISSED";
+  return (
+    <p className={`my-2 text-center text-xs ${missed ? "font-medium text-brand" : "text-muted"}`}>
+      <span aria-hidden>{c?.mode === "video" ? "🎥" : "📞"}</span> {mine ? "You" : m.senderName?.split(" ")[0] ?? "Someone"} · {text} · {timeOf(m.createdAt)}
+    </p>
+  );
+}
+const dur = (s: number) => (s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.floor((s % 3600) / 60)} min` : s >= 60 ? `${Math.floor(s / 60)} min ${s % 60} s` : `${s} s`);
 
 function Attachment({ a, mine }: { a: Msg["attachments"][number]; mine: boolean }) {
   const url = `/api/chat/files/${a.id}`;

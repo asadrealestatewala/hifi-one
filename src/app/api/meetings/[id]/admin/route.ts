@@ -3,6 +3,8 @@ import { publish } from "@/lib/meeting-hub";
 import { broadcastRoster, json, peersFor, ticketFrom } from "@/lib/meeting-http";
 import { authenticateParticipant, decide, endMeeting, history, leave, MeetingError } from "@/lib/meetings";
 import { closeForMeeting, isRecording } from "@/lib/recordings";
+import { afterLeave } from "@/lib/chat-calls";
+import { publishCallUpdate } from "@/lib/chat-call-http";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       await leave(db, me.id);
       publish(id, "peer-left", { id: me.id }, { except: me.id });
       await broadcastRoster(id);
+      publishCallUpdate(await afterLeave(db, id)); // a call with nobody left in it is over
       return json({ ok: true });
     }
     if (b.action === "end") {
