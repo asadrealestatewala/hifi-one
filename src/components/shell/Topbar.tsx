@@ -18,8 +18,8 @@ function useClickAway(ref: React.RefObject<HTMLElement | null>, close: () => voi
   }, [ref, close]);
 }
 
-export default function Topbar({ unread, quick, canSearch, onMenu, extra }: {
-  unread: number; quick: Quick[]; canSearch: boolean; onMenu: () => void; extra?: React.ReactNode;
+export default function Topbar({ unread, chatUnread, quick, canSearch, onMenu, extra }: {
+  unread: number; chatUnread: number | null; quick: Quick[]; canSearch: boolean; onMenu: () => void; extra?: React.ReactNode;
 }) {
   const [menu, setMenu] = useState<"" | "quick" | "bell">("");
   const [count, setCount] = useState(unread);
@@ -99,6 +99,13 @@ export default function Topbar({ unread, quick, canSearch, onMenu, extra }: {
         <button type="button" onClick={flip} className="rounded-lg p-2 text-muted hover:bg-hover hover:text-foreground" aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}>
           <Icon name={dark ? "sun" : "moon"} />
         </button>
+
+        {chatUnread !== null && (
+          <Link href="/chat" className="relative rounded-lg p-2 text-muted hover:bg-hover hover:text-foreground" aria-label={`Team chat, ${chatUnread} unread`}>
+            <Icon name="chat" />
+            {chatUnread > 0 && <span className="absolute right-1 top-1 min-w-[16px] rounded-full bg-brand px-1 text-center text-[10px] font-semibold leading-4 text-white">{chatUnread > 99 ? "99+" : chatUnread}</span>}
+          </Link>
+        )}
 
         <div className="sm:relative">
           <button type="button" onClick={toggleBell} aria-expanded={menu === "bell"} aria-haspopup="dialog" className="relative rounded-lg p-2 text-muted hover:bg-hover hover:text-foreground" aria-label={`Notifications, ${count} unread`}>
