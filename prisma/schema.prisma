@@ -866,6 +866,27 @@ model SiteVisitRequest {
   @@index([userId, status])
 }
 
+// A general application from an employee to HR that no other form covers: a salary or experience certificate, an advance or
+// loan, a resignation, a grievance, equipment, or anything else. HR takes it up, then approves or declines with a note.
+// Attachments are StoredFile rows with ownerType EMPLOYEE_REQUEST. Grievances are read by HR only (hr.manage), never managers.
+model EmployeeRequest {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String
+  type           String // SALARY_CERTIFICATE | EXPERIENCE_LETTER | ADVANCE | RESIGNATION | GRIEVANCE | EQUIPMENT | OTHER
+  subject        String
+  body           String
+  status         String    @default("SUBMITTED") // SUBMITTED | IN_REVIEW | APPROVED | DECLINED | CANCELLED
+  handledById    String?
+  handledAt      DateTime?
+  responseNote   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId, status, createdAt])
+  @@index([userId, createdAt])
+}
+
 // ---------- Phase 4: payroll ----------
 
 model SalaryStructure {
