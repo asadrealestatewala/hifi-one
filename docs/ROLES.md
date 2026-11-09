@@ -80,6 +80,7 @@ A role grants a permission when it is listed; Super Admin holds every permission
 | `monitoring.screenshots` | Open other people's screenshots (every view is logged and visible to them) |
 | `monitoring.configure` | Set the monitoring policy, enrol and revoke devices |
 | `meetings.use` | Schedule, host and join video meetings and workshops |
+| `chat.use` | Use team chat: direct messages, groups and project rooms with colleagues |
 | `meetings.recordings` | Record the meetings you host and watch or download meeting recordings |
 | `quotes.view` | View quotations |
 | `quotes.manage` | Create, send and record decisions on quotations |
@@ -116,99 +117,99 @@ A role grants a permission when it is listed; Super Admin holds every permission
 
 ### Super Admin
 
-`dashboard.view`, `settings.company.view`, `settings.company.edit`, `bank.view`, `bank.view_full`, `bank.edit`, `users.view`, `users.manage`, `roles.manage`, `audit.view`, `crm.view`, `crm.view_all`, `crm.edit`, `crm.convert`, `catalog.view`, `catalog.edit`, `projects.view`, `projects.view_all`, `projects.manage`, `tasks.edit`, `self.attendance`, `self.leave`, `leave.approve`, `hr.view`, `hr.manage`, `hr.view_sensitive`, `circulars.send`, `attendance.view_all`, `payroll.view`, `payroll.manage`, `payroll.approve`, `payroll.post`, `self.payslip`, `self.expense`, `expenses.view`, `expenses.review`, `expenses.approve`, `expenses.post`, `budget.view`, `budget.manage`, `budget.approve`, `budget.override`, `vendors.view`, `vendors.manage`, `vendors.bills`, `vendors.post`, `assets.view`, `assets.manage`, `assets.post`, `investments.view`, `investments.manage`, `reports.view`, `dashboard.executive`, `content.view`, `content.manage`, `content.publish`, `journal.create`, `journal.approve`, `coa.manage`, `period.lock`, `fx.manage`, `projects.costs`, `bank.reconcile`, `finance.writeoff`, `commissions.own`, `commissions.manage`, `commissions.approve`, `assistant.use`, `monitoring.own`, `monitoring.view_team`, `monitoring.screenshots`, `monitoring.configure`, `meetings.use`, `meetings.recordings`, `quotes.view`, `quotes.manage`, `contracts.view`, `contracts.manage`, `subscriptions.manage`, `finance.refund`, `clients.view`, `clients.edit`, `finance.view`, `finance.post`, `campaigns.view`, `campaigns.manage`, `jobs.run`, `leadsources.manage`, `support.view`, `support.manage`, `mail.manage`, `email_templates.manage`, `followups.manage`, `crm.duplicates`, `integrations.manage`, `prospector.use`, `prospector.manage`, `field.capture`, `field.review`, `prospector.schedule_demo`, `onboarding.approve`, `clout.view`, `clout.manage`, `clout.settings`
+`dashboard.view`, `settings.company.view`, `settings.company.edit`, `bank.view`, `bank.view_full`, `bank.edit`, `users.view`, `users.manage`, `roles.manage`, `audit.view`, `crm.view`, `crm.view_all`, `crm.edit`, `crm.convert`, `catalog.view`, `catalog.edit`, `projects.view`, `projects.view_all`, `projects.manage`, `tasks.edit`, `self.attendance`, `self.leave`, `leave.approve`, `hr.view`, `hr.manage`, `hr.view_sensitive`, `circulars.send`, `attendance.view_all`, `payroll.view`, `payroll.manage`, `payroll.approve`, `payroll.post`, `self.payslip`, `self.expense`, `expenses.view`, `expenses.review`, `expenses.approve`, `expenses.post`, `budget.view`, `budget.manage`, `budget.approve`, `budget.override`, `vendors.view`, `vendors.manage`, `vendors.bills`, `vendors.post`, `assets.view`, `assets.manage`, `assets.post`, `investments.view`, `investments.manage`, `reports.view`, `dashboard.executive`, `content.view`, `content.manage`, `content.publish`, `journal.create`, `journal.approve`, `coa.manage`, `period.lock`, `fx.manage`, `projects.costs`, `bank.reconcile`, `finance.writeoff`, `commissions.own`, `commissions.manage`, `commissions.approve`, `assistant.use`, `monitoring.own`, `monitoring.view_team`, `monitoring.screenshots`, `monitoring.configure`, `meetings.use`, `chat.use`, `meetings.recordings`, `quotes.view`, `quotes.manage`, `contracts.view`, `contracts.manage`, `subscriptions.manage`, `finance.refund`, `clients.view`, `clients.edit`, `finance.view`, `finance.post`, `campaigns.view`, `campaigns.manage`, `jobs.run`, `leadsources.manage`, `support.view`, `support.manage`, `mail.manage`, `email_templates.manage`, `followups.manage`, `crm.duplicates`, `integrations.manage`, `prospector.use`, `prospector.manage`, `field.capture`, `field.review`, `prospector.schedule_demo`, `onboarding.approve`, `clout.view`, `clout.manage`, `clout.settings`
 
 ### CEO / Director
 
-`dashboard.view`, `settings.company.view`, `bank.view`, `users.view`, `audit.view`, `crm.view`, `crm.view_all`, `catalog.view`, `clients.view`, `finance.view`, `projects.view`, `projects.view_all`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `meetings.recordings`, `onboarding.approve`, `circulars.send`, `support.view`, `campaigns.view`, `hr.view`, `leave.approve`, `payroll.view`, `payroll.approve`, `expenses.view`, `expenses.approve`, `budget.view`, `budget.approve`, `budget.override`, `vendors.view`, `assets.view`, `investments.view`, `reports.view`, `dashboard.executive`, `journal.approve`, `period.lock`, `quotes.view`, `contracts.view`, `projects.costs`, `commissions.approve`, `clout.view`
+`dashboard.view`, `settings.company.view`, `bank.view`, `users.view`, `audit.view`, `crm.view`, `crm.view_all`, `catalog.view`, `clients.view`, `finance.view`, `projects.view`, `projects.view_all`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`, `meetings.recordings`, `onboarding.approve`, `circulars.send`, `support.view`, `campaigns.view`, `hr.view`, `leave.approve`, `payroll.view`, `payroll.approve`, `expenses.view`, `expenses.approve`, `budget.view`, `budget.approve`, `budget.override`, `vendors.view`, `assets.view`, `investments.view`, `reports.view`, `dashboard.executive`, `journal.approve`, `period.lock`, `quotes.view`, `contracts.view`, `projects.costs`, `commissions.approve`, `clout.view`
 
 ### Marketing Director
 
-`dashboard.view`, `crm.view`, `crm.view_all`, `catalog.view`, `catalog.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `followups.manage`, `email_templates.manage`, `leadsources.manage`, `content.view`, `content.manage`, `content.publish`, `campaigns.view`, `campaigns.manage`, `clout.view`, `clout.manage`
+`dashboard.view`, `crm.view`, `crm.view_all`, `catalog.view`, `catalog.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`, `followups.manage`, `email_templates.manage`, `leadsources.manage`, `content.view`, `content.manage`, `content.publish`, `campaigns.view`, `campaigns.manage`, `clout.view`, `clout.manage`
 
 ### Branch Manager
 
-`dashboard.view`, `users.view`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `leave.approve`, `hr.view`
+`dashboard.view`, `users.view`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`, `leave.approve`, `hr.view`
 
 ### Finance Manager
 
-`dashboard.view`, `settings.company.view`, `bank.view`, `bank.view_full`, `bank.edit`, `clients.view`, `clients.edit`, `finance.view`, `finance.post`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `payroll.view`, `payroll.approve`, `payroll.post`, `expenses.view`, `expenses.review`, `expenses.approve`, `expenses.post`, `budget.view`, `budget.manage`, `vendors.view`, `vendors.bills`, `vendors.post`, `assets.view`, `assets.manage`, `assets.post`, `investments.view`, `investments.manage`, `reports.view`, `dashboard.executive`, `journal.create`, `journal.approve`, `coa.manage`, `period.lock`, `finance.refund`, `fx.manage`, `quotes.view`, `contracts.view`, `contracts.manage`, `subscriptions.manage`, `projects.costs`, `bank.reconcile`, `finance.writeoff`, `commissions.manage`, `commissions.approve`, `commissions.own`
+`dashboard.view`, `settings.company.view`, `bank.view`, `bank.view_full`, `bank.edit`, `clients.view`, `clients.edit`, `finance.view`, `finance.post`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`, `payroll.view`, `payroll.approve`, `payroll.post`, `expenses.view`, `expenses.review`, `expenses.approve`, `expenses.post`, `budget.view`, `budget.manage`, `vendors.view`, `vendors.bills`, `vendors.post`, `assets.view`, `assets.manage`, `assets.post`, `investments.view`, `investments.manage`, `reports.view`, `dashboard.executive`, `journal.create`, `journal.approve`, `coa.manage`, `period.lock`, `finance.refund`, `fx.manage`, `quotes.view`, `contracts.view`, `contracts.manage`, `subscriptions.manage`, `projects.costs`, `bank.reconcile`, `finance.writeoff`, `commissions.manage`, `commissions.approve`, `commissions.own`
 
 ### Accountant
 
-`dashboard.view`, `bank.view`, `clients.view`, `clients.edit`, `finance.view`, `finance.post`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `expenses.view`, `expenses.review`, `expenses.post`, `budget.view`, `vendors.view`, `vendors.post`, `assets.view`, `assets.manage`, `reports.view`, `journal.create`, `quotes.view`, `contracts.view`, `bank.reconcile`, `commissions.manage`
+`dashboard.view`, `bank.view`, `clients.view`, `clients.edit`, `finance.view`, `finance.post`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`, `expenses.view`, `expenses.review`, `expenses.post`, `budget.view`, `vendors.view`, `vendors.post`, `assets.view`, `assets.manage`, `reports.view`, `journal.create`, `quotes.view`, `contracts.view`, `bank.reconcile`, `commissions.manage`
 
 ### HR Manager
 
-`dashboard.view`, `users.view`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `onboarding.approve`, `circulars.send`, `hr.view`, `hr.manage`, `hr.view_sensitive`, `leave.approve`, `attendance.view_all`, `payroll.view`, `payroll.manage`, `monitoring.view_team`, `monitoring.screenshots`, `monitoring.configure`
+`dashboard.view`, `users.view`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`, `onboarding.approve`, `circulars.send`, `hr.view`, `hr.manage`, `hr.view_sensitive`, `leave.approve`, `attendance.view_all`, `payroll.view`, `payroll.manage`, `monitoring.view_team`, `monitoring.screenshots`, `monitoring.configure`
 
 ### Payroll Officer
 
-`dashboard.view`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `hr.view`, `payroll.view`, `payroll.manage`
+`dashboard.view`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`, `hr.view`, `payroll.view`, `payroll.manage`
 
 ### Sales Manager
 
-`dashboard.view`, `crm.view`, `crm.view_all`, `crm.edit`, `crm.convert`, `catalog.view`, `clients.view`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `prospector.use`, `prospector.manage`, `field.capture`, `field.review`, `prospector.schedule_demo`, `followups.manage`, `leadsources.manage`, `leave.approve`, `quotes.view`, `quotes.manage`, `contracts.view`, `contracts.manage`, `commissions.own`, `campaigns.view`, `campaigns.manage`, `clout.view`, `clout.manage`
+`dashboard.view`, `crm.view`, `crm.view_all`, `crm.edit`, `crm.convert`, `catalog.view`, `clients.view`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`, `prospector.use`, `prospector.manage`, `field.capture`, `field.review`, `prospector.schedule_demo`, `followups.manage`, `leadsources.manage`, `leave.approve`, `quotes.view`, `quotes.manage`, `contracts.view`, `contracts.manage`, `commissions.own`, `campaigns.view`, `campaigns.manage`, `clout.view`, `clout.manage`
 
 ### Sales Agent
 
-`dashboard.view`, `crm.view`, `crm.edit`, `catalog.view`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `field.capture`, `quotes.view`, `quotes.manage`, `commissions.own`, `campaigns.view`, `clout.view`
+`dashboard.view`, `crm.view`, `crm.edit`, `catalog.view`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`, `field.capture`, `quotes.view`, `quotes.manage`, `commissions.own`, `campaigns.view`, `clout.view`
 
 ### Onboarding Specialist
 
-`dashboard.view`, `crm.view`, `catalog.view`, `clients.view`, `prospector.schedule_demo`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`
+`dashboard.view`, `crm.view`, `catalog.view`, `clients.view`, `prospector.schedule_demo`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`
 
 ### Success Manager
 
-`dashboard.view`, `projects.view`, `tasks.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `prospector.schedule_demo`, `meetings.recordings`, `content.view`, `content.manage`, `support.view`, `support.manage`
+`dashboard.view`, `projects.view`, `tasks.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`, `prospector.schedule_demo`, `meetings.recordings`, `content.view`, `content.manage`, `support.view`, `support.manage`
 
 ### Project Manager
 
-`dashboard.view`, `projects.view`, `projects.manage`, `tasks.edit`, `clients.view`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `meetings.recordings`, `support.view`, `support.manage`, `campaigns.view`, `leave.approve`, `projects.costs`, `budget.view`, `vendors.view`, `vendors.manage`, `content.view`, `content.manage`, `content.publish`, `clout.view`
+`dashboard.view`, `projects.view`, `projects.manage`, `tasks.edit`, `clients.view`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`, `meetings.recordings`, `support.view`, `support.manage`, `campaigns.view`, `leave.approve`, `projects.costs`, `budget.view`, `vendors.view`, `vendors.manage`, `content.view`, `content.manage`, `content.publish`, `clout.view`
 
 ### Ads Manager
 
-`dashboard.view`, `projects.view`, `tasks.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `content.view`, `campaigns.view`, `clout.view`
+`dashboard.view`, `projects.view`, `tasks.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`, `content.view`, `campaigns.view`, `clout.view`
 
 ### Ads Expert
 
-`dashboard.view`, `projects.view`, `tasks.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `campaigns.view`, `clout.view`
+`dashboard.view`, `projects.view`, `tasks.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`, `campaigns.view`, `clout.view`
 
 ### Graphic Designer
 
-`dashboard.view`, `projects.view`, `tasks.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `content.view`, `content.manage`
+`dashboard.view`, `projects.view`, `tasks.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`, `content.view`, `content.manage`
 
 ### Video Editor
 
-`dashboard.view`, `projects.view`, `tasks.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `content.view`, `content.manage`
+`dashboard.view`, `projects.view`, `tasks.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`, `content.view`, `content.manage`
 
 ### Web Developer
 
-`dashboard.view`, `projects.view`, `tasks.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`
+`dashboard.view`, `projects.view`, `tasks.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`
 
 ### AI Engineer
 
-`dashboard.view`, `projects.view`, `tasks.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`
+`dashboard.view`, `projects.view`, `tasks.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`
 
 ### Intern
 
-`dashboard.view`, `projects.view`, `tasks.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`
+`dashboard.view`, `projects.view`, `tasks.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`
 
 ### Chief Marketing Officer
 
-`dashboard.view`, `dashboard.executive`, `crm.view`, `crm.view_all`, `crm.edit`, `catalog.view`, `catalog.edit`, `clients.view`, `projects.view`, `projects.view_all`, `campaigns.view`, `campaigns.manage`, `clout.view`, `clout.manage`, `hr.view`, `quotes.view`, `contracts.view`, `content.view`, `content.manage`, `content.publish`, `leave.approve`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`
+`dashboard.view`, `dashboard.executive`, `crm.view`, `crm.view_all`, `crm.edit`, `catalog.view`, `catalog.edit`, `clients.view`, `projects.view`, `projects.view_all`, `campaigns.view`, `campaigns.manage`, `clout.view`, `clout.manage`, `hr.view`, `quotes.view`, `contracts.view`, `content.view`, `content.manage`, `content.publish`, `leave.approve`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`
 
 ### Chief Operating Officer
 
-`dashboard.view`, `dashboard.executive`, `crm.view`, `crm.view_all`, `catalog.view`, `clients.view`, `projects.view`, `projects.view_all`, `projects.manage`, `tasks.edit`, `campaigns.view`, `campaigns.manage`, `clout.view`, `jobs.run`, `support.view`, `support.manage`, `leadsources.manage`, `hr.view`, `leave.approve`, `attendance.view_all`, `content.view`, `vendors.view`, `budget.view`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`
+`dashboard.view`, `dashboard.executive`, `crm.view`, `crm.view_all`, `catalog.view`, `clients.view`, `projects.view`, `projects.view_all`, `projects.manage`, `tasks.edit`, `campaigns.view`, `campaigns.manage`, `clout.view`, `jobs.run`, `support.view`, `support.manage`, `leadsources.manage`, `hr.view`, `leave.approve`, `attendance.view_all`, `content.view`, `vendors.view`, `budget.view`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`
 
 ### HR Coordinator
 
-`dashboard.view`, `hr.view`, `hr.manage`, `hr.view_sensitive`, `circulars.send`, `leave.approve`, `attendance.view_all`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`
+`dashboard.view`, `hr.view`, `hr.manage`, `hr.view_sensitive`, `circulars.send`, `leave.approve`, `attendance.view_all`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`
 
 ### AI Developer Intern
 
-`dashboard.view`, `projects.view`, `tasks.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`
+`dashboard.view`, `projects.view`, `tasks.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`
 
 ### Client
 

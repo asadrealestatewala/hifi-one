@@ -3245,3 +3245,53 @@ model ProspectSocial {
 
   @@index([organizationId, status])
 }
+
+// Team chat (phase 1): direct messages, groups and one group per project. Messages are plain text; pictures are StoredFile rows
+// (ownerType CHAT_MESSAGE) so they follow the same storage, validation and virus-scan rules as every other upload.
+model ChatRoom {
+  id              String   @id @default(cuid())
+  organizationId  String
+  kind            String // DIRECT | GROUP | PROJECT
+  name            String? // groups and project rooms; direct rooms are named after the other person
+  directKey       String? // DIRECT only: the two user ids sorted and joined, so a pair never gets two rooms
+  projectId       String? // PROJECT only
+  createdById     String
+  createdAt       DateTime @default(now())
+  lastMessageAt   DateTime @default(now())
+
+  members  ChatMember[]
+  messages ChatMessage[]
+
+  @@unique([organizationId, directKey])
+  @@unique([projectId])
+  @@index([organizationId, lastMessageAt])
+}
+
+model ChatMember {
+  roomId     String
+  userId     String
+  role       String    @default("MEMBER") // ADMIN | MEMBER
+  lastReadAt DateTime  @default(now()) // everything up to here is read; later messages from others are unread
+  joinedAt   DateTime  @default(now())
+  leftAt     DateTime? // left or removed: no longer sees new messages
+  muted      Boolean   @default(false)
+
+  room ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@id([roomId, userId])
+  @@index([userId, leftAt])
+}
+
+model ChatMessage {
+  id        String    @id @default(cuid())
+  roomId    String
+  senderId  String?
+  kind      String    @default("TEXT") // TEXT | IMAGE | SYSTEM
+  body      String    @default("")
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  room ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt])
+}
