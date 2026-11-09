@@ -8,18 +8,26 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.0.3
+        # The server fetches the code with this run's own short-lived token, so a deploy never depends on a GitHub
+        # credential stored on the VPS (the repository is private; a stored credential expired on 2026-11-09 and every deploy failed).
+        env:
+          FETCH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          envs: FETCH_TOKEN,REPO
           script: |
             set -e
             cd /var/www/hifi-one
-            git fetch origin main
-            git reset --hard origin/main
+            git fetch "https://x-access-token:${FETCH_TOKEN}@github.com/${REPO}.git" main
+            git reset --hard FETCH_HEAD
             npm ci --legacy-peer-deps
             # Clout Leader reads public post numbers with yt-dlp. A problem here never stops the deploy, and its output stays visible.
             # The standalone build needs no Python or pip; pip is the fallback. Already installed: update it in place.
