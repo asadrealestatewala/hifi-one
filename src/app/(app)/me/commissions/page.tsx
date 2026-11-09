@@ -37,13 +37,23 @@ export default async function MyCommissions() {
           ))}
         </div>
       )}
+      {s.byClient.length > 0 && (
+        <section className="card overflow-x-auto space-y-2">
+          <h2 className="font-semibold">By client</h2>
+          <table className="w-full text-sm">
+            <thead className="text-left text-xs text-muted"><tr><th className="py-1 pr-3">Client</th><th className="pr-3 text-right">Waiting</th><th className="pr-3 text-right">Approved</th><th className="text-right">Paid</th></tr></thead>
+            <tbody>{s.byClient.map((c) => <tr key={`${c.clientName}-${c.currency}`} className="border-t border-border"><td className="py-1.5 pr-3">{c.clientName}</td><td className="pr-3 text-right">{formatMoney(c.earned.toString(), c.currency)}</td><td className="pr-3 text-right">{formatMoney(c.approved.toString(), c.currency)}</td><td className="text-right font-medium">{formatMoney(c.paid.toString(), c.currency)}</td></tr>)}</tbody>
+          </table>
+        </section>
+      )}
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-1 pr-3">Date</th><th className="pr-3">What</th><th className="pr-3 text-right">Amount</th><th>Status</th></tr></thead>
+          <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-1 pr-3">Date</th><th className="pr-3">Client</th><th className="pr-3">What</th><th className="pr-3 text-right">Amount</th><th>Status</th></tr></thead>
           <tbody>
             {s.entries.map((e) => (
               <tr key={e.id} className="border-t border-border transition hover:bg-hover/50">
                 <td className="py-1 pr-3">{e.createdAt.toLocaleDateString()}</td>
+                <td className="pr-3">{e.clientName ?? "–"}{e.invoiceNumber ? <span className="text-xs text-muted"> · {e.invoiceNumber}</span> : null}</td>
                 <td className="pr-3">{e.kind === "BONUS" ? `Bonus: ${e.note}` : `${e.role === "SALES_MANAGER" ? "Manager share: " : ""}${e.ratePercent.toString()}% of ${formatMoney(e.base, e.currency)} received`}</td>
                 <td className="pr-3 text-right">{formatMoney(e.amount, e.currency)}</td><td>{LABEL[e.status] ?? e.status.toLowerCase()}</td>
               </tr>

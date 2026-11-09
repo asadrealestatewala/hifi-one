@@ -209,5 +209,25 @@ export async function statementFor(db: Db, organizationId: string, userId: strin
     else if (e.status === "PAID") t.paid = t.paid.add(e.amount.toString());
     totals.set(e.currency, t);
   }
-  return { entries, totals };
+  // Names for display only: the earner sees which client and invoice each entry came from, never the client's other data.
+  const clientIds = [...new Set(entries.map((e) => e.clientId).filter((x): x is string => !!x))];
+  const invoiceIds = [...new Set(entries.map((e) => e.invoiceId).filter((x): x is string => !!x))];
+  const [clients, invoices] = await Promise.all([
+    clientIds.length ? db.client.findMany({ where: { organizationId, id: { in: clientIds } }, select: { id: true, name: true } }) : [],
+    invoiceIds.length ? db.invoice.findMany({ where: { organizationId, id: { in: invoiceIds } }, select: { id: true, number: true } }) : [],
+  ]);
+  const clientName = new Map(clients.map((c) => [c.id, c.name]));
+  const invoiceNo = new Map(invoices.map((i) => [i.id, i.number]));
+  const rows = entries.map((e) => ({ ...e, clientName: e.clientId ? clientName.get(e.clientId) ?? null : null, invoiceNumber: e.invoiceId ? invoiceNo.get(e.invoiceId) ?? null : null }));
+  const byClient = new Map<string, { clientName: string; currency: string; earned: ReturnType<typeof dec>; approved: ReturnType<typeof dec>; paid: ReturnType<typeof dec> }>();
+  for (const e of rows) {
+    if (!e.clientId) continue;
+    const k = `${e.clientId}|${e.currency}`;
+    const t = byClient.get(k) ?? { clientName: e.clientName ?? "Client", currency: e.currency, earned: dec(0), approved: dec(0), paid: dec(0) };
+    if (e.status === "EARNED") t.earned = t.earned.add(e.amount.toString());
+    else if (e.status === "APPROVED") t.approved = t.approved.add(e.amount.toString());
+    else if (e.status === "PAID") t.paid = t.paid.add(e.amount.toString());
+    byClient.set(k, t);
+  }
+  return { entries: rows, totals, byClient: [...byClient.values()] };
 }
