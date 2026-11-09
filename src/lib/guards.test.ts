@@ -25,11 +25,11 @@ const AREAS: { prefix: string; guard: RegExp; label: string }[] = [
 ];
 
 // Pages that are intentionally public or only redirect
-const PUBLIC = new Set(["onboarding/[token]/page.tsx", "unsubscribe/[token]/page.tsx", "login/page.tsx", "login/verify/page.tsx", "login/forgot/page.tsx", "forbidden/page.tsx", "invite/[token]/page.tsx", "setup/page.tsx", "reset/[token]/page.tsx", "join/[token]/page.tsx", "sign/[token]/page.tsx", "clout-report/[token]/page.tsx"]);
+const PUBLIC = new Set(["onboarding/[token]/page.tsx", "unsubscribe/[token]/page.tsx", "login/page.tsx", "login/verify/page.tsx", "login/forgot/page.tsx", "forbidden/page.tsx", "invite/[token]/page.tsx", "setup/page.tsx", "reset/[token]/page.tsx", "join/[token]/page.tsx", "sign/[token]/page.tsx", "clout-report/[token]/page.tsx", "a/[token]/page.tsx"]);
 
 // Pages that only need a signed-in employee because they show the caller's own data and check
 // record ownership or permissions themselves. Everything else in (app) must call requirePermission.
-const OWN_DATA_PAGES = new Set(["(app)/account/password/page.tsx", "(app)/account/security/page.tsx", "(app)/notifications/page.tsx", "(app)/me/profile/page.tsx", "(app)/me/help/page.tsx", "(app)/me/tasks/page.tsx", "(app)/payslips/[id]/page.tsx", "(app)/expenses/[id]/page.tsx", "(app)/mail/page.tsx", "(app)/mail/[id]/page.tsx", "(app)/mail/compose/page.tsx"]);
+const OWN_DATA_PAGES = new Set(["(app)/account/password/page.tsx", "(app)/account/security/page.tsx", "(app)/notifications/page.tsx", "(app)/me/profile/page.tsx", "(app)/me/help/page.tsx", "(app)/me/circulars/page.tsx", "(app)/me/tasks/page.tsx", "(app)/payslips/[id]/page.tsx", "(app)/expenses/[id]/page.tsx", "(app)/mail/page.tsx", "(app)/mail/[id]/page.tsx", "(app)/mail/compose/page.tsx"]);
 
 describe("every protected page checks the caller", () => {
   const pages = files.filter((f) => f.endsWith("/page.tsx"));
@@ -78,7 +78,7 @@ function actionBodies(src: string): { name: string; body: string }[] {
 // Pre-sign-in screens. Each is protected by something else: a password, a code, an emailed or handed-over secret token, or the one-time empty-system check.
 // join/[token] is the guest entrance to a meeting: protected by the secret in the link, the host's waiting room and a rate limit.
 // onboarding/[token] needs the emailed link plus the 6-digit code from it; unsubscribe/[token] a signed token. Both are rate limited.
-const PUBLIC_ACTIONS = new Set(["onboarding/[token]/page.tsx", "unsubscribe/[token]/page.tsx", "login/page.tsx", "login/verify/page.tsx", "login/forgot/page.tsx", "invite/[token]/page.tsx", "setup/page.tsx", "reset/[token]/page.tsx", "join/[token]/page.tsx", "sign/[token]/page.tsx"]);
+const PUBLIC_ACTIONS = new Set(["onboarding/[token]/page.tsx", "unsubscribe/[token]/page.tsx", "login/page.tsx", "login/verify/page.tsx", "login/forgot/page.tsx", "invite/[token]/page.tsx", "setup/page.tsx", "reset/[token]/page.tsx", "join/[token]/page.tsx", "sign/[token]/page.tsx", "a/[token]/page.tsx"]);
 
 describe("every server action checks the caller", () => {
   for (const f of files.filter((x) => /\.(tsx?|ts)$/.test(x) && !x.endsWith(".test.ts"))) {
@@ -105,7 +105,7 @@ describe("every route handler checks the caller", () => {
   // and must resolve that secret through eventsForToken (which refuses unknown, switched-off and inactive-user tokens).
   // The desktop agent endpoints sign in with a device token instead of a browser session (see the agent test below).
   // The website's contact and apply forms are public by design: same-site, rate limited and validated (see the website tests below)
-  const PUBLIC_ROUTES = new Set(["api/site/contact/route.ts", "api/site/apply/route.ts", "api/health/route.ts", "api/calendar/[token]/route.ts", "api/agent/enroll/route.ts", "api/agent/policy/route.ts", "api/agent/ingest/route.ts", "api/agent/screenshot/route.ts", "api/jobs/run/route.ts", "api/leads/capture/route.ts", "api/meetings/[id]/events/route.ts", "api/meetings/[id]/signal/route.ts", "api/meetings/[id]/chat/route.ts", "api/meetings/[id]/admin/route.ts", "api/mail/inbound/route.ts", "api/unsubscribe/route.ts", "api/mobile/v1/login/route.ts", "api/mobile/v1/mfa/route.ts", "api/app/android/route.ts"]);
+  const PUBLIC_ROUTES = new Set(["api/site/contact/route.ts", "api/site/apply/route.ts", "api/health/route.ts", "api/calendar/[token]/route.ts", "api/agent/enroll/route.ts", "api/agent/policy/route.ts", "api/agent/ingest/route.ts", "api/agent/screenshot/route.ts", "api/jobs/run/route.ts", "api/leads/capture/route.ts", "api/meetings/[id]/events/route.ts", "api/meetings/[id]/signal/route.ts", "api/meetings/[id]/chat/route.ts", "api/meetings/[id]/admin/route.ts", "api/mail/inbound/route.ts", "api/unsubscribe/route.ts", "api/mobile/v1/login/route.ts", "api/mobile/v1/mfa/route.ts", "api/app/android/route.ts", "a/[token]/f/[fileId]/route.ts"]);
   for (const f of files.filter((x) => x.endsWith("/route.ts"))) {
     const r = rel(f);
     if (PUBLIC_ROUTES.has(r)) continue;
@@ -156,6 +156,27 @@ describe("the public website", () => {
       expect(src, r).toMatch(/limiter\(/);
       expect(src, r).not.toMatch(/export (async )?function (GET|PUT|PATCH|DELETE)/);
     }
+  });
+});
+
+describe("the asset upload route", () => {
+  it("answers with a relative redirect, never one built from the request URL (behind nginx that is localhost)", () => {
+    const src = read(path.join(root, "api/projects/[id]/assets/route.ts"));
+    expect(src).not.toMatch(/NextResponse\.redirect|new URL\([^)]*req\.url/);
+    expect(src).toMatch(/status:\s*303/);
+    expect(src).toMatch(/Location:\s*`\/projects\//);
+  });
+});
+
+describe("the public asset preview links", () => {
+  it("resolve the secret, honour the password and answer a plain 404 otherwise", () => {
+    const page = read(path.join(root, "a/[token]/page.tsx"));
+    const file = read(path.join(root, "a/[token]/f/[fileId]/route.ts"));
+    for (const src of [page, file]) { expect(src).toContain("resolveShare("); expect(src).toContain("isUnlocked("); }
+    expect(file).toContain("fileForShare(");
+    expect(file).toMatch(/status:\s*404/);
+    expect(file).not.toMatch(/export (async )?function (POST|PUT|PATCH|DELETE)/);
+    expect(page).toContain("limiter(");
   });
 });
 

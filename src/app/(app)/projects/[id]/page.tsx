@@ -9,6 +9,7 @@ import { addMember, createTask, setProjectStatus } from "../actions";
 import ProjectDepth from "./ProjectDepth";
 import ProjectMeetings from "./ProjectMeetings";
 import Deliverables from "./Deliverables";
+import ProjectAssets from "./ProjectAssets";
 import ProjectUpdates from "./ProjectUpdates";
 import ProjectTimeline from "./ProjectTimeline";
 import TaskBoard from "./TaskBoard";
@@ -24,10 +25,10 @@ export const dynamic = "force-dynamic";
 export default async function ProjectPage({
   params,
   searchParams,
-}: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; msg?: string; task?: string; fileError?: string; fileOk?: string }> }) {
+}: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; msg?: string; task?: string; fileError?: string; fileOk?: string; folder?: string; assetError?: string; assetOk?: string }> }) {
   const user = await requirePermission("projects.view");
   const { id } = await params;
-  const { error, msg, task: taskId, fileError, fileOk } = await searchParams;
+  const { error, msg, task: taskId, fileError, fileOk, folder, assetError, assetOk } = await searchParams;
   const project = await db.project.findFirst({
     where: { id, ...projectScope(user) },
     include: { members: true, tasks: { orderBy: { createdAt: "asc" } } },
@@ -88,6 +89,7 @@ export default async function ProjectPage({
       <ProjectDepth user={user} projectId={project.id} closed={closed} />
       <ProjectUpdates projectId={project.id} organizationId={user.organizationId} phase={project.phase} hasClient={Boolean(project.clientId)} canPost={canMove} canSetPhase={canManage} closed={closed} msg={msg} />
       <Deliverables projectId={project.id} organizationId={user.organizationId} canManage={canManage} hasClient={Boolean(project.clientId)} closed={closed} msg={msg} />
+      <ProjectAssets user={user} projectId={project.id} folder={folder} flash={{ assetError, assetOk }} />
       {user.permissions.has("meetings.use") && <ProjectMeetings projectId={project.id} organizationId={user.organizationId} closed={closed} />}
 
       <ProjectTimeline projectId={project.id} today={new Date().toISOString().slice(0, 10)} projectStart={project.startDate} deadline={project.deadline} milestones={milestones}

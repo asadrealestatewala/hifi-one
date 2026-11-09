@@ -3,6 +3,8 @@ import { isOnline, publish, subscribe } from "@/lib/meeting-hub";
 import { broadcastRoster, peersFor, ticketFrom } from "@/lib/meeting-http";
 import { authenticateParticipant, history, iceServers, leave } from "@/lib/meetings";
 import { isRecording } from "@/lib/recordings";
+import { afterLeave } from "@/lib/chat-calls";
+import { publishCallUpdate } from "@/lib/chat-call-http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -31,7 +33,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         try { controller.close(); } catch { /* already closed */ }
         // A refresh reconnects within seconds; only a real departure marks the person as having left.
         setTimeout(async () => {
-          if (!isOnline(id, me.id)) { await leave(db, me.id); publish(id, "peer-left", { id: me.id }); await broadcastRoster(id); }
+          if (!isOnline(id, me.id)) { await leave(db, me.id); publish(id, "peer-left", { id: me.id }); await broadcastRoster(id); publishCallUpdate(await afterLeave(db, id)); }
         }, 20_000);
       };
       req.signal.addEventListener("abort", close);

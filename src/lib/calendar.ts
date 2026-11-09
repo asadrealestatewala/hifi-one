@@ -4,6 +4,7 @@
 // their own tasks, leave and follow-ups, projects they manage, and contract or content dates if their role can view those.
 import crypto from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
+import { VISIT_KIND_LABEL, type VisitKind } from "./site-visits";
 
 type Db = PrismaClient;
 
@@ -47,6 +48,11 @@ export async function eventsForToken(db: Db, token: string, now = new Date()): P
     // an all-day event runs up to, not including, its end date
     ev.push({ uid: `leave-${l.id}`, date: l.startDate, title: `${l.status === "PENDING" ? "Leave requested" : "Leave"}: ${l.leaveType.name}` });
     if (l.endDate > l.startDate) ev.push({ uid: `leave-end-${l.id}`, date: l.endDate, title: `Leave ends: ${l.leaveType.name}` });
+  }
+  for (const v of await db.siteVisitRequest.findMany({ where: { userId: user.id, status: { in: ["APPROVED", "PENDING"] }, endDate: { gte: iso(from) }, startDate: { lte: iso(to) } }, include: { client: { select: { name: true } } } })) {
+    const label = VISIT_KIND_LABEL[v.kind as VisitKind] ?? v.kind;
+    ev.push({ uid: `visit-${v.id}`, date: v.startDate, title: `${v.status === "PENDING" ? "Requested: " : ""}${label}${v.client ? `: ${v.client.name}` : v.location ? `: ${v.location}` : ""}`, description: [v.purpose, v.startTime && v.endTime ? `${v.startTime}–${v.endTime}` : null].filter(Boolean).join("\n") });
+    if (v.endDate > v.startDate) ev.push({ uid: `visit-end-${v.id}`, date: v.endDate, title: `${label} ends` });
   }
   if (perms.has("crm.view")) {
     for (const l of await db.lead.findMany({ where: { organizationId: org, assignedToId: user.id, clientId: null, nextFollowUp: { gte: from, lte: to } } })) {

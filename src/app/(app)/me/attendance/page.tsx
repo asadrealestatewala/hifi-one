@@ -4,6 +4,8 @@ import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { HrError, clockIn, clockOut, endBreak, startBreak } from "@/lib/hr";
 import { dateInZone, fmtMinutes, workedMinutes } from "@/lib/hr-rules";
+import Link from "next/link";
+import { describeVisit } from "@/lib/site-visits";
 import { Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +41,8 @@ export default async function MyAttendance({ searchParams }: { searchParams: Pro
   const open = await db.attendanceRecord.findFirst({ where: { userId: user.id, clockOut: null }, include: { breaks: true } });
   const recent = await db.attendanceRecord.findMany({ where: { userId: user.id }, orderBy: { workDate: "desc" }, take: 14, include: { breaks: true } });
   const onBreak = open?.breaks.some((b) => !b.endAt);
+  const todayStr = dateInZone(new Date(), zone);
+  const outToday = await db.siteVisitRequest.findMany({ where: { userId: user.id, status: "APPROVED", startDate: { lte: todayStr }, endDate: { gte: todayStr } }, include: { client: { select: { name: true } } } });
   const fmt = (d: Date) => d.toLocaleTimeString("en-GB", { timeZone: zone, hour: "2-digit", minute: "2-digit" });
   const live = open ? workedMinutes(open, open.breaks) : null;
   return (
@@ -49,6 +53,7 @@ export default async function MyAttendance({ searchParams }: { searchParams: Pro
         Today in {zone}: {dateInZone(new Date(), zone)}.
       </p>
       {error && <Notice kind="error">{error}</Notice>}
+      {outToday.length > 0 && <Notice kind="ok">Approved for today: {outToday.map((v) => describeVisit(v)).join("; ")}. Clock in as remote when you start work, and HR will see why you are not in the office. <Link href="/me/visits" className="underline">Site visits</Link></Notice>}
       <form action={act} className="card flex flex-wrap items-end gap-3">
         {!open ? (
           <>
