@@ -14,6 +14,7 @@ export default function StageSelect({
   stages: { id: string; name: string }[];
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const router = useRouter();
   return (
@@ -28,12 +29,14 @@ export default function StageSelect({
           start(async () => {
             const r = await moveLead(leadId, e.target.value);
             setError(r.ok ? null : r.error);
+            setInfo(r.ok ? r.info ?? null : null);
             router.refresh();
           })
         }
       >
         {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
       </select>
+      {info && <p role="status" className="text-xs text-muted max-w-xs">{info}</p>}
       {error && <p role="alert" className="text-xs text-brand max-w-xs">{error}</p>}
     </div>
   );

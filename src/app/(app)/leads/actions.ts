@@ -7,6 +7,7 @@ import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { leadScope, normalizePhone } from "@/lib/leads";
 import { convertLead } from "@/lib/conversion";
+import { approveConversion, rejectConversion, requestConversion, type DecisionResult } from "@/lib/conversion-requests";
 import { ensureContactForLead, mirrorLeadActivity } from "@/lib/crm-contacts";
 import { DuplicateLeadError, canonicalPhone, createLeadGuarded, presentDuplicate } from "@/lib/lead-duplicates";
 import { LedgerError } from "@/lib/ledger-math";
@@ -73,7 +74,7 @@ export async function createLead(formData: FormData) {
   redirect(`/leads/${lead.id}`);
 }
 
-export type MoveResult = { ok: true } | { ok: false; error: string };
+export type MoveResult = { ok: true; info?: string } | { ok: false; error: string };
 
 // Used by the board (drag and drop) and the stage selector on the lead page.
 export async function moveLead(leadId: string, stageId: string): Promise<MoveResult> {
@@ -86,7 +87,16 @@ export async function moveLead(leadId: string, stageId: string): Promise<MoveRes
   if (stage.isWon) {
     // Closed Won is a controlled conversion, never just a label change, and needs manager approval.
     if (!user.permissions.has("crm.convert")) {
-      return { ok: false, error: "Closed Won needs manager approval. Ask a sales manager to convert this lead." };
+      // No permission: send an approval request to the sales managers instead of failing. The lead stays where it is.
+      try {
+        const r = await requestConversion(db, { organizationId: user.organizationId, leadId: lead.id, requesterId: user.id, requesterName: user.name, wonStageId: stage.id });
+        if (!r.alreadyPending) await audit(user, { action: "lead.convert_requested", entity: "Lead", entityId: lead.id, after: { requestId: r.id } });
+        revalidatePath(`/leads/${lead.id}`);
+        return { ok: true, info: r.alreadyPending ? "Already waiting for manager approval." : "Closed Won needs manager approval. Your request was sent to the sales managers; the lead stays in its stage until they approve." };
+      } catch (e) {
+        if (e instanceof LedgerError) return { ok: false, error: e.message };
+        throw e;
+      }
     }
     try {
       const r = await convertLead(db, { organizationId: user.organizationId, leadId: lead.id, actorId: user.id, wonStageId: stage.id });
@@ -123,4 +133,25 @@ export async function addNote(formData: FormData) {
   const na = await db.leadActivity.create({ data: { leadId, actorId: user.id, kind: "NOTE", body } });
   await mirrorLeadActivity(db, na.id);
   revalidatePath(`/leads/${leadId}`);
+}
+
+export async function approveConversionAction(requestId: string): Promise<DecisionResult> {
+  const user = await requirePermission("crm.convert");
+  const r = await approveConversion(db, { organizationId: user.organizationId, requestId, actorId: user.id }).catch((e) => {
+    if (e instanceof LedgerError) return { ok: false, error: e.message } as DecisionResult;
+    throw e;
+  });
+  if (r.ok) await audit(user, { action: "lead.convert", entity: "LeadConversionRequest", entityId: requestId, after: { clientId: r.conversion?.clientId, invoiceId: r.conversion?.invoiceId } });
+  revalidatePath("/leads/approvals");
+  revalidatePath("/pipeline");
+  revalidatePath("/leads");
+  return r;
+}
+
+export async function rejectConversionAction(requestId: string, reason: string): Promise<DecisionResult> {
+  const user = await requirePermission("crm.convert");
+  const r = await rejectConversion(db, { organizationId: user.organizationId, requestId, actorId: user.id, reason });
+  if (r.ok) await audit(user, { action: "lead.convert_rejected", entity: "LeadConversionRequest", entityId: requestId, after: { reason: reason.trim().slice(0, 500) } });
+  revalidatePath("/leads/approvals");
+  return r;
 }

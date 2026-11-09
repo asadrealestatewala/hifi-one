@@ -175,3 +175,7 @@ Done: per-project library with folders, tags, versions, image/video/PDF previews
 - **Done (service tested, tsc and eslint clean):** support manager per client, support handler fallback to the project manager, tutorial, support and inquiry calls from the Delivery tab, support contact and meeting purpose in the portal.
 - **Not built:** forcing every support call to record, routing support tickets to the support manager automatically, a support-manager dashboard, SLA timers.
 - **Not verified in a browser.**
+
+## Closed Won approval requests (added 2026-11-09)
+- **Done (service tested, tsc and eslint clean):** an agent without `crm.convert` who picks Closed Won (lead page or board) sends a request instead of getting an error; the lead stays in its stage and shows "waiting for Closed Won approval". Everyone with `crm.convert` is notified (in-app and phone push) and sees it under Leads › Pending Approvals (`/leads/approvals`) with Approve and convert / Reject (reason required). The agent is notified of the outcome; both are audited and noted on the lead. One open request per lead (partial unique index).
+- **Not verified in a browser or on a phone.** Managers keep the direct Closed Won route.
