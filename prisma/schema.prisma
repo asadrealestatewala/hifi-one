@@ -3135,6 +3135,8 @@ model ProspectOutreach {
   prospectId     String
   userId         String
   outcome        String // CONTACTED | INTERESTED | NOT_INTERESTED
+  channel        String? // CALL | WHATSAPP | EMAIL | IN_PERSON
+  result         String? // SPOKE | NO_ANSWER | WRONG_NUMBER
   note           String?
   createdAt      DateTime @default(now())
 

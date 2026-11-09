@@ -20,6 +20,10 @@ export const PROSPECTOR_SOURCE = "Prospector";
 export const OUTCOMES = ["CONTACTED", "INTERESTED", "NOT_INTERESTED"] as const;
 export type Outcome = (typeof OUTCOMES)[number];
 export const OUTCOME_LABEL: Record<string, string> = { CONTACTED: "Contacted", INTERESTED: "Interested", NOT_INTERESTED: "Not interested" };
+export const CHANNELS = ["CALL", "WHATSAPP", "EMAIL", "IN_PERSON"] as const;
+export const CHANNEL_LABEL: Record<string, string> = { CALL: "Phone call", WHATSAPP: "WhatsApp", EMAIL: "Email", IN_PERSON: "In person" };
+export const RESULTS = ["SPOKE", "NO_ANSWER", "WRONG_NUMBER"] as const;
+export const RESULT_LABEL: Record<string, string> = { SPOKE: "Spoke to them", NO_ANSWER: "No answer", WRONG_NUMBER: "Wrong number" };
 export const priorityFor = (score: number | null) => (score !== null && score >= 60 ? "HIGH" : score !== null && score >= 35 ? "MEDIUM" : "LOW");
 const NOTE_MAX = 1000;
 const CLOSED = ["SENT_TO_CRM", "DISMISSED", "NOT_INTERESTED"];
@@ -31,16 +35,20 @@ const closedMessage = (status: string) =>
 export type LogResult = { outcome: Outcome; leadId: string | null; linkedExisting: boolean };
 
 // The owner of a prospect logs its contacts; a sales manager can log for anyone. Nobody else can.
-export async function logOutreach(db: Db, actor: Actor, prospectId: string, p: { outcome: string; note?: string; now?: Date }): Promise<LogResult> {
+export async function logOutreach(db: Db, actor: Actor, prospectId: string, p: { outcome: string; note?: string; channel?: string; result?: string; now?: Date }): Promise<LogResult> {
   if (!(OUTCOMES as readonly string[]).includes(p.outcome)) throw new ProspectorError("Choose what happened: contacted, interested or not interested.");
   const outcome = p.outcome as Outcome;
+  if (p.channel && !(CHANNELS as readonly string[]).includes(p.channel)) throw new ProspectorError("Choose how you reached them.");
+  if (p.result && !(RESULTS as readonly string[]).includes(p.result)) throw new ProspectorError("Choose whether you spoke to them.");
+  const channel = p.channel || null;
+  const result = p.result || null;
   const note = (p.note ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").trim().slice(0, NOTE_MAX) || null;
   const org = actor.organizationId;
   const now = p.now ?? new Date();
   const row = await loadProspect(db, org, prospectId);
   if (!row || (!isManager(actor) && row.assignedToId !== actor.id)) throw new ProspectorError("Only the salesperson this prospect is assigned to, or a sales manager, can log contact.");
   if (CLOSED.includes(row.status)) throw new ProspectorError(closedMessage(row.status));
-  const log = { organizationId: org, prospectId, userId: actor.id, outcome, note, createdAt: now };
+  const log = { organizationId: org, prospectId, userId: actor.id, outcome, channel, result, note, createdAt: now };
 
   if (outcome !== "INTERESTED") {
     // the status condition makes a second click or a second person lose cleanly instead of overwriting a closed prospect
@@ -108,7 +116,7 @@ export async function convertProspectToLead(db: Db, actor: Actor, row: ProspectR
     const guard = await guardNewLead(tx, { organizationId: org, phone: row.phone, email, country: row.country });
     const history = await tx.prospectOutreach.findMany({ where: { prospectId }, orderBy: { createdAt: "asc" } });
     const names = new Map((await tx.user.findMany({ where: { id: { in: [...new Set(history.map((h) => h.userId))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
-    const contactNote = history.length ? `Contact history before this became a lead:\n${history.map((h) => `${h.createdAt.toISOString().slice(0, 10)} · ${names.get(h.userId) ?? "Someone"} · ${OUTCOME_LABEL[h.outcome] ?? h.outcome}${h.note ? `: ${h.note}` : ""}`).join("\n")}` : null;
+    const contactNote = history.length ? `Contact history before this became a lead:\n${history.map((h) => `${h.createdAt.toISOString().slice(0, 10)} · ${names.get(h.userId) ?? "Someone"} · ${OUTCOME_LABEL[h.outcome] ?? h.outcome}${h.channel ? ` (${CHANNEL_LABEL[h.channel] ?? h.channel}${h.result ? `, ${(RESULT_LABEL[h.result] ?? h.result).toLowerCase()}` : ""})` : ""}${h.note ? `: ${h.note}` : ""}`).join("\n")}` : null;
     const manual = row.origin === "MANUAL";
     const links = [row.product ? `Product: ${row.product.name}` : null, manual ? `Added by hand as ${MANUAL_SOURCE_LABEL[row.sourceLabel ?? ""] ?? row.sourceLabel ?? "Other"}${row.sourceDetail ? `: ${row.sourceDetail}` : ""}` : null, manual ? row.notes : null, row.website ? `Website: ${row.website}` : null, row.mapsUrl ? `Google Maps: ${row.mapsUrl}` : null].filter(Boolean).join("\n") || null;
     const lead = await tx.lead.create({

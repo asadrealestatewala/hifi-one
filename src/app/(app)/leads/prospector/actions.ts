@@ -13,7 +13,7 @@ import { OUTCOME_LABEL, logOutreach } from "@/lib/prospect-crm";
 import { addProspect, removeOwnProspect } from "@/lib/prospect-manual";
 import { FIELDS, detectSheet, importProspects, planImport, type Field, type ImportInput, type Mapping, type Skipped } from "@/lib/prospect-import";
 import { readWorkbook, type WorkbookSheet } from "@/lib/spreadsheet";
-import { ProspectorError, assign, isManager, dismiss, markReviewed, restore, runSearch, setDailyLimits } from "@/lib/prospector";
+import { ProspectorError, assign, claimProspect, isManager, dismiss, markReviewed, restore, runSearch, setDailyLimits } from "@/lib/prospector";
 
 const BASE = "/leads/prospector";
 const OWN = "/leads/prospector/mine";
@@ -153,6 +153,22 @@ export async function updateScores(formData: FormData): Promise<void> {
 
 // The salesperson who owns a prospect (or a manager) logs what happened when they contacted the business. Contacted keeps it a prospect,
 // Not interested closes it, and Interested turns it into a CRM lead in the same step and opens the lead.
+// Take an unassigned prospect from your own list; Log contact then appears on its row.
+export async function claimProspectAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("crm.edit");
+  const back = backTo(formData);
+  const id = s(formData, "prospectId");
+  if (!id) return flash("error", "Choose a prospect first.", "", back);
+  try {
+    const r = await claimProspect(db, user, id);
+    await audit(user, { action: "prospect.claim", entity: "Prospect", entityId: id, after: {} });
+    return flash("ok", `${r.name} is now yours. Press Log contact when you speak to them.`, "", back);
+  } catch (e) {
+    if (e instanceof ProspectorError) return flash("error", e.message, "", back);
+    throw e;
+  }
+}
+
 export async function logProspectContact(formData: FormData): Promise<void> {
   const user = await requirePermission("crm.edit");
   const id = s(formData, "prospectId");
@@ -160,8 +176,8 @@ export async function logProspectContact(formData: FormData): Promise<void> {
   let ok = "";
   let leadId: string | null = null;
   try {
-    const r = await logOutreach(db, user, id, { outcome: s(formData, "outcome"), note: s(formData, "note") });
-    await audit(user, { action: "prospect.outreach", entity: "Prospect", entityId: id, after: { outcome: r.outcome, leadId: r.leadId, linkedExisting: r.linkedExisting } });
+    const r = await logOutreach(db, user, id, { outcome: s(formData, "outcome"), note: s(formData, "note"), channel: s(formData, "channel"), result: s(formData, "result") });
+    await audit(user, { action: "prospect.outreach", entity: "Prospect", entityId: id, after: { outcome: r.outcome, channel: s(formData, "channel") || null, result: s(formData, "result") || null, leadId: r.leadId, linkedExisting: r.linkedExisting } });
     leadId = r.leadId;
     ok = `Saved: ${OUTCOME_LABEL[r.outcome].toLowerCase()}.${r.outcome === "NOT_INTERESTED" ? " The prospect is closed." : ""}`;
   } catch (e) {

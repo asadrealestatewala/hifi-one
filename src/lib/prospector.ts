@@ -202,6 +202,20 @@ export async function assign(db: Db, actor: Actor, ids: string[], agentId: strin
   return rows.length;
 }
 
+// A salesperson takes an unassigned prospect from their own list (one they searched for or added) so they can log contact on it.
+// The status condition makes two people pressing at once lose cleanly: the first claim wins.
+export async function claimProspect(db: Db, actor: Actor, id: string): Promise<{ name: string }> {
+  const row = await db.prospect.findFirst({ where: { AND: [{ id }, prospectScope(actor)] }, select: { name: true, assignedToId: true, status: true } });
+  if (!row) throw new ProspectorError("Prospect not found.");
+  if (row.assignedToId === actor.id) throw new ProspectorError("This prospect is already yours.");
+  if (row.assignedToId) throw new ProspectorError("This prospect is already assigned to someone else.");
+  if (!["NEW", "REVIEWED"].includes(row.status)) throw new ProspectorError("Only a prospect nobody has taken yet can be claimed.");
+  const now = new Date();
+  const done = await db.prospect.updateMany({ where: { id, assignedToId: null, status: { in: ["NEW", "REVIEWED"] } }, data: { status: "ASSIGNED", assignedToId: actor.id, assignedAt: now } });
+  if (done.count !== 1) throw new ProspectorError("Someone else just took this prospect.");
+  return { name: row.name };
+}
+
 // ---------- listing ----------
 export const PROSPECT_SORTS = { name: { field: "name" }, rating: { field: "rating", nullable: true }, created: { field: "createdAt" }, score: { field: "score", nullable: true } } as const;
 export function prospectWhere(actor: Actor, p: { q?: string; status?: string; searchId?: string; manual?: boolean; mineOnly?: boolean; hideDismissed?: boolean }): Prisma.ProspectWhereInput {
