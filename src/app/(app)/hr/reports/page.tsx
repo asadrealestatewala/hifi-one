@@ -51,7 +51,7 @@ export default async function DailyReports({ searchParams }: { searchParams: Pro
       } />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {sp.msg && <Notice kind="ok">{sp.msg}</Notice>}
-      <p className="text-sm text-muted">{weekday(date)}{date === today ? " (today)" : ""} · {tz}</p>
+      <p className="text-sm text-muted">{weekday(date)}{date === today ? " (today)" : ""} · {tz}{all && <> · <Link href={`/hr/reports/eod?date=${date}`} className="underline">End-of-day report</Link></>}</p>
       <div className="grid gap-3 sm:grid-cols-4">
         <Stat label="Expected" value={expected.length} hint={`${scoped.length - expected.length} off (weekend, leave or not joined)`} />
         <Stat label="Sent" value={sent.length} href={href({ show: "sent" })} />

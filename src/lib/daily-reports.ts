@@ -9,7 +9,7 @@ type Db = PrismaClient;
 
 export const MAX_DAYS_BACK = 7; // a report can still be written for up to a week back; it is then marked late
 export const MIN_SUMMARY = 10;
-export const REPORTS_SINCE = "2026-11-10"; // the day daily reports went live; nobody is marked as missing a report before it
+export const REPORTS_SINCE = process.env.DAILY_REPORTS_SINCE ?? "2026-11-10"; // the day daily reports went live; nobody is marked as missing a report before it
 
 const addDays = (s: string, n: number) => new Date(Date.parse(`${s}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 const isWeekend = (s: string, weekend: readonly number[] = WEEKEND_DAYS) => weekend.includes(new Date(`${s}T00:00:00Z`).getUTCDay());

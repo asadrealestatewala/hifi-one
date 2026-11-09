@@ -15,6 +15,8 @@ would send a message says "not configured" or hands the person a link to copy.
 | `task_reminders` | Tasks due tomorrow and tasks that became overdue today |
 | `monitoring_purge` | Workfolio screenshots and activity past the policy's retention |
 | `document_expiry` | Vendor and employee documents expiring within 30 days, and ones already expired |
+| `daily_report_missing` | Each morning, reminds anyone who missed yesterday's daily report and tells HR the count |
+| `end_of_day_report` | At 18:30 company time (`notBefore`), writes the day's `DayScorecard` rows, nudges people whose daily report is missing, and tells HR the end-of-day report is ready |
 
 - **Idempotent.** One `JobRun` row per organization, job and day. A finished day is skipped ("Already ran today") unless forced. A partial unique index allows one `RUNNING` row per organization and job, so two schedulers cannot run the same job at once; a run stuck for more than 30 minutes is marked failed and may be retried. A failure in one job or organization never stops the others.
 - **Three ways to run.** The Scheduled Jobs page (`/settings/jobs`, permission `jobs.run`) has Run now buttons and shows the last runs; `npm run jobs:run` for an operating-system scheduler; `POST /api/jobs/run` with `Authorization: Bearer <JOBS_TOKEN>` for a hosting platform's scheduler. The endpoint is off (404) unless `JOBS_TOKEN` is set to at least 24 characters, compares in constant time and rate limits wrong guesses.
