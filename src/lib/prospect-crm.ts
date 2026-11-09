@@ -118,11 +118,12 @@ export async function convertProspectToLead(db: Db, actor: Actor, row: ProspectR
     const names = new Map((await tx.user.findMany({ where: { id: { in: [...new Set(history.map((h) => h.userId))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
     const contactNote = history.length ? `Contact history before this became a lead:\n${history.map((h) => `${h.createdAt.toISOString().slice(0, 10)} · ${names.get(h.userId) ?? "Someone"} · ${OUTCOME_LABEL[h.outcome] ?? h.outcome}${h.channel ? ` (${CHANNEL_LABEL[h.channel] ?? h.channel}${h.result ? `, ${(RESULT_LABEL[h.result] ?? h.result).toLowerCase()}` : ""})` : ""}${h.note ? `: ${h.note}` : ""}`).join("\n")}` : null;
     const manual = row.origin === "MANUAL";
-    const links = [row.product ? `Product: ${row.product.name}` : null, manual ? `Added by hand as ${MANUAL_SOURCE_LABEL[row.sourceLabel ?? ""] ?? row.sourceLabel ?? "Other"}${row.sourceDetail ? `: ${row.sourceDetail}` : ""}` : null, manual ? row.notes : null, row.website ? `Website: ${row.website}` : null, row.mapsUrl ? `Google Maps: ${row.mapsUrl}` : null].filter(Boolean).join("\n") || null;
+    // Remarks on the lead: the agent's own note first, then where it came from and the product
+    const links = [manual ? row.notes : null, row.product ? `Product: ${row.product.name}` : null, manual ? `Added by hand as ${MANUAL_SOURCE_LABEL[row.sourceLabel ?? ""] ?? row.sourceLabel ?? "Other"}${row.sourceDetail ? `: ${row.sourceDetail}` : ""}` : null].filter(Boolean).join("\n") || null;
     const lead = await tx.lead.create({
       data: {
         organizationId: org, name: (row.contactName ?? row.name).slice(0, 200), company: manual && !row.contactName ? null : row.name.slice(0, 160), phone: row.phone, email, city: row.city, country: row.country ? countryName(row.country) : null,
-        source: manual ? `${PROSPECTOR_SOURCE}: ${MANUAL_SOURCE_LABEL[row.sourceLabel ?? ""] ?? "Other"}` : PROSPECTOR_SOURCE, serviceInterest: service, priority: priorityFor(s?.score ?? row.score), stageId: stage!.id, assignedToId: owner, createdById: actor.id, notes: links,
+        source: manual ? `${PROSPECTOR_SOURCE}: ${MANUAL_SOURCE_LABEL[row.sourceLabel ?? ""] ?? "Other"}` : PROSPECTOR_SOURCE, serviceInterest: service, priority: priorityFor(s?.score ?? row.score), stageId: stage!.id, assignedToId: owner, createdById: actor.id, notes: links, website: row.website, mapsUrl: row.mapsUrl, campaignId: row.campaignId,
         lastContactAt: now, tags: ["prospector", ...(row.product ? [`product:${row.product.code.toLowerCase()}`] : []), ...(manual ? [(row.sourceLabel ?? "other").toLowerCase().replace("_", "-")] : []), ...(s?.topService ? [s.topService.toLowerCase()] : [])],
         activities: { create: { actorId: actor.id, kind: o.activityKind ?? "CREATED", body: o.createdBody(s) } },
       },

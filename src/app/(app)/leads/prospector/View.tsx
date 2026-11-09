@@ -237,6 +237,7 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
   const pending = [...checks.values()].some((c) => c.status === "QUEUED" || c.status === "RUNNING");
   const canAdd = user.permissions.has("crm.edit");
   const defaultCountry = canAdd ? (await getPolicy(db, org)).defaultCountry : "PK";
+  const campaignOptions = canAdd ? await db.campaign.findMany({ where: { organizationId: org, archivedAt: null, status: { in: ["ACTIVE", "PLANNED"] } }, orderBy: { name: "asc" }, select: { id: true, name: true } }) : [];
   const manualCount = await db.prospect.count({ where: prospectWhere(user, { manual: true, mineOnly: mineView, hideDismissed: mineView }) });
   const canTick = !mineView && (manager || searcher);
   const byStatus = new Map(counts.map((c) => [c.status, c._count]));
@@ -293,7 +294,7 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
 
       {canAdd && (
         <div className="flex flex-wrap items-start gap-2">
-          <AddProspect countries={callingCodeOptions().map((c) => ({ code: c.code, label: c.label }))} defaultCountry={defaultCountry} />
+          <AddProspect campaigns={campaignOptions} countries={callingCodeOptions().map((c) => ({ code: c.code, label: c.label }))} defaultCountry={defaultCountry} />
           {manager && !mineView && <ImportProspects countries={callingCodeOptions().map((c) => ({ code: c.code, label: c.label }))} defaultCountry={defaultCountry} agents={agents.map((a) => ({ id: a.id, label: a.name }))} />}
         </div>
       )}

@@ -13,7 +13,7 @@ const add = (a: Actor, over: Record<string, unknown> = {}) => addProspect(db, a,
 const fails = (p: Promise<unknown>, text: RegExp) => expect(p).rejects.toThrow(text);
 
 beforeAll(async () => {
-  await db.$executeRawUnsafe('TRUNCATE "ProspectOutreach","ProspectSocial","ProspectWebsiteCheck","Prospect","ProspectSearch","SuppressedContact","LeadKey","ContactActivity","Contact","LeadActivity","Lead","PipelineStage","CrmSettings","Notification","UserRole","RolePermission","Permission","Role","User","Organization" CASCADE');
+  await db.$executeRawUnsafe('TRUNCATE "ProspectOutreach","ProspectSocial","ProspectWebsiteCheck","Prospect","ProspectSearch","SuppressedContact","LeadKey","ContactActivity","Contact","LeadActivity","Lead","Campaign","PipelineStage","CrmSettings","Notification","UserRole","RolePermission","Permission","Role","User","Organization" CASCADE');
   org = (await db.organization.create({ data: { name: "Manual Org" } })).id;
   other = (await db.organization.create({ data: { name: "Other" } })).id;
   const mk = async (organizationId: string, email: string, name: string) => (await db.user.create({ data: { organizationId, email, name, passwordHash: "x" } })).id;
@@ -157,5 +157,24 @@ describe("a hand-added prospect uses the same Log contact flow", () => {
     await db.suppressedContact.create({ data: { organizationId: org, email: "LATE@x.pk" } });
     await fails(logOutreach(db, ali, a.id, { outcome: "INTERESTED" }), /do-not-contact/);
     expect(await db.lead.count({ where: { email: "late@x.pk" } })).toBe(0);
+  });
+
+  it("keeps the campaign, website and Google Maps link, and carries them with the quick note to the lead as Remarks", async () => {
+    const camp = await db.campaign.create({ data: { organizationId: org, name: "Agentify Launch", status: "ACTIVE" } });
+    const a = await add(ali, { name: "Link Realty", phone: "0300 5550060", campaignId: camp.id, website: "linkrealty.pk", mapsUrl: "https://maps.app.goo.gl/abc123", note: "Call after 4pm" });
+    expect(await db.prospect.findUniqueOrThrow({ where: { id: a.id } })).toMatchObject({ campaignId: camp.id, website: "https://linkrealty.pk", mapsUrl: "https://maps.app.goo.gl/abc123" });
+    const r = await logOutreach(db, ali, a.id, { outcome: "INTERESTED", now: NOW });
+    const lead = await db.lead.findUniqueOrThrow({ where: { id: r.leadId! } });
+    expect(lead).toMatchObject({ campaignId: camp.id, website: "https://linkrealty.pk", mapsUrl: "https://maps.app.goo.gl/abc123" });
+    expect(lead.notes?.split("\n")[0]).toBe("Call after 4pm");
+  });
+  it("refuses a bad website, a link that is not Google Maps, and a campaign that is archived, paused or from another organization", async () => {
+    const field = async (over: Record<string, unknown>) => add(ali, { phone: "0300 5550070", ...over }).then(() => "saved", (e: ProspectorError) => e.field ?? "general");
+    expect(await field({ website: "not a site" })).toBe("website");
+    expect(await field({ mapsUrl: "https://example.com/place" })).toBe("mapsUrl");
+    const paused = await db.campaign.create({ data: { organizationId: org, name: "Paused", status: "PAUSED" } });
+    const foreignCamp = await db.campaign.create({ data: { organizationId: other, name: "Theirs", status: "ACTIVE" } });
+    expect(await field({ campaignId: paused.id })).toBe("campaignId");
+    expect(await field({ campaignId: foreignCamp.id })).toBe("campaignId");
   });
 });

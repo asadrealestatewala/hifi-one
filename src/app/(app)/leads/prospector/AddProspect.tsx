@@ -5,6 +5,7 @@ import Icon from "@/components/shell/Icon";
 import { addOwnProspect, type AddState } from "./actions";
 
 type Country = { code: string; label: string };
+type CampaignOption = { id: string; name: string };
 const SOURCES = [["REFERRAL", "Referral"], ["OWN_CONTACT", "Own contact"], ["OTHER", "Other"]] as const;
 
 function Field({ id, label, error, hint, children }: { id: string; label: string; error?: string; hint?: string; children: React.ReactNode }) {
@@ -19,11 +20,11 @@ function Field({ id, label, error, hint, children }: { id: string; label: string
 
 // The quick form. It lives in its own component so each time the sheet opens it starts empty. It is sent from onSubmit, not as a form action,
 // because a form action clears every field when it finishes, and a failed save must keep what was typed.
-function QuickForm({ countries, defaultCountry, onDone, onClose }: { countries: Country[]; defaultCountry: string; onDone: (message: string) => void; onClose: () => void }) {
+function QuickForm({ countries, campaigns, defaultCountry, onDone, onClose }: { countries: Country[]; campaigns: CampaignOption[]; defaultCountry: string; onDone: (message: string) => void; onClose: () => void }) {
   const [state, action, pending] = useActionState<AddState, FormData>(addOwnProspect, {});
   const nameRef = useRef<HTMLInputElement>(null);
   const err = (f: string) => (state.error && state.field === f ? state.error : undefined);
-  const general = state.error && !["name", "phone", "email", "source"].includes(state.field ?? "") ? state.error : undefined;
+  const general = state.error && !["name", "phone", "email", "source", "campaignId", "website", "mapsUrl"].includes(state.field ?? "") ? state.error : undefined;
   useEffect(() => { nameRef.current?.focus(); }, []);
   useEffect(() => { if (state.ok && state.message) onDone(state.message); }, [state, onDone]);
   const warn = Boolean(state.error?.includes("Add anyway"));
@@ -49,7 +50,19 @@ function QuickForm({ countries, defaultCountry, onDone, onClose }: { countries: 
           {SOURCES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </select>
       </Field>
-      <Field id="ap-note" label="Quick note (optional)">
+      <Field id="ap-campaign" label="Campaign (optional)" error={err("campaignId")} hint="The prospect keeps this campaign when it becomes a lead.">
+        <select id="ap-campaign" name="campaignId" defaultValue="" className="input" aria-invalid={Boolean(err("campaignId"))} aria-describedby={err("campaignId") ? "ap-campaign-err" : "ap-campaign-hint"}>
+          <option value="">No campaign</option>
+          {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </Field>
+      <Field id="ap-website" label="Website (optional)" error={err("website")}>
+        <input id="ap-website" name="website" type="url" inputMode="url" autoComplete="off" maxLength={300} placeholder="www.company.com" className="input" aria-invalid={Boolean(err("website"))} aria-describedby={err("website") ? "ap-website-err" : undefined} />
+      </Field>
+      <Field id="ap-maps" label="Google Maps link (optional)" error={err("mapsUrl")} hint="In Google Maps press Share, then Copy link.">
+        <input id="ap-maps" name="mapsUrl" type="url" inputMode="url" autoComplete="off" maxLength={500} placeholder="https://maps.app.goo.gl/…" className="input" aria-invalid={Boolean(err("mapsUrl"))} aria-describedby={err("mapsUrl") ? "ap-maps-err" : "ap-maps-hint"} />
+      </Field>
+      <Field id="ap-note" label="Quick note (optional)" hint="Shows as Remarks on the lead when this prospect is converted.">
         <textarea id="ap-note" name="note" rows={3} maxLength={1000} placeholder="Who referred them, what they need, when to call" className="input" />
       </Field>
       {warn && <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="confirm" value="1" className="mt-0.5" /> Add anyway, this is a different person</label>}
@@ -63,7 +76,7 @@ function QuickForm({ countries, defaultCountry, onDone, onClose }: { countries: 
 }
 
 // "Add prospect" button for a salesperson who found someone themselves. Opens a short form as a sheet from the bottom on a phone.
-export default function AddProspect({ countries, defaultCountry }: { countries: Country[]; defaultCountry: string }) {
+export default function AddProspect({ countries, campaigns, defaultCountry }: { countries: Country[]; campaigns: CampaignOption[]; defaultCountry: string }) {
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   useEffect(() => {
@@ -85,7 +98,7 @@ export default function AddProspect({ countries, defaultCountry }: { countries: 
               <h2 className="text-lg font-semibold tracking-tight">Add prospect</h2>
               <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="rounded-lg p-1.5 text-muted hover:bg-hover hover:text-foreground"><Icon name="close" /></button>
             </header>
-            <QuickForm countries={countries} defaultCountry={defaultCountry} onClose={() => setOpen(false)} onDone={(m) => { setDone(m); setOpen(false); }} />
+            <QuickForm countries={countries} campaigns={campaigns} defaultCountry={defaultCountry} onClose={() => setOpen(false)} onDone={(m) => { setDone(m); setOpen(false); }} />
           </div>
         </div>
       )}

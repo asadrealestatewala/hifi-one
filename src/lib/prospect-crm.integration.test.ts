@@ -111,7 +111,7 @@ describe("Interested turns the prospect into a lead", () => {
     expect(lead.stage.name).toBe("New"); // the first open stage, not Won
     expect(lead.serviceInterest).toBe("SEO and web optimisation");
     expect(lead.tags).toEqual(["prospector", "seo"]);
-    expect(lead.notes).toContain("https://weak.example");
+    expect(lead.website).toBe("https://weak.example");
     const notes = lead.activities.filter((a) => a.kind === "NOTE").map((a) => a.body ?? "");
     expect(notes.find((b) => b.startsWith("Contact history"))).toMatch(/2026-11-03 · Ali Agent · Contacted: Spoke to the receptionist\n2026-11-04 · Ali Agent · Interested: Wants a new website, call Monday/);
     expect(notes).toContain((await scoreOne(db, org, p.id, NOW))!.pitch);
