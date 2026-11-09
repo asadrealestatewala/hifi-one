@@ -11,7 +11,7 @@ export type FileActor = {
   permissions: ReadonlySet<string>;
 };
 
-export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT", "CIRCULAR", "CHAT_MESSAGE", "PROJECT_ASSET"] as const;
+export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT", "CIRCULAR", "CHAT_MESSAGE", "PROJECT_ASSET", "EMPLOYEE_REQUEST"] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 export type Mode = "read" | "upload" | "delete";
 
@@ -157,6 +157,17 @@ export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: 
     if (!c) return false;
     if (has("circulars.send")) return true;
     return (await db.circularRecipient.count({ where: { circularId: c.id, userId: a.id } })) > 0;
+  }
+
+  if (ownerType === "EMPLOYEE_REQUEST") {
+    // A file attached to an employee's application to HR: the employee and HR (hr.manage) read it; the employee adds files while the
+    // request is still open, HR at any time; removal follows the same rule. Managers never see these (a grievance may be about them).
+    const r = await db.employeeRequest.findFirst({ where: { id: ownerId, organizationId: a.organizationId }, select: { userId: true, status: true } });
+    if (!r || !staff) return false;
+    const mine = a.id === r.userId;
+    if (mode === "read") return mine || has("hr.manage");
+    const open = r.status === "SUBMITTED" || r.status === "IN_REVIEW";
+    return (mine && open) || has("hr.manage");
   }
 
   if (ownerType === "EMPLOYEE") {
