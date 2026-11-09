@@ -15,6 +15,7 @@ export const NAV: NavGroup[] = [
     { href: "/contacts", label: "Contacts", permission: "crm.view" },
     { href: "/leads", label: "Leads", permission: "crm.view" },
     { href: "/pipeline", label: "Opportunities", permission: "crm.view" },
+    { href: "/leads/approvals", label: "Pending Approvals", permission: "crm.convert" },
     { href: "/leads/lists", label: "Smart Lists", permission: "crm.view" },
     { href: "/leads/prospector", label: "Prospector", permission: "crm.view" },
     { href: "/leads/prospector/mine", label: "My Prospects", permission: "crm.edit" },

@@ -52,13 +52,14 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
     ["Expected closing", lead.expectedCloseDate], ["Next follow-up", lead.nextFollowUp?.toLocaleDateString()], ["Last contact", lead.lastContactAt?.toLocaleDateString() ?? "never"],
     ["Tags", lead.tags.length ? lead.tags.map((t) => <span key={t} className="mr-1"><Badge tone="primary">{t}</Badge></span>) : null],
   ];
+  const pendingWon = await db.leadConversionRequest.findFirst({ where: { leadId: lead.id, status: "PENDING" }, select: { id: true } });
   const overdue = lead.nextFollowUp && lead.nextFollowUp < new Date();
   return (
     <div className="space-y-6">
       <Link href="/leads" className="text-sm text-muted hover:underline">← All leads</Link>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">{lead.name}<span className="text-base font-normal text-muted">L-{lead.number}</span><Badge tone="primary">{lead.stage.name}</Badge></h1>
+          <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">{lead.name}<span className="text-base font-normal text-muted">L-{lead.number}</span><Badge tone="primary">{lead.stage.name}</Badge>{pendingWon && <Badge tone="warning">waiting for Closed Won approval</Badge>}</h1>
           <p className="mt-1 text-sm text-muted">{lead.company}{overdue && <span className="ml-2"><Badge tone="danger">follow-up overdue</Badge></span>}</p>
         </div>
         <div className="flex flex-wrap items-start gap-2">
