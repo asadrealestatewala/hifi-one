@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import Icon from "@/components/shell/Icon";
 import SubmitButton from "./ui/SubmitButton";
+import { rangePresets } from "@/lib/date-range";
+import { listHref } from "@/lib/list-params";
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
@@ -171,6 +173,35 @@ export function DateRangeForm({ from, to, hidden, label = "Dates" }: { from?: st
       <input type="date" name="to" defaultValue={to} aria-label={`${label} to`} className="input !w-auto" />
       <button className="btn-ghost">Apply</button>
     </form>
+  );
+}
+
+// Quick periods plus a from/to range, for lists that can filter on more than one date. `base` is the list address and
+// `current` its other filters; `by` (optional) lets the person choose which date the range applies to.
+export function DateFilterBar({ base, current, range, by, byOptions }: { base: string; current: Record<string, string | undefined>; range: { from?: string; to?: string }; by?: string; byOptions?: { value: string; label: string }[] }) {
+  const presets = rangePresets();
+  const hidden = { ...current, from: undefined, to: undefined, page: undefined };
+  const active = Boolean(range.from || range.to);
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-sm" role="group" aria-label="Date filter">
+      {byOptions && <form className="flex items-center gap-2" aria-label="Which date">
+        {Object.entries({ ...hidden, by: undefined, from: range.from, to: range.to }).map(([k, v]) => v ? <input key={k} type="hidden" name={k} value={v} /> : null)}
+        <label className="text-xs text-muted" htmlFor="date-by">Date</label>
+        <select id="date-by" name="by" defaultValue={by} className="input !w-auto">{byOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
+        <button className="btn-ghost">Set</button>
+      </form>}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {presets.map((p) => <Link key={p.key} href={listHref(base, { ...hidden, by }, { from: p.from, to: p.to })} className={`rounded-full border px-3 py-1 transition ${range.from === p.from && range.to === p.to ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-primary/40"}`}>{p.label}</Link>)}
+      </div>
+      <form className="flex flex-wrap items-center gap-2" aria-label="Custom dates">
+        {Object.entries({ ...hidden, by }).map(([k, v]) => v ? <input key={k} type="hidden" name={k} value={v} /> : null)}
+        <input type="date" name="from" defaultValue={range.from} aria-label="From date" className="input !w-auto" />
+        <span className="text-xs text-muted">to</span>
+        <input type="date" name="to" defaultValue={range.to} aria-label="To date" className="input !w-auto" />
+        <button className="btn-ghost">Apply</button>
+      </form>
+      {active && <Link className="text-xs text-primary hover:underline" href={listHref(base, { ...hidden, by })}>Clear dates</Link>}
+    </div>
   );
 }
 
