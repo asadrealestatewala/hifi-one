@@ -803,6 +803,8 @@ model DailyReport {
 
   @@unique([userId, workDate])
   @@index([organizationId, workDate])
+}
+
 // An employee asks to be away from the office for work: a site or client visit, a day of field work, or working from
 // home. The manager (or HR) approves it, so the day is not read as an absence and the calendar and attendance show it.
 model SiteVisitRequest {
