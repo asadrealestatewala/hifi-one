@@ -36,6 +36,8 @@ jobs:
             yt-dlp --version || echo "WARNING: yt-dlp is not runnable on this server"
             npx prisma generate
             npx prisma migrate deploy
+            # Registers permissions added by this release and gives them to Super Admin (and, once, to roles whose code definition includes them). Safe to repeat.
+            npx tsx scripts/sync-roles.mts
             # Build beside the live build, never over it. Building in place deleted the running server's CSS and JS
             # chunks, so a slow or failed build left every page unstyled. tsc and eslint already run in CI.
             rm -rf .next-build

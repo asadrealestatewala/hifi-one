@@ -119,7 +119,7 @@ export const JOBS: JobDef[] = [
     },
   },
   {
-    key: "document_expiry", label: "Document expiry", what: "Warns about vendor and employee documents that expire within 30 days, and about documents that expired.",
+    key: "document_expiry", label: "Document expiry", what: "Warns about vendor and employee documents that expire within 30 days, about documents that expired, and about documents HR asked for that are overdue.",
     async run({ db, organizationId, today }) {
       const limit = addDays(today, 30);
       const files = await db.storedFile.findMany({ where: { organizationId, deletedAt: null, expiresOn: { not: null, lte: limit }, ownerType: { in: ["VENDOR_DOC", "EMPLOYEE"] } }, select: { id: true, filename: true, expiresOn: true, ownerType: true, ownerId: true, category: true } });
@@ -132,6 +132,15 @@ export const JOBS: JobDef[] = [
         n++;
         const who = f.ownerType === "VENDOR_DOC" ? (await db.vendor.findUnique({ where: { id: f.ownerId }, select: { name: true } }))?.name ?? "a vendor" : (await db.user.findUnique({ where: { id: f.ownerId }, select: { name: true } }))?.name ?? "an employee";
         await notifyMany(db, f.ownerType === "VENDOR_DOC" ? vendorsPeople : hr, { kind: "document.expiry", title: expired ? `Expired: ${f.category ?? f.filename} (${who})` : `Expires ${f.expiresOn}: ${f.category ?? f.filename} (${who})`, link: f.ownerType === "VENDOR_DOC" ? `/vendors/${f.ownerId}?tab=documents` : `/hr/employees`, dedupeKey: `doc-expiry:${f.id}:${milestone}` });
+      }
+      // Documents HR asked for that are past their date: remind the employee (and HR) once a week until they arrive
+      const late = await db.documentRequest.findMany({ where: { organizationId, status: { in: ["REQUESTED", "REJECTED"] }, dueOn: { not: null, lt: today } }, select: { id: true, userId: true, category: true, dueOn: true } });
+      const wk = weekId(today);
+      for (const r of late) {
+        n++;
+        await notifyMany(db, [r.userId], { kind: "document.overdue", title: `Still needed: your ${r.category}`, body: `HR asked for it by ${r.dueOn}. Upload it on My Documents.`, link: "/me/documents", dedupeKey: `doc-request-late:${r.id}:${wk}` });
+        const who = (await db.user.findUnique({ where: { id: r.userId }, select: { name: true } }))?.name ?? "an employee";
+        await notifyMany(db, hr, { kind: "document.overdue", title: `Overdue: ${r.category} from ${who}`, body: `Asked for by ${r.dueOn}`, link: "/hr/documents", dedupeKey: `doc-request-late-hr:${r.id}:${wk}` });
       }
       return `${n} document notice${n === 1 ? "" : "s"}`;
     },
