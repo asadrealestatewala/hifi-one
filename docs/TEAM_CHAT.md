@@ -15,13 +15,13 @@ Staff chat inside Hifi One at **Project Operations → Team Chat** (`/chat`), pe
 - **Server setting:** `deploy/nginx/hifimarketing.co.conf` now has a `/api/chat/events` location (no buffering, needed for live messages) and raises the upload limit to 55 MB for the chat send route only. Copy it to the server and reload nginx; without it, files over 16 MB are refused by nginx and live messages may arrive late.
 - Files are held in memory while being saved, so very many large uploads at once cost RAM; there is no video transcoding or thumbnailing.
 
-## Phase 3: one-to-one calls
+## Phase 3: one-to-one calls (phase 4 below adds group calls)
 - Voice and video buttons in the header of every **direct** conversation. Pressing one opens the call room (the existing WebRTC meeting room, same `ICE_SERVERS`, same 8-person engine) and rings the other person: a ring panel with Answer and Decline appears on **any Hifi One page** they have open (`CallListener` in the shell), with a short ring tone made by the browser and a desktop notification if they have allowed notifications. Nobody with no page open gets a phone push.
 - Needs `chat.use` and `meetings.use`. Camera and microphone need HTTPS and the browser's permission, as in meetings.
 - The conversation records each call as a line: ringing, in progress, "Video call · 4 min 12 s", declined, no answer, or "Missed voice call" (red for the person who missed it). A missed call also counts as an unread message.
 - Ring times out after 45 s (server timer, plus a sweep when the conversation is opened, so a restart mid-ring cannot leave a call "ringing" for ever). The caller leaving before an answer cancels it; when everyone has left an answered call the call ends and its length is saved.
 - A call is a meeting with purpose `CALL`: it is hidden from Meetings, the dashboard list and project views, it has no guest link, and the room can only be entered by starting or answering the call (not by knowing its address).
-- Not yet: group calls (phase 4), screen share is available in the room but not rung separately, no call history screen, no recording.
+- Not yet: screen share is available in the room but not rung separately, no call history screen, no recording.
 - **Real-network note:** two people on strict networks need a TURN relay (set `ICE_SERVERS`; see docs/MEETINGS.md). Without it some calls will show "connection failed". Not tested across different networks.
 
 ## Rules
@@ -30,4 +30,11 @@ Staff chat inside Hifi One at **Project Operations → Team Chat** (`/chat`), pe
 - 40 messages per minute per person; 4000 characters per message; 50 MB per attachment.
 
 ## Not yet (later phases)
-Group calls (phase 4), @mentions, search inside messages, editing messages, replies and reactions.
+@mentions, search inside messages, editing messages, replies and reactions.
+
+## Phase 4: group calls
+- The voice and video buttons also appear in **group and project rooms**. Pressing one rings every other active staff member of the room (ring panel on any page, titled with the room name and "Join"; phone push for people with no page open). The room is the same meeting room, so at most **8 people** can be in a call at once; the 9th person is told it is full.
+- The first person to answer marks the call as in progress. After that anyone in the room can **Join call** from the call line in the conversation while it lasts, including the caller if they left. Their ring panel stays up until the call ends or the ring times out.
+- One person declining only dismisses their own ring. The call is missed only if nobody answers within 45 s (or the caller leaves first); it ends, and its length is saved, when everyone has left.
+- Rules are unchanged: needs `chat.use` and `meetings.use`, members only (someone who left the group cannot join), one call at a time per room, call rooms hidden from Meetings.
+- Not tested across real networks or with 8 real devices; quality drops as the mesh grows (every person sends video to every other person). A media server such as LiveKit would be the next step for bigger calls.

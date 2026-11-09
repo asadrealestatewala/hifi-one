@@ -26,7 +26,8 @@ describe("starting a call", () => {
   it("creates a call room with the caller in it, and rings the other person", async () => {
     const room = await openDirect(db, ann, bob.id);
     const r = await startCall(db, ann, room.id, "video");
-    expect(r.calleeId).toBe(bob.id);
+    expect(r.calleeIds).toEqual([bob.id]);
+    expect(r.group).toBe(false);
     expect(r.message.kind).toBe("CALL");
     expect(r.call).toMatchObject({ mode: "video", status: "RINGING" });
     const m = await db.meeting.findUniqueOrThrow({ where: { id: r.meetingId } });
@@ -36,8 +37,7 @@ describe("starting a call", () => {
     expect((await listRooms(db, bob)).find((x) => x.id === room.id)).toMatchObject({ unread: 1, lastMessage: { kind: "CALL" } });
     await cancelCall(db, ann, r.message.id);
   });
-  it("only works in direct conversations between people who can be called", async () => {
-    await expect(startCall(db, ann, (await createGroup(db, ann, { name: "Team", memberIds: [bob.id] })).id, "audio")).rejects.toThrow(/direct conversations/);
+  it("only works for people who can be called, inside their own conversations", async () => {
     const room = await openDirect(db, ann, cat.id);
     await expect(startCall(db, ann, room.id, "hologram")).rejects.toThrow(/voice or video/);
     await expect(startCall(db, bob, room.id, "audio")).rejects.toThrow(/not found/); // not in that room
@@ -119,5 +119,56 @@ describe("answering, declining, cancelling", () => {
     expect(parseCall(msgs[0].body)).not.toBeNull();
     const { deleteMessage } = await import("./chat");
     await expect(deleteMessage(db, ann, msgs[0].id)).rejects.toThrow(ChatError);
+  });
+});
+
+describe("group calls", () => {
+  it("rings everyone else, and the first to answer starts the call; others can join while it lasts", async () => {
+    const room = await createGroup(db, ann, { name: "Sales", memberIds: [bob.id, cat.id] });
+    const r = await startCall(db, ann, room.id, "video");
+    expect(r.group).toBe(true);
+    expect(r.roomName).toBe("Sales");
+    expect(r.calleeIds.sort()).toEqual([bob.id, cat.id].sort());
+    expect((await db.meeting.findUniqueOrThrow({ where: { id: r.meetingId } })).title).toContain("Sales");
+    const b = await answerCall(db, bob, r.message.id);
+    expect((await statusOf(r.message.id)).status).toBe("ANSWERED");
+    const answeredAt = (await statusOf(r.message.id)).answeredAt;
+    const c = await answerCall(db, cat, r.message.id); // joins late, state unchanged
+    expect(c.recipients).toEqual([]);
+    expect((await statusOf(r.message.id)).answeredAt).toBe(answeredAt);
+    expect((await authenticateParticipant(db, r.meetingId, c.ticket))?.userId).toBe(cat.id);
+    // the caller leaves; the call goes on while others stay, and the caller can rejoin
+    const pa = await authenticateParticipant(db, r.meetingId, r.ticket);
+    await leave(db, pa!.id);
+    expect(await afterLeave(db, r.meetingId)).toBeNull();
+    const back = await answerCall(db, ann, r.message.id);
+    expect((await authenticateParticipant(db, r.meetingId, back.ticket))?.userId).toBe(ann.id);
+    for (const t of [b.ticket, c.ticket, back.ticket]) { const p = await authenticateParticipant(db, r.meetingId, t); await leave(db, p!.id); }
+    expect((await afterLeave(db, r.meetingId))?.message.id).toBe(r.message.id);
+    expect((await statusOf(r.message.id)).status).toBe("ENDED");
+    await expect(answerCall(db, bob, r.message.id)).rejects.toThrow(/has ended/);
+  });
+  it("one person declining does not end the call for the others", async () => {
+    const room = await createGroup(db, ann, { name: "Ops", memberIds: [bob.id, cat.id] });
+    const r = await startCall(db, ann, room.id, "audio");
+    expect(await declineCall(db, bob, r.message.id)).toBeNull();
+    expect((await statusOf(r.message.id)).status).toBe("RINGING");
+    expect((await db.meeting.findUniqueOrThrow({ where: { id: r.meetingId } })).status).toBe("LIVE");
+    await answerCall(db, cat, r.message.id);
+    expect((await statusOf(r.message.id)).status).toBe("ANSWERED");
+  });
+  it("refuses outsiders, people who left, and a second call; skips inactive members", async () => {
+    const room = await createGroup(db, ann, { name: "Admin", memberIds: [bob.id, cat.id] });
+    await expect(startCall(db, zed, room.id, "audio")).rejects.toThrow(/not found/);
+    const r = await startCall(db, ann, room.id, "audio");
+    await expect(startCall(db, bob, room.id, "audio")).rejects.toThrow(/already a call/);
+    await expect(answerCall(db, zed, r.message.id)).rejects.toThrow(/not found/);
+    await db.chatMember.update({ where: { roomId_userId: { roomId: room.id, userId: cat.id } }, data: { leftAt: new Date() } });
+    await expect(answerCall(db, cat, r.message.id)).rejects.toThrow(/not found/);
+    await cancelCall(db, ann, r.message.id);
+    await db.user.update({ where: { id: bob.id }, data: { active: false } });
+    const r2 = await startCall(db, ann, room.id, "audio").catch((e: Error) => e);
+    expect(r2).toBeInstanceOf(ChatError); // nobody left to ring
+    await db.user.update({ where: { id: bob.id }, data: { active: true } });
   });
 });
