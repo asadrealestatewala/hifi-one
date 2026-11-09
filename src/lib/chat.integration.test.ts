@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { ChatError, addMembers, createGroup, deleteMessage, history, listRooms, markRead, openDirect, removeMember, renameGroup, searchPeople, sendMessage, syncProjectRooms, totalUnread, type ChatActor } from "./chat";
+import { validateUpload } from "./file-validation";
+import { ChatError, MAX_ATTACHMENT, addMembers, createGroup, deleteMessage, history, listRooms, markRead, openDirect, removeMember, renameGroup, searchPeople, sendMessage, syncProjectRooms, totalUnread, type ChatActor } from "./chat";
 import { _reset, isOnline, publishTo, subscribe } from "./chat-hub";
 import { authorizeOwner, type FileActor } from "./file-access";
 import { MemoryStorage } from "./storage";
@@ -13,7 +14,7 @@ let ann: ChatActor, bob: ChatActor, cat: ChatActor, dan: ChatActor, eve: ChatAct
 const png = Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"), Buffer.alloc(64, 1)]);
 
 const fileActor = (a: ChatActor, perms = ["chat.use"]): FileActor => ({ id: a.id, organizationId: a.organizationId, userType: "EMPLOYEE", clientId: null, vendorId: null, permissions: new Set(perms) });
-const send = (a: ChatActor, roomId: string, p: { body?: string; image?: { name: string; bytes: Buffer } }) => sendMessage(db, storage, a, fileActor(a), roomId, p);
+const send = (a: ChatActor, roomId: string, p: { body?: string; attachment?: { name: string; bytes: Buffer } }) => sendMessage(db, storage, a, fileActor(a), roomId, p);
 
 beforeAll(async () => {
   await db.$executeRawUnsafe('TRUNCATE "ChatMessage","ChatMember","ChatRoom","StoredFile","ProjectMember","Project","User","Organization" CASCADE');
@@ -79,7 +80,7 @@ describe("messages, unread and read state", () => {
   });
   it("lets only the sender delete a message, and hides its text and picture afterwards", async () => {
     const room = await openDirect(db, bob, dan.id);
-    const { message } = await send(bob, room.id, { body: "oops", image: { name: "a.png", bytes: png } });
+    const { message } = await send(bob, room.id, { body: "oops", attachment: { name: "a.png", bytes: png } });
     await expect(deleteMessage(db, dan, message.id)).rejects.toThrow(/not found/);
     await deleteMessage(db, bob, message.id);
     const m = (await history(db, dan, room.id)).messages.find((x) => x.id === message.id)!;
@@ -116,7 +117,7 @@ describe("who can see a conversation", () => {
 describe("pictures", () => {
   it("stores a picture with the message and shows it only to people in the room", async () => {
     const room = await createGroup(db, ann, { name: "Design", memberIds: [bob.id] });
-    const { message } = await send(ann, room.id, { body: "mock-up", image: { name: "mock.png", bytes: png } });
+    const { message } = await send(ann, room.id, { body: "mock-up", attachment: { name: "mock.png", bytes: png } });
     expect(message.kind).toBe("IMAGE");
     expect(message.attachments).toHaveLength(1);
     expect(message.attachments[0].contentType).toBe("image/png");
@@ -129,13 +130,45 @@ describe("pictures", () => {
     await removeMember(db, ann, room.id, bob.id);
     expect(await authorizeOwner(db, fileActor(bob), "CHAT_MESSAGE", message.id, "read")).toBe(false); // removed from the room
   });
-  it("refuses non-pictures, disguised files and leaves no empty message behind", async () => {
+  it("refuses disguised files and unknown types, and leaves no empty message behind", async () => {
     const room = await openDirect(db, ann, bob.id);
     const before = await db.chatMessage.count({ where: { roomId: room.id } });
-    await expect(send(ann, room.id, { image: { name: "doc.pdf", bytes: Buffer.from("%PDF-1.4 x") } })).rejects.toThrow(/Only pictures/);
-    await expect(send(ann, room.id, { image: { name: "fake.png", bytes: Buffer.from("<html><script>1</script>") } })).rejects.toThrow(/do not match/);
-    await expect(send(ann, room.id, { image: { name: "x.svg", bytes: Buffer.from("<svg/>") } })).rejects.toThrow(ChatError);
+    await expect(send(ann, room.id, { attachment: { name: "fake.png", bytes: Buffer.from("<html><script>1</script>") } })).rejects.toThrow(/do not match/);
+    await expect(send(ann, room.id, { attachment: { name: "x.svg", bytes: Buffer.from("<svg/>") } })).rejects.toThrow(/not allowed/);
+    await expect(send(ann, room.id, { attachment: { name: "run.exe", bytes: Buffer.from("MZ....") } })).rejects.toThrow(ChatError);
+    await expect(send(ann, room.id, { attachment: { name: "movie.mp4", bytes: Buffer.from("not a video at all") } })).rejects.toThrow(/do not match/);
     expect(await db.chatMessage.count({ where: { roomId: room.id } })).toBe(before);
+  });
+});
+
+describe("videos, voice notes and files", () => {
+  const ftyp = Buffer.concat([Buffer.alloc(4), Buffer.from("ftypisom"), Buffer.alloc(64)]);
+  const ebml = Buffer.concat([Buffer.from("1a45dfa3", "hex"), Buffer.alloc(64, 2)]);
+  const pdf = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(50, 1)]);
+  it("sets the message kind from what the file really is", async () => {
+    const room = await createGroup(db, ann, { name: "Media", memberIds: [bob.id] });
+    const kinds: [string, Buffer, string, string][] = [
+      ["clip.mp4", ftyp, "VIDEO", "video/mp4"], ["clip.webm", ebml, "VIDEO", "video/webm"], ["voice.weba", ebml, "AUDIO", "audio/webm"],
+      ["voice.m4a", ftyp, "AUDIO", "audio/mp4"], ["plan.pdf", pdf, "FILE", "application/pdf"], ["notes.txt", Buffer.from("hello"), "FILE", "text/plain"],
+    ];
+    for (const [name, bytes, kind, type] of kinds) {
+      const { message } = await send(ann, room.id, { attachment: { name, bytes } });
+      expect(message.kind).toBe(kind);
+      expect(message.attachments[0]).toMatchObject({ filename: name, contentType: type });
+      expect(await authorizeOwner(db, fileActor(bob), "CHAT_MESSAGE", message.id, "read")).toBe(true);
+      expect(await authorizeOwner(db, fileActor(cat), "CHAT_MESSAGE", message.id, "read")).toBe(false);
+    }
+  });
+  it("keeps voice and video types out of every other upload", () => {
+    expect(() => validateUpload("v.webm", ebml)).toThrow(/not allowed/);
+    expect(() => validateUpload("v.m4a", ftyp)).toThrow(/not allowed/);
+    expect(validateUpload("v.webm", ebml, { media: true }).contentType).toBe("video/webm");
+  });
+  it("enforces the 50 MB chat limit (and 15 MB elsewhere)", () => {
+    const big = Buffer.concat([ftyp, Buffer.alloc(20 * 1024 * 1024)]);
+    expect(() => validateUpload("big.mp4", big)).toThrow(/too large/);
+    expect(validateUpload("big.mp4", big, { maxBytes: MAX_ATTACHMENT }).contentType).toBe("video/mp4");
+    expect(() => validateUpload("huge.mp4", Buffer.concat([ftyp, Buffer.alloc(MAX_ATTACHMENT)]), { maxBytes: MAX_ATTACHMENT })).toThrow(/limit 50 MB/);
   });
 });
 

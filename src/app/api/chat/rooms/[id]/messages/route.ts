@@ -22,7 +22,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   } catch (e) { return chatFail(e); }
 }
 
-// Plain text as JSON { body }, or multipart with fields `body` and `image`.
+// Plain text as JSON { body }, or multipart with fields `body` and `file` (picture, video, voice note or document).
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await requirePermission("chat.use", { json: true });
   if (user instanceof Response) return user;
@@ -32,18 +32,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!limiter.take(user.id)) return Response.json({ error: "You are sending messages too fast. Wait a moment." }, { status: 429, headers: { "retry-after": String(limiter.retryAfterSeconds(user.id)) } });
   try {
     let body = "";
-    let image: { name: string; bytes: Buffer } | undefined;
+    let attachment: { name: string; bytes: Buffer } | undefined;
     if ((req.headers.get("content-type") ?? "").startsWith("multipart/form-data")) {
       const form = await req.formData();
       body = String(form.get("body") ?? "");
-      const f = form.get("image");
-      if (f instanceof File && f.size > 0) image = { name: f.name, bytes: Buffer.from(await f.arrayBuffer()) };
+      const f = form.get("file");
+      if (f instanceof File && f.size > 0) attachment = { name: f.name, bytes: Buffer.from(await f.arrayBuffer()) };
     } else {
       const j = (await req.json().catch(() => null)) as { body?: string } | null;
       body = String(j?.body ?? "");
     }
     const actor = toChatActor(user);
-    const { message, recipients } = await sendMessage(db, defaultStorage(), actor, toFileActor(user), id, { body, image });
+    const { message, recipients } = await sendMessage(db, defaultStorage(), actor, toFileActor(user), id, { body, attachment });
     const room = await db.chatRoom.findUnique({ where: { id }, select: { kind: true, name: true } });
     broadcastMessage(message, recipients, user.name, room?.kind === "DIRECT" ? user.name : room?.name ?? "Group");
     return Response.json({ message }, { headers: noStore });
