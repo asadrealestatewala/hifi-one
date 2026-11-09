@@ -48,3 +48,7 @@ Client: `/portal/statement` with `/portal/statement/pdf` and `/portal/statement/
 
 ## SaaS support contact
 SaaS clients see their support contact (`portalSupport`: the dedicated support manager, else the project manager) on the portal home, and each scheduled meeting shows its purpose. Staff set the support manager on the client's Services tab and schedule tutorial, support and inquiry calls on the Delivery tab.
+
+## Project assets and preview links (decision 80)
+
+`/projects/[id]#assets` (`ProjectAssets.tsx`, library in `src/lib/project-assets.ts`). Upload is a plain form post to `POST /api/projects/[id]/assets` (up to 100 MB). Public view at `/a/[token]` and files at `/a/[token]/f/[fileId]` (range requests for video). Rights: `projectAssetRights` in `src/lib/file-access.ts`. Tables `ProjectAsset` and `ProjectAssetShare`; versions are `StoredFile` rows.
