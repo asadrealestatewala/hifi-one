@@ -66,6 +66,7 @@ Master prompt section in brackets.
 - **Not built:** virus scanning, saved views on every list, general import with error report.
 
 ## Notifications [15]
+- **HR circulars (done 2026-11-09, tested; checked in a browser with demo data):** HR (permission `circulars.send`: HR Manager, HR Coordinator, CEO, Super Admin) sends a circular to all staff, chosen roles or chosen people. Each recipient gets a bell notification (and a phone push through the app) plus a popup in the app that stays until they press "I have read this" ("Later" hides it for the browser session). HR can attach up to three PDF, JPG or PNG files (checked by content, 15 MB each; images preview in the popup); they are readable only by the recipients and circular senders. HR sees who has and has not confirmed at Circulars. Staff find all theirs at My Space > Circulars. Browser (web) push is not built; the popup shows while the app is open.
 - **Done:** in-app notifications and menu counts. **Needs outside setup:** email notifications (SMTP). **Not built:** scheduler for recurring reminders and deadline alerts.
 
 ## Security [17]
