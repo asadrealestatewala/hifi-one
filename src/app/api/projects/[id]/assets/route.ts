@@ -12,7 +12,9 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await requirePermission("projects.view");
   const { id } = await params;
-  const back = (kind: "assetError" | "assetOk", m: string) => NextResponse.redirect(new URL(`/projects/${id}?${kind}=${encodeURIComponent(m)}#assets`, req.url), 303);
+  // Relative address on purpose: behind nginx the request URL says localhost:3000, so an absolute address built from it sends the browser to localhost
+  const back = (kind: "assetError" | "assetOk", m: string) =>
+    new NextResponse(null, { status: 303, headers: { Location: `/projects/${encodeURIComponent(id)}?${kind}=${encodeURIComponent(m)}#assets` } });
   // Same-site posts only: a form on another site cannot upload on someone's behalf
   const origin = req.headers.get("origin");
   if (origin && new URL(origin).host !== (req.headers.get("x-forwarded-host") ?? req.headers.get("host"))) return new NextResponse("Not found", { status: 404 });

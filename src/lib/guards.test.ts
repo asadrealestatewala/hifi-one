@@ -159,6 +159,15 @@ describe("the public website", () => {
   });
 });
 
+describe("the asset upload route", () => {
+  it("answers with a relative redirect, never one built from the request URL (behind nginx that is localhost)", () => {
+    const src = read(path.join(root, "api/projects/[id]/assets/route.ts"));
+    expect(src).not.toMatch(/NextResponse\.redirect|new URL\([^)]*req\.url/);
+    expect(src).toMatch(/status:\s*303/);
+    expect(src).toMatch(/Location:\s*`\/projects\//);
+  });
+});
+
 describe("the public asset preview links", () => {
   it("resolve the secret, honour the password and answer a plain 404 otherwise", () => {
     const page = read(path.join(root, "a/[token]/page.tsx"));
