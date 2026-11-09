@@ -30,7 +30,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const groups = applyMenu(allGroups, prefs);
   const quick = QUICK_CREATE.filter((q) => user.permissions.has(q.permission)).map(({ href, label, icon }) => ({ href, label, icon }));
   return (
-    <Shell groups={groups} allGroups={allGroups} menuPrefs={prefs} quick={quick} name={user.name} roles={user.roles.join(", ")} userId={user.id} unread={unread} chatUnread={chatUnread} stats={stats} canSearch={user.permissions.has("dashboard.view")} canAsk={user.permissions.has("assistant.use")} signOut={signOut}
+    <Shell groups={groups} allGroups={allGroups} menuPrefs={prefs} quick={quick} name={user.name} roles={user.roles.join(", ")} userId={user.id} unread={unread} chatUnread={chatUnread} callerId={chatUnread !== null && user.permissions.has("meetings.use") ? user.id : null} stats={stats} canSearch={user.permissions.has("dashboard.view")} canAsk={user.permissions.has("assistant.use")} signOut={signOut}
       viewAs={switchRoles ? { roles: switchRoles.filter((r) => canPreviewRole(r.key)), active: user.viewAs ? { key: user.viewAs.roleKey, name: user.viewAs.roleName } : null, start: startViewAs, stop: stopViewAs } : null}>
       {children}
     </Shell>

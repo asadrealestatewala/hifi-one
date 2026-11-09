@@ -15,10 +15,19 @@ Staff chat inside Hifi One at **Project Operations → Team Chat** (`/chat`), pe
 - **Server setting:** `deploy/nginx/hifimarketing.co.conf` now has a `/api/chat/events` location (no buffering, needed for live messages) and raises the upload limit to 55 MB for the chat send route only. Copy it to the server and reload nginx; without it, files over 16 MB are refused by nginx and live messages may arrive late.
 - Files are held in memory while being saved, so very many large uploads at once cost RAM; there is no video transcoding or thumbnailing.
 
+## Phase 3: one-to-one calls
+- Voice and video buttons in the header of every **direct** conversation. Pressing one opens the call room (the existing WebRTC meeting room, same `ICE_SERVERS`, same 8-person engine) and rings the other person: a ring panel with Answer and Decline appears on **any Hifi One page** they have open (`CallListener` in the shell), with a short ring tone made by the browser and a desktop notification if they have allowed notifications. Nobody with no page open gets a phone push.
+- Needs `chat.use` and `meetings.use`. Camera and microphone need HTTPS and the browser's permission, as in meetings.
+- The conversation records each call as a line: ringing, in progress, "Video call · 4 min 12 s", declined, no answer, or "Missed voice call" (red for the person who missed it). A missed call also counts as an unread message.
+- Ring times out after 45 s (server timer, plus a sweep when the conversation is opened, so a restart mid-ring cannot leave a call "ringing" for ever). The caller leaving before an answer cancels it; when everyone has left an answered call the call ends and its length is saved.
+- A call is a meeting with purpose `CALL`: it is hidden from Meetings, the dashboard list and project views, it has no guest link, and the room can only be entered by starting or answering the call (not by knowing its address).
+- Not yet: group calls (phase 4), screen share is available in the room but not rung separately, no call history screen, no recording.
+- **Real-network note:** two people on strict networks need a TURN relay (set `ICE_SERVERS`; see docs/MEETINGS.md). Without it some calls will show "connection failed". Not tested across different networks.
+
 ## Rules
 - Only people currently in a room can read it, send to it, or learn it exists; anything else is "not found". Pictures are `StoredFile` rows (`CHAT_MESSAGE`) with the same validation, scan and storage rules as other uploads; the file rule is "member of the room, chat permission, same organization; only the sender adds or removes".
 - Staff only (`userType = EMPLOYEE`). No administrator back door: HR and Super Admin see only the rooms they are in.
 - 40 messages per minute per person; 4000 characters per message; 50 MB per attachment.
 
 ## Not yet (later phases)
-Voice/video calls (phases 3 and 4, reusing the meeting room's WebRTC signalling and `ICE_SERVERS`), @mentions, search inside messages, editing messages, replies and reactions.
+Group calls (phase 4), @mentions, search inside messages, editing messages, replies and reactions.

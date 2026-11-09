@@ -46,6 +46,9 @@ export async function cancelAction(formData: FormData) {
 export async function enterRoomAction(formData: FormData) {
   const user = await requirePermission("meetings.use");
   const id = s(formData, "id");
+  // A call room is entered only by starting or answering the call in chat, never by knowing its address
+  const room = await db.meeting.findFirst({ where: { id, organizationId: user.organizationId }, select: { purpose: true } });
+  if (room?.purpose === "CALL") return back("/chat", "error", "Calls can only be joined by answering them in Team Chat.");
   try {
     const { participant } = await joinAsStaff(db, { meetingId: id, user: { id: user.id, name: user.name, organizationId: user.organizationId } });
     await setTicket(id, participant.ticket);

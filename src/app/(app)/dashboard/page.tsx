@@ -189,7 +189,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       loadLayout(db, user.id, availableWidgets(user.permissions).map((w) => w.id)),
       canLeads ? questFor(db, { organizationId: org, userId: user.id }) : null,
       has("projects.view") ? db.task.findMany({ where: { assigneeId: user.id, status: { not: "DONE" }, project: { organizationId: org } }, orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }], take: 5, select: { id: true, title: true, dueDate: true, projectId: true } }) : [],
-      has("meetings.use") ? db.meeting.findMany({ where: { organizationId: org, status: { in: ["SCHEDULED", "LIVE"] }, OR: [{ hostId: user.id }, { participants: { some: { userId: user.id } } }] }, orderBy: { scheduledAt: { sort: "asc", nulls: "first" } }, take: 5, select: { id: true, title: true, status: true, scheduledAt: true } }) : [],
+      has("meetings.use") ? db.meeting.findMany({ where: { organizationId: org, purpose: { not: "CALL" }, status: { in: ["SCHEDULED", "LIVE"] }, OR: [{ hostId: user.id }, { participants: { some: { userId: user.id } } }] }, orderBy: { scheduledAt: { sort: "asc", nulls: "first" } }, take: 5, select: { id: true, title: true, status: true, scheduledAt: true } }) : [],
       canLeads ? db.contact.findMany({ where: { organizationId: org, archived: false, ...(has("crm.view_all") ? {} : { OR: [{ ownerId: user.id }, { createdById: user.id }, { followers: { has: user.id } }] }) }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, name: true, category: true } }) : [],
     ]);
     const cur = flow.find((f) => f.currency === sp.cur) ?? flow[0];

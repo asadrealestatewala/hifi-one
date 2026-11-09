@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Meeting" };
 
 // The staff entrance to a meeting room. It sits outside the normal page frame so the call can use the whole window.
-export default async function StaffRoom({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ fake?: string }> }) {
+export default async function StaffRoom({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ fake?: string; call?: string }> }) {
   const user = await requirePermission("meetings.use");
   const { id } = await params;
   const sp = await searchParams;
@@ -26,5 +26,5 @@ export default async function StaffRoom({ params, searchParams }: { params: Prom
     );
   }
   const isHost = me.isHost || m.hostId === user.id;
-  return <Room meetingId={id} title={m.title} kind={m.kind} me={{ name: me.name, isHost }} inviteUrl={guestLink(await baseUrl(), m.joinToken)} fake={sp.fake === "1"} canRecord={isHost && user.permissions.has("meetings.recordings")} />;
+  return <Room meetingId={id} title={m.title} kind={m.kind} me={{ name: me.name, isHost }} inviteUrl={m.purpose === "CALL" ? undefined : guestLink(await baseUrl(), m.joinToken)} fake={sp.fake === "1"} call={m.purpose === "CALL" ? (sp.call === "audio" ? "audio" : "video") : undefined} canRecord={isHost && user.permissions.has("meetings.recordings")} />;
 }
