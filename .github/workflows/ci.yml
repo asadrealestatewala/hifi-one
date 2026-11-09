@@ -23,6 +23,8 @@ jobs:
       DATABASE_URL: postgresql://hifi:hifi_ci_only@localhost:5432/hifi_one_test
       TEST_DATABASE_URL: postgresql://hifi:hifi_ci_only@localhost:5432/hifi_one_test
       SESSION_SECRET: ci-only-session-secret-not-used-anywhere-else-000000
+      # The type check and build walk the whole app in one process and have outgrown Node's default ~2 GB heap (runner has 7 GB)
+      NODE_OPTIONS: --max-old-space-size=4096
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
