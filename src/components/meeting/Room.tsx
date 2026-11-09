@@ -53,7 +53,7 @@ function Tile({ stream, name, muted, off, speaking, label, local, big }: { strea
   );
 }
 
-export default function Room({ meetingId, title, kind, me, inviteUrl, fake, canRecord }: { meetingId: string; title: string; kind: string; me: { name: string; isHost: boolean }; inviteUrl?: string; fake?: boolean; canRecord?: boolean }) {
+export default function Room({ meetingId, title, kind, me, inviteUrl, fake, canRecord, call }: { meetingId: string; title: string; kind: string; me: { name: string; isHost: boolean }; inviteUrl?: string; fake?: boolean; canRecord?: boolean; call?: "audio" | "video" }) {
   const [phase, setPhase] = useState<Phase>("prejoin");
   const [myId, setMyId] = useState("");
   const [isHost, setIsHost] = useState(me.isHost);
@@ -90,19 +90,19 @@ export default function Room({ meetingId, title, kind, me, inviteUrl, fake, canR
   const getMedia = useCallback(async () => {
     if (local.current.stream) return;
     try {
-      const s = fake ? fakeStream(me.name, "cam") : await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: { width: 1280, height: 720 } });
+      const s = fake ? fakeStream(me.name, "cam") : await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: call === "audio" ? false : { width: 1280, height: 720 } });
       local.current = { ...local.current, stream: s, mic: s.getAudioTracks()[0] ?? null, cam: s.getVideoTracks()[0] ?? null };
     } catch {
       try {
         const s = await navigator.mediaDevices.getUserMedia({ audio: true });
         local.current = { ...local.current, stream: s, mic: s.getAudioTracks()[0] ?? null, cam: null };
-        setMediaNote("No camera available: you can still talk and see everyone.");
+        setMediaNote(call === "audio" ? null : "No camera available: you can still talk and see everyone.");
       } catch {
         setMediaNote("Camera and microphone are blocked or missing. You can still watch, share your screen and chat. Allow access in the browser address bar to talk.");
       }
     }
     rerender();
-  }, [fake, me.name]);
+  }, [fake, me.name, call]);
 
   useEffect(() => { void getMedia(); }, [getMedia]);
 
@@ -375,8 +375,8 @@ export default function Room({ meetingId, title, kind, me, inviteUrl, fake, canR
           {mediaNote && <p className="text-xs text-muted">{mediaNote}</p>}
         </div>
         <div className="space-y-4 self-center">
-          <div><p className="text-xs font-semibold uppercase tracking-wide text-muted">{kind === "WORKSHOP" ? "Online workshop" : "Meeting"}</p><h1 className="text-2xl font-semibold tracking-tight">{title}</h1><p className="mt-1 text-sm text-muted">Joining as {me.name}</p></div>
-          <button type="button" onClick={join} className="btn w-full !py-3">Join now</button>
+          <div><p className="text-xs font-semibold uppercase tracking-wide text-muted">{call ? (call === "video" ? "Video call" : "Voice call") : kind === "WORKSHOP" ? "Online workshop" : "Meeting"}</p><h1 className="text-2xl font-semibold tracking-tight">{title}</h1><p className="mt-1 text-sm text-muted">Joining as {me.name}</p></div>
+          <button type="button" onClick={join} className="btn w-full !py-3">{call ? "Join call" : "Join now"}</button>
           <p className="text-xs text-muted">Your browser will ask for permission to use the camera and microphone. The host may record this meeting. If so, you will see a &quot;being recorded&quot; banner for as long as it runs.</p>
         </div>
       </div>

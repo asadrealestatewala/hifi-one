@@ -239,7 +239,7 @@ export async function sendMessage(
 
 export async function deleteMessage(db: PrismaClient, actor: ChatActor, messageId: string) {
   const msg = await db.chatMessage.findFirst({ where: { id: messageId, room: { organizationId: actor.organizationId } } });
-  if (!msg || msg.senderId !== actor.id || msg.deletedAt) throw new ChatError("Message not found.");
+  if (!msg || msg.senderId !== actor.id || msg.deletedAt || msg.kind === "CALL") throw new ChatError("Message not found.");
   await membership(db, actor, msg.roomId);
   await db.chatMessage.update({ where: { id: messageId }, data: { deletedAt: new Date() } });
   await db.storedFile.updateMany({ where: { ownerType: "CHAT_MESSAGE", ownerId: messageId, deletedAt: null }, data: { deletedAt: new Date(), deletedById: actor.id } });

@@ -1,5 +1,6 @@
 import { requirePermission } from "@/lib/auth";
 import { history, sendMessage } from "@/lib/chat";
+import { sweepStaleCalls } from "@/lib/chat-calls";
 import { broadcastMessage, chatFail, staffOnly, noStore, toChatActor, toFileActor } from "@/lib/chat-http";
 import { db } from "@/lib/db";
 import { RateLimiter } from "@/lib/rate-limit";
@@ -18,7 +19,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const beforeDate = before ? new Date(before) : undefined;
   if (beforeDate && Number.isNaN(beforeDate.getTime())) return Response.json({ error: "Bad request." }, { status: 400 });
   try {
-    return Response.json(await history(db, toChatActor(user), id, { before: beforeDate }), { headers: noStore });
+    const actor = toChatActor(user);
+    await history(db, actor, id, { limit: 1 }); // membership check first
+    await sweepStaleCalls(db, id); // a call that kept ringing across a server restart becomes "missed"
+    return Response.json(await history(db, actor, id, { before: beforeDate }), { headers: noStore });
   } catch (e) { return chatFail(e); }
 }
 
