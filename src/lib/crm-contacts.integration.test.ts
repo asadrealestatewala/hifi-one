@@ -225,8 +225,24 @@ describe("daily goals", () => {
     expect(q.badges.find((b) => b.id === "first")!.earned).toBe(true);
     expect(q.badges.find((b) => b.id === "hundred")!.earned).toBe(false);
     expect(q.nextLevelAt === null || q.nextLevelAt > q.levelStartsAt).toBe(true);
+    const q2 = await questFor(db, { organizationId: org, userId: ann });
+    expect(q2.level).toBe(1); // a day's work no longer reaches Legend
     const nobody = await questFor(db, { organizationId: org, userId: "ghost" });
     expect(nobody.xp).toBe(0);
     expect(nobody.streak).toBe(0);
+  });
+});
+
+describe("quest settings", () => {
+  it("applies a role override for goals and adds a field-visit goal", async () => {
+    const role = await db.role.create({ data: { organizationId: org, key: "FIELD_TEST", name: "Field test" } });
+    await db.userRole.create({ data: { userId: bob, roleId: role.id } });
+    await db.questSettings.upsert({ where: { organizationId: org }, create: { organizationId: org, config: { base: { goalContacts: 7 }, roles: { FIELD_TEST: { goalVisits: 40 } }, holidays: [] } }, update: { config: { base: { goalContacts: 7 }, roles: { FIELD_TEST: { goalVisits: 40 } }, holidays: [] } } });
+    const b = await questFor(db, { organizationId: org, userId: bob });
+    expect(b.goals.find((g) => g.id === "contacts")!.target).toBe(7);
+    expect(b.goals.find((g) => g.id === "visits")!.target).toBe(40);
+    const a = await questFor(db, { organizationId: org, userId: ann });
+    expect(a.goals.find((g) => g.id === "visits")).toBeUndefined();
+    await db.questSettings.delete({ where: { organizationId: org } });
   });
 });

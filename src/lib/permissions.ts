@@ -95,6 +95,7 @@ export const PERMISSIONS = {
   "mail.manage": "Create company and employee mailboxes and choose who can use each one (does not open anyone's mail)",
   "email_templates.manage": "Edit the branded email templates and preview them",
   "followups.manage": "Create and run CRM follow-up email sequences",
+  "crm.quest_settings": "Set the daily goals, XP weights, level pace and holidays of the sales quest card (Super Admin only)",
   "crm.duplicates": "Set how the CRM handles a lead whose phone or email already exists, and scan for existing duplicates (Super Admin only)",
   "integrations.manage": "Enter, replace and clear the API keys of outside services (Super Admin only)",
   "prospector.use": "Run Prospector searches that find new businesses (uses the Google budget)",

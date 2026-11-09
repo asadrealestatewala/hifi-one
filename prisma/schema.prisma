@@ -3185,6 +3185,13 @@ model LeadKey {
   @@index([leadId])
 }
 
+// Sales quest card rules (goals, XP weights, level pace, holidays), one row per organization. See src/lib/quest.ts for the shape.
+model QuestSettings {
+  organizationId String   @id
+  config         Json     @default("{}")
+  updatedAt      DateTime @updatedAt
+}
+
 model ProspectorSettings {
   organizationId       String @id
   defaultDailySearches Int    @default(10)

@@ -9,6 +9,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { dec } from "./ledger-math";
 import { claimLeadKeys, guardNewLead, resyncLeadKeys, DuplicateLeadError, presentDuplicate } from "./lead-duplicates";
 import { CURRENCIES } from "./money";
+import { dayKey, dayStartInstant, levelFor, parseSettings, resolveConfig, streakFor, tallyByDay, totalXp, type QuestSettingsData } from "./quest";
 
 export class ContactError extends Error {
   constructor(message: string, public duplicates?: { id: string; name: string; email: string | null; phone: string | null }[]) { super(message); }
@@ -396,46 +397,51 @@ export function toCsv(rows: { name: string; kind: string; category: string; pare
 }
 
 // ---------- gamified daily goals ----------
-export const DAILY_GOALS = { contacts: 5, activities: 10 };
-export const LEVELS = ["Rookie", "Prospector", "Closer", "Rainmaker", "Legend"];
+// Rules live in src/lib/quest.ts (settings: Settings > Sales Quest). Only contacts with a phone number count, notes must say something,
+// XP from contacts, activities and visits is capped per day, and a verified call or a conversion is paid in full because someone checked it.
+export { LEVELS } from "./quest";
+
+export async function getQuestSettings(db: Db, organizationId: string): Promise<QuestSettingsData> {
+  const row = await db.questSettings.findUnique({ where: { organizationId } });
+  return parseSettings(row?.config);
+}
 
 export async function questFor(db: Db, p: { organizationId: string; userId: string; now?: Date }) {
   const now = p.now ?? new Date();
-  const dayStart = new Date(now); dayStart.setUTCHours(0, 0, 0, 0);
-  const since = new Date(dayStart.getTime() - 60 * 86400000);
-  const [madeToday, actToday, madeAll, actAll, conversions, verifiedCalls, recent, overdue] = await Promise.all([
-    db.contact.count({ where: { organizationId: p.organizationId, createdById: p.userId, createdAt: { gte: dayStart } } }),
-    db.contactActivity.count({ where: { actorId: p.userId, kind: { not: "SYSTEM" }, createdAt: { gte: dayStart }, contact: { organizationId: p.organizationId } } }),
-    db.contact.count({ where: { organizationId: p.organizationId, createdById: p.userId } }),
-    db.contactActivity.count({ where: { actorId: p.userId, kind: { not: "SYSTEM" }, contact: { organizationId: p.organizationId } } }),
+  const [settings, roles] = await Promise.all([
+    getQuestSettings(db, p.organizationId),
+    db.userRole.findMany({ where: { userId: p.userId }, select: { role: { select: { key: true } } } }),
+  ]);
+  const cfg = resolveConfig(settings, roles.map((r) => r.role.key));
+  const today = dayKey(now, cfg.tz);
+  const dayStart = dayStartInstant(today, cfg.tz);
+  const [contacts, acts, visits, conversions, verifiedCalls, overdue, openLeads] = await Promise.all([
+    db.contact.findMany({ where: { organizationId: p.organizationId, createdById: p.userId, primaryPhone: { not: null } }, select: { createdAt: true } }),
+    db.contactActivity.findMany({ where: { actorId: p.userId, kind: { not: "SYSTEM" }, contact: { organizationId: p.organizationId } }, select: { createdAt: true, kind: true, body: true } }),
+    db.prospectVisit.findMany({ where: { organizationId: p.organizationId, agentId: p.userId }, select: { visitedAt: true } }),
     db.lead.count({ where: { organizationId: p.organizationId, assignedToId: p.userId, convertedAt: { not: null } } }),
     db.leadActivity.count({ where: { actorId: p.userId, kind: "CALL", outcome: "CONNECTED", verified: true } }),
-    Promise.all([
-      db.contact.findMany({ where: { organizationId: p.organizationId, createdById: p.userId, createdAt: { gte: since } }, select: { createdAt: true } }),
-      db.contactActivity.findMany({ where: { actorId: p.userId, kind: { not: "SYSTEM" }, createdAt: { gte: since }, contact: { organizationId: p.organizationId } }, select: { createdAt: true } }),
-    ]),
     db.lead.count({ where: { organizationId: p.organizationId, assignedToId: p.userId, clientId: null, stage: { isWon: false, isLost: false }, nextFollowUp: { lt: dayStart } } }),
+    db.lead.count({ where: { organizationId: p.organizationId, assignedToId: p.userId, clientId: null, stage: { isWon: false, isLost: false } } }),
   ]);
-  const days = new Set([...recent[0], ...recent[1]].map((r) => r.createdAt.toISOString().slice(0, 10)));
-  const today = dayStart.toISOString().slice(0, 10);
-  let streak = 0;
-  for (let i = days.has(today) ? 0 : 1; i < 61; i++) { const d = new Date(dayStart.getTime() - i * 86400000).toISOString().slice(0, 10); if (days.has(d)) streak++; else break; }
-  const xp = madeAll * 10 + actAll * 5 + conversions * 100 + verifiedCalls * 15;
-  const level = Math.min(LEVELS.length, Math.floor(Math.sqrt(xp / 60)) + 1);
-  const need = (l: number) => Math.round((l - 1) ** 2 * 60);
+  const days = tallyByDay(cfg, contacts.map((c) => c.createdAt), acts.map((a) => ({ at: a.createdAt, kind: a.kind, body: a.body })), visits.map((v) => v.visitedAt));
+  const t = days.get(today) ?? { contacts: 0, activities: 0, visits: 0 };
+  const streak = streakFor(cfg, settings.holidays, days, today);
+  const xp = totalXp(cfg, days, verifiedCalls, conversions);
+  const lv = levelFor(cfg, xp);
+  const madeAll = contacts.length;
+  const actAll = [...days.values()].reduce((s, d) => s + d.activities + d.visits, 0);
   const badges = [
     { id: "first", label: "First contact", earned: madeAll >= 1 }, { id: "ten", label: "10 contacts added", earned: madeAll >= 10 }, { id: "hundred", label: "100 contacts added", earned: madeAll >= 100 },
     { id: "streak3", label: "3-day streak", earned: streak >= 3 }, { id: "streak7", label: "7-day streak", earned: streak >= 7 }, { id: "won", label: "First conversion", earned: conversions >= 1 },
-    { id: "calls", label: "10 verified calls", earned: verifiedCalls >= 10 }, { id: "inbox", label: "No overdue follow-ups", earned: overdue === 0 && actAll > 0 },
+    { id: "calls", label: "10 verified calls", earned: verifiedCalls >= 10 }, { id: "inbox", label: "No overdue follow-ups", earned: openLeads > 0 && overdue === 0 && actAll > 0 },
   ];
-  return {
-    goals: [
-      { id: "contacts", label: "Add contacts", value: madeToday, target: DAILY_GOALS.contacts }, { id: "activities", label: "Log activities", value: actToday, target: DAILY_GOALS.activities },
-      { id: "overdue", label: "Clear overdue follow-ups", value: overdue === 0 ? 1 : 0, target: 1, detail: overdue > 0 ? `${overdue} overdue` : "All clear" },
-    ],
-    xp, level, levelName: LEVELS[level - 1], nextLevelAt: level >= LEVELS.length ? null : need(level + 1), levelStartsAt: need(level), streak, badges,
-    allDone: madeToday >= DAILY_GOALS.contacts && actToday >= DAILY_GOALS.activities && overdue === 0,
-  };
+  const goals = [
+    { id: "contacts", label: "Add contacts", value: t.contacts, target: cfg.goalContacts }, { id: "activities", label: "Log activities", value: t.activities, target: cfg.goalActivities },
+    ...(cfg.goalVisits > 0 ? [{ id: "visits", label: "Field visits", value: t.visits, target: cfg.goalVisits }] : []),
+    { id: "overdue", label: "Clear overdue follow-ups", value: overdue === 0 ? 1 : 0, target: 1, detail: overdue > 0 ? `${overdue} overdue` : "All clear" },
+  ].filter((g) => g.target > 0);
+  return { goals, xp, ...lv, streak, badges, allDone: goals.every((g) => g.value >= g.target) };
 }
 
 export const money = (v: string | null | undefined) => (v && dec(v).gt(0) ? v : null);
