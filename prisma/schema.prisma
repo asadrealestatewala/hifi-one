@@ -361,6 +361,8 @@ model Lead {
   expectedCloseDate String? // YYYY-MM-DD
   tags              String[]  @default([])
   campaignId        String?
+  website           String?
+  mapsUrl           String? // Google Maps link
   leadSourceId      String? // the website form or webhook that captured it
   utmSource         String?
   utmMedium         String?
@@ -2997,6 +2999,7 @@ model Prospect {
   scoredAt       DateTime?
   // Field sales (decision 71): which SaaS product the business is a prospect for, and how it was captured. Duplicates are checked within one product.
   productId      String?
+  campaignId     String? // the CRM campaign chosen when an agent added it by hand; becomes the lead's campaign on conversion
   captureKind    String? // OFFICE (cold calling, desk) | FIELD (visited in person); null for older rows and Google searches
   lat            Decimal?  @db.Decimal(9, 6) // where the field agent stood when the visit was saved (last visit wins)
   lng            Decimal?  @db.Decimal(9, 6)

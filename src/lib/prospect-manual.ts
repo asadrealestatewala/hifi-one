@@ -25,7 +25,7 @@ const STATUS_WORD: Record<string, string> = { NEW: "new", REVIEWED: "reviewed", 
 const clean = (v: unknown, max: number) => String(v ?? "").replace(/[\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
 const cleanNote = (v: unknown, max: number) => String(v ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").trim().slice(0, max);
 
-export type ManualInput = { name?: string; phone?: string; country?: string; email?: string; source?: string; note?: string; confirm?: boolean };
+export type ManualInput = { name?: string; phone?: string; country?: string; email?: string; source?: string; note?: string; campaignId?: string; website?: string; mapsUrl?: string; confirm?: boolean };
 export type AddResult = { id: string; name: string };
 
 function websiteFrom(raw: string): string | null {
@@ -36,6 +36,17 @@ function websiteFrom(raw: string): string | null {
   return (u.protocol === "https:" || u.protocol === "http:") && u.hostname.includes(".") ? u.toString().replace(/\/$/, "") : null;
 }
 export { websiteFrom };
+
+// A Google Maps link: a web address on a Google or goo.gl host (maps.app.goo.gl, google.com/maps, goo.gl/maps)
+export function mapsLinkFrom(raw: string): string | null {
+  const t = clean(raw, 500);
+  if (!t) return null;
+  let u: URL;
+  try { u = new URL(/^https?:\/\//i.test(t) ? t : `https://${t}`); } catch { return null; }
+  const h = u.hostname.toLowerCase();
+  const ok = h === "goo.gl" || h.endsWith(".goo.gl") || /(^|\.)google\.[a-z.]+$/.test(h);
+  return (u.protocol === "https:" || u.protocol === "http:") && ok ? u.toString() : null;
+}
 
 export async function addProspect(db: Db, actor: Actor, input: ManualInput, now = new Date()): Promise<AddResult> {
   if (!actor.permissions.has("crm.edit")) throw new ProspectorError("You do not have permission to add prospects.");
@@ -54,6 +65,19 @@ export async function addProspect(db: Db, actor: Actor, input: ManualInput, now 
   const email = rawEmail ? normalizeEmail(rawEmail) : null;
   if (rawEmail && !email) throw new ProspectorError("That email address does not look right. Use the form name@company.com.", "email");
   if (!phone && !email) throw new ProspectorError("Enter a phone number, or an email if you have no number, so the prospect can be checked against existing ones and contacted.", "phone");
+  const rawSite = clean(input.website, 300);
+  const website = rawSite ? websiteFrom(rawSite) : null;
+  if (rawSite && !website) throw new ProspectorError("That website address does not look right. Use the form www.company.com.", "website");
+  const rawMaps = clean(input.mapsUrl, 500);
+  const mapsUrl = rawMaps ? mapsLinkFrom(rawMaps) : null;
+  if (rawMaps && !mapsUrl) throw new ProspectorError("That does not look like a Google Maps link. Open the place in Google Maps, press Share, then Copy link.", "mapsUrl");
+  const campaignRaw = clean(input.campaignId, 40);
+  let campaignId: string | null = null;
+  if (campaignRaw) {
+    const c = await db.campaign.findFirst({ where: { id: campaignRaw, organizationId: org, archivedAt: null, status: { in: ["ACTIVE", "PLANNED"] } }, select: { id: true } });
+    if (!c) throw new ProspectorError("That campaign is not available. Choose another one, or leave it empty.", "campaignId");
+    campaignId = c.id;
+  }
   const tail = phoneTail(phone);
   // The prospect belongs to the product the agent works (decision 71); an agent on no product adds a prospect with none, as before
   const productId = (await agentProfile(db, org, actor.id)).productId;
@@ -100,13 +124,13 @@ export async function addProspect(db: Db, actor: Actor, input: ManualInput, now 
     if (revive) {
       return tx.prospect.update({
         where: { id: revive },
-        data: { name, phone, email, country, sourceLabel: source, notes: cleanNote(input.note, 1000) || null, status: "ASSIGNED", assignedToId: actor.id, assignedAt: now },
+        data: { name, phone, email, country, website, mapsUrl, campaignId, sourceLabel: source, notes: cleanNote(input.note, 1000) || null, status: "ASSIGNED", assignedToId: actor.id, assignedAt: now },
         select: { id: true, name: true },
       });
     }
     return tx.prospect.create({
       data: {
-        organizationId: org, searchId: null, placeId: `manual:${randomUUID()}`, origin: "MANUAL", productId, captureKind: "OFFICE", name, phone, email, country, sourceLabel: source, notes: cleanNote(input.note, 1000) || null,
+        organizationId: org, searchId: null, placeId: `manual:${randomUUID()}`, origin: "MANUAL", productId, captureKind: "OFFICE", name, phone, email, country, website, mapsUrl, campaignId, sourceLabel: source, notes: cleanNote(input.note, 1000) || null,
         addedById: actor.id, status: "ASSIGNED", assignedToId: actor.id, assignedAt: now, placeFetchedAt: now,
       },
       select: { id: true, name: true },

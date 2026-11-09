@@ -57,6 +57,8 @@ export async function updateLeadDetails(formData: FormData) {
       city: t("city", 80), timezone: tz, preferredContact: preferred, expectedCloseDate: expected, campaignId, tags, assignedToId: reassign,
       dealValue: dealRaw || null, source: t("source", 80), serviceInterest: t("serviceInterest", 120), country: t("country", 80), company: t("company", 160),
       priority: ["LOW", "MEDIUM", "HIGH"].includes(s(formData, "priority")) ? s(formData, "priority") : lead.priority,
+      ...(formData.has("website") ? { website: t("website", 300) } : {}), ...(formData.has("mapsUrl") ? { mapsUrl: t("mapsUrl", 500) } : {}),
+      ...(formData.has("notes") ? { notes: s(formData, "notes").trim().slice(0, 4000) || null } : {}),
     },
   });
   await ensureContactForLead(db, id);

@@ -45,6 +45,9 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
   const rows: [string, React.ReactNode][] = [
     ["Company", lead.company], ["Email", lead.email], ["Phone", lead.phone], ["Preferred contact", lead.preferredContact?.toLowerCase()],
     ["Location", [lead.city, lead.country].filter(Boolean).join(", ") || null], ["Time zone", lead.timezone], ["Owner", owner?.name], ["Campaign", campaign?.name], ["Source", lead.source],
+    ["Website", lead.website ? <a key="w" className="break-all text-primary hover:underline" href={lead.website} target="_blank" rel="noopener noreferrer">{lead.website}</a> : null],
+    ["Google Maps", lead.mapsUrl ? <a key="m" className="text-primary hover:underline" href={lead.mapsUrl} target="_blank" rel="noopener noreferrer">Open in Google Maps</a> : null],
+    ["Remarks", lead.notes ? <span key="r" className="whitespace-pre-line break-words">{lead.notes}</span> : null],
     ["Service interest", lead.serviceInterest], ["Expected value", lead.dealValue ? formatMoney(lead.dealValue, lead.currency) : null], ["Probability", `${lead.stage.probability}% (from stage)`],
     ["Expected closing", lead.expectedCloseDate], ["Next follow-up", lead.nextFollowUp?.toLocaleDateString()], ["Last contact", lead.lastContactAt?.toLocaleDateString() ?? "never"],
     ["Tags", lead.tags.length ? lead.tags.map((t) => <span key={t} className="mr-1"><Badge tone="primary">{t}</Badge></span>) : null],
@@ -106,6 +109,9 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
                 <div><label className="label" htmlFor="e-ec">Expected closing date</label><input id="e-ec" name="expectedCloseDate" type="date" defaultValue={lead.expectedCloseDate ?? ""} className="input" /></div>
                 <div><label className="label" htmlFor="e-ca">Campaign</label><select id="e-ca" name="campaignId" defaultValue={lead.campaignId ?? ""} className="input"><option value="">None</option>{campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
                 <div><label className="label" htmlFor="e-ow">Owner</label>{manager ? <select id="e-ow" name="assignedToId" defaultValue={lead.assignedToId ?? ""} className="input"><option value="">Unassigned</option>{agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select> : <><input type="hidden" name="assignedToId" value={lead.assignedToId ?? ""} /><input readOnly value={owner?.name ?? "Unassigned"} className="input" aria-label="Owner" /></>}</div>
+                <div><label className="label" htmlFor="e-web">Website</label><input id="e-web" name="website" type="url" defaultValue={lead.website ?? ""} className="input" /></div>
+                <div><label className="label" htmlFor="e-map">Google Maps link</label><input id="e-map" name="mapsUrl" type="url" defaultValue={lead.mapsUrl ?? ""} className="input" /></div>
+                <div className="sm:col-span-2"><label className="label" htmlFor="e-notes">Remarks</label><textarea id="e-notes" name="notes" rows={3} maxLength={4000} defaultValue={lead.notes ?? ""} className="input" /></div>
                 <div><label className="label" htmlFor="e-tags">Tags (comma separated)</label><input id="e-tags" name="tags" defaultValue={lead.tags.join(", ")} className="input" /></div>
                 <div className="sm:col-span-2"><button className="btn">Save details</button></div>
               </form>

@@ -190,7 +190,7 @@ export async function logProspectContact(formData: FormData): Promise<void> {
 
 // What the quick Add prospect form gets back: either the saved prospect, or a message for the field it belongs to (and what was typed, so nothing is lost).
 export type AddState = { ok?: true; message?: string; field?: string; error?: string; values?: Record<string, string> };
-const VALUE_KEYS = ["name", "country", "phone", "email", "source", "note"] as const;
+const VALUE_KEYS = ["name", "country", "phone", "email", "source", "campaignId", "website", "mapsUrl", "note"] as const;
 
 // A sales agent adds a prospect they found themselves (referral, own contact, other). It is owned by them and checked against existing
 // prospects, leads and the do-not-contact list before it is saved. Errors come back to the form, next to the field, instead of redirecting.
