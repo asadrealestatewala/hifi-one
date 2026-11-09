@@ -12,11 +12,11 @@ import { callingCodeOptions, countryOptions } from "@/lib/phone";
 import { usersWithPermission } from "@/lib/notifications";
 import { orderFor } from "@/lib/sort";
 import { listHref, parseListParams } from "@/lib/list-params";
-import { OUTCOME_LABEL, OUTCOMES } from "@/lib/prospect-crm";
+import { CHANNELS, CHANNEL_LABEL, OUTCOME_LABEL, OUTCOMES, RESULTS, RESULT_LABEL } from "@/lib/prospect-crm";
 import { MANUAL_SOURCE_LABEL } from "@/lib/prospect-manual";
 import { getPolicy } from "@/lib/lead-duplicates";
 import { Badge, Chips, Empty, Notice, PageHeader, Pager, SearchBox, SubmitButton } from "@/components/ui";
-import { checkWebsites, getFacebookData, reviewProspects, saveFacebookLink, saveSearchLimits, logProspectContact, removeOwnProspectAction, searchProspects, updateScores } from "./actions";
+import { checkWebsites, claimProspectAction, getFacebookData, reviewProspects, saveFacebookLink, saveSearchLimits, logProspectContact, removeOwnProspectAction, searchProspects, updateScores } from "./actions";
 import AutoRefresh from "./AutoRefresh";
 import AddProspect from "./AddProspect";
 import ImportProspects from "./ImportProspects";
@@ -55,25 +55,39 @@ const daysAgo = (d: Date) => { const n = Math.floor((Date.now() - d.getTime()) /
 // Followers, likes and the last post date of the business's Facebook page, with a small form to add or correct the link
 const OUTCOME_OPTION: Record<string, string> = { CONTACTED: "Contacted, still working on it", INTERESTED: "Interested, make it a lead", NOT_INTERESTED: "Not interested, close it" };
 type OutreachProspect = { id: string; name: string; status: string; assignedToId: string | null; origin: string; addedById: string | null };
-type LastOutreach = { outcome: string; note: string | null; createdAt: Date } | null;
+type LastOutreach = { outcome: string; channel?: string | null; result?: string | null; note: string | null; createdAt: Date } | null;
 function LastContact({ last, author }: { last: LastOutreach; author?: string }) {
-  return last ? <p className="text-[11px] text-muted"><span className="font-medium text-text">{OUTCOME_LABEL[last.outcome] ?? last.outcome}</span> {last.createdAt.toISOString().slice(0, 10)}{author ? ` · ${author}` : ""}{last.note ? `: ${last.note.slice(0, 120)}` : ""}</p> : <p className="text-xs text-muted">Not contacted</p>;
+  return last ? <p className="text-[11px] text-muted"><span className="font-medium text-text">{OUTCOME_LABEL[last.outcome] ?? last.outcome}</span>{last.channel ? ` · ${CHANNEL_LABEL[last.channel] ?? last.channel}` : ""}{last.result ? ` · ${RESULT_LABEL[last.result] ?? last.result}` : ""} {last.createdAt.toISOString().slice(0, 10)}{author ? ` · ${author}` : ""}{last.note ? `: ${last.note.slice(0, 120)}` : ""}</p> : <p className="text-xs text-muted">Not contacted</p>;
 }
 // Log contact, Delete (a hand-added prospect nobody has contacted yet) and, for a manager, Restore of a dismissed one
 function RowActions({ p, last, who, manager, back, stacked = false }: { back: string; p: OutreachProspect; last: LastOutreach; who: string; manager: boolean; stacked?: boolean }) {
   const open = !["SENT_TO_CRM", "DISMISSED", "NOT_INTERESTED"].includes(p.status);
   const mine = manager || p.assignedToId === who;
+  const claimable = !p.assignedToId && ["NEW", "REVIEWED"].includes(p.status);
   const canDelete = p.origin === "MANUAL" && !last && ["NEW", "REVIEWED", "ASSIGNED"].includes(p.status) && (manager || p.addedById === who);
   // stacked = phone layout: full-width controls, the Log contact form opens across the whole row, Delete sits beside or under it
   const field = stacked ? "input" : "input !py-1 text-xs";
   return (
     <div className={stacked ? "flex flex-wrap items-center gap-x-4 gap-y-3" : "w-56 max-w-[15rem] space-y-1"}>
+      {claimable && (
+        <form action={claimProspectAction} aria-label={`Claim ${p.name}`}>
+          <input type="hidden" name="prospectId" value={p.id} />
+          <input type="hidden" name="back" value={back} />
+          <SubmitButton pendingText="Claiming…">Claim this prospect</SubmitButton>
+        </form>
+      )}
       {open && mine && (
         <details className={stacked ? "open:w-full" : "text-xs"}>
           <summary className={stacked ? "btn-ghost inline-flex cursor-pointer list-none !py-2 text-sm [&::-webkit-details-marker]:hidden" : "cursor-pointer text-xs text-primary"}>Log contact</summary>
           <form action={logProspectContact} className={stacked ? "mt-3 space-y-3" : "mt-1 space-y-1"} aria-label={`Log contact with ${p.name}`}>
             <input type="hidden" name="prospectId" value={p.id} />
             <input type="hidden" name="back" value={back} />
+            <select name="channel" className={`${field} w-full`} defaultValue="CALL" aria-label={`How you reached ${p.name}`}>
+              {CHANNELS.map((c) => <option key={c} value={c}>{CHANNEL_LABEL[c]}</option>)}
+            </select>
+            <select name="result" className={`${field} w-full`} defaultValue="SPOKE" aria-label={`Did you speak to ${p.name}`}>
+              {RESULTS.map((r) => <option key={r} value={r}>{RESULT_LABEL[r]}</option>)}
+            </select>
             <select name="outcome" className={`${field} w-full`} defaultValue="CONTACTED" aria-label={`What happened with ${p.name}`}>
               {OUTCOMES.map((o) => <option key={o} value={o}>{OUTCOME_OPTION[o]}</option>)}
             </select>

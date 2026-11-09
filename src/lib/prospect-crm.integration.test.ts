@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { logOutreach, priorityFor } from "./prospect-crm";
 import { rescoreProspects, scoreOne } from "./prospect-scoring";
-import { assign, dismiss, restore, ProspectorError, type Actor } from "./prospector";
+import { assign, claimProspect, dismiss, restore, ProspectorError, type Actor } from "./prospector";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
 const db = new PrismaClient({ datasourceUrl: url });
@@ -189,5 +189,32 @@ describe("the duplicate setting", () => {
     } finally {
       await db.crmSettings.update({ where: { organizationId: org }, data: { duplicateMode: "BLOCK" } });
     }
+  });
+});
+
+describe("channel, result and claiming", () => {
+  it("stores how and whether they were reached, refuses unknown values, and carries it into the lead history", async () => {
+    const p = await owned(ali);
+    await expect(logOutreach(db, ali, p.id, { outcome: "CONTACTED", channel: "PIGEON" })).rejects.toThrow(/how you reached/);
+    await expect(logOutreach(db, ali, p.id, { outcome: "CONTACTED", result: "MAYBE" })).rejects.toThrow(/spoke/);
+    await logOutreach(db, ali, p.id, { outcome: "CONTACTED", channel: "WHATSAPP", result: "NO_ANSWER" });
+    const r = await logOutreach(db, ali, p.id, { outcome: "INTERESTED", channel: "CALL", result: "SPOKE", note: "Wants a demo" });
+    const log = await db.prospectOutreach.findMany({ where: { prospectId: p.id }, orderBy: { createdAt: "asc" } });
+    expect(log.map((l) => [l.channel, l.result])).toEqual([["WHATSAPP", "NO_ANSWER"], ["CALL", "SPOKE"]]);
+    const note = await db.leadActivity.findFirstOrThrow({ where: { leadId: r.leadId!, body: { contains: "Contact history" } } });
+    expect(note.body).toContain("(WhatsApp, no answer)");
+    expect(note.body).toContain("(Phone call, spoke to them)");
+  });
+  it("an agent claims an unassigned prospect from their own search, once; others cannot", async () => {
+    const mine = await prospect({ searchId: (await db.prospectSearch.create({ data: { organizationId: org, userId: ali.id, businessType: "x", city: "Lahore", country: "PK", query: "q" } })).id });
+    await expect(claimProspect(db, zara, mine.id)).rejects.toThrow(/not found/); // not in Zara's list
+    await expect(claimProspect(db, nobody, mine.id)).rejects.toThrow(ProspectorError);
+    expect(await claimProspect(db, ali, mine.id)).toEqual({ name: mine.name });
+    const after = await db.prospect.findUniqueOrThrow({ where: { id: mine.id } });
+    expect([after.status, after.assignedToId]).toEqual(["ASSIGNED", ali.id]);
+    await expect(claimProspect(db, ali, mine.id)).rejects.toThrow(/already yours/);
+    await logOutreach(db, ali, mine.id, { outcome: "CONTACTED", channel: "CALL", result: "SPOKE" });
+    const taken = await owned(zara, { searchId: mine.searchId });
+    await expect(claimProspect(db, ali, taken.id)).rejects.toThrow(/someone else/);
   });
 });
