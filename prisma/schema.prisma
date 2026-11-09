@@ -3240,6 +3240,7 @@ model ChatMessage {
   room ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
   @@index([roomId, createdAt])
+}
 
 // A named file in a project's asset library (brand guide, logo, video, creative). The bytes of each version are StoredFile rows
 // (ownerType PROJECT_ASSET, ownerId = this id); the newest one is the current version.
