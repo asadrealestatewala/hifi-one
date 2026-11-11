@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { CommissionError, setProductRate } from "@/lib/commissions";
 import { saveProduct, setAgentProfile } from "@/lib/field-visits";
 import { ProspectorError } from "@/lib/prospector";
 
@@ -36,6 +37,24 @@ export async function saveAgentAction(formData: FormData): Promise<void> {
     return flash("ok", "Saved.");
   } catch (e) {
     if (e instanceof ProspectorError) return flash("error", e.message);
+    throw e;
+  }
+}
+
+// What a product pays the sales agent and manager on a client's first subscription invoice (not renewals). Needs the commissions permission as well,
+// because it decides what people are paid.
+export async function saveProductCommissionAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("commissions.manage");
+  const productId = s(formData, "productId");
+  try {
+    for (const [role, field] of [["SALES_AGENT", "agentPercent"], ["SALES_MANAGER", "managerPercent"]] as const) {
+      const v = s(formData, field).trim();
+      const r = await setProductRate(db, { organizationId: user.organizationId, productId, role, ratePercent: v === "" ? "0" : v, active: v !== "" && Number(v) > 0, actorId: user.id });
+      await audit(user, { action: "commission.product_rate", entity: "ProductCommissionRate", entityId: r.row.id, before: r.before ? { rate: r.before.ratePercent.toString(), active: r.before.active } : null, after: { productId, role, rate: r.row.ratePercent.toString(), active: r.row.active } });
+    }
+    return flash("ok", "Commission saved. It applies to first subscription payments received from now on.");
+  } catch (e) {
+    if (e instanceof CommissionError) return flash("error", e.message);
     throw e;
   }
 }

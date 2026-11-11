@@ -3,7 +3,8 @@ import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AGENT_KINDS, AGENT_KIND_LABEL, DEFAULT_DAILY_TARGET, listProducts, salesTeam } from "@/lib/field-visits";
 import { Badge, Notice, PageHeader, SubmitButton } from "@/components/ui";
-import { saveAgentAction, saveProductAction } from "./actions";
+import { productRates } from "@/lib/commissions";
+import { saveAgentAction, saveProductAction, saveProductCommissionAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,8 @@ export const dynamic = "force-dynamic";
 export default async function FieldTeam({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string; edit?: string }> }) {
   const user = await requirePermission("field.review");
   const sp = await searchParams;
+  const canPay = user.permissions.has("commissions.manage");
+  const rates = await productRates(db, user.organizationId);
   const [products, team, counts] = await Promise.all([
     listProducts(db, user.organizationId),
     salesTeam(db, user.organizationId),
@@ -30,13 +33,14 @@ export default async function FieldTeam({ searchParams }: { searchParams: Promis
       <section className="space-y-3" aria-labelledby="products-h">
         <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 id="products-h" className="font-semibold">Products</h2><span className="text-xs text-muted">{products.length} product{products.length === 1 ? "" : "s"}</span></div>
         {products.length > 0 && <div className="card !p-0 overflow-x-auto"><table className="w-full text-sm">
-          <thead className="text-left text-xs text-muted"><tr><th className="py-2 pl-4 pr-4">Product</th><th className="pr-4">A prospect is a</th><th className="pr-4">Daily visit target</th><th className="pr-4">Prospects</th><th className="pr-4">Status</th><th className="pr-4"></th></tr></thead>
+          <thead className="text-left text-xs text-muted"><tr><th className="py-2 pl-4 pr-4">Product</th><th className="pr-4">A prospect is a</th><th className="pr-4">Daily visit target</th><th className="pr-4">Prospects</th><th className="pr-4">Commission (agent / manager)</th><th className="pr-4">Status</th><th className="pr-4"></th></tr></thead>
           <tbody>{products.map((p) => (
             <tr key={p.id} className="border-t border-border">
               <td className="py-2 pl-4 pr-4"><p className="font-medium">{p.name}</p><p className="text-xs text-muted">{p.code}{p.website ? ` · ${p.website.replace(/^https?:\/\//, "")}` : ""}</p></td>
               <td className="pr-4">{p.businessLabel}</td>
               <td className="pr-4">{p.dailyVisitTarget} a day</td>
               <td className="pr-4">{prospectCount.get(p.id) ?? 0}</td>
+              <td className="pr-4">{rates.get(p.id)?.agent || rates.get(p.id)?.manager ? `${rates.get(p.id)?.agent ?? "0"}% / ${rates.get(p.id)?.manager ?? "0"}%` : <span className="text-muted">none</span>}</td>
               <td className="pr-4">{p.active ? <Badge tone="success">active</Badge> : <Badge tone="neutral">off</Badge>}</td>
               <td className="py-2 pr-4 text-right"><Link className="text-primary hover:underline" href={`/leads/prospector/field-team?edit=${p.id}`}>Edit</Link></td>
             </tr>
@@ -56,6 +60,19 @@ export default async function FieldTeam({ searchParams }: { searchParams: Promis
           <label className="flex items-center gap-2 text-sm sm:col-span-2 lg:col-span-3"><input type="checkbox" name="active" defaultChecked={editing ? editing.active : true} /> Active (agents can be put on it and log visits)</label>
           <div className="flex gap-3 sm:col-span-2 lg:col-span-3"><SubmitButton pendingText="Saving…">{editing ? "Save changes" : "Add product"}</SubmitButton>{editing && <Link className="btn-ghost" href="/leads/prospector/field-team">Cancel</Link>}</div>
         </form>
+
+        {canPay && products.length > 0 && <div className="card space-y-3">
+          <div><h3 className="font-medium">Commission per product</h3><p className="text-xs text-muted">Paid on the client&apos;s first subscription payment for the product, not on renewals. It applies to the client&apos;s sales agent (the one who converted the lead) and that agent&apos;s manager, and goes through My Commissions and payroll. It wins over the campaign rate on that invoice. Leave a box empty for no commission. A changed rate applies to payments received after saving.</p></div>
+          {products.map((p) => (
+            <form key={p.id} action={saveProductCommissionAction} className="flex flex-wrap items-end gap-3 border-t border-border pt-3 first:border-0 first:pt-0">
+              <input type="hidden" name="productId" value={p.id} />
+              <p className="min-w-40 font-medium">{p.name}</p>
+              <div><label className="label" htmlFor={`ca-${p.id}`}>Sales agent (%)</label><input id={`ca-${p.id}`} name="agentPercent" inputMode="decimal" className="input !w-24" defaultValue={rates.get(p.id)?.agent ?? ""} /></div>
+              <div><label className="label" htmlFor={`cm-${p.id}`}>Sales manager (%)</label><input id={`cm-${p.id}`} name="managerPercent" inputMode="decimal" className="input !w-24" defaultValue={rates.get(p.id)?.manager ?? ""} /></div>
+              <SubmitButton pendingText="Saving…">Save commission</SubmitButton>
+            </form>
+          ))}
+        </div>}
       </section>
 
       <section className="space-y-3" aria-labelledby="team-h">

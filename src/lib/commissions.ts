@@ -67,9 +67,50 @@ export async function salesOwnerOf(db: Db, organizationId: string, clientId: str
   return (await salesLeadOf(db, organizationId, clientId))?.owner ?? null;
 }
 
-async function salesLeadOf(db: Db, organizationId: string, clientId: string): Promise<{ owner: string; campaignId: string | null } | null> {
-  const lead = await db.lead.findFirst({ where: { organizationId, clientId, convertedAt: { not: null }, assignedToId: { not: null } }, orderBy: { convertedAt: "desc" }, select: { assignedToId: true, campaignId: true } });
-  return lead ? { owner: lead.assignedToId!, campaignId: lead.campaignId } : null;
+type SalesLead = { owner: string; campaignId: string | null; productId: string | null };
+
+async function salesLeadOf(db: Db, organizationId: string, clientId: string): Promise<SalesLead | null> {
+  const lead = await db.lead.findFirst({ where: { organizationId, clientId, convertedAt: { not: null }, assignedToId: { not: null } }, orderBy: { convertedAt: "desc" }, select: { id: true, assignedToId: true, campaignId: true } });
+  if (!lead) return null;
+  // The product sold is the one on the prospect that was sent to the CRM as this lead, or on the demo booked for it.
+  const prospect = await db.prospect.findFirst({ where: { organizationId, leadId: lead.id, productId: { not: null } }, select: { productId: true } });
+  const demo = prospect ? null : await db.demoBooking.findFirst({ where: { organizationId, leadId: lead.id, productId: { not: null } }, orderBy: { createdAt: "desc" }, select: { productId: true } });
+  return { owner: lead.assignedToId!, campaignId: lead.campaignId, productId: prospect?.productId ?? demo?.productId ?? null };
+}
+
+// True when the invoice is the first one a subscription ever billed (renewals are not). Other invoices are not subscription invoices at all.
+async function isFirstSubscriptionInvoice(db: Db, invoiceId: string): Promise<boolean> {
+  const si = await db.subscriptionInvoice.findUnique({ where: { invoiceId }, select: { subscriptionId: true, periodStart: true } });
+  if (!si) return false;
+  return (await db.subscriptionInvoice.count({ where: { subscriptionId: si.subscriptionId, periodStart: { lt: si.periodStart } } })) === 0;
+}
+
+// The commission a product pays each role, on the first subscription invoice only (not renewals). Changing a rate restarts the clock.
+export async function setProductRate(db: Db, p: { organizationId: string; productId: string; role: string; ratePercent: string; active: boolean; actorId: string }) {
+  if (!(COMMISSION_ROLES as readonly string[]).includes(p.role)) throw new CommissionError("Choose sales agent or sales manager.");
+  if (!/^\d{1,2}(\.\d{1,2})?$/.test(p.ratePercent.trim()) || dec(p.ratePercent).gt(50)) throw new CommissionError("Enter a rate between 0 and 50 percent with up to two decimals.");
+  if (!(await db.saasProduct.findFirst({ where: { id: p.productId, organizationId: p.organizationId } }))) throw new CommissionError("Choose a product.");
+  const rate = p.ratePercent.trim();
+  const key = { productId_role: { productId: p.productId, role: p.role } };
+  const before = await db.productCommissionRate.findUnique({ where: key });
+  const row = await db.productCommissionRate.upsert({
+    where: key,
+    update: { ratePercent: rate, active: p.active, updatedById: p.actorId, ...(before && (!before.ratePercent.eq(rate) || (!before.active && p.active)) ? { effectiveFrom: new Date() } : {}) },
+    create: { organizationId: p.organizationId, productId: p.productId, role: p.role, ratePercent: rate, active: p.active, updatedById: p.actorId },
+  });
+  return { row, before };
+}
+
+// Active product rates keyed by product, for showing on the Field Sales Team screen.
+export async function productRates(db: Db, organizationId: string): Promise<Map<string, { agent: string | null; manager: string | null }>> {
+  const rates = await db.productCommissionRate.findMany({ where: { organizationId, active: true } });
+  const out = new Map<string, { agent: string | null; manager: string | null }>();
+  for (const r of rates) {
+    const cur = out.get(r.productId) ?? { agent: null, manager: null };
+    if (r.role === "SALES_AGENT") cur.agent = r.ratePercent.toString(); else cur.manager = r.ratePercent.toString();
+    out.set(r.productId, cur);
+  }
+  return out;
 }
 
 // Works out commissions for payment allocations that have none yet. Safe to run as often as you like.
@@ -78,16 +119,19 @@ async function salesLeadOf(db: Db, organizationId: string, clientId: string): Pr
 export async function accrueCommissions(db: Db, p: { organizationId: string; actorId: string }) {
   const rules = await db.commissionRule.findMany({ where: { organizationId: p.organizationId, active: true } });
   const crates = await db.campaignCommissionRate.findMany({ where: { organizationId: p.organizationId, active: true } });
-  if (rules.length === 0 && crates.length === 0) return { created: 0 };
+  const prates = await db.productCommissionRate.findMany({ where: { organizationId: p.organizationId, active: true } });
+  if (rules.length === 0 && crates.length === 0 && prates.length === 0) return { created: 0 };
   const ruleBy = new Map(rules.map((r) => [r.userId, r]));
   const rateBy = new Map(crates.map((r) => [`${r.campaignId}:${r.role}`, r]));
   const done = new Set((await db.commissionEntry.findMany({ where: { organizationId: p.organizationId, allocationId: { not: null } }, select: { allocationId: true, role: true } })).map((e) => `${e.allocationId}:${e.role}`));
-  const since = new Date(Math.min(...rules.map((r) => r.createdAt.getTime()), ...crates.map((r) => r.effectiveFrom.getTime())));
+  const productRateBy = new Map(prates.map((r) => [`${r.productId}:${r.role}`, r]));
+  const firstSubCache = new Map<string, boolean>();
+  const since = new Date(Math.min(...rules.map((r) => r.createdAt.getTime()), ...crates.map((r) => r.effectiveFrom.getTime()), ...prates.map((r) => r.effectiveFrom.getTime())));
   const allocations = await db.paymentAllocation.findMany({
     where: { payment: { organizationId: p.organizationId, createdAt: { gte: since } }, invoice: { organizationId: p.organizationId } },
     include: { invoice: true, payment: { select: { createdAt: true } } },
   });
-  const leadCache = new Map<string, { owner: string; campaignId: string | null } | null>();
+  const leadCache = new Map<string, SalesLead | null>();
   const managerCache = new Map<string, string | null>();
   let created = 0;
   for (const a of allocations) {
@@ -101,8 +145,16 @@ export async function accrueCommissions(db: Db, p: { organizationId: string; act
       const m = (await db.user.findFirst({ where: { id: lead.owner, organizationId: p.organizationId }, select: { managerId: true } }))?.managerId ?? null;
       managerCache.set(lead.owner, m && (await db.user.findFirst({ where: { id: m, organizationId: p.organizationId, userType: "EMPLOYEE", active: true }, select: { id: true } })) ? m : null);
     }
-    const agentRate = lead.campaignId ? rateBy.get(`${lead.campaignId}:SALES_AGENT`) : undefined;
-    const managerRate = lead.campaignId ? rateBy.get(`${lead.campaignId}:SALES_MANAGER`) : undefined;
+    // A product rate beats the campaign rate, but only on the first invoice of a subscription (never on renewals or one-off invoices).
+    let useProduct = false;
+    if (lead.productId && prates.some((r) => r.productId === lead.productId)) {
+      if (!firstSubCache.has(a.invoiceId)) firstSubCache.set(a.invoiceId, await isFirstSubscriptionInvoice(db, a.invoiceId));
+      useProduct = firstSubCache.get(a.invoiceId)!;
+    }
+    const agentProduct = useProduct ? productRateBy.get(`${lead.productId}:SALES_AGENT`) : undefined;
+    const managerProduct = useProduct ? productRateBy.get(`${lead.productId}:SALES_MANAGER`) : undefined;
+    const agentRate = agentProduct ?? (lead.campaignId ? rateBy.get(`${lead.campaignId}:SALES_AGENT`) : undefined);
+    const managerRate = managerProduct ?? (lead.campaignId ? rateBy.get(`${lead.campaignId}:SALES_MANAGER`) : undefined);
     const personal = ruleBy.get(lead.owner);
     const shares: { role: string; userId: string; rate: string; from: Date }[] = [];
     if (agentRate) shares.push({ role: "SALES_AGENT", userId: lead.owner, rate: agentRate.ratePercent.toString(), from: agentRate.effectiveFrom });
@@ -114,7 +166,7 @@ export async function accrueCommissions(db: Db, p: { organizationId: string; act
       const amount = round2(base.mul(sh.rate).div(100));
       if (amount.lte(0)) continue;
       const r = await db.commissionEntry.createMany({
-        data: [{ organizationId: p.organizationId, userId: sh.userId, kind: "COMMISSION", role: sh.role, campaignId: (sh.role === "SALES_AGENT" ? agentRate : managerRate) ? lead.campaignId : null, allocationId: a.id, invoiceId: a.invoiceId, clientId: a.invoice.clientId, currency: a.invoice.currency, base: base.toString(), ratePercent: sh.rate, amount: amount.toString(), createdById: p.actorId }],
+        data: [{ organizationId: p.organizationId, userId: sh.userId, kind: "COMMISSION", role: sh.role, campaignId: (sh.role === "SALES_AGENT" ? agentRate : managerRate) && !(sh.role === "SALES_AGENT" ? agentProduct : managerProduct) ? lead.campaignId : null, allocationId: a.id, invoiceId: a.invoiceId, clientId: a.invoice.clientId, currency: a.invoice.currency, base: base.toString(), ratePercent: sh.rate, amount: amount.toString(), createdById: p.actorId }],
         skipDuplicates: true,
       });
       created += r.count;

@@ -2856,6 +2856,26 @@ model CampaignCommissionRate {
   @@index([organizationId, active])
 }
 
+// The commission a SaaS product pays on a client's FIRST subscription invoice (not renewals), per role. Wins over a campaign rate and a
+// person's own rate for that invoice. Changing a rate restarts effectiveFrom so only later payments use it.
+model ProductCommissionRate {
+  id             String   @id @default(cuid())
+  organizationId String
+  productId      String
+  role           String // SALES_AGENT | SALES_MANAGER
+  ratePercent    Decimal  @db.Decimal(5, 2)
+  active         Boolean  @default(true)
+  effectiveFrom  DateTime @default(now())
+  updatedById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  product SaasProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, role])
+  @@index([organizationId, active])
+}
+
 // ---------- Weekly customer success reviews and the rebate they earn the team ----------
 
 // The customer success manager's weekly meeting with a client: a rating and a written review.
@@ -3046,6 +3066,7 @@ model SaasProduct {
   profiles  SalesAgentProfile[]
   visits    ProspectVisit[]
   demos     DemoBooking[]
+  commissionRates ProductCommissionRate[]
 
   @@unique([organizationId, code])
   @@index([organizationId, active, sortOrder])
