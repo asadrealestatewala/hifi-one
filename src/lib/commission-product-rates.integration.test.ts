@@ -9,23 +9,6 @@ let org: string, other: string, agent: string, mgr: string, boss: string, bank: 
 let n = 0;
 const wait = () => new Promise((r) => setTimeout(r, 25));
 
-beforeAll, describe, expect, it } from "vitest";
-import { PrismaClient } from "@prisma/client";
-import { createDraftInvoice, issueInvoice, recordPayment } from "./accounting";
-import { CommissionError, accrueCommissions, productRates, setCampaignRate, setProductRate } from "./commissions";
-
-const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
-const db = new PrismaClient({ datasourceUrl: url });
-let org: string, other: string, agent: string, mgr: string, boss: string, bank: string, digital: string, product: string, c1: string, c2: string, sub: string;
-let n = 0;
-const wait = () => new Promise((r) => setTimeout(r, 25));
-
-async function pay(clientId: string, subtotal: string) {
-  const d = await createDraftInvoice(db, { organizationId: org, clientId, currency: "USD", taxRate: "0", createdById: boss, lines: [{ description: "Work", quantity: "1", unitPrice: subtotal }] });
-  const inv = await issueInvoice(db, { organizationId: org, invoiceId: d.id, actorId: boss });
-  await recordPayment(db, { organizationId: org, actorId: boss, clientId, bankAccountId: bank, amount: subtotal, date: new Date(), method: "BANK_TRANSFER", idempotencyKey: `cr-${++n}`, invoiceIds: [inv.id] });
-}
-
 beforeAll(async () => {
   await db.$executeRawUnsafe('TRUNCATE "ProductCommissionRate","SubscriptionInvoice","Subscription","Prospect","SaasProduct","CampaignCommissionRate","Campaign","CommissionEntry","CommissionRule","Lead","PipelineStage","PaymentAllocation","Payment","InvoiceLine","Invoice","JournalLine","JournalEntry","NumberSequence","BankAccount","Account","Client","User","CompanyProfile","Organization" CASCADE');
   org = (await db.organization.create({ data: { name: "Rate Org" } })).id;
