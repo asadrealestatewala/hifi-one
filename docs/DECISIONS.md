@@ -110,3 +110,8 @@ Newest last. Each entry: what was decided, why, and what it costs.
 - Nobody is expected to report, or scored, on weekends, approved leave, before joining, or before 2026-11-10.
 ## 2026-11-09: Closed Won approval is a request, not a dead end
 - Asad asked for the sales manager to be notified. An agent's Closed Won attempt now creates a `LeadConversionRequest` (decision: no new permission, `crm.convert` holders approve; approval runs the existing idempotent `convertLead`). Rejecting needs a reason shown to the agent.
+
+## 2026-11-11: Commission per product, first subscription invoice only
+- Asad asked for a commission % per product (Agentify ERP, Velocity ERP, Pharmivo) on each subscription, not on recurring renewals. `ProductCommissionRate` holds an agent and a manager rate per `SaasProduct`, set on Field Sales Team (needs `commissions.manage`, audited as `commission.product_rate`).
+- The product sold is the one on the prospect that was sent to the CRM as the converted lead (`Prospect.leadId`), or on the demo booked for that lead. Leads created any other way have no product and keep the campaign and personal rules.
+- The product rate applies only to payments on a client's first subscription invoice (no earlier `SubscriptionInvoice` for that subscription). It wins over the campaign rate on that invoice; renewals and one-off invoices fall back to the campaign rate, then the personal rate. Changing a rate only affects later payments. Not covered: choosing a product by hand on a lead.
