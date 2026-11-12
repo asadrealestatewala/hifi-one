@@ -2039,6 +2039,7 @@ model MonitoringPolicy {
   policyText            String   @default("")
   trackActivity         Boolean  @default(true) // aggregate active/idle time and key and click COUNTS (never what was typed)
   trackApps             Boolean  @default(false) // names of applications used, as durations
+  remoteSupport         Boolean  @default(false) // a support person may ASK to help on a company computer; the person says yes each time
   liveView              Boolean  @default(false) // managers may ASK to watch a screen the person is already sharing; the person says yes each time
   trackWebsites         Boolean  @default(false) // website DOMAINS visited, as durations: never the page, path, query or title
   screenshots           Boolean  @default(false)
@@ -2138,6 +2139,8 @@ model LiveView {
   organizationId String
   viewerId       String
   subjectId      String
+  kind           String    @default("VIEW") // VIEW (manager watches) | SUPPORT (helper assists, needs a stated reason)
+  reason         String?
   status         String    @default("REQUESTED") // REQUESTED | ACCEPTED | DECLINED | ENDED | EXPIRED
   createdAt      DateTime  @default(now())
   answeredAt     DateTime?

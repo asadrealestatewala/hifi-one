@@ -29,15 +29,15 @@ export async function GET(req: Request) {
   return new Response(stream, { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store, no-transform", connection: "keep-alive", "x-accel-buffering": "no" } });
 }
 
-// { op: "request", subjectId } | { op: "respond", id, accept } | { op: "end", id } | { op: "signal", id, data }
+// { op: "request", subjectId, kind?: "VIEW" | "SUPPORT", reason? } | { op: "respond", id, accept } | { op: "end", id } | { op: "signal", id, data }
 export async function POST(req: Request) {
   const user = await requirePermission("monitoring.own", { json: true });
   if (user instanceof Response) return user;
   if (user.userType !== "EMPLOYEE") return reply({ error: "Staff only." }, 403);
-  let b: { op?: string; subjectId?: string; id?: string; accept?: boolean; data?: unknown };
+  let b: { op?: string; subjectId?: string; id?: string; accept?: boolean; data?: unknown; kind?: string; reason?: string };
   try { b = await req.json(); } catch { return reply({ error: "Bad request." }, 400); }
   try {
-    if (b.op === "request") { const lv = await requestLiveView(db, { id: user.id, organizationId: user.organizationId, name: user.name, permissions: user.permissions }, String(b.subjectId ?? "")); return reply({ id: lv.id }); }
+    if (b.op === "request") { const lv = await requestLiveView(db, { id: user.id, organizationId: user.organizationId, name: user.name, permissions: user.permissions }, String(b.subjectId ?? ""), new Date(), { kind: b.kind === "SUPPORT" ? "SUPPORT" : "VIEW", reason: b.reason }); return reply({ id: lv.id }); }
     if (b.op === "respond") { await respondLiveView(db, user.id, String(b.id ?? ""), b.accept === true); return reply({ ok: true }); }
     if (b.op === "end") { await endLiveView(db, user.id, String(b.id ?? "")); return reply({ ok: true }); }
     if (b.op === "signal") { await relayLiveSignal(db, user.id, String(b.id ?? ""), b.data); return reply({ ok: true }); }

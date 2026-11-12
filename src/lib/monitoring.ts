@@ -23,10 +23,10 @@ const floorBucket = (d: Date) => new Date(Math.floor(d.getTime() / BUCKET_MS) * 
 
 // ---------- policy ----------
 export type PolicyPatch = Partial<{
-  enabled: boolean; policyText: string; trackActivity: boolean; trackApps: boolean; trackWebsites: boolean; liveView: boolean; screenshots: boolean; screenshotIntervalMin: number; idleThresholdMin: number;
+  enabled: boolean; policyText: string; trackActivity: boolean; trackApps: boolean; trackWebsites: boolean; liveView: boolean; remoteSupport: boolean; screenshots: boolean; screenshotIntervalMin: number; idleThresholdMin: number;
   timezone: string; workStart: string; workEnd: string; workDays: string; retentionDays: number;
 }>;
-const COLLECTION_FIELDS = ["enabled", "policyText", "trackActivity", "trackApps", "trackWebsites", "liveView", "screenshots", "screenshotIntervalMin", "idleThresholdMin", "timezone", "workStart", "workEnd", "workDays", "retentionDays"] as const;
+const COLLECTION_FIELDS = ["enabled", "policyText", "trackActivity", "trackApps", "trackWebsites", "liveView", "remoteSupport", "screenshots", "screenshotIntervalMin", "idleThresholdMin", "timezone", "workStart", "workEnd", "workDays", "retentionDays"] as const;
 
 export async function getPolicy(db: Db, organizationId: string) {
   return (await db.monitoringPolicy.findUnique({ where: { organizationId } })) ?? db.monitoringPolicy.create({ data: { organizationId } });
@@ -43,6 +43,7 @@ export async function savePolicy(db: Db, p: { organizationId: string; patch: Pol
   if (!/^[0-6](,[0-6])*$/.test(x.workDays)) throw new MonitorError("Choose working days.");
   try { new Intl.DateTimeFormat("en", { timeZone: x.timezone }); } catch { throw new MonitorError("That time zone is not recognised (for example Asia/Karachi)."); }
   if (x.enabled && x.policyText.trim().length < 50) throw new MonitorError("Write the policy people will read (at least a short paragraph) before turning monitoring on. They must be told what is collected, when, who can see it and how long it is kept.");
+  if (x.remoteSupport && !x.enabled) throw new MonitorError("Remote support only works while monitoring is on.");
   if (x.liveView && !x.enabled) throw new MonitorError("Live view only works while monitoring is on.");
   if (x.screenshots && !x.enabled) throw new MonitorError("Screenshots only work while monitoring is on.");
   const changed = COLLECTION_FIELDS.some((f) => f in p.patch && p.patch[f] !== cur[f]);
@@ -416,12 +417,12 @@ export async function logReportAccess(db: Db, p: { organizationId: string; viewe
 // rules as for the desktop agent. Nothing is captured unless the person is sharing.
 export type DockState = {
   available: boolean; reason: string | null; intervalMin: number; sessionId: string | null; onBreak: boolean; inWorkingHours: boolean;
-  lastSnapshotAt: string | null; nextDueAt: string | null;
+  lastSnapshotAt: string | null; nextDueAt: string | null; supportReady: boolean;
 };
 export async function dockState(db: Db, d: { organizationId: string; userId: string }, now = new Date()): Promise<DockState> {
   const policy = await getPolicy(db, d.organizationId);
   const accepted = policy.enabled && (await hasAccepted(db, d.userId, policy.version));
-  const base = { intervalMin: policy.screenshotIntervalMin, sessionId: null as string | null, onBreak: false, inWorkingHours: withinSchedule(policy, now), lastSnapshotAt: null as string | null, nextDueAt: null as string | null };
+  const base = { intervalMin: policy.screenshotIntervalMin, sessionId: null as string | null, onBreak: false, inWorkingHours: withinSchedule(policy, now), lastSnapshotAt: null as string | null, nextDueAt: null as string | null, supportReady: accepted && policy.remoteSupport };
   if (!policy.enabled || !policy.screenshots) return { ...base, available: false, reason: "Screen snapshots are switched off." };
   if (!accepted) return { ...base, available: false, reason: "Accept the monitoring policy in My Workfolio first." };
   const open = await db.workSession.findFirst({ where: { userId: d.userId, endedAt: null }, include: { breaks: { where: { endedAt: null } } } });
