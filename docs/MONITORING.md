@@ -2,6 +2,10 @@
 
 Hifi One includes a transparent time-tracking and activity module in the spirit of tools such as Workfolio. It is built around consent, minimal collection and visibility to the person being measured. This page says exactly what it does and does not do.
 
+## One clock
+
+Clock in, break and clock out go through one service (`src/lib/clock.ts`) from My Attendance, My Workfolio and the mobile API. Attendance (what payroll and HR use) is always recorded. The activity tracker's work session is opened and closed with it only when monitoring is switched on and the person has accepted the current terms; otherwise only attendance is recorded. My Attendance shows the terms with a checkbox; ticking it records the acceptance against the policy version shown (same record as the My Workfolio accept screen).
+
 ## What is collected
 
 | Item | Browser tracker | Desktop app |
