@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 
 // The manager's side. Nothing starts until the person accepts; the video arrives straight from their browser.
-export default function LiveViewer({ subjectId, name }: { subjectId: string; name: string }) {
+export default function LiveViewer({ subjectId, name, support = false }: { subjectId: string; name: string; support?: boolean }) {
+  const [why, setWhy] = useState("");
   const [status, setStatus] = useState<string>("Not started.");
   const [running, setRunning] = useState(false);
   const video = useRef<HTMLVideoElement | null>(null);
@@ -47,7 +48,7 @@ export default function LiveViewer({ subjectId, name }: { subjectId: string; nam
     });
     on<{ id: string }>("ended", (d) => { if (d.id === reqId.current) cleanup("The live view ended."); });
     await new Promise((r) => setTimeout(r, 400)); // let the stream open before the answer can arrive
-    const r = await post({ op: "request", subjectId });
+    const r = await post({ op: "request", subjectId, kind: support ? "SUPPORT" : "VIEW", reason: why });
     const j = (await r.json()) as { id?: string; error?: string };
     if (!r.ok || !j.id) return cleanup(j.error ?? "Could not ask.");
     reqId.current = j.id;
@@ -58,9 +59,10 @@ export default function LiveViewer({ subjectId, name }: { subjectId: string; nam
   return (
     <section className="card space-y-3">
       <video ref={video} className={`aspect-video w-full rounded-lg border border-border bg-black ${running ? "" : "hidden"}`} muted playsInline controls={false} />
+      {support && !running && !src.current && <div><label className="label" htmlFor="why">Why do you want to help? They will read this before answering.</label><input id="why" value={why} onChange={(e) => setWhy(e.target.value)} maxLength={300} className="input" placeholder="e.g. the invoice printer is not responding" /></div>}
       <p className="text-sm" role="status" aria-live="polite">{status}</p>
       <div className="flex gap-2">
-        {!src.current && !running ? <button type="button" onClick={() => void begin()} className="btn">Ask to watch</button> : <button type="button" onClick={stop} className="btn-ghost">Stop watching</button>}
+        {!src.current && !running ? <button type="button" onClick={() => void begin()} className="btn">{support ? "Ask to help" : "Ask to watch"}</button> : <button type="button" onClick={stop} className="btn-ghost">Stop watching</button>}
       </div>
     </section>
   );

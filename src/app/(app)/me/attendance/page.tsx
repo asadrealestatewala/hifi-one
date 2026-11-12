@@ -80,6 +80,7 @@ export default async function MyAttendance({ searchParams }: { searchParams: Pro
             <li>Activity: {policy.trackActivity ? "active and idle time and counts of key presses and clicks, never what you type" : "not collected"}.</li>
             <li>Applications: {policy.trackApps ? "names and durations only" : "not collected"}.</li>
             <li>Websites: {policy.trackWebsites ? "only the website name and time on it, never the page, search or title" : "not collected"}.</li>
+            <li>Remote support: {policy.remoteSupport ? "a support person with permission can ask to help on your company computer and must give a reason; you can say no every time, you see a banner for as long as it runs, and each session is logged where you can read it" : "not used"}.</li>
             <li>Live view: {policy.liveView ? "a manager with permission can ask to watch the screen you are sharing; you can say no every time, you see a banner for as long as it runs, and each view is logged where you can read it" : "not used"}.</li>
             <li>Screenshots: {policy.screenshots ? `every ${policy.screenshotIntervalMin} minutes, only while you choose to share your screen or run the desktop app` : "not collected"}.</li>
             <li>You can see everything recorded about you, and who looked at it, under My Workfolio.</li>

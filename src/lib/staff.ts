@@ -19,7 +19,7 @@ type Db = PrismaClient;
 const HR_RESTRICTED = new Set<string>([
   "users.manage", "roles.manage", "settings.company.edit", "bank.edit", "bank.view_full", "mail.manage", "onboarding.approve", "audit.view",
   "payroll.approve", "payroll.post", "expenses.approve", "expenses.post", "budget.approve", "budget.override", "vendors.post", "assets.post",
-  "journal.approve", "coa.manage", "period.lock", "fx.manage", "finance.refund", "finance.writeoff", "commissions.approve", "monitoring.configure", "monitoring.screenshots", "monitoring.live_view",
+  "journal.approve", "coa.manage", "period.lock", "fx.manage", "finance.refund", "finance.writeoff", "commissions.approve", "monitoring.configure", "monitoring.screenshots", "monitoring.live_view", "monitoring.remote_support",
 ]);
 const EXTERNAL = ["CLIENT", "VENDOR", "BUSINESS_PARTNER", "INVESTOR"];
 export const STAFF_STATUSES = ["ACTIVE", "INACTIVE", "EXITED"] as const;

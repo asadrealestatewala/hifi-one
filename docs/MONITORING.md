@@ -38,6 +38,12 @@ Off by default (policy tick "Live screen view"; turning it on raises the policy 
 4. While it runs the person sees a red banner with **Stop now**. Either side can stop it.
 5. The view is written to the access log they can read ("opened your screen live") when they allow it.
 
+## Remote support (company computers)
+
+Off by default (policy tick "Remote support"; raises the policy version). A person with `monitoring.remote_support` (Super Admin only by default) presses **Offer help** next to anyone on the Workfolio page. It uses the same consent flow as live view with these differences: the helper must write a reason (shown to the person before they answer), it may happen outside working hours or while not clocked in, but only while the person is signed in to Hifi One to answer, and clocking out does not cut it. The person sees a banner ("is helping you and can see your shared screen") with **Stop now**, and the session is logged as "remote support" in the access log they can read.
+
+**View only for now.** The helper sees the screen the person chooses to share. Taking control of the mouse and keyboard, a terminal or file access are not built. When control is added it will need a company-installed helper app, its own permission and a second explicit "allow control" step from the person each session. Personal phones are never covered by remote support.
+
 Not verified in a real browser pair. Strict networks may need a relay server, as with meetings. Not built: capture of screens when the browser is closed. Real screen capture could not be exercised in the automated browser here (it blocks capture); the snapshot route, limits and consent rules are covered by tests and the dock was checked in the browser.
 
 ## The rules the system enforces (not just documents)

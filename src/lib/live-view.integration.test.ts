@@ -72,3 +72,27 @@ describe("live screen view", () => {
     expect((await db.liveView.findUniqueOrThrow({ where: { id: c.id } })).status).toBe("ENDED");
   });
 });
+
+describe("remote support", () => {
+  it("needs permission, a reason, the policy tick, and a person who is signed in and has accepted", async () => {
+    await db.liveView.deleteMany({});
+    const helper = viewer(boss, ["monitoring.remote_support"]);
+    await expect(requestLiveView(db, viewer(boss, ["monitoring.live_view"]), ann, noon, { kind: "SUPPORT", reason: "printer broken" })).rejects.toThrow(/permission/);
+    await expect(requestLiveView(db, helper, ann, noon, { kind: "SUPPORT", reason: "printer broken" })).rejects.toThrow(/not switched on/);
+    await savePolicy(db, { organizationId: org, actorId: boss, patch: { remoteSupport: true } });
+    await expect(requestLiveView(db, helper, ann, noon, { kind: "SUPPORT", reason: "hi" })).rejects.toThrow(/why/);
+    await expect(requestLiveView(db, helper, ann, noon, { kind: "SUPPORT", reason: "printer broken" })).rejects.toThrow(/accepted/); // version bumped, ann must accept again
+    await acknowledge(db, { userId: ann, version: (await getPolicy(db, org)).version });
+    await expect(requestLiveView(db, helper, ann, noon, { kind: "SUPPORT", reason: "printer broken" })).rejects.toThrow(/not signed in/);
+    const got: { event: string; data: unknown }[] = [];
+    const off = subscribe(liveKey(ann), (event, data) => got.push({ event, data }));
+    const lv = await requestLiveView(db, helper, ann, new Date("2026-10-12T20:00:00.000Z"), { kind: "SUPPORT", reason: "printer broken" }); // outside working hours is fine for support
+    expect(got[0].data).toMatchObject({ kind: "SUPPORT", reason: "printer broken" });
+    await respondLiveView(db, ann, lv.id, true, new Date("2026-10-12T20:00:10.000Z"));
+    expect(await db.monitoringAccess.count({ where: { subjectId: ann, what: "REMOTE_SUPPORT", targetId: lv.id } })).toBe(1);
+    await endViewsFor(db, ann); // clock-out does not cut a support session
+    expect((await db.liveView.findUniqueOrThrow({ where: { id: lv.id } })).status).toBe("ACCEPTED");
+    await endLiveView(db, boss, lv.id);
+    off();
+  });
+});
