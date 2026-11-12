@@ -1,7 +1,9 @@
 // Pure HR rules (no database), shared by actions and tests.
 // Dates are plain YYYY-MM-DD strings so timezones and daylight saving never shift a leave day.
 
-export const WEEKEND_DAYS = [0, 6]; // Sunday, Saturday (configurable per organization later)
+// Fallback only. The company's real weekly offs and public holidays live in the working calendar
+// (src/lib/working-calendar.ts, Company settings -> Working calendar); callers pass them in.
+export const WEEKEND_DAYS = [0, 6]; // Sunday, Saturday
 
 const parse = (d: string) => {
   const [y, m, day] = d.split("-").map(Number);

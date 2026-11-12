@@ -100,7 +100,7 @@ describe("the end-of-day snapshot", () => {
 describe("the job", () => {
   it("waits for office close in company time, then runs once and tells HR", async () => {
     const job = JOBS.find((j) => j.key === "end_of_day_report")!;
-    expect(job.notBefore).toBe("18:30");
+    expect(job.notBeforeClose).toBe(true); // the working calendar says when that is; the default is 18:30
     const early = await runJobs(db, { only: ["end_of_day_report"], organizationId: org, now: new Date("2026-11-10T12:00:00Z") }); // 17:00 Karachi
     expect(early[0]).toMatchObject({ status: "SKIPPED" });
     expect(await db.jobRun.count({ where: { organizationId: org, key: "end_of_day_report" } })).toBe(0);

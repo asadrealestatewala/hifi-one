@@ -3452,3 +3452,35 @@ model LeadConversionRequest {
   @@index([leadId])
   @@index([requestedById, createdAt])
 }
+
+// ---------- Working calendar ----------
+
+// The one place that says when the company works: office hours, which weekdays are working days, lunch and the
+// grace period before a clock-in counts as late. Read by attendance, leave, daily reports, scorecards, the sales
+// quest streak, payroll and the scheduled reminders, so a change here moves all of them together. The time zone
+// stays on CompanyProfile, which already owns it. One row per organization; missing means the defaults in
+// src/lib/working-calendar.ts.
+model WorkingCalendar {
+  organizationId String   @id
+  workStart      String   @default("09:00") // HH:MM in the company time zone
+  workEnd        String   @default("18:30")
+  lunchMinutes   Int      @default(30)
+  graceMinutes   Int      @default(10) // minutes after workStart before a clock-in counts as late
+  workDays       String   @default("1,2,3,4,5") // 0 = Sunday; days not listed are weekly off
+  updatedById    String?
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+}
+
+// A public or company holiday: a day nobody is expected to work. Leave, daily reports, scorecards and the quest
+// streak all skip these dates.
+model PublicHoliday {
+  id             String   @id @default(cuid())
+  organizationId String
+  date           String // YYYY-MM-DD in the company time zone
+  name           String
+  createdAt      DateTime @default(now())
+
+  @@unique([organizationId, date])
+  @@index([organizationId, date])
+}

@@ -179,3 +179,11 @@ Done: per-project library with folders, tags, versions, image/video/PDF previews
 ## Closed Won approval requests (added 2026-11-09)
 - **Done (service tested, tsc and eslint clean):** an agent without `crm.convert` who picks Closed Won (lead page or board) sends a request instead of getting an error; the lead stays in its stage and shows "waiting for Closed Won approval". Everyone with `crm.convert` is notified (in-app and phone push) and sees it under Leads › Pending Approvals (`/leads/approvals`) with Approve and convert / Reject (reason required). The agent is notified of the outcome; both are audited and noted on the lead. One open request per lead (partial unique index).
 - **Not verified in a browser or on a phone.** Managers keep the direct Closed Won route.
+
+## Working calendar (2026-11-12)
+
+Done: `/settings/calendar` (office hours, lunch, lateness grace, working weekdays, public holidays with Pakistan's 2026 and 2027 lists), `src/lib/working-calendar.ts`, and the wiring of leave, daily reports, the end-of-day report, scorecards, the sales quest streak, payroll unpaid days and the scheduled jobs to it. A holiday now shows as a notice on My Daily Report, Staff daily reports and the End-of-day report, and My Leave lists the holidays coming up instead of saying none are configured.
+
+Verified: `npx tsc --noEmit`, `npx eslint src` (3 pre-existing warnings), the whole suite 136 files / 1802 tests including a new `working-calendar.integration.test.ts` (a holiday is not counted against leave, expects no report, writes no scorecard; shorter office hours change the attendance mark; Saturday becomes a working day when ticked).
+
+Not done: `MonitoringPolicy.workStart/workEnd/workDays` still have their own hours for the activity charts; half-day holidays, per-office calendars and per-department hours are not supported; Islamic holiday dates are seeded as expected dates and need correcting when notified.

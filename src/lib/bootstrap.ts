@@ -1,4 +1,4 @@
-// Baseline data every installation needs (roles, permissions, chart of accounts, pipeline stages, leave types)
+// Baseline data every installation needs (roles, permissions, chart of accounts, pipeline stages, leave types, working calendar)
 // and the one-time first-run setup. Shared by the development seed and the /setup page.
 // Free of Next.js imports so it can be tested against the database.
 import bcrypt from "bcryptjs";
@@ -7,6 +7,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 type Db = PrismaClient | Prisma.TransactionClient;
 import { ALL_PERMISSIONS, PERMISSIONS, ROLE_DEFS } from "./permissions";
 import { SENSITIVE_ROLE_KEYS } from "./mfa-policy";
+import { PAKISTAN_HOLIDAYS, seedPakistanHolidays } from "./working-calendar";
 
 export class SetupError extends Error {}
 
@@ -98,6 +99,13 @@ export async function seedBaseline(db: Db, organizationId: string) {
   }
   for (const [name, days, paid] of LEAVE_TYPES) {
     await db.leaveType.upsert({ where: { organizationId_name: { organizationId, name } }, update: {}, create: { organizationId, name, daysPerYear: days, paid } });
+  }
+  // The working calendar and Pakistan's public holidays. Create-only: an administrator's own hours and corrected
+  // holiday dates are never overwritten by a rerun.
+  await db.workingCalendar.upsert({ where: { organizationId }, update: {}, create: { organizationId } });
+  const thisYear = new Date().getFullYear();
+  for (const year of [String(thisYear), String(thisYear + 1)]) {
+    if (PAKISTAN_HOLIDAYS[year]) await seedPakistanHolidays(db as PrismaClient, organizationId, year);
   }
 }
 

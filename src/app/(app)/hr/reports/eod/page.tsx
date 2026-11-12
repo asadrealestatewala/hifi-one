@@ -2,7 +2,8 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { dateInZone, fmtMinutes, isDateString } from "@/lib/hr-rules";
-import { OFFICE, SCORE, dayRowsFor, type ScoreParts } from "@/lib/scorecards";
+import { SCORE, dayRowsFor, type ScoreParts } from "@/lib/scorecards";
+import { getWorkingContext } from "@/lib/working-calendar";
 import ScoreCell from "@/components/ScoreCell";
 import { Avatar, Badge, Empty, ExportLink, Notice, PageHeader, Stat } from "@/components/ui";
 import SubmitButton from "@/components/ui/SubmitButton";
@@ -22,6 +23,9 @@ export default async function EndOfDayReport({ searchParams }: { searchParams: P
   const tz = profile?.timezone ?? "UTC";
   const today = dateInZone(new Date(), tz);
   const date = sp.date && isDateString(sp.date) && sp.date <= today ? sp.date : today;
+  const work = await getWorkingContext(db, org, date, date);
+  const cal = work.calendar;
+  const holiday = work.holidays.find((h) => h.date === date) ?? null;
   const rows = await dayRowsFor(db, org, date);
   const names = new Map((await db.user.findMany({ where: { id: { in: rows.map((r) => r.userId) } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
   const expected = rows.filter((r) => r.expected);
@@ -33,7 +37,7 @@ export default async function EndOfDayReport({ searchParams }: { searchParams: P
   const generatedAt = rows[0]?.generatedAt;
   return (
     <div className="space-y-5">
-      <PageHeader title="End-of-day report" subtitle={`Generated automatically at ${OFFICE.end} ${tz} for everyone expected to work. Office hours ${OFFICE.start} to ${OFFICE.end} with a ${OFFICE.lunchMinutes} minute lunch.`} actions={
+      <PageHeader title="End-of-day report" subtitle={`Generated automatically at ${cal.workEnd} ${tz} for everyone expected to work. Office hours ${cal.workStart} to ${cal.workEnd} with a ${cal.lunchMinutes} minute lunch, from the working calendar.`} actions={
         <form method="get" action="/hr/reports/eod" className="flex items-center gap-2 text-sm">
           <Link href={`/hr/reports/eod?date=${addDays(date, -1)}`} className="btn-ghost" aria-label="Previous day">‹</Link>
           <input type="date" name="date" defaultValue={date} max={today} className="input !w-auto" /><button className="btn-ghost">Go</button>
@@ -41,6 +45,7 @@ export default async function EndOfDayReport({ searchParams }: { searchParams: P
         </form>
       } />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
+      {holiday && <Notice kind="ok">{holiday.name} &mdash; a public holiday on the working calendar. Nobody was expected to work, so no day rows are written.</Notice>}
       {sp.msg && <Notice kind="ok">{sp.msg}</Notice>}
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted">
         <span>{weekday(date)}{generatedAt ? ` · generated ${generatedAt.toLocaleString("en-GB", { timeZone: tz, dateStyle: "medium", timeStyle: "short" })}` : " · not generated yet"}</span>
@@ -61,7 +66,7 @@ export default async function EndOfDayReport({ searchParams }: { searchParams: P
         </div>
       )}
       {rows.length === 0 ? (
-        <Empty title="No end-of-day report for this day">{date === today ? `It is written automatically at ${OFFICE.end}. You can generate a preview now; it is replaced at close.` : "Nothing was generated for this day. Generate it now from the facts on record."}</Empty>
+        <Empty title="No end-of-day report for this day">{date === today ? `It is written automatically at ${cal.workEnd}. You can generate a preview now; it is replaced at close.` : "Nothing was generated for this day. Generate it now from the facts on record."}</Empty>
       ) : (
         <div className="card overflow-x-auto p-0">
           <table className="w-full text-sm">
@@ -83,7 +88,7 @@ export default async function EndOfDayReport({ searchParams }: { searchParams: P
           </table>
         </div>
       )}
-      <p className="text-xs text-muted">Score out of 100: attendance {SCORE.attendance} (a full {OFFICE.start} to {OFFICE.end} day less lunch), punctuality {SCORE.punctuality} (minus 2 per 10 minutes after {OFFICE.start} plus {OFFICE.graceMinutes} minutes grace), daily report {SCORE.report} (half if late), output {SCORE.output} (sales agents: activity against the daily target; everyone else: the manager&apos;s rating of the daily report, half when the report is in but not rated yet).</p>
+      <p className="text-xs text-muted">Score out of 100: attendance {SCORE.attendance} (a full {cal.workStart} to {cal.workEnd} day less lunch), punctuality {SCORE.punctuality} (minus 2 per 10 minutes after {cal.workStart} plus {cal.graceMinutes} minutes grace), daily report {SCORE.report} (half if late), output {SCORE.output} (sales agents: activity against the daily target; everyone else: the manager&apos;s rating of the daily report, half when the report is in but not rated yet).</p>
     </div>
   );
 }

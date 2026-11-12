@@ -29,9 +29,10 @@ export function dayBounds(workDate: string, timeZone: string): { gte: Date; lt: 
   return { gte, lt };
 }
 
-// Is a report expected from this person on this date? Not on weekends, not while on approved leave, not before they joined.
-export function reportExpected(p: { workDate: string; joinDate?: string | null; leaves: { startDate: string; endDate: string }[]; weekend?: readonly number[] }): boolean {
-  if (p.workDate < REPORTS_SINCE || isWeekend(p.workDate, p.weekend)) return false;
+// Is a report expected from this person on this date? Not on a weekly off, not on a public holiday, not while on
+// approved leave, not before they joined. The weekly offs and holidays come from the working calendar.
+export function reportExpected(p: { workDate: string; joinDate?: string | null; leaves: { startDate: string; endDate: string }[]; weekend?: readonly number[]; holidays?: readonly string[] }): boolean {
+  if (p.workDate < REPORTS_SINCE || isWeekend(p.workDate, p.weekend) || (p.holidays ?? []).includes(p.workDate)) return false;
   if (p.joinDate && p.workDate < p.joinDate) return false;
   return !p.leaves.some((l) => l.startDate <= p.workDate && p.workDate <= l.endDate);
 }
@@ -83,7 +84,7 @@ export type DayRow = {
 
 // Everyone who should report on one day, with what arrived and the day's facts beside it. `managerId` narrows the
 // list to one manager's direct reports (what a manager without attendance.view_all may see).
-export async function dayStatus(db: Db, p: { organizationId: string; workDate: string; timeZone: string; managerId?: string; now?: Date }): Promise<DayRow[]> {
+export async function dayStatus(db: Db, p: { organizationId: string; workDate: string; timeZone: string; managerId?: string; now?: Date; weekend?: readonly number[]; holidays?: readonly string[] }): Promise<DayRow[]> {
   const staff = await db.employeeProfile.findMany({
     where: { organizationId: p.organizationId, archivedAt: null, status: "ACTIVE", ...(p.managerId ? { user: { managerId: p.managerId } } : {}) },
     select: { userId: true, designation: true, joinDate: true, user: { select: { name: true, departmentId: true, managerId: true, active: true } } },
@@ -108,20 +109,20 @@ export async function dayStatus(db: Db, p: { organizationId: string; workDate: s
     const onLeave = mine.length > 0;
     return {
       userId: s.userId, name: s.user.name, designation: s.designation, departmentId: s.user.departmentId, managerId: s.user.managerId,
-      expected: reportExpected({ workDate: p.workDate, joinDate: s.joinDate ? s.joinDate.toISOString().slice(0, 10) : null, leaves: mine }), onLeave,
+      expected: reportExpected({ workDate: p.workDate, joinDate: s.joinDate ? s.joinDate.toISOString().slice(0, 10) : null, leaves: mine, weekend: p.weekend, holidays: p.holidays }), onLeave,
       report: rep.get(s.userId) ?? null, attendanceMinutes: att.get(s.userId) ?? null, tasksDone: done.get(s.userId) ?? 0, visits: vis.get(s.userId) ?? 0,
     };
   });
 }
 
 // The people who owed a report on a working day and did not write one (used by the morning reminder).
-export async function missingReports(db: Db, organizationId: string, workDate: string, timeZone: string) {
-  const rows = await dayStatus(db, { organizationId, workDate, timeZone });
+export async function missingReports(db: Db, organizationId: string, workDate: string, timeZone: string, off?: { weekend?: readonly number[]; holidays?: readonly string[] }) {
+  const rows = await dayStatus(db, { organizationId, workDate, timeZone, ...off });
   return rows.filter((r) => r.expected && !r.report);
 }
 
 // A person's own recent days: which working days were covered and which were missed.
-export async function myRecentDays(db: Db, p: { organizationId: string; userId: string; today: string; days?: number }) {
+export async function myRecentDays(db: Db, p: { organizationId: string; userId: string; today: string; days?: number; weekend?: readonly number[]; holidays?: readonly string[] }) {
   const n = p.days ?? 14;
   const from = addDays(p.today, -(n - 1));
   const [reports, leaves, profile] = await Promise.all([
@@ -133,7 +134,7 @@ export async function myRecentDays(db: Db, p: { organizationId: string; userId: 
   const out: { workDate: string; expected: boolean; report: (typeof reports)[number] | null }[] = [];
   for (let i = 0; i < n; i++) {
     const d = addDays(p.today, -i);
-    out.push({ workDate: d, expected: reportExpected({ workDate: d, joinDate: profile?.joinDate?.toISOString().slice(0, 10), leaves }), report: rep.get(d) ?? null });
+    out.push({ workDate: d, expected: reportExpected({ workDate: d, joinDate: profile?.joinDate?.toISOString().slice(0, 10), leaves, weekend: p.weekend, holidays: p.holidays }), report: rep.get(d) ?? null });
   }
   return out;
 }
