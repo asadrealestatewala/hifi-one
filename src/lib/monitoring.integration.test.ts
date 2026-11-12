@@ -116,18 +116,30 @@ describe("sessions and activity", () => {
     const s = await db.workSession.findFirstOrThrow({ where: { userId: ann, endedAt: null } });
     await db.workSession.update({ where: { id: s.id }, data: { startedAt: T("04:00"), lastBeatAt: T("05:30") } });
     const [row] = await summarize(db, { organizationId: org, userIds: [ann], from: "2026-10-12", to: "2026-10-12", now: T("09:00") });
-    expect(row.attendanceMinutes).toBe(90); // 04:00 to 05:30, not to "now"
+    expect(row.sessionMinutes).toBe(90); // 04:00 to 05:30, not to "now"
     await endSession(db, { userId: ann, sessionId: s.id, now: T("05:30") });
   });
 
-  it("summaries add up tracked, break and attendance time per person", async () => {
+  it("summaries add up tracked time per person, and clocked time comes from the attendance record", async () => {
     const s = await startSession(db, { organizationId: org, userId: bob, now: T("06:00") }).catch(async () => { await acknowledge(db, { userId: bob, version: (await getPolicy(db, org)).version }); return startSession(db, { organizationId: org, userId: bob, now: T("06:00") }); });
     await startBreak(db, { userId: bob, sessionId: s.id, now: T("06:30") });
     await endBreak(db, { userId: bob, sessionId: s.id, now: T("06:45") });
     await endSession(db, { userId: bob, sessionId: s.id, now: T("07:00") });
+    // The tracker stopped at 07:00, but the person was clocked in until 07:30. Time tracking must show the
+    // clocked figure the Attendance tab shows, not the length of the tracked session.
+    await db.attendanceRecord.create({ data: { userId: bob, workDate: "2026-10-12", clockIn: T("06:00"), clockOut: T("07:30"), breaks: { create: { startAt: T("06:30"), endAt: T("06:45") } } } });
     const [row] = await summarize(db, { organizationId: org, userIds: [bob], from: "2026-10-12", to: "2026-10-12" });
-    expect(row.attendanceMinutes).toBe(60);
+    expect(row.clockedMinutes).toBe(75); // 06:00 to 07:30, less the 15 minute break
     expect(row.breakMinutes).toBe(15);
+    expect(row.sessionMinutes).toBe(60); // what the tracker saw
+  });
+
+  it("somebody who clocked in with the tracker switched off still shows their clocked time", async () => {
+    await db.attendanceRecord.create({ data: { userId: hr, workDate: "2026-10-13", clockIn: T("06:00", "2026-10-13"), clockOut: T("08:00", "2026-10-13") } });
+    const [row] = await summarize(db, { organizationId: org, userIds: [hr], from: "2026-10-13", to: "2026-10-13" });
+    expect(row.clockedMinutes).toBe(120);
+    expect(row.sessionMinutes).toBe(0);
+    expect(row.activeMinutes).toBe(0);
   });
 });
 

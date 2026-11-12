@@ -200,7 +200,7 @@ Done: **CRM and sales, 18 entries to 9** — Leads (6 tabs), Prospector (4 tabs)
 
 Done: **Finance 11 entries to 6** (Books with 5 tabs, Assets & investments with 2) and **Services and clients 9 to 6** (Billing with 3 tabs, Contracts with 2). The five Books titles and Fixed assets were still in Title Case and are fixed.
 
-**The menu is 47 entries, down from 89**, and `nav.test.ts` asserts that number. All five folds are built; none is checked in a browser. Not started: making Team time tracking and the attendance screens agree on worked minutes, and labelling clocked, active and project hours apart.
+**The menu is 47 entries, down from 89**, and `nav.test.ts` asserts that number. All five folds are built; none is checked in a browser. Done too: Team time tracking now reads clocked time from the attendance record (`clockedMinutes`; the tracked session span is `sessionMinutes`), so the Attendance and Time tracking tabs cannot disagree, and the three kinds of hours are named apart on every screen: Clocked, Active at the computer, Hours on projects.
 
 ## Working calendar (2026-11-12)
 

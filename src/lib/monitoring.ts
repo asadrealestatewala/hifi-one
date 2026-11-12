@@ -10,6 +10,7 @@ import crypto from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import type { StorageProvider } from "./storage";
 import { newStorageKey } from "./storage";
+import { workedMinutes } from "./hr-rules";
 
 export class MonitorError extends Error {}
 type Db = PrismaClient;
@@ -160,8 +161,11 @@ export async function summarize(db: Db, p: { organizationId: string; userIds?: s
   const now = p.now ?? new Date();
   const from = dayRange(p.from).from, to = dayRange(p.to).to;
   const uf = p.userIds ? { userId: { in: p.userIds } } : {};
-  const [sessions, buckets, apps, shots, cats, fixes] = await Promise.all([
+  const [sessions, clocked, buckets, apps, shots, cats, fixes] = await Promise.all([
     db.workSession.findMany({ where: { organizationId: p.organizationId, ...uf, startedAt: { lte: to }, OR: [{ endedAt: null }, { endedAt: { gte: from } }] }, include: { breaks: true } }),
+    // Clocked time belongs to the attendance record, not to this module. Reading it here is what keeps the
+    // Time tracking tab and the Attendance tab from showing two different figures for the same day.
+    db.attendanceRecord.findMany({ where: { ...uf, workDate: { gte: p.from, lte: p.to } }, include: { breaks: true } }),
     db.activityBucket.findMany({ where: { organizationId: p.organizationId, ...uf, bucketStart: { gte: from, lte: to } } }),
     db.appUsage.findMany({ where: { organizationId: p.organizationId, ...uf, day: { gte: p.from, lte: p.to } } }),
     db.screenshot.groupBy({ by: ["userId"], where: { organizationId: p.organizationId, ...uf, capturedAt: { gte: from, lte: to }, deletedAt: null }, _count: true, _sum: { size: true } }),
@@ -169,18 +173,17 @@ export async function summarize(db: Db, p: { organizationId: string; userIds?: s
     db.timesheetCorrection.findMany({ where: { organizationId: p.organizationId, ...uf, day: { gte: p.from, lte: p.to }, status: "APPROVED" } }),
   ]);
   const cat = (name: string) => cats.find((c) => name.toLowerCase().includes(c.pattern.toLowerCase()))?.category ?? "UNCATEGORIZED";
-  const ids = new Set<string>([...sessions.map((s) => s.userId), ...buckets.map((b) => b.userId), ...apps.map((a) => a.userId), ...(p.userIds ?? [])]);
+  const ids = new Set<string>([...sessions.map((s) => s.userId), ...clocked.map((c) => c.userId), ...buckets.map((b) => b.userId), ...apps.map((a) => a.userId), ...(p.userIds ?? [])]);
   return [...ids].map((userId) => {
-    let attendanceMs = 0, breakMs = 0;
+    let sessionMs = 0;
     for (const s of sessions.filter((x) => x.userId === userId)) {
       const end = s.endedAt ?? (now.getTime() - s.lastBeatAt.getTime() > STALE_MS ? s.lastBeatAt : now);
       const a = Math.max(s.startedAt.getTime(), from.getTime()), b = Math.min(end.getTime(), to.getTime());
-      if (b > a) attendanceMs += b - a;
-      for (const br of s.breaks) {
-        const bs = Math.max(br.startedAt.getTime(), a), be = Math.min((br.endedAt ?? end).getTime(), b);
-        if (be > bs) breakMs += be - bs;
-      }
+      if (b > a) sessionMs += b - a;
     }
+    const mine = clocked.filter((c) => c.userId === userId).map((c) => workedMinutes(c, c.breaks, now));
+    const clockedMinutes = mine.reduce((x, m) => x + m.worked, 0);
+    const breakMinutes = mine.reduce((x, m) => x + m.breaks, 0);
     const bs = buckets.filter((b) => b.userId === userId);
     const active = bs.reduce((x, b) => x + b.activeSeconds, 0), idle = bs.reduce((x, b) => x + b.idleSeconds, 0);
     const byApp = new Map<string, number>();
@@ -188,7 +191,7 @@ export async function summarize(db: Db, p: { organizationId: string; userIds?: s
     const topApps = [...byApp].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name, seconds]) => ({ name, seconds, category: cat(name) }));
     const shot = shots.find((x) => x.userId === userId);
     return {
-      userId, attendanceMinutes: minutes(attendanceMs), breakMinutes: minutes(breakMs), activeMinutes: Math.round(active / 60), idleMinutes: Math.round(idle / 60),
+      userId, clockedMinutes, breakMinutes, sessionMinutes: minutes(sessionMs), activeMinutes: Math.round(active / 60), idleMinutes: Math.round(idle / 60),
       trackedMinutes: Math.round((active + idle) / 60), keys: bs.reduce((x, b) => x + b.keyCount, 0), clicks: bs.reduce((x, b) => x + b.clickCount, 0), topApps,
       screenshots: shot?._count ?? 0, screenshotBytes: shot?._sum.size ?? 0, correctedMinutes: fixes.filter((f) => f.userId === userId).reduce((x, f) => x + f.requestedMinutes, 0),
     };

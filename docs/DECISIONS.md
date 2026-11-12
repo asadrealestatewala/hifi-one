@@ -188,3 +188,11 @@ Newest last. Each entry: what was decided, why, and what it costs.
 - Billing sits under Services & clients, where it already was, not under Finance. The person chasing an invoice is working on a client; the person closing the books is not.
 - The five Books screens and Fixed assets still had Title Case titles ("General Ledger", "Chart of Accounts", "Manual Journal Entries", "Close Accounting Periods", "Year-End Close", "Fixed Assets"), which the menu-label pass in PR #90 had not reached because it changed the menu, not those headings. The group titles fix them.
 - The menu is 47 entries for somebody who may see everything, down from 89, and `nav.test.ts` holds that number so it cannot creep back up unnoticed.
+
+## 2026-11-12: One figure for clocked time, and three names for three kinds of hours
+
+- Folding the staff screens into tabs put figures side by side that disagreed. Attendance, Staff daily reports, the End-of-day report, Scorecards and My day all counted clock in to clock out, less breaks (`workedMinutes` in `hr-rules.ts`). **Team time tracking counted the length of the tracked session instead**, cut at the last signal from the browser or agent, so a day when somebody's laptop dropped out showed two different numbers for the same person.
+- `summarize` in `monitoring.ts` now reads the attendance record for the same days and returns **`clockedMinutes`** and `breakMinutes` from it. The session figure is still there as **`sessionMinutes`** ("what the tracker saw"), which is the honest name for it. Anyone who clocked in with the tracker switched off now appears in the summary with their clocked time, where before they were missing.
+- The attendance record stays the only writer of clocked time. Monitoring reads it; it does not keep its own copy.
+- **Three kinds of hours, three names,** because they will never be equal and the screens used to call them all hours: **Clocked** (clock in to clock out, less breaks), **Active at the computer** (what the tracker saw during that time, part of the clocked figure), **Hours on projects** (time entries somebody logged against a project). The number a person types into their own daily report is "Hours you worked", and HR's column for it says "Hours they reported".
+- The workforce report's note now says where each figure comes from, so a printed copy cannot be misread.

@@ -83,7 +83,7 @@ export default async function DailyReports({ searchParams }: { searchParams: Pro
       ) : (
         <div className="card overflow-x-auto p-0">
           <table className="w-full text-sm">
-            <thead><tr className="text-left text-xs text-muted"><th className="px-4 py-2">Employee</th><th className="px-2 py-2">Report</th><th className="px-2 py-2">Attendance</th><th className="px-2 py-2">Tasks done</th><th className="px-2 py-2">Visits</th><th className="px-2 py-2">Hours</th><th className="px-4 py-2 text-right">Review</th></tr></thead>
+            <thead><tr className="text-left text-xs text-muted"><th className="px-4 py-2">Employee</th><th className="px-2 py-2">Report</th><th className="px-2 py-2">Clocked</th><th className="px-2 py-2">Tasks done</th><th className="px-2 py-2">Visits</th><th className="px-2 py-2">Hours they reported</th><th className="px-4 py-2 text-right">Review</th></tr></thead>
             <tbody className="divide-y divide-border">
               {shown.map((r) => {
                 const isOpen = open === r.userId && r.report;

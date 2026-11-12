@@ -75,7 +75,7 @@ export default async function MyDailyReport({ searchParams }: { searchParams: Pr
             <textarea id="plan" name="plan" rows={2} className="input" defaultValue={report?.plan ?? ""} disabled={locked} /></div>
         </div>
         <div className="flex flex-wrap items-end gap-3">
-          <div><label className="label" htmlFor="hoursWorked">Hours worked (optional)</label>
+          <div><label className="label" htmlFor="hoursWorked">Hours you worked (optional)</label>
             <input id="hoursWorked" name="hoursWorked" type="number" step="0.5" min="0" max="24" className="input !w-28" defaultValue={report?.hoursWorked?.toString() ?? (worked && worked.worked > 0 ? (Math.round(worked.worked / 30) / 2).toString() : "")} disabled={locked} />
             {worked && worked.worked > 0 && <p className="text-xs text-muted">Attendance says {fmtMinutes(worked.worked)}.</p>}</div>
           {locked ? <p className="text-sm text-muted">Reviewed, so it can no longer be edited.</p> : <SubmitButton pendingText="Saving…">{report ? "Update report" : "Send report"}</SubmitButton>}

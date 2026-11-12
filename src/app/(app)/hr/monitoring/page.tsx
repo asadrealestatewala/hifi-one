@@ -44,12 +44,12 @@ export default async function Monitoring({ searchParams }: { searchParams: Promi
   const accepted = new Set((await db.policyAck.findMany({ where: { version: policy.version, userId: { in: people.map((p) => p.id) } }, select: { userId: true } })).map((a) => a.userId));
   await logReportAccess(db, { organizationId: org, viewerId: user.id, subjectIds: people.map((p) => p.id) });
   const names = new Map((await db.user.findMany({ where: { id: { in: pending.map((c) => c.userId) } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
-  const tot = rows.reduce((a, r) => ({ att: a.att + r.attendanceMinutes, act: a.act + r.activeMinutes, idle: a.idle + r.idleMinutes }), { att: 0, act: 0, idle: 0 });
+  const tot = rows.reduce((a, r) => ({ att: a.att + r.clockedMinutes, act: a.act + r.activeMinutes, idle: a.idle + r.idleMinutes }), { att: 0, act: 0, idle: 0 });
   const canShots = user.permissions.has("monitoring.screenshots");
   const live = await liveStatus(db, org, people.map((p) => p.id));
   const working = people.filter((p) => ["WORKING", "BREAK"].includes(live.get(p.id)?.state ?? "")).length;
   const ago = (d: Date | null | undefined) => { if (!d) return "none yet"; const m = Math.round((Date.now() - d.getTime()) / 60000); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
-  const missing = people.filter((p) => accepted.has(p.id) && (by.get(p.id)?.attendanceMinutes ?? 0) === 0).length;
+  const missing = people.filter((p) => accepted.has(p.id) && (by.get(p.id)?.clockedMinutes ?? 0) === 0).length;
   return (
     <div className="space-y-6">
       <PageHeader tabs={<ScreenTabs group="hr-activity" current="/hr/monitoring" />} title="Staff activity" subtitle="Time and activity reported by people who have accepted the policy. These are context, not a verdict: weigh them with task delivery, quality reviews and agreed targets."
@@ -82,8 +82,8 @@ export default async function Monitoring({ searchParams }: { searchParams: Promi
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Stat label="People" value={people.length} hint={`${accepted.size} have accepted the policy`} />
-        <Stat label="Attendance" value={fmt(tot.att)} />
-        <Stat label="Active" value={fmt(tot.act)} />
+        <Stat label="Clocked" value={fmt(tot.att)} hint="clock in to clock out, less breaks" />
+        <Stat label="Active at the computer" value={fmt(tot.act)} hint="part of the clocked time" />
         <Stat label="Idle" value={fmt(tot.idle)} />
         <Stat label="No time recorded" value={missing} hint="accepted, but nothing in the range" />
       </div>
@@ -91,13 +91,13 @@ export default async function Monitoring({ searchParams }: { searchParams: Promi
       {people.length === 0 ? <Empty title="Nobody in this view" /> : (
         <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">
-            <thead className="text-left"><tr><th className="px-4 py-3">Person</th><th className="pr-4">Attendance</th><th className="pr-4">Active</th><th className="pr-4">Idle</th><th className="pr-4">Breaks</th><th className="pr-4">Keys · clicks</th><th className="pr-4">Top applications</th><th className="pr-4">Screenshots</th><th className="pr-4">Status</th></tr></thead>
+            <thead className="text-left"><tr><th className="px-4 py-3">Person</th><th className="pr-4">Clocked</th><th className="pr-4">Active</th><th className="pr-4">Idle</th><th className="pr-4">Breaks</th><th className="pr-4">Keys · clicks</th><th className="pr-4">Top applications</th><th className="pr-4">Screenshots</th><th className="pr-4">Status</th></tr></thead>
             <tbody>{people.map((p) => {
               const r = by.get(p.id);
               return (
                 <tr key={p.id} className="border-t border-border transition hover:bg-hover/50">
                   <td className="px-4 py-3"><span className="font-medium">{p.name}</span><span className="block text-xs text-muted">{p.department?.name}</span></td>
-                  <td className="pr-4">{fmt(r?.attendanceMinutes ?? 0)}</td><td className="pr-4">{fmt(r?.activeMinutes ?? 0)}</td><td className="pr-4">{fmt(r?.idleMinutes ?? 0)}</td><td className="pr-4">{fmt(r?.breakMinutes ?? 0)}</td>
+                  <td className="pr-4">{fmt(r?.clockedMinutes ?? 0)}</td><td className="pr-4">{fmt(r?.activeMinutes ?? 0)}</td><td className="pr-4">{fmt(r?.idleMinutes ?? 0)}</td><td className="pr-4">{fmt(r?.breakMinutes ?? 0)}</td>
                   <td className="pr-4 text-muted">{r?.keys ?? 0} · {r?.clicks ?? 0}</td>
                   <td className="pr-4 text-xs">{r?.topApps.length ? r.topApps.slice(0, 3).map((a) => `${a.name} ${Math.round(a.seconds / 60)}m`).join(", ") : <span className="text-muted">—</span>}</td>
                   <td className="pr-4">{r?.screenshots ? `${r.screenshots} (${(r.screenshotBytes / 1048576).toFixed(1)} MB)` : "0"}</td>
