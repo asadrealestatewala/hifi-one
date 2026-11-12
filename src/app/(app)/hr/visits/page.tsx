@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { dateInZone, isDateString } from "@/lib/hr-rules";
 import { VISIT_KIND_LABEL, describeVisit, type VisitKind } from "@/lib/site-visits";
 import { Avatar, Badge, Empty, Notice, PageHeader, Stat, StatusBadge, SubmitButton, ConfirmButton } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import { decideSiteVisitAction } from "../../me/visits/actions";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +33,7 @@ export default async function HrVisits({ searchParams }: { searchParams: Promise
   const weekday = (s: string) => new Date(`${s}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
   return (
     <div className="space-y-5">
-      <PageHeader title="Staff site visits" subtitle="Who is out of the office for work, and requests waiting for a decision." actions={
+      <PageHeader tabs={<ScreenTabs group="hr-activity" current="/hr/visits" />} title="Staff activity" subtitle="Who is out of the office for work, and requests waiting for a decision." actions={
         <form method="get" action="/hr/visits" className="flex items-center gap-2 text-sm"><Link href={`/hr/visits?from=${addDays(from, -14)}`} className="btn-ghost" aria-label="Earlier">‹</Link><input type="date" name="from" defaultValue={from} className="input !w-auto" /><button className="btn-ghost">Go</button><Link href={`/hr/visits?from=${addDays(from, 14)}`} className="btn-ghost" aria-label="Later">›</Link></form>
       } />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}

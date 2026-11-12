@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { Badge, DownloadButtons, Empty, Notice, PageHeader, Stat } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import { liveStatus } from "@/lib/monitoring";
 import { db } from "@/lib/db";
 import { MonitorError, decideCorrection, getPolicy, logReportAccess, summarize } from "@/lib/monitoring";
@@ -51,7 +52,7 @@ export default async function Monitoring({ searchParams }: { searchParams: Promi
   const missing = people.filter((p) => accepted.has(p.id) && (by.get(p.id)?.attendanceMinutes ?? 0) === 0).length;
   return (
     <div className="space-y-6">
-      <PageHeader title="Team time tracking" subtitle="Time and activity reported by people who have accepted the policy. These are context, not a verdict: weigh them with task delivery, quality reviews and agreed targets."
+      <PageHeader tabs={<ScreenTabs group="hr-activity" current="/hr/monitoring" />} title="Staff activity" subtitle="Time and activity reported by people who have accepted the policy. These are context, not a verdict: weigh them with task delivery, quality reviews and agreed targets."
         actions={<>{user.permissions.has("monitoring.configure") && <Link href="/settings/monitoring" className="btn-ghost">Policy &amp; devices</Link>}{canShots && <Link href="/hr/monitoring/screenshots" className="btn-ghost">Screenshots</Link>}<DownloadButtons report="workforce" params={{ from, to, dept: sp.dept }} /></>} />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {!policy.enabled && <Notice kind="error">Monitoring is switched off, so there is nothing new to report.</Notice>}

@@ -6,6 +6,7 @@ import { signDownload } from "@/lib/files";
 import { APPLICATION_STATUSES } from "@/lib/job-applications";
 import { paging } from "@/lib/paging";
 import { Chips, Empty, Notice, PageHeader, Pager, SearchBox, StatusBadge } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import Drawer from "@/components/ui/Drawer";
 import SubmitButton from "@/components/ui/SubmitButton";
 import { updateApplicationAction } from "./actions";
@@ -48,7 +49,7 @@ export default async function Applications({ searchParams }: { searchParams: Pro
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Job applications" subtitle={<>Applications sent from the careers pages of the website. <a className="underline" href="/site/careers/jobs" target="_blank" rel="noopener">See open roles</a></>} />
+      <PageHeader tabs={<ScreenTabs group="hr-hiring" current="/hr/applications" />} title="Hiring" subtitle={<>Applications sent from the careers pages of the website. <a className="underline" href="/site/careers/jobs" target="_blank" rel="noopener">See open roles</a></>} />
       <div className="flex flex-wrap items-center gap-3">
         <SearchBox q={q} placeholder="Search name, email, phone or role" hidden={{ ...current, q: undefined }} />
         <Chips current={status ?? "all"} items={[{ key: "all", label: "All", count: all, href: href({ status: undefined, page: undefined }) }, ...APPLICATION_STATUSES.map((s) => ({ key: s, label: label(s), count: count.get(s) ?? 0, href: href({ status: s, page: undefined }) }))]} />

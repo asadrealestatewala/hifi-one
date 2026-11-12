@@ -95,6 +95,7 @@ Tokens stay as listed at the top (brand red, violet primary, navy sidebar). If a
 
 One rule, so nobody has to learn two names for one screen:
 
+- **Screens that answer one question share one menu entry.** A screen group in `src/components/shell/screen-groups.ts` lists them; each screen passes `tabs={<ScreenTabs group="…" current="/its/route" />}` to `PageHeader`, and every screen in the group carries the group's title. Only tabs the person may open are shown, and a single visible tab shows no tab row.
 - **The menu label is the page title, word for word.** Changing one means changing the other (`src/components/shell/nav.ts` and the screen's `PageHeader`).
 - **Sentence case** everywhere: "My daily report", not "My Daily Report". Proper nouns keep their capitals (Hifi One, Clout Leader, Prospector, HR).
 - **Short.** Three words at most where the name allows it; the `PageHeader` subtitle carries the detail, not the title.

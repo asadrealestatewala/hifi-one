@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { dateInZone, fmtMinutes } from "@/lib/hr-rules";
 import { monthlyScorecards } from "@/lib/scorecards";
 import { Avatar, Badge, Empty, ExportLink, PageHeader, Stat } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ export default async function Scorecards({ searchParams }: { searchParams: Promi
   const targetRate = agents.length ? Math.round((agents.reduce((s, r) => s + r.activity, 0) / agents.reduce((s, r) => s + r.target, 0)) * 100) : null;
   return (
     <div className="space-y-5">
-      <PageHeader title="Scorecards" subtitle="Each employee's month, added up from the end-of-day reports: attendance, punctuality, daily reports, tasks, hours and sales targets." actions={
+      <PageHeader tabs={<ScreenTabs group="hr-activity" current="/hr/scorecards" />} title="Staff activity" subtitle="Each employee's month, added up from the end-of-day reports: attendance, punctuality, daily reports, tasks, hours and sales targets." actions={
         <form method="get" action="/hr/scorecards" className="flex items-center gap-2 text-sm">
           <Link href={`/hr/scorecards?month=${shift(month, -1)}`} className="btn-ghost" aria-label="Previous month">‹</Link>
           <input type="month" name="month" defaultValue={month} max={thisMonth} className="input !w-auto" /><button className="btn-ghost">Go</button>

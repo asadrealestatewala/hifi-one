@@ -87,7 +87,7 @@ export async function startOnboarding(db: Db, p: { organizationId: string; userI
 export function onboardingNotice(r: { request: { status: string }; codeEmail: string | null }) {
   if (r.request.status === "PENDING_APPROVAL") return "No code could be emailed (no email address, or email is not connected), so the account went straight to the approvers. It can sign in once approved.";
   if (r.codeEmail === "SENT") return "A verification code was emailed. Once they enter it, an approver is asked to approve the account before it can sign in.";
-  return "The verification email could not be sent. Send a new code from People & HR › Onboarding approvals, or approve once they are verified.";
+  return "The verification email could not be sent. Send a new code from People & HR › Hiring › Onboarding, or approve once they are verified.";
 }
 
 // Sends a new code (the old one and the old link stop working). From the onboarding page or by HR.

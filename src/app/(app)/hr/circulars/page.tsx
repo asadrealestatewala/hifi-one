@@ -3,6 +3,7 @@ import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { CIRCULAR_KINDS } from "@/lib/circulars";
 import { Badge, Empty, Notice, PageHeader, SubmitButton } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import { sendCircularAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export default async function Circulars({ searchParams }: { searchParams: Promis
   ]);
   return (
     <div className="space-y-5 max-w-4xl">
-      <PageHeader title="Circulars" subtitle="Tell staff about work from home, national day leave, policy changes and so on. Everyone addressed gets a notification (and a phone alert if they use the app) and a popup that stays until they confirm they have read it." />
+      <PageHeader tabs={<ScreenTabs group="hr-requests" current="/hr/circulars" />} title="Requests & notices" subtitle="Tell staff about work from home, national day leave, policy changes and so on. Everyone addressed gets a notification (and a phone alert if they use the app) and a popup that stays until they confirm they have read it." />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       <form action={sendCircularAction} className="card space-y-4">
         <h2 className="font-semibold">New circular</h2>

@@ -1,7 +1,10 @@
 import type { PermissionKey } from "@/lib/permissions";
+import { groupTabs } from "./screen-groups";
 
 // permission null = every signed-in employee (own profile, own tasks, help, own security)
-export type NavItem = { href: string; label: string; permission: PermissionKey | null };
+// group = a screen group from screen-groups.ts: one entry standing for several tabbed screens. It shows when the
+// person can open at least one tab and points at the first one they can open, so `href` here is only the fallback.
+export type NavItem = { href: string; label: string; permission: PermissionKey | null; group?: string };
 export type NavGroup = { id: string; title: string; icon: string; items: NavItem[] };
 
 // Menu items render only when the user holds the permission. Pages and actions re-check on the server,
@@ -64,21 +67,13 @@ export const NAV: NavGroup[] = [
     { href: "/assets", label: "Fixed assets", permission: "assets.view" },
     { href: "/investments", label: "Investments", permission: "investments.view" },
   ] },
+  // Four entries, each a screen group with tabs (screen-groups.ts), plus payroll.
   { id: "people", title: "People & HR", icon: "users", items: [
-    { href: "/hr/employees", label: "Staff directory", permission: "hr.view" },
-    { href: "/hr/applications", label: "Job applications", permission: "hr.view" },
-    { href: "/hr/onboarding", label: "Onboarding approvals", permission: "hr.view" },
-    { href: "/hr/circulars", label: "Circulars", permission: "circulars.send" },
-    { href: "/hr/attendance", label: "Staff attendance", permission: "attendance.view_all" },
-    { href: "/hr/leave", label: "Staff leave", permission: "leave.approve" },
-    { href: "/hr/reports", label: "Staff daily reports", permission: "leave.approve" },
-    { href: "/hr/reports/eod", label: "End-of-day report", permission: "attendance.view_all" },
-    { href: "/hr/scorecards", label: "Scorecards", permission: "attendance.view_all" },
-    { href: "/hr/visits", label: "Staff site visits", permission: "attendance.view_all" },
-    { href: "/hr/documents", label: "Employee documents", permission: "hr.view_sensitive" },
-    { href: "/hr/requests", label: "Employee requests", permission: "hr.manage" },
+    { href: "/hr/employees", label: "Staff directory", permission: null, group: "hr-records" },
+    { href: "/hr/attendance", label: "Staff activity", permission: null, group: "hr-activity" },
+    { href: "/hr/leave", label: "Requests & notices", permission: null, group: "hr-requests" },
+    { href: "/hr/applications", label: "Hiring", permission: null, group: "hr-hiring" },
     { href: "/payroll", label: "Payroll", permission: "payroll.view" },
-    { href: "/hr/monitoring", label: "Team time tracking", permission: "monitoring.view_team" },
   ] },
   { id: "vendors", title: "Procurement & vendors", icon: "truck", items: [
     { href: "/vendors", label: "Vendors", permission: "vendors.view" },
@@ -132,5 +127,14 @@ export const QUICK_CREATE: QuickCreate[] = [
 
 // The menu a person may see, before their own arrangement is applied. Used by the layout and by the action that saves the arrangement.
 export function visibleNav(permissions: ReadonlySet<string>) {
-  return NAV.map((g) => ({ id: g.id, title: g.title, icon: g.icon, items: g.items.filter((i) => i.permission === null || permissions.has(i.permission)).map((i) => ({ href: i.href, label: i.label })) })).filter((g) => g.items.length > 0);
+  return NAV.map((g) => ({
+    id: g.id, title: g.title, icon: g.icon,
+    items: g.items.flatMap((i) => {
+      if (i.group) {
+        const tabs = groupTabs(i.group, permissions);
+        return tabs.length === 0 ? [] : [{ href: tabs[0].href, label: i.label }];
+      }
+      return i.permission === null || permissions.has(i.permission) ? [{ href: i.href, label: i.label }] : [];
+    }),
+  })).filter((g) => g.items.length > 0);
 }

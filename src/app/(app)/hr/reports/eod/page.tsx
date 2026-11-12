@@ -6,6 +6,7 @@ import { SCORE, dayRowsFor, type ScoreParts } from "@/lib/scorecards";
 import { getWorkingContext } from "@/lib/working-calendar";
 import ScoreCell from "@/components/ScoreCell";
 import { Avatar, Badge, Empty, ExportLink, Notice, PageHeader, Stat } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import SubmitButton from "@/components/ui/SubmitButton";
 import { generateEndOfDayAction } from "./actions";
 
@@ -37,7 +38,7 @@ export default async function EndOfDayReport({ searchParams }: { searchParams: P
   const generatedAt = rows[0]?.generatedAt;
   return (
     <div className="space-y-5">
-      <PageHeader title="End-of-day report" subtitle={`Generated automatically at ${cal.workEnd} ${tz} for everyone expected to work. Office hours ${cal.workStart} to ${cal.workEnd} with a ${cal.lunchMinutes} minute lunch, from the working calendar.`} actions={
+      <PageHeader tabs={<ScreenTabs group="hr-activity" current="/hr/reports/eod" />} title="Staff activity" subtitle={`Generated automatically at ${cal.workEnd} ${tz} for everyone expected to work. Office hours ${cal.workStart} to ${cal.workEnd} with a ${cal.lunchMinutes} minute lunch, from the working calendar.`} actions={
         <form method="get" action="/hr/reports/eod" className="flex items-center gap-2 text-sm">
           <Link href={`/hr/reports/eod?date=${addDays(date, -1)}`} className="btn-ghost" aria-label="Previous day">‹</Link>
           <input type="date" name="date" defaultValue={date} max={today} className="input !w-auto" /><button className="btn-ghost">Go</button>

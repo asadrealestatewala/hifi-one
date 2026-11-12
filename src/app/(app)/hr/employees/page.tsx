@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { paging } from "@/lib/paging";
 import { STAFF_STATUSES, staffWhere, type StaffFilters } from "@/lib/staff";
 import { AppliedFilters, Avatar, Chips, Empty, NewButton, PageHeader, Pager, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import Drawer from "@/components/ui/Drawer";
 import StaffForm from "./StaffForm";
 import { createProfileAction } from "./actions";
@@ -57,7 +58,7 @@ export default async function Employees({ searchParams }: { searchParams: Promis
   ].filter(Boolean) as { label: string; removeHref: string }[];
   return (
     <div className="space-y-5">
-      <PageHeader title="Staff directory" subtitle="Everyone who works here: roles, departments, assignments and contact details." actions={<>
+      <PageHeader tabs={<ScreenTabs group="hr-records" current="/hr/employees" />} title="Staff directory" subtitle="Everyone who works here: roles, departments, assignments and contact details." actions={<>
         <a href={`/hr/employees/export?${new URLSearchParams(Object.entries(current).filter(([k, v]) => v && k !== "from") as [string, string][]).toString()}`} className="btn-ghost">Export CSV</a>
         {canManage && <NewButton href={href({ new: "1" })}>Add staff member</NewButton>}
       </>} />
