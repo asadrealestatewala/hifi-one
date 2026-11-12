@@ -96,7 +96,7 @@ export default async function Procurement({ searchParams }: { searchParams: Prom
   ]);
   return (
     <div className="space-y-8">
-      <PageHeader title="Procurement" subtitle="Applying never awards work. Each step needs a person: approve the application, issue the work order, accept the delivery, approve the bill, post it, then pay." />
+      <PageHeader title="Orders & bills" subtitle="Applying never awards work. Each step needs a person: approve the application, issue the work order, accept the delivery, approve the bill, post it, then pay." />
       {error && <Notice kind="error">{error}</Notice>}
 
       <section className="space-y-3">

@@ -37,7 +37,7 @@ export default async function MyDailyReport({ searchParams }: { searchParams: Pr
   const expectedDays = days.filter((d) => d.expected).length;
   return (
     <div className="space-y-5 max-w-4xl">
-      <PageHeader title="My Daily Report" subtitle={`A short note at the end of each working day, for your manager and HR. Today in ${tz}: ${today}.`} actions={
+      <PageHeader title="My daily report" subtitle={`A short note at the end of each working day, for your manager and HR. Today in ${tz}: ${today}.`} actions={
         <form method="get" action="/me/report" className="flex items-center gap-2 text-sm">
           <label htmlFor="pick-date" className="text-muted">Day</label>
           <input id="pick-date" type="date" name="date" defaultValue={date} min={earliest} max={today} className="input !w-auto" />

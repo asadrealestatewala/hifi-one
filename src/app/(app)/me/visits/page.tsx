@@ -26,7 +26,7 @@ export default async function MyVisits({ searchParams }: { searchParams: Promise
   const upcoming = mine.filter((r) => r.status === "APPROVED" && r.endDate >= today);
   return (
     <div className="space-y-5 max-w-5xl">
-      <PageHeader title="Site visits & field work" subtitle="Tell HR and your manager when work takes you out of the office, or when you will work from home. Approved days show on your calendar and next to your attendance." />
+      <PageHeader title="Site visits" subtitle="Tell HR and your manager when work takes you out of the office, or when you will work from home. Approved days show on your calendar and next to your attendance." />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {sp.msg && <Notice kind="ok">{sp.msg}</Notice>}
       {upcoming.length > 0 && <p className="text-sm text-muted">Coming up: {upcoming.map((r) => `${r.startDate === r.endDate ? r.startDate : `${r.startDate}–${r.endDate}`} ${VISIT_KIND_LABEL[r.kind as keyof typeof VISIT_KIND_LABEL].toLowerCase()}`).join(" · ")}.</p>}
