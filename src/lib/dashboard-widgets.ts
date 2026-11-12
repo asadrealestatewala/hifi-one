@@ -11,7 +11,7 @@ export const WIDGETS: WidgetDef[] = [
   { id: "tasks", title: "My tasks", permissions: ["projects.view"], wide: false },
   { id: "meetings", title: "Upcoming meetings", permissions: ["meetings.use"], wide: false },
   { id: "contacts", title: "Recently added contacts", permissions: ["crm.view"], wide: false },
-  { id: "quest", title: "Today's goals", permissions: ["crm.view"], wide: true },
+  { id: "quest", title: "Today's goals", permissions: ["crm.edit"], wide: true }, // only people who actually work leads; a manager who can only look at them is not playing
 ];
 
 export const availableWidgets = (permissions: ReadonlySet<string>) => WIDGETS.filter((w) => w.permissions.some((p) => permissions.has(p)));

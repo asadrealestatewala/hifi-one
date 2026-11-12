@@ -9,6 +9,8 @@ import { loadLayout } from "@/lib/dashboard-layout";
 import { availableWidgets } from "@/lib/dashboard-widgets";
 import { leadScope } from "@/lib/leads";
 import { questFor } from "@/lib/crm-contacts";
+import { loadMyDay } from "@/lib/my-day";
+import { getWorkingContext } from "@/lib/working-calendar";
 import { formatMoney } from "@/lib/money";
 import Icon from "@/components/shell/Icon";
 import { Avatar, Empty, Stat } from "@/components/ui";
@@ -39,16 +41,22 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const tab = visibleTabs.some(([k]) => k === sp.tab) ? sp.tab! : "overview";
   const leadWhere = canLeads ? leadScope(user) : null;
 
-  const [hero, att] = await Promise.all([
+  const work = await getWorkingContext(db, org, today, today);
+  const [hero, att, myDay] = await Promise.all([
     loadHero(db, org, range, now, canFinance, leadWhere),
     loadAttention(db, org, user, today, now, leadWhere),
+    loadMyDay(db, { organizationId: org, userId: user.id, permissions: user.permissions, date: today, timeZone: profile?.timezone ?? "UTC", calendar: work.calendar, holidayName: work.holidays.find((h) => h.date === today)?.name ?? null, now }),
   ]);
+  // The person's own day comes first: nothing else counts as "attention" while their own attendance or report is open.
+  const mine = myDay.items.filter((i) => i.id !== "tasks-overdue"); // the overdue-task line is already in the list below
+  const needsMe = mine.length + att.total;
   const date = new Date(today + "T12:00:00Z").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
   const greet = Number(now.toLocaleTimeString("en-GB", { hour: "2-digit", hour12: false, timeZone: profile?.timezone ?? "UTC" }).slice(0, 2));
   const hello = greet < 12 ? "Good morning" : greet < 18 ? "Good afternoon" : "Good evening";
   const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ tab: tab === "overview" ? undefined : tab, period: period === "month" ? undefined : period, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/dashboard${t ? `?${t}` : ""}`; };
 
   const actions: [string, string, string, boolean][] = [
+    ["My day", "/me", "user", true],
     ["New lead", "/leads?new=1", "target", has("crm.edit")], ["Receive payment", "/finance/payments?new=1", "receipt", has("finance.post")], ["New voucher", "/expenses", "wallet", has("self.expense")],
     ["Mark attendance", "/me/attendance", "clock", has("self.attendance")], ["Leave requests", "/me/leave", "calendar", has("self.leave")], ["Asset library", "/assets", "layers", has("assets.view")],
     ["My tasks", "/me/tasks", "check", true], ["Ask the assistant", "/assistant", "sparkles", has("assistant.use")],
@@ -187,13 +195,14 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     const [flow, layout, quest, tasks, meetings, contacts] = await Promise.all([
       canFinance ? loadFlow(db, org, today) : [],
       loadLayout(db, user.id, availableWidgets(user.permissions).map((w) => w.id)),
-      canLeads ? questFor(db, { organizationId: org, userId: user.id }) : null,
+      has("crm.edit") ? questFor(db, { organizationId: org, userId: user.id }) : null,
       has("projects.view") ? db.task.findMany({ where: { assigneeId: user.id, status: { not: "DONE" }, project: { organizationId: org } }, orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }], take: 5, select: { id: true, title: true, dueDate: true, projectId: true } }) : [],
       has("meetings.use") ? db.meeting.findMany({ where: { organizationId: org, purpose: { not: "CALL" }, status: { in: ["SCHEDULED", "LIVE"] }, OR: [{ hostId: user.id }, { participants: { some: { userId: user.id } } }] }, orderBy: { scheduledAt: { sort: "asc", nulls: "first" } }, take: 5, select: { id: true, title: true, status: true, scheduledAt: true } }) : [],
       canLeads ? db.contact.findMany({ where: { organizationId: org, archived: false, ...(has("crm.view_all") ? {} : { OR: [{ ownerId: user.id }, { createdById: user.id }, { followers: { has: user.id } }] }) }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, name: true, category: true } }) : [],
     ]);
     const cur = flow.find((f) => f.currency === sp.cur) ?? flow[0];
-    const need: { icon: string; tone: "primary" | "danger" | "warning"; n: number; text: string; sub?: string; href: string }[] = [
+    const need: { icon: string; tone: "primary" | "danger" | "warning"; n: number | null; text: string; sub?: string; href: string }[] = [
+      ...mine.map((i) => ({ icon: i.icon, tone: i.tone, n: null, text: i.text, sub: i.sub, href: i.href })),
       att.followups && att.followups.count > 0 ? { icon: "phone", tone: "primary" as const, n: att.followups.count, text: "follow-ups due", sub: att.followups.rows[0]?.name, href: "/leads" } : null,
       att.overdue && att.overdue.count > 0 ? { icon: "receipt", tone: "danger" as const, n: att.overdue.count, text: "overdue invoices", sub: money(att.overdue.amounts), href: "/finance/reports?type=aging" } : null,
       att.vouchers && att.vouchers.count > 0 ? { icon: "wallet", tone: "primary" as const, n: att.vouchers.count, text: "vouchers awaiting approval", sub: att.vouchers.rows[0] ? `${att.vouchers.rows[0].number} · ${att.vouchers.rows[0].description}` : undefined, href: "/expenses" } : null,
@@ -226,8 +235,8 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
               {cur ? <FlowChart data={cur.data} currency={cur.currency} /> : <p className="py-10 text-center text-sm text-muted">No payments or expenses yet.</p>}</section>
           )}
           <section className={`card !p-0 ${canFinance ? "" : "xl:col-span-2"}`}>
-            <header className="flex items-center justify-between border-b border-border px-4 py-3"><h2 className="font-semibold">Needs attention</h2><span className="rounded-full bg-brand/10 px-2 text-xs font-semibold leading-5 text-brand">{att.total}</span></header>
-            {need.length === 0 ? <p className="px-4 py-10 text-center text-sm text-muted">Nothing needs attention right now.</p> : <ul>{need.map((n) => <li key={n.text}><Link href={n.href} className="flex items-center gap-3 border-b border-border px-4 py-3 text-sm transition last:border-0 hover:bg-hover/60"><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone[n.tone]}`}><Icon name={n.icon} className="h-4 w-4" /></span><span className="min-w-0 flex-1"><span className="block"><strong className={n.tone === "danger" ? "text-brand" : ""}>{n.n}</strong> {n.text}</span>{n.sub && <span className="block truncate text-xs text-muted">{n.sub}</span>}</span><Icon name="chevron" className="h-4 w-4 text-muted" /></Link></li>)}</ul>}
+            <header className="flex items-center justify-between border-b border-border px-4 py-3"><h2 className="font-semibold">Needs attention</h2><span className="rounded-full bg-brand/10 px-2 text-xs font-semibold leading-5 text-brand">{needsMe}</span></header>
+            {need.length === 0 ? <p className="px-4 py-10 text-center text-sm text-muted">{myDay.kind.working ? "Nothing needs attention right now." : `${myDay.kind.reason} Nothing is waiting.`}</p> : <ul>{need.map((n) => <li key={n.text}><Link href={n.href} className="flex items-center gap-3 border-b border-border px-4 py-3 text-sm transition last:border-0 hover:bg-hover/60"><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone[n.tone]}`}><Icon name={n.icon} className="h-4 w-4" /></span><span className="min-w-0 flex-1"><span className="block">{n.n !== null && <strong className={n.tone === "danger" ? "text-brand" : ""}>{n.n} </strong>}{n.text}</span>{n.sub && <span className="block truncate text-xs text-muted">{n.sub}</span>}</span><Icon name="chevron" className="h-4 w-4 text-muted" /></Link></li>)}</ul>}
           </section>
         </div>
         <DashboardGrid key={`${layout.order.join(",")}|${layout.hidden.join(",")}`} widgets={widgets} order={layout.order} hidden={layout.hidden} />
@@ -241,7 +250,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <span aria-hidden className="pointer-events-none absolute -right-16 -top-16 h-72 w-72 rounded-full bg-white/10" />
         <div className="relative flex flex-wrap items-start justify-between gap-4">
           <div><p className="text-sm text-white/80">{date} · {user.roles[0] ?? "Staff"}</p><h1 className="mt-1 text-3xl font-semibold tracking-tight">{hello}, {user.name.split(" ")[0]}</h1>
-            <p className="mt-1 text-sm text-white/85">{att.total === 0 ? "Nothing needs your attention today." : `${att.total} thing${att.total === 1 ? "" : "s"} need${att.total === 1 ? "s" : ""} your attention today${att.urgent ? `, ${att.urgent} urgent` : ""}.`}</p></div>
+            <p className="mt-1 text-sm text-white/85">{!myDay.kind.working ? `${myDay.kind.reason} ${needsMe === 0 ? "Nothing is waiting." : `${needsMe} thing${needsMe === 1 ? "" : "s"} can wait until you are back.`}` : needsMe === 0 ? "Nothing needs your attention today." : `${needsMe} thing${needsMe === 1 ? "" : "s"} need${needsMe === 1 ? "s" : ""} your attention today${att.urgent ? `, ${att.urgent} urgent` : ""}.`}</p></div>
           <PeriodSelect value={period} light />
         </div>
         <div className="relative mt-6 grid gap-3 sm:grid-cols-3">

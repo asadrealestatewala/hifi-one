@@ -187,3 +187,11 @@ Done: `/settings/calendar` (office hours, lunch, lateness grace, working weekday
 Verified: `npx tsc --noEmit`, `npx eslint src` (3 pre-existing warnings), the whole suite 136 files / 1802 tests including a new `working-calendar.integration.test.ts` (a holiday is not counted against leave, expects no report, writes no scorecard; shorter office hours change the attendance mark; Saturday becomes a working day when ticked).
 
 Not done: `MonitoringPolicy.workStart/workEnd/workDays` still have their own hours for the activity charts; half-day holidays, per-office calendars and per-department hours are not supported; Islamic holiday dates are seeded as expected dates and need correcting when notified.
+
+## My day and the home screen (2026-11-12)
+
+Done: `/me` (My day) with the day's state, a "still to do" list and every My space destination in six groups; `src/lib/my-day.ts`; the home screen's greeting and "Needs attention" now start with the reader's own day and say when it is not a working day; My space in the sidebar reduced from twenty entries to six; Mailbox and Assistant moved to Overview; the sales quest card limited to `crm.edit`.
+
+Verified: `npx tsc --noEmit`, `npx eslint src` (3 pre-existing warnings), `npm run build`, the whole suite including `my-day.test.ts` (13 rules) and `my-day.integration.test.ts` (10 cases: clock states, breaks, report, circulars, overdue against due today, holiday, weekly off, approved leave, and that another person sees none of it). Opened `/me` and `/dashboard` signed in.
+
+Not done: the pages under My day are still separate screens rather than tabs; per-person notification preferences; the approvals, HR leave and My Team screens (the next step).

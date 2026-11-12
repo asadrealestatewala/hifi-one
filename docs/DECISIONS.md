@@ -123,3 +123,11 @@ Newest last. Each entry: what was decided, why, and what it costs.
 - Saturday stays off by default, as a tick box rather than a rule. The constants that remain (`WEEKEND_DAYS`, `DEFAULT_CALENDAR`) are fallbacks for an organization that has saved nothing.
 - Pakistan's gazetted holidays are built in for 2026 and 2027 and seeded by `seedBaseline` for the current and next year. The fixed national days are certain; Eid, Ashura and Milad-un-Nabi depend on the moon, so they are added with "(expected)" in the name and an administrator corrects the date when it is notified. Nothing invents a confirmed date.
 - `MonitoringPolicy.workStart/workEnd/workDays` are left alone for now: they shape the activity tracker's charts, not attendance or pay. Folding them in is a later change.
+
+## 2026-11-12: The home screen starts with the person's own day
+
+- The home screen counted other people's work (follow-ups, vouchers, attendance of staff) but nothing of the reader's own, so it told an employee "Nothing needs your attention today" while their attendance was unmarked and their daily report unwritten. Asad asked for screens that are honest and for fewer repeated entries.
+- `src/lib/my-day.ts` is one read of a person's own day. Its items are built by a pure function (`dayItems`), so the rules — clock in before anything else, no report on a non-working day, overdue tasks above tasks due today — are tested on their own. The home screen puts those items at the top of "Needs attention" and counts them in the greeting.
+- A day that is not a working day (weekly off, public holiday, approved leave) says so instead of showing empty prompts. The reason comes from the working calendar.
+- My space in the sidebar is capped at six entries. The other fourteen are not hidden: `/me` lists every one of them in six groups with a line each. Mailbox and the assistant moved to Overview, because they are tools everybody opens, not personal records.
+- The sales quest card now needs `crm.edit` rather than `crm.view`: a manager who can only read leads was being shown a game they cannot play.
