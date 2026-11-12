@@ -21,7 +21,7 @@ export default async function MyRequests({ searchParams }: { searchParams: Promi
   const open = mine.filter((r) => isOpen(r.status));
   return (
     <div className="space-y-5 max-w-5xl">
-      <PageHeader title="My Requests" subtitle="Write to HR about anything that has no form of its own: a salary or experience certificate, an advance, a resignation, a complaint, equipment. HR answers here and you are notified." />
+      <PageHeader title="My requests" subtitle="Write to HR about anything that has no form of its own: a salary or experience certificate, an advance, a resignation, a complaint, equipment. HR answers here and you are notified." />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {sp.msg && <Notice kind="ok">{sp.msg}</Notice>}
       <p className="text-sm text-muted">

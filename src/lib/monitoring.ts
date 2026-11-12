@@ -424,7 +424,7 @@ export async function dockState(db: Db, d: { organizationId: string; userId: str
   const accepted = policy.enabled && (await hasAccepted(db, d.userId, policy.version));
   const base = { intervalMin: policy.screenshotIntervalMin, sessionId: null as string | null, onBreak: false, inWorkingHours: withinSchedule(policy, now), lastSnapshotAt: null as string | null, nextDueAt: null as string | null, supportReady: accepted && policy.remoteSupport };
   if (!policy.enabled || !policy.screenshots) return { ...base, available: false, reason: "Screen snapshots are switched off." };
-  if (!accepted) return { ...base, available: false, reason: "Accept the monitoring policy in My Workfolio first." };
+  if (!accepted) return { ...base, available: false, reason: "Accept the monitoring policy in Time tracking first." };
   const open = await db.workSession.findFirst({ where: { userId: d.userId, endedAt: null }, include: { breaks: { where: { endedAt: null } } } });
   if (!open) return { ...base, available: false, reason: "Clock in to start your work session." };
   const last = await db.screenshot.findFirst({ where: { userId: d.userId, deletedAt: null }, orderBy: { capturedAt: "desc" }, select: { capturedAt: true } });

@@ -93,7 +93,7 @@ export default async function MyLeave({ searchParams }: { searchParams: Promise<
   const approvable = toDecide.filter((r) => user.permissions.has("attendance.view_all") || people.get(r.userId)?.managerId === user.id);
   return (
     <div className="space-y-6">
-      <PageHeader title="My Leave" />
+      <PageHeader title="My leave" />
       {error && <Notice kind="error">{error}</Notice>}
       <div className="grid gap-4 sm:grid-cols-4">
         {balances.map((b) => (

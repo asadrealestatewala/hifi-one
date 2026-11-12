@@ -37,7 +37,7 @@ export default async function HrRequests({ searchParams }: { searchParams: Promi
   const oldest = rows.find((r) => isOpen(r.status));
   return (
     <div className="space-y-5">
-      <PageHeader title="Employee Requests" subtitle="Applications from staff that have no form of their own: certificates, advances, resignations, complaints, equipment. Take one up so the person knows it is being looked at, then approve or decline it with a note." />
+      <PageHeader title="Employee requests" subtitle="Applications from staff that have no form of their own: certificates, advances, resignations, complaints, equipment. Take one up so the person knows it is being looked at, then approve or decline it with a note." />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {sp.msg && <Notice kind="ok">{sp.msg}</Notice>}
       <div className="grid gap-3 sm:grid-cols-4">
