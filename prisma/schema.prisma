@@ -2139,6 +2139,7 @@ model LiveView {
   organizationId String
   viewerId       String
   subjectId      String
+  deviceId       String? // a company phone (PushDevice) when the support is for a phone
   kind           String    @default("VIEW") // VIEW (manager watches) | SUPPORT (helper assists, needs a stated reason)
   reason         String?
   status         String    @default("REQUESTED") // REQUESTED | ACCEPTED | DECLINED | ENDED | EXPIRED
@@ -2986,6 +2987,8 @@ model PushDevice {
   userId     String
   token      String   @unique
   platform   String   @default("android")
+  companyOwned Boolean @default(false) // set by an administrator; only company phones can be offered remote support
+  label      String?
   createdAt  DateTime @default(now())
   lastSeenAt DateTime @default(now())
 

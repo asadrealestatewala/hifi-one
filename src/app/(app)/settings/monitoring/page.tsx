@@ -2,7 +2,7 @@ import { requirePermission } from "@/lib/auth";
 import { Badge, ConfirmButton, Notice, PageHeader } from "@/components/ui";
 import { db } from "@/lib/db";
 import { getPolicy } from "@/lib/monitoring";
-import { categoryAction, purgeAction, revokeAction, savePolicyAction } from "./actions";
+import { categoryAction, phoneAction, purgeAction, revokeAction, savePolicyAction } from "./actions";
 import EnrollForm from "./EnrollForm";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +24,7 @@ export default async function MonitoringSettings({ searchParams }: { searchParam
   const user = await requirePermission("monitoring.configure");
   const sp = await searchParams;
   const org = user.organizationId;
+  const phones = await db.pushDevice.findMany({ where: { user: { organizationId: org, userType: "EMPLOYEE", active: true } }, include: { user: { select: { name: true } } }, orderBy: { lastSeenAt: "desc" }, take: 100 });
   const policy = await getPolicy(db, org);
   const [devices, categories, people, accepted, totalStaff, shotStats] = await Promise.all([
     db.monitorDevice.findMany({ where: { organizationId: org }, orderBy: { enrolledAt: "desc" }, take: 100 }),
@@ -91,6 +92,20 @@ export default async function MonitoringSettings({ searchParams }: { searchParam
               </tr>
             ))}</tbody>
           </table>
+        )}
+      </section>
+
+      <section className="card space-y-3">
+        <h2 className="font-semibold">Company phones</h2>
+        <p className="text-sm text-muted">Phones appear here after someone signs in to the Hifi One app on them. Mark only phones the company owns: remote support can be offered on those, and never on a personal phone. Marking a phone changes nothing on it until the person has accepted the terms.</p>
+        {phones.length === 0 ? <p className="text-sm text-muted">No phones have signed in to the app yet.</p> : (
+          <ul className="text-sm">{phones.map((d) => (
+            <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-border py-2 first:border-0">
+              <span>{d.user.name} · {d.label ?? d.platform}<span className="block text-xs text-muted">last seen {d.lastSeenAt.toLocaleString()}</span></span>
+              <form action={phoneAction} className="flex items-center gap-2"><input type="hidden" name="id" value={d.id} /><input type="hidden" name="companyOwned" value={d.companyOwned ? "no" : "yes"} />
+                {d.companyOwned ? <Badge tone="success">company-owned</Badge> : <Badge>personal or unknown</Badge>}
+                <button className="underline text-xs">{d.companyOwned ? "Mark as not company-owned" : "Mark as company-owned"}</button></form>
+            </li>))}</ul>
         )}
       </section>
 

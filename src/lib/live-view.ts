@@ -81,3 +81,42 @@ export async function endViewsFor(db: Db, subjectId: string, now = new Date()) {
   const open = await db.liveView.findMany({ where: { subjectId, kind: "VIEW", status: { in: ["REQUESTED", "ACCEPTED"] } } });
   for (const lv of open) { await db.liveView.update({ where: { id: lv.id }, data: { status: "ENDED", endedAt: now } }); notify(lv.viewerId, "ended", { id: lv.id }); notify(subjectId, "ended", { id: lv.id }); }
 }
+
+// ---------- company phones ----------
+// Only phones an administrator has marked company-owned can be offered support, and only for the person who signed in on them.
+export async function markPhone(db: Db, p: { organizationId: string; deviceId: string; companyOwned: boolean; label?: string }) {
+  const d = await db.pushDevice.findFirst({ where: { id: p.deviceId, user: { organizationId: p.organizationId } } });
+  if (!d) throw new LiveViewError("Phone not found.");
+  return db.pushDevice.update({ where: { id: d.id }, data: { companyOwned: p.companyOwned, label: p.label?.trim().slice(0, 60) || d.label } });
+}
+
+export async function requestPhoneSupport(db: Db, viewer: Viewer, deviceId: string, reason: string, now = new Date()) {
+  if (!viewer.permissions.has("monitoring.remote_support")) throw new LiveViewError("You do not have permission to ask for remote support.");
+  const device = await db.pushDevice.findFirst({ where: { id: deviceId, user: { organizationId: viewer.organizationId, userType: "EMPLOYEE", active: true } } });
+  if (!device) throw new LiveViewError("Phone not found.");
+  if (!device.companyOwned) throw new LiveViewError("Remote support is only offered on company-owned phones.");
+  if (device.userId === viewer.id) throw new LiveViewError("You cannot ask to watch yourself.");
+  if (reason.trim().length < 5) throw new LiveViewError("Say why you want to help, so the person knows before they answer.");
+  const policy = await getPolicy(db, viewer.organizationId);
+  if (!policy.enabled || !policy.remoteSupport) throw new LiveViewError("Remote support is not switched on in the monitoring policy.");
+  if (!(await hasAccepted(db, device.userId, policy.version))) throw new LiveViewError("This person has not accepted the current terms.");
+  await expireOld(db, device.userId, now);
+  if (await db.liveView.findFirst({ where: { subjectId: device.userId, status: { in: ["REQUESTED", "ACCEPTED"] } } })) throw new LiveViewError("A request for this person is already open.");
+  return db.liveView.create({ data: { organizationId: viewer.organizationId, viewerId: viewer.id, subjectId: device.userId, deviceId: device.id, kind: "SUPPORT", reason: reason.trim().slice(0, 300), createdAt: now } });
+}
+
+// What the person's phone should show: the terms to accept (if any) and the request waiting for an answer (if any).
+export async function phoneSupportState(db: Db, user: { id: string; organizationId: string }, now = new Date()) {
+  const policy = await getPolicy(db, user.organizationId);
+  const on = policy.enabled && policy.remoteSupport;
+  const accepted = on && (await hasAccepted(db, user.id, policy.version));
+  await expireOld(db, user.id, now);
+  const req = on && accepted ? await db.liveView.findFirst({ where: { subjectId: user.id, deviceId: { not: null }, status: { in: ["REQUESTED", "ACCEPTED"] } }, orderBy: { createdAt: "desc" } }) : null;
+  const helper = req ? await db.user.findUnique({ where: { id: req.viewerId }, select: { name: true } }) : null;
+  return {
+    enabled: on,
+    needsTerms: on && !accepted,
+    terms: on && !accepted ? { version: policy.version, text: policy.policyText, remoteSupport: true } : null,
+    request: req ? { id: req.id, status: req.status, helper: helper?.name ?? "Someone", reason: req.reason, expiresInSeconds: req.status === "REQUESTED" ? Math.max(0, REQUEST_SECONDS - Math.round((now.getTime() - req.createdAt.getTime()) / 1000)) : null } : null,
+  };
+}
