@@ -30,6 +30,11 @@ jobs:
           distribution: temurin
           java-version: 17
       - run: npm ci --legacy-peer-deps
+      - name: Leave out the Firebase file (not in the repo; push stays off, as in the first build)
+        run: |
+          if [ ! -f google-services.json ]; then
+            jq 'del(.expo.android.googleServicesFile)' app.json > app.ci.json && mv app.ci.json app.json
+          fi
       - run: npx expo prebuild --platform android --no-install
       - name: Build APK
         working-directory: mobile/android
