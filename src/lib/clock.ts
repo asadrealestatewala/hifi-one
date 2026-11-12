@@ -5,6 +5,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { clockIn, clockOut, endBreak, startBreak } from "./hr";
 import * as mon from "./monitoring";
+import { endViewsFor } from "./live-view";
 
 export type MonitoringState = "ON" | "OFF" | "NEEDS_CONSENT";
 
@@ -33,6 +34,7 @@ async function openSession(db: PrismaClient, userId: string) {
 
 export async function clockOutAll(db: PrismaClient, p: { userId: string; now?: Date }) {
   const s = await openSession(db, p.userId);
+  await endViewsFor(db, p.userId, p.now);
   if (s) await mon.endSession(db, { userId: p.userId, sessionId: s.id, now: p.now });
   const hasAttendance = await db.attendanceRecord.findFirst({ where: { userId: p.userId, clockOut: null } });
   if (hasAttendance) await clockOut(db, { userId: p.userId, now: p.now });
@@ -40,6 +42,7 @@ export async function clockOutAll(db: PrismaClient, p: { userId: string; now?: D
 }
 
 export async function breakStartAll(db: PrismaClient, p: { userId: string; now?: Date }) {
+  await endViewsFor(db, p.userId, p.now);
   await startBreak(db, { userId: p.userId, now: p.now });
   const s = await openSession(db, p.userId);
   if (s) await mon.startBreak(db, { userId: p.userId, sessionId: s.id, now: p.now });

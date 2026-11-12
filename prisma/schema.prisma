@@ -2039,6 +2039,7 @@ model MonitoringPolicy {
   policyText            String   @default("")
   trackActivity         Boolean  @default(true) // aggregate active/idle time and key and click COUNTS (never what was typed)
   trackApps             Boolean  @default(false) // names of applications used, as durations
+  liveView              Boolean  @default(false) // managers may ASK to watch a screen the person is already sharing; the person says yes each time
   trackWebsites         Boolean  @default(false) // website DOMAINS visited, as durations: never the page, path, query or title
   screenshots           Boolean  @default(false)
   screenshotIntervalMin Int      @default(10)
@@ -2129,6 +2130,21 @@ model WebUsage {
 
   @@unique([userId, day, domain])
   @@index([organizationId, day])
+}
+
+// One request to watch a person's shared screen live. The person must accept every time; they see a banner for as long as it runs.
+model LiveView {
+  id             String    @id @default(cuid())
+  organizationId String
+  viewerId       String
+  subjectId      String
+  status         String    @default("REQUESTED") // REQUESTED | ACCEPTED | DECLINED | ENDED | EXPIRED
+  createdAt      DateTime  @default(now())
+  answeredAt     DateTime?
+  endedAt        DateTime?
+
+  @@index([subjectId, createdAt])
+  @@index([viewerId, createdAt])
 }
 
 model AppCategory {

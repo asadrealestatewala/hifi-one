@@ -23,10 +23,10 @@ const floorBucket = (d: Date) => new Date(Math.floor(d.getTime() / BUCKET_MS) * 
 
 // ---------- policy ----------
 export type PolicyPatch = Partial<{
-  enabled: boolean; policyText: string; trackActivity: boolean; trackApps: boolean; trackWebsites: boolean; screenshots: boolean; screenshotIntervalMin: number; idleThresholdMin: number;
+  enabled: boolean; policyText: string; trackActivity: boolean; trackApps: boolean; trackWebsites: boolean; liveView: boolean; screenshots: boolean; screenshotIntervalMin: number; idleThresholdMin: number;
   timezone: string; workStart: string; workEnd: string; workDays: string; retentionDays: number;
 }>;
-const COLLECTION_FIELDS = ["enabled", "policyText", "trackActivity", "trackApps", "trackWebsites", "screenshots", "screenshotIntervalMin", "idleThresholdMin", "timezone", "workStart", "workEnd", "workDays", "retentionDays"] as const;
+const COLLECTION_FIELDS = ["enabled", "policyText", "trackActivity", "trackApps", "trackWebsites", "liveView", "screenshots", "screenshotIntervalMin", "idleThresholdMin", "timezone", "workStart", "workEnd", "workDays", "retentionDays"] as const;
 
 export async function getPolicy(db: Db, organizationId: string) {
   return (await db.monitoringPolicy.findUnique({ where: { organizationId } })) ?? db.monitoringPolicy.create({ data: { organizationId } });
@@ -43,6 +43,7 @@ export async function savePolicy(db: Db, p: { organizationId: string; patch: Pol
   if (!/^[0-6](,[0-6])*$/.test(x.workDays)) throw new MonitorError("Choose working days.");
   try { new Intl.DateTimeFormat("en", { timeZone: x.timezone }); } catch { throw new MonitorError("That time zone is not recognised (for example Asia/Karachi)."); }
   if (x.enabled && x.policyText.trim().length < 50) throw new MonitorError("Write the policy people will read (at least a short paragraph) before turning monitoring on. They must be told what is collected, when, who can see it and how long it is kept.");
+  if (x.liveView && !x.enabled) throw new MonitorError("Live view only works while monitoring is on.");
   if (x.screenshots && !x.enabled) throw new MonitorError("Screenshots only work while monitoring is on.");
   const changed = COLLECTION_FIELDS.some((f) => f in p.patch && p.patch[f] !== cur[f]);
   const { organizationId, version, updatedAt, updatedById, ...fields } = x; void organizationId; void version; void updatedAt; void updatedById;

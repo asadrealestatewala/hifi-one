@@ -19,6 +19,16 @@ export default function WorkfolioDock() {
   const video = useRef<HTMLVideoElement | null>(null);
   const due = useRef<number>(0);
   const busy = useRef(false);
+  // Live view (a manager watching the shared screen, only after the person accepts).
+  const [ask, setAsk] = useState<{ id: string; viewerName: string } | null>(null);
+  const [watcher, setWatcher] = useState<{ id: string; viewerName: string } | null>(null);
+  const pc = useRef<RTCPeerConnection | null>(null);
+  const ice = useRef<RTCIceServer[]>([]);
+  const askRef = useRef<{ id: string; viewerName: string } | null>(null);
+  const watchRef = useRef<{ id: string; viewerName: string } | null>(null);
+  askRef.current = ask; watchRef.current = watcher;
+  const post = useCallback((body: unknown) => fetch("/api/monitor/live", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).catch(() => undefined), []);
+  const closeLive = useCallback(() => { pc.current?.close(); pc.current = null; setWatcher(null); setAsk(null); }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -31,9 +41,46 @@ export default function WorkfolioDock() {
   }, []);
 
   function stop() {
+    if (watchRef.current) void post({ op: "end", id: watchRef.current.id });
+    closeLive();
     stream.current?.getTracks().forEach((t) => t.stop());
     stream.current = null; setSharing(false);
   }
+
+  const available = !!st?.available;
+  useEffect(() => {
+    if (!available) return;
+    const src = new EventSource("/api/monitor/live");
+    const on = <T,>(name: string, fn: (d: T) => void) => src.addEventListener(name, (e) => fn(JSON.parse((e as MessageEvent).data) as T));
+    on<{ iceServers: RTCIceServer[] }>("hello", (d) => { ice.current = d.iceServers; });
+    on<{ id: string; viewerName: string; seconds: number }>("request", (d) => { setAsk({ id: d.id, viewerName: d.viewerName }); setTimeout(() => setAsk((a) => (a?.id === d.id ? null : a)), d.seconds * 1000); });
+    on<{ id: string }>("ended", (d) => { if (watchRef.current?.id === d.id || askRef.current?.id === d.id) closeLive(); });
+    on<{ id: string; data: { sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit } }>("signal", async ({ id, data }) => {
+      const conn = pc.current;
+      if (!conn || watchRef.current?.id !== id) return;
+      if (data.sdp) {
+        await conn.setRemoteDescription(data.sdp);
+        const answer = await conn.createAnswer();
+        await conn.setLocalDescription(answer);
+        void post({ op: "signal", id, data: { sdp: conn.localDescription } });
+      } else if (data.candidate) await conn.addIceCandidate(data.candidate).catch(() => undefined);
+    });
+    return () => src.close();
+  }, [available, closeLive, post]);
+  useEffect(() => { if (!st?.available || st.onBreak || !st.inWorkingHours) { if (watchRef.current) { void post({ op: "end", id: watchRef.current.id }); closeLive(); } } }, [st, closeLive, post]);
+
+  async function accept(a: { id: string; viewerName: string }) {
+    if (!stream.current) await start(); // the person chooses what to share first; the browser shows its own indicator
+    if (!stream.current) { void post({ op: "respond", id: a.id, accept: false }); setAsk(null); return; }
+    const conn = new RTCPeerConnection({ iceServers: ice.current });
+    stream.current.getVideoTracks().forEach((t) => conn.addTrack(t, stream.current!));
+    conn.onicecandidate = (e) => { if (e.candidate) void post({ op: "signal", id: a.id, data: { candidate: e.candidate.toJSON() } }); };
+    conn.onconnectionstatechange = () => { if (["failed", "closed", "disconnected"].includes(conn.connectionState) && pc.current === conn) { void post({ op: "end", id: a.id }); closeLive(); } };
+    pc.current = conn;
+    setWatcher(a); setAsk(null);
+    await post({ op: "respond", id: a.id, accept: true });
+  }
+  function decline(a: { id: string }) { void post({ op: "respond", id: a.id, accept: false }); setAsk(null); }
 
   useEffect(() => { void refresh(); const t = setInterval(refresh, 60_000); return () => clearInterval(t); }, [refresh]);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
@@ -87,6 +134,19 @@ export default function WorkfolioDock() {
   return (
     <div className="fixed bottom-5 left-5 z-40 max-w-xs md:left-[19rem] print:hidden" role="status" aria-live="polite">
       <video ref={video} className="hidden" muted playsInline />
+      {ask && (
+        <div className="mb-2 rounded-2xl border border-brand bg-surface p-3 text-sm shadow-lg" role="alertdialog" aria-label="Live view request">
+          <p className="font-medium">{ask.viewerName} would like to watch your screen live</p>
+          <p className="mt-1 text-xs text-muted">If you agree, they see only the screen or window you are sharing, for as long as you allow. A banner stays on your screen the whole time, you can stop at any time, and this is recorded where you can read it. Saying no has no consequences.</p>
+          <div className="mt-2 flex gap-2"><button type="button" onClick={() => void accept(ask)} className="btn !py-1 text-xs">Allow</button><button type="button" onClick={() => decline(ask)} className="btn-ghost !py-1 text-xs">No thanks</button></div>
+        </div>
+      )}
+      {watcher && (
+        <div className="mb-2 rounded-2xl border-2 border-danger bg-surface p-3 text-sm shadow-lg" role="alert">
+          <p className="flex items-center gap-2 font-medium"><span className="h-2.5 w-2.5 animate-pulse rounded-full bg-danger" aria-hidden />{watcher.viewerName} is watching your shared screen live</p>
+          <button type="button" onClick={() => { void post({ op: "end", id: watcher.id }); closeLive(); }} className="btn-ghost mt-2 !py-1 text-xs">Stop now</button>
+        </div>
+      )}
       {sharing ? (
         <div className="rounded-2xl border border-brand/40 bg-surface p-3 text-sm shadow-lg">
           <p className="flex items-center gap-2 font-medium"><span className="h-2.5 w-2.5 animate-pulse rounded-full bg-brand" aria-hidden />Workfolio is capturing your screen</p>

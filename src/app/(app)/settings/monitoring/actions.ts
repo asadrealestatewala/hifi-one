@@ -16,7 +16,7 @@ export async function savePolicyAction(formData: FormData) {
     const p = await savePolicy(db, {
       organizationId: user.organizationId, actorId: user.id,
       patch: {
-        enabled: formData.get("enabled") === "on", policyText: s(formData, "policyText"), trackActivity: formData.get("trackActivity") === "on", trackApps: formData.get("trackApps") === "on", trackWebsites: formData.get("trackWebsites") === "on", screenshots: formData.get("screenshots") === "on",
+        enabled: formData.get("enabled") === "on", policyText: s(formData, "policyText"), trackActivity: formData.get("trackActivity") === "on", trackApps: formData.get("trackApps") === "on", trackWebsites: formData.get("trackWebsites") === "on", liveView: formData.get("liveView") === "on", screenshots: formData.get("screenshots") === "on",
         screenshotIntervalMin: Number(s(formData, "screenshotIntervalMin")), idleThresholdMin: Number(s(formData, "idleThresholdMin")), timezone: s(formData, "timezone").trim(), workStart: s(formData, "workStart"), workEnd: s(formData, "workEnd"),
         workDays: formData.getAll("workDays").map(String).sort().join(","), retentionDays: Number(s(formData, "retentionDays")),
       },

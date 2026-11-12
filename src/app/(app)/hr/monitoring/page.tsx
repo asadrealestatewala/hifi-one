@@ -64,6 +64,7 @@ export default async function Monitoring({ searchParams }: { searchParams: Promi
               <span>{p.name}<span className="ml-2 text-xs text-muted">{p.department?.name ?? ""}</span></span>
               <span className="flex items-center gap-3 text-xs text-muted">
                 <span>Last snapshot: {ago(l.lastSnapshotAt)}</span>
+                {user.permissions.has("monitoring.live_view") && policy.liveView && l.state === "WORKING" && <Link href={`/hr/monitoring/live/${p.id}`} className="underline">Ask to watch</Link>}
                 {l.state === "WORKING" ? <Badge tone="success">working</Badge> : l.state === "BREAK" ? <Badge tone="warning">on break</Badge> : l.state === "STALE" ? <Badge tone="warning">no signal</Badge> : <Badge>offline</Badge>}
               </span>
             </li>); })}
