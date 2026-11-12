@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { CommissionError, setProductRate } from "@/lib/commissions";
 import { saveProduct, setAgentProfile } from "@/lib/field-visits";
 import { ProspectorError } from "@/lib/prospector";
+import { createAssetsProject, linkAssetsProject, saveProductDetails } from "@/lib/product-details";
 
 const BASE = "/leads/prospector/field-team";
 const s = (f: FormData, k: string) => String(f.get(k) ?? "");
@@ -55,6 +56,56 @@ export async function saveProductCommissionAction(formData: FormData): Promise<v
     return flash("ok", "Commission saved. It applies to first subscription payments received from now on.");
   } catch (e) {
     if (e instanceof CommissionError) return flash("error", e.message);
+    throw e;
+  }
+}
+
+// ---------- product details page ----------
+const detailsBase = (id: string) => `${BASE}/${encodeURIComponent(id)}`;
+const detailsFlash = (id: string, kind: "error" | "ok", m: string): never => redirect(`${detailsBase(id)}?${kind}=${encodeURIComponent(m)}`);
+
+// What agents need to pitch the product: tagline, description, who it is for, key features, pricing, demo link and pitch notes.
+export async function saveProductDetailsAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("field.review");
+  const id = s(formData, "id");
+  try {
+    const row = await saveProductDetails(db, user, id, {
+      tagline: s(formData, "tagline"), description: s(formData, "description"), targetCustomers: s(formData, "targetCustomers"), keyFeatures: s(formData, "keyFeatures"),
+      pricing: s(formData, "pricing"), demoUrl: s(formData, "demoUrl"), pitchNotes: s(formData, "pitchNotes"),
+    });
+    await audit(user, { action: "field.product.details", entity: "SaasProduct", entityId: row.id, after: { name: row.name } });
+    return detailsFlash(id, "ok", "Details saved.");
+  } catch (e) {
+    if (e instanceof ProspectorError) return detailsFlash(id, "error", e.message);
+    throw e;
+  }
+}
+
+// Creates the project that holds this product's brand assets (the person who clicks manages it) and links it.
+export async function createProductAssetsAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("field.review");
+  const id = s(formData, "id");
+  try {
+    const p = await createAssetsProject(db, user, id);
+    await audit(user, { action: "field.product.assets_created", entity: "SaasProduct", entityId: id, after: { project: p.id, number: p.number } });
+    return detailsFlash(id, "ok", `Brand assets library ${p.number} created. Add the brand guide, logos and videos below.`);
+  } catch (e) {
+    if (e instanceof ProspectorError) return detailsFlash(id, "error", e.message);
+    throw e;
+  }
+}
+
+// Points the product at an existing project's library, or (empty choice) detaches it. The files stay in the project.
+export async function linkProductAssetsAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("field.review");
+  const id = s(formData, "id");
+  const projectId = s(formData, "projectId") || null;
+  try {
+    await linkAssetsProject(db, user, id, projectId);
+    await audit(user, { action: projectId ? "field.product.assets_linked" : "field.product.assets_unlinked", entity: "SaasProduct", entityId: id, after: { project: projectId } });
+    return detailsFlash(id, "ok", projectId ? "Library linked." : "Library detached. The files stay in their project.");
+  } catch (e) {
+    if (e instanceof ProspectorError) return detailsFlash(id, "error", e.message);
     throw e;
   }
 }
