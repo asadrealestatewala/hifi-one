@@ -12,7 +12,7 @@ type Db = PrismaClient;
 export const CLIENT_TYPES = ["MARKETING", "SOFTWARE", "INCORPORATION", "SELLER_SERVICES", "SAAS"] as const;
 export type ClientType = (typeof CLIENT_TYPES)[number];
 export const CLIENT_TYPE_LABEL: Record<string, string> = {
-  MARKETING: "Marketing and digital", SOFTWARE: "Software, app and AI development", INCORPORATION: "Company incorporation", SELLER_SERVICES: "Seller services", SAAS: "SaaS product customer",
+  MARKETING: "Marketing and digital", SOFTWARE: "Software, app and AI development", INCORPORATION: "Company incorporation", SELLER_SERVICES: "Seller services", SAAS: "Solution client",
 };
 
 // What a retainer can include. Ad campaigns are per platform so a plan can offer only the platforms that are enabled.

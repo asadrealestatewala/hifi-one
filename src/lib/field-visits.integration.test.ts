@@ -178,7 +178,7 @@ describe("outcomes and statuses", () => {
     const log = await logOutreach(db, sana, r.prospectId, { outcome: "INTERESTED", now: NOW });
     const lead = await db.lead.findUniqueOrThrow({ where: { id: log.leadId! } });
     expect(lead.tags).toContain("product:pharmivo");
-    expect(lead.notes).toContain("Product: Pharmivo");
+    expect(lead.notes).toContain("Solution: Pharmivo");
     await fails(visit(sana, { name: "Lead Pharmacy", phone: "0300 5550005", outcome: "CLOSED" }), /already a lead/);
   });
   it("an explicit revisit of someone else's prospect, or of another product's, is refused", async () => {

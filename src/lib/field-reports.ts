@@ -141,7 +141,7 @@ export async function fieldVisitsCsv(db: Db, actor: Actor, f: ReportFilters = {}
   const photos = visits.length ? await db.storedFile.groupBy({ by: ["ownerId"], where: { organizationId: actor.organizationId, ownerType: "PROSPECT_VISIT", ownerId: { in: visits.map((v) => v.id) }, deletedAt: null }, _count: { _all: true } }) : [];
   const photoCount = new Map(photos.map((p) => [p.ownerId, p._count._all]));
   const local = (d: Date) => new Date(d.getTime() + tz * 60_000).toISOString().replace("T", " ").slice(0, 16);
-  const head = ["Date and time", "Agent", "Product", "Business", "Phone", "Email", "Address", "City", "Outcome", "Reason", "Note", "Latitude", "Longitude", "Accuracy (m)", "Photos", "Prospect status", "Lead"];
+  const head = ["Date and time", "Agent", "Solution", "Business", "Phone", "Email", "Address", "City", "Outcome", "Reason", "Note", "Latitude", "Longitude", "Accuracy (m)", "Photos", "Prospect status", "Lead"];
   const rows = visits.sort((a, b) => a.visitedAt.getTime() - b.visitedAt.getTime()).map((v) => [
     local(v.visitedAt), names.get(v.agentId) ?? "", v.productId ? products.get(v.productId)?.name ?? "" : "", v.prospect.name, v.prospect.phone ?? "", v.prospect.email ?? "", v.prospect.address ?? "", v.prospect.city ?? "",
     VISIT_OUTCOME_LABEL[v.outcome as keyof typeof VISIT_OUTCOME_LABEL] ?? v.outcome, v.reason ?? "", v.note ?? "", v.locationSource === "NONE" ? "" : v.lat?.toString() ?? "", v.locationSource === "NONE" ? "" : v.lng?.toString() ?? "", v.accuracyM ?? "", photoCount.get(v.id) ?? 0,

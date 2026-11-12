@@ -119,7 +119,7 @@ export async function convertProspectToLead(db: Db, actor: Actor, row: ProspectR
     const contactNote = history.length ? `Contact history before this became a lead:\n${history.map((h) => `${h.createdAt.toISOString().slice(0, 10)} · ${names.get(h.userId) ?? "Someone"} · ${OUTCOME_LABEL[h.outcome] ?? h.outcome}${h.channel ? ` (${CHANNEL_LABEL[h.channel] ?? h.channel}${h.result ? `, ${(RESULT_LABEL[h.result] ?? h.result).toLowerCase()}` : ""})` : ""}${h.note ? `: ${h.note}` : ""}`).join("\n")}` : null;
     const manual = row.origin === "MANUAL";
     // Remarks on the lead: the agent's own note first, then where it came from and the product
-    const links = [manual ? row.notes : null, row.product ? `Product: ${row.product.name}` : null, manual ? `Added by hand as ${MANUAL_SOURCE_LABEL[row.sourceLabel ?? ""] ?? row.sourceLabel ?? "Other"}${row.sourceDetail ? `: ${row.sourceDetail}` : ""}` : null].filter(Boolean).join("\n") || null;
+    const links = [manual ? row.notes : null, row.product ? `Solution: ${row.product.name}` : null, manual ? `Added by hand as ${MANUAL_SOURCE_LABEL[row.sourceLabel ?? ""] ?? row.sourceLabel ?? "Other"}${row.sourceDetail ? `: ${row.sourceDetail}` : ""}` : null].filter(Boolean).join("\n") || null;
     const lead = await tx.lead.create({
       data: {
         organizationId: org, name: (row.contactName ?? row.name).slice(0, 200), company: manual && !row.contactName ? null : row.name.slice(0, 160), phone: row.phone, email, city: row.city, country: row.country ? countryName(row.country) : null,

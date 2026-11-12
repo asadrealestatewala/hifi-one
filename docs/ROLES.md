@@ -109,7 +109,7 @@ A role grants a permission when it is listed; Super Admin holds every permission
 | `prospector.use` | Run Prospector searches that find new businesses (uses the Google budget) |
 | `prospector.manage` | Set Prospector daily search limits per person |
 | `field.capture` | Field sales: log visits to businesses with photos and location, as a field agent |
-| `field.review` | Field sales: manage products, agent assignments and daily targets, and see every agent's visits |
+| `field.review` | Field sales: manage solutions, agent assignments and daily targets, and see every agent's visits |
 | `prospector.schedule_demo` | Book the demo a business asked for during a visit or call, which turns the prospect into a lead |
 | `onboarding.approve` | Approve or reject new staff accounts before they can sign in |
 | `clout.view` | Clout Leader: see and add influencer posts for the campaigns you own or belong to |
