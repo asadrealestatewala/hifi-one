@@ -71,7 +71,7 @@ export default async function Clients({ searchParams }: { searchParams: Promise<
   const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ show: show === "active" ? undefined : show, q, sort: sp.sort && sort.key === sp.sort ? sort.key : undefined, dir: sp.sort && sort.key === sp.sort ? sort.dir : undefined, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/clients${t ? `?${t}` : ""}`; };
   return (
     <div className="space-y-5">
-      <PageHeader title="Client accounts" subtitle="Who you bill, in which currency and on what terms." actions={canEdit ? <NewButton href={href({ new: "1" })}>Add client</NewButton> : undefined} />
+      <PageHeader title="Clients" subtitle="Who you bill, in which currency and on what terms." actions={canEdit ? <NewButton href={href({ new: "1" })}>Add client</NewButton> : undefined} />
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Active clients" value={active} />
         <Stat label="Inactive" value={inactive} />

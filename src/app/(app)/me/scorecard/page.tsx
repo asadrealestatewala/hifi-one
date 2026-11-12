@@ -37,7 +37,7 @@ export default async function MyScorecard({ searchParams }: { searchParams: Prom
   const href = (m: string) => (own ? `/me/scorecard?month=${m}` : `${base}month=${m}`);
   return (
     <div className="space-y-5 max-w-5xl">
-      <PageHeader title={own ? "My Scorecard" : `${subject?.name ?? "Unknown"}: scorecard`} subtitle={own ? "What the end-of-day report records about your days, and how it adds up this month. Nothing here is hidden from you." : "The same view this person sees."} actions={
+      <PageHeader title={own ? "My scorecard" : `${subject?.name ?? "Unknown"}: scorecard`} subtitle={own ? "What the end-of-day report records about your days, and how it adds up this month. Nothing here is hidden from you." : "The same view this person sees."} actions={
         <form method="get" action="/me/scorecard" className="flex items-center gap-2 text-sm">
           {!own && subject && <input type="hidden" name="user" value={subject.id} />}
           <Link href={href(shift(month, -1))} className="btn-ghost" aria-label="Previous month">‹</Link>

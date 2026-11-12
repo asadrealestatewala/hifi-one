@@ -19,7 +19,7 @@ export default async function MyTime({ searchParams }: { searchParams: Promise<{
   if (!policy.enabled) {
     return (
       <div className="space-y-5 max-w-3xl">
-        <PageHeader title="My time" subtitle="Clock in, take breaks, and review your timesheet." />
+        <PageHeader title="Time tracking" subtitle="Clock in, take breaks, and review your timesheet." />
         {flash}
         <Empty title="Time tracking is not switched on yet">Your organization has not turned on work time tracking. Nothing is being recorded about you. Your attendance record is still available under My Attendance.</Empty>
       </div>
@@ -71,7 +71,7 @@ export default async function MyTime({ searchParams }: { searchParams: Promise<{
 
   return (
     <div className="space-y-6">
-      <PageHeader title="My time" subtitle="Everything recorded about you is on this page. Nothing is recorded outside working hours or while you are on a break." actions={<Badge tone="success">Policy v{policy.version} accepted</Badge>} />
+      <PageHeader title="Time tracking" subtitle="Everything recorded about you is on this page. Nothing is recorded outside working hours or while you are on a break." actions={<Badge tone="success">Policy v{policy.version} accepted</Badge>} />
       {flash}
 
       <section className="card space-y-4">
