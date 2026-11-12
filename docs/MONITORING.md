@@ -28,7 +28,17 @@ The module is called **Workfolio** in the menu (Workfolio for HR and managers, M
 4. The server applies the same rules as for the desktop agent (`storeScreenshot`): policy on, consent for the current version, clocked in, inside working hours, not on a break, no faster than the interval, real JPEG or PNG. Stopping the share, a break, clocking out or leaving working hours ends capture.
 5. Managers see **Working now** on the Workfolio page: who is clocked in, on a break or without signal, and when each person's last snapshot was taken. They do not see a live video feed. Opening a snapshot still needs `monitoring.screenshots` and is logged for the person.
 
-Not built: a live video view of someone's screen for managers (it would need a media relay like the meeting module; recommended only with explicit written consent), and capture of screens when the browser is closed. Real screen capture could not be exercised in the automated browser here (it blocks capture); the snapshot route, limits and consent rules are covered by tests and the dock was checked in the browser.
+## Live screen view
+
+Off by default (policy tick "Live screen view"; turning it on raises the policy version, so everyone accepts again). A person holding `monitoring.live_view` (Super Admin only by default) can press **Ask to watch** beside someone who is working now on the Workfolio page. Rules, enforced in `src/lib/live-view.ts`:
+
+1. The person is asked on their own screen and must press Allow every time; no answer within 60 seconds expires the request. Saying no changes nothing and is not logged against them.
+2. They must be clocked in, not on a break, inside working hours, and have accepted the current terms. Clocking out or starting a break ends a running view at once.
+3. The viewer sees only the screen or window the person is sharing in their browser (the person chooses it in the browser's own picker). The video goes browser to browser (WebRTC, same relay settings as meetings, `ICE_SERVERS`); the server relays only the handshake and stores no video.
+4. While it runs the person sees a red banner with **Stop now**. Either side can stop it.
+5. The view is written to the access log they can read ("opened your screen live") when they allow it.
+
+Not verified in a real browser pair. Strict networks may need a relay server, as with meetings. Not built: capture of screens when the browser is closed. Real screen capture could not be exercised in the automated browser here (it blocks capture); the snapshot route, limits and consent rules are covered by tests and the dock was checked in the browser.
 
 ## The rules the system enforces (not just documents)
 

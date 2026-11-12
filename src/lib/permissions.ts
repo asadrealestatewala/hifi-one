@@ -72,6 +72,7 @@ export const PERMISSIONS = {
   "monitoring.own": "Use the work time tracker and see everything recorded about you",
   "monitoring.view_team": "See workforce time and activity reports (no screenshots)",
   "monitoring.screenshots": "Open other people's screenshots (every view is logged and visible to them)",
+  "monitoring.live_view": "Ask to watch a colleague's shared screen live (they must accept each time, see a banner, and every view is logged)",
   "monitoring.configure": "Set the monitoring policy, enrol and revoke devices",
   "meetings.use": "Schedule, host and join video meetings and workshops",
   "chat.use": "Use team chat: direct messages, groups and project rooms with colleagues",
