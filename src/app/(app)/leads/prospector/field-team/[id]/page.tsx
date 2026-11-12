@@ -8,7 +8,7 @@ import { createProductAssetsAction, linkProductAssetsAction, saveProductDetailsA
 
 export const dynamic = "force-dynamic";
 
-// One product's details page: what agents need to pitch it, and its brand assets (brand guide, logos, videos, creatives), which live in
+// One solution's details page: what agents need to pitch it, and its brand assets (brand guide, logos, videos, creatives), which live in
 // a project's asset library so versions, previews and no-login share links work the same as everywhere else.
 export default async function ProductDetails({ params, searchParams }: {
   params: Promise<{ id: string }>;
@@ -30,14 +30,14 @@ export default async function ProductDetails({ params, searchParams }: {
     <div className="max-w-5xl space-y-6">
       <PageHeader
         title={product.name}
-        subtitle={product.tagline ?? `${product.businessLabel} product · ${product.code}`}
-        actions={<><Link className="btn-ghost" href="/leads/prospector/field-team">Back to products</Link>{product.website && <a className="btn-ghost" href={product.website} target="_blank" rel="noopener noreferrer">Website</a>}</>}
+        subtitle={product.tagline ?? `${product.businessLabel} solution · ${product.code}`}
+        actions={<><Link className="btn-ghost" href="/leads/prospector/field-team">Back to solutions</Link>{product.website && <a className="btn-ghost" href={product.website} target="_blank" rel="noopener noreferrer">Website</a>}</>}
       />
       {sp.ok && <Notice kind="ok">{sp.ok}</Notice>}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
 
       <section className="card space-y-4" aria-labelledby="details-h">
-        <div className="flex items-baseline justify-between gap-2"><h2 id="details-h" className="font-semibold">Product details</h2>{product.active ? <Badge tone="success">active</Badge> : <Badge tone="neutral">off</Badge>}</div>
+        <div className="flex items-baseline justify-between gap-2"><h2 id="details-h" className="font-semibold">Solution details</h2>{product.active ? <Badge tone="success">active</Badge> : <Badge tone="neutral">off</Badge>}</div>
         {(product.description || product.targetCustomers || product.keyFeatures || product.pricing || product.demoUrl || product.pitchNotes) ? (
           <dl className="grid gap-4 sm:grid-cols-2">
             {show("What it is", product.description)}

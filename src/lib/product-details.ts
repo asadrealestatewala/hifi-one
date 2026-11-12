@@ -1,4 +1,4 @@
-// Product details: the pitch information agents need for each SaaS product, and the link to the project whose asset library
+// Product details: the pitch information agents need for each solution, and the link to the project whose asset library
 // holds the product's brand guide, logos, videos and creatives. Free of Next.js imports so it can be tested against the database.
 import type { PrismaClient } from "@prisma/client";
 import { canReview } from "./field-visits";
@@ -14,7 +14,7 @@ export type DetailsInput = { tagline?: string; description?: string; targetCusto
 async function ownProduct(db: Db, actor: Actor, productId: string, what: string) {
   if (!canReview(actor)) throw new ProspectorError(`Only a sales manager can ${what}.`);
   const row = await db.saasProduct.findFirst({ where: { id: productId, organizationId: actor.organizationId } });
-  if (!row) throw new ProspectorError("That product no longer exists.");
+  if (!row) throw new ProspectorError("That solution no longer exists.");
   return row;
 }
 
@@ -31,7 +31,7 @@ export async function saveProductDetails(db: Db, actor: Actor, productId: string
 // Creates a project named after the product (the actor manages it) and links it as the product's asset library.
 export async function createAssetsProject(db: Db, actor: Actor, productId: string) {
   const row = await ownProduct(db, actor, productId, "set up brand assets");
-  if (row.assetsProjectId) throw new ProspectorError("This product already has a brand assets library.");
+  if (row.assetsProjectId) throw new ProspectorError("This solution already has a brand assets library.");
   return db.$transaction(async (tx) => {
     const seq = await tx.numberSequence.upsert({
       where: { organizationId_key: { organizationId: actor.organizationId, key: "PRJ" } },
