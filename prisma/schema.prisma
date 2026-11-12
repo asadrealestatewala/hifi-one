@@ -3095,6 +3095,16 @@ model SaasProduct {
   dailyVisitTarget Int      @default(40) // visits a field agent is expected to log per day
   active           Boolean  @default(true)
   sortOrder        Int      @default(0)
+  // Details page: what agents need to know to pitch the product
+  tagline          String?
+  description      String?
+  targetCustomers  String?
+  keyFeatures      String?
+  pricing          String?
+  demoUrl          String?
+  pitchNotes       String?
+  // The project whose asset library holds this product's brand guide, logos, videos and creatives
+  assetsProjectId  String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
