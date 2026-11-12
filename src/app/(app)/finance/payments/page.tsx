@@ -7,6 +7,7 @@ import { LedgerError, recordPayment } from "@/lib/accounting";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { AppliedFilters, DateRangeForm, Empty, ExportLink, NewButton, Notice, PageHeader, Pager, PanelForm, SearchBox, Stat } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import { rangeLabel } from "@/lib/date-range";
 import { listHref as buildHref } from "@/lib/list-params";
 import { paymentParams, paymentWhere } from "@/lib/lists";
@@ -77,7 +78,7 @@ export default async function Payments({ searchParams }: { searchParams: Promise
   const listHref = (n: number, over: Record<string, string | undefined> = {}) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ q: search, from: range.from, to: range.to, src, page: n > 1 ? String(n) : undefined, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/finance/payments${t ? `?${t}` : ""}`; };
   return (
     <div className="space-y-5">
-      <PageHeader title="Payments & receipts" subtitle="Money received, and which invoices it settled." actions={<><ExportLink href={buildHref("/finance/payments/export", { q: search, from: range.from, to: range.to })} />{canPost && <NewButton href="/finance/payments?new=1">Record payment</NewButton>}</>} />
+      <PageHeader tabs={<ScreenTabs group="client-billing" current="/finance/payments" />} title="Billing" subtitle="Money received, and which invoices it settled." actions={<><ExportLink href={buildHref("/finance/payments/export", { q: search, from: range.from, to: range.to })} />{canPost && <NewButton href="/finance/payments?new=1">Record payment</NewButton>}</>} />
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Receipts" value={total} />
         <Stat label="Received this month" value={perCurrency(receivedThisMonth.map((r) => ({ currency: r.currency, v: r._sum.amount })))} hint="per currency" />

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { SalesError, createSubscription, generateDueInvoices, setSubscriptionStatus } from "@/lib/sales";
 import { Chips, Empty, NewButton, Notice, PageHeader, PanelForm, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import Drawer from "@/components/ui/Drawer";
 
 export const dynamic = "force-dynamic";
@@ -75,7 +76,7 @@ export default async function Subscriptions({ searchParams }: { searchParams: Pr
   );
   return (
     <div className="space-y-5">
-      <PageHeader title="Subscriptions" subtitle={<>Each due period creates one <strong>draft</strong> invoice for review. Nothing is issued or posted automatically, and running it again never bills the same period twice.</>}
+      <PageHeader tabs={<ScreenTabs group="client-billing" current="/finance/subscriptions" />} title="Billing" subtitle={<>Each due period creates one <strong>draft</strong> invoice for review. Nothing is issued or posted automatically, and running it again never bills the same period twice.</>}
         actions={canManage ? <>
           <form action={generate} className="flex items-center gap-2"><span className="text-sm text-muted">{dueCount} due now</span><button className="btn-ghost">Create due invoices</button></form>
           <NewButton href={href({ new: "1" })}>New subscription</NewButton>

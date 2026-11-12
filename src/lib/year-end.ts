@@ -32,7 +32,7 @@ export async function previewYearEnd(db: Db, organizationId: string, year: numbe
 async function retainedEarnings(db: Db, organizationId: string) {
   const a = (await db.account.findFirst({ where: { organizationId, systemKey: "RETAINED_EARNINGS", active: true } }))
     ?? (await db.account.findFirst({ where: { organizationId, code: "3100", type: "EQUITY", active: true } }));
-  if (!a) throw new YearEndError("There is no Retained Earnings equity account. Add one in the Chart of Accounts first.");
+  if (!a) throw new YearEndError("There is no Retained Earnings equity account. Add one in Books › Chart of accounts first.");
   return a;
 }
 

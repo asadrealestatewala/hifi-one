@@ -4,6 +4,7 @@ import { ACCOUNT_TYPES, accountBalances, createAccount, updateAccount } from "@/
 import { db } from "@/lib/db";
 import { LedgerError, dec } from "@/lib/ledger-math";
 import { Notice, PageHeader } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +49,7 @@ export default async function Accounts({ searchParams }: { searchParams: Promise
   const balances = new Map(await Promise.all(accounts.map(async (a) => [a.id, (await accountBalances(db, a.id)).filter((b) => !dec(b.balance).isZero())] as const)));
   return (
     <div className="space-y-6">
-      <PageHeader title="Chart of Accounts" subtitle="Codes and types never change once an account exists, because history would stop meaning what it said. Accounts used by automatic postings, or holding a balance, cannot be deactivated." />
+      <PageHeader tabs={<ScreenTabs group="fin-books" current="/finance/accounts" />} title="Books" subtitle="Codes and types never change once an account exists, because history would stop meaning what it said. Accounts used by automatic postings, or holding a balance, cannot be deactivated." />
       {error && <Notice kind="error">{error}</Notice>}
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">

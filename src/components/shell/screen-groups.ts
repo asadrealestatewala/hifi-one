@@ -30,6 +30,26 @@ export const SCREEN_GROUPS: ScreenGroup[] = [
     { href: "/hr/applications", label: "Applications", permission: "hr.view" },
     { href: "/hr/onboarding", label: "Onboarding", permission: "hr.view" },
   ] },
+  { id: "client-contracts", label: "Contracts", tabs: [
+    { href: "/contracts", label: "Contracts", permission: "contracts.view" },
+    { href: "/agreements", label: "Agreements", permission: "contracts.view" },
+  ] },
+  { id: "client-billing", label: "Billing", tabs: [
+    { href: "/finance/invoices", label: "Invoices", permission: "finance.view" },
+    { href: "/finance/payments", label: "Payments & receipts", permission: "finance.view" },
+    { href: "/finance/subscriptions", label: "Subscriptions", permission: "finance.view" },
+  ] },
+  { id: "fin-books", label: "Books", tabs: [
+    { href: "/finance/ledger", label: "General ledger", permission: "finance.view" },
+    { href: "/finance/accounts", label: "Chart of accounts", permission: "finance.view" },
+    { href: "/finance/journals", label: "Manual journals", permission: "finance.view" },
+    { href: "/finance/close", label: "Close periods", permission: "finance.view" },
+    { href: "/finance/year-end", label: "Year-end", permission: "finance.view" },
+  ] },
+  { id: "fin-assets", label: "Assets & investments", tabs: [
+    { href: "/assets", label: "Fixed assets", permission: "assets.view" },
+    { href: "/investments", label: "Investments", permission: "investments.view" },
+  ] },
   { id: "crm-leads", label: "Leads", tabs: [
     { href: "/leads", label: "All leads", permission: "crm.view" },
     { href: "/leads/approvals", label: "Pending approvals", permission: "crm.convert" },

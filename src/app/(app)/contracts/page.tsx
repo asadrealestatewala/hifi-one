@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { SalesError, createContract, daysUntil, expireContracts } from "@/lib/sales";
 import { Chips, Empty, NewButton, PageHeader, PanelForm, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import Drawer from "@/components/ui/Drawer";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +51,7 @@ export default async function Contracts({ searchParams }: { searchParams: Promis
   const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ status: status === "all" ? undefined : status, q: sp.q?.trim(), ...over })) if (v) p.set(k, v); const t = p.toString(); return `/contracts${t ? `?${t}` : ""}`; };
   return (
     <div className="space-y-5">
-      <PageHeader title="Contracts" subtitle="Agreements with clients, and when they need renewing." actions={canManage ? <NewButton href={href({ new: "1" })}>New contract</NewButton> : undefined} />
+      <PageHeader tabs={<ScreenTabs group="client-contracts" current="/contracts" />} title="Contracts" subtitle="Agreements with clients, and when they need renewing." actions={canManage ? <NewButton href={href({ new: "1" })}>New contract</NewButton> : undefined} />
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Active" value={all.filter((c) => c.status === "ACTIVE").length} />
         <Stat label="Renewal due" value={renewals} hint="inside their reminder window" />

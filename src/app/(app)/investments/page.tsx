@@ -6,6 +6,7 @@ import { LedgerError } from "@/lib/ledger-math";
 import { AssetError, createInvestment, investmentPosition, recordInvestmentTransaction } from "@/lib/assets";
 import { formatMoney } from "@/lib/money";
 import { Notice, PageHeader } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +60,7 @@ export default async function Investments({ searchParams }: { searchParams: Prom
   const today = new Date().toISOString().slice(0, 10);
   return (
     <div className="space-y-6">
-      <PageHeader title="Investments" subtitle="Income recognised and cash actually received are recorded separately. The gap is shown as outstanding. Partnerships and joint ventures are not built yet." />
+      <PageHeader tabs={<ScreenTabs group="fin-assets" current="/investments" />} title="Assets & investments" subtitle="Income recognised and cash actually received are recorded separately. The gap is shown as outstanding. Partnerships and joint ventures are not built yet." />
       {error && <Notice kind="error">{error}</Notice>}
       {investments.length === 0 && <div className="card text-sm text-muted">No investments yet.</div>}
       {investments.map((inv, i) => {

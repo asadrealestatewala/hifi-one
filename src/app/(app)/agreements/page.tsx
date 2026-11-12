@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { AGREEMENT_STATUSES, PLACEHOLDERS, TEMPLATE_KINDS } from "@/lib/agreements";
 import { paging } from "@/lib/paging";
 import { Chips, Empty, NewButton, PageHeader, PanelForm, Pager, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import Drawer from "@/components/ui/Drawer";
 import { createAgreementAction, saveTemplateAction } from "./actions";
 
@@ -37,7 +38,7 @@ export default async function Agreements({ searchParams }: { searchParams: Promi
   const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ tab: tab === "agreements" ? undefined : tab, status: status === "all" ? undefined : status, q, ...over })) if (v) p.set(k, v); const t = p.toString(); return t ? `/agreements?${t}` : "/agreements"; };
   return (
     <div className="space-y-5">
-      <PageHeader title="Agreements" subtitle="Write an agreement from a template, send a one-time link, and keep the signed copy." actions={canManage ? <NewButton href={href({ new: "1" })}>{tab === "templates" ? "New template" : "New agreement"}</NewButton> : undefined} />
+      <PageHeader tabs={<ScreenTabs group="client-contracts" current="/agreements" />} title="Contracts" subtitle="Write an agreement from a template, send a one-time link, and keep the signed copy." actions={canManage ? <NewButton href={href({ new: "1" })}>{tab === "templates" ? "New template" : "New agreement"}</NewButton> : undefined} />
       <Chips current={tab} items={[{ key: "agreements", label: "Agreements", count: total, href: "/agreements" }, { key: "templates", label: "Templates", count: templates.length, href: "/agreements?tab=templates" }]} />
 
       {tab === "agreements" && (

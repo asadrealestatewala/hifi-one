@@ -6,6 +6,7 @@ import { createDraftInvoice, LedgerError } from "@/lib/accounting";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { Chips, Empty, ExportLink, NewButton, Notice, PageHeader, Pager, SearchBox, SortTh, Stat, StatusBadge } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import { orderFor } from "@/lib/sort";
 import { listHref } from "@/lib/list-params";
 import { INVOICE_SORTS, INVOICE_STATUSES, invoiceOutstanding, invoiceParams, invoiceWhere } from "@/lib/lists";
@@ -82,7 +83,7 @@ export default async function Invoices({ searchParams }: { searchParams: Promise
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Invoices" subtitle="Draft, issue and track what clients owe." actions={<><ExportLink href={listHref("/finance/invoices/export", current)} />{canPost && <NewButton href={href({ new: "1" })}>New invoice</NewButton>}</>} />
+      <PageHeader tabs={<ScreenTabs group="client-billing" current="/finance/invoices" />} title="Billing" subtitle="Draft, issue and track what clients owe." actions={<><ExportLink href={listHref("/finance/invoices/export", current)} />{canPost && <NewButton href={href({ new: "1" })}>New invoice</NewButton>}</>} />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="All invoices" value={total} />
         <Stat label="Drafts" value={count.get("DRAFT") ?? 0} hint="not yet posted" />

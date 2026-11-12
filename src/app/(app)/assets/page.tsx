@@ -6,6 +6,7 @@ import { LedgerError } from "@/lib/ledger-math";
 import { AssetError, registerAsset, runDepreciation } from "@/lib/assets";
 import { formatMoney } from "@/lib/money";
 import { Notice, PageHeader } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +59,7 @@ export default async function Assets({ searchParams }: { searchParams: Promise<{
   const month = new Date().toISOString().slice(0, 7);
   return (
     <div className="space-y-6">
-      <PageHeader title="Fixed Assets" subtitle="Purchases here are capitalised, not expensed. Straight-line depreciation starts in the month of purchase. Items below your capitalisation threshold belong in expense vouchers; a threshold setting is not built yet." />
+      <PageHeader tabs={<ScreenTabs group="fin-assets" current="/assets" />} title="Assets & investments" subtitle="Purchases here are capitalised, not expensed. Straight-line depreciation starts in the month of purchase. Items below your capitalisation threshold belong in expense vouchers; a threshold setting is not built yet." />
       {done && <Notice kind="ok">Depreciation posted ({done} asset-months). Running it again only adds missing months.</Notice>}
       {error && <Notice kind="error">{error}</Notice>}
       <div className="card overflow-x-auto">

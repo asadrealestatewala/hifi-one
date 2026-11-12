@@ -198,7 +198,9 @@ Done: **Administration, 19 entries to 3** — Settings (a new `/settings` page h
 
 Done: **CRM and sales, 18 entries to 9** — Leads (6 tabs), Prospector (4 tabs), Sales reports (2 tabs), with Contacts, Opportunities, Field visits, Campaigns, Clout Leader and Quotations unchanged. Field visits deliberately stays its own entry.
 
-Still to fold: Finance 11 to 6, Services and clients 9 to 6. The menu is 55 links now, down from 89. Not started: making Team time tracking and the attendance screens agree on worked minutes, and labelling clocked, active and project hours apart.
+Done: **Finance 11 entries to 6** (Books with 5 tabs, Assets & investments with 2) and **Services and clients 9 to 6** (Billing with 3 tabs, Contracts with 2). The five Books titles and Fixed assets were still in Title Case and are fixed.
+
+**The menu is 47 entries, down from 89**, and `nav.test.ts` asserts that number. All five folds are built; none is checked in a browser. Not started: making Team time tracking and the attendance screens agree on worked minutes, and labelling clocked, active and project hours apart.
 
 ## Working calendar (2026-11-12)
 

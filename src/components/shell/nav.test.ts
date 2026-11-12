@@ -96,3 +96,25 @@ describe("CRM & sales", () => {
     expect(crm!.items).toEqual([{ href: "/leads/prospector/mine", label: "Prospector" }, { href: "/field", label: "Field visits" }]);
   });
 })
+
+describe("Finance, and Services & clients", () => {
+  const all = new Set<string>([...NAV.flatMap((g) => g.items.map((i) => i.permission)), ...SCREEN_GROUPS.flatMap((g) => g.tabs.map((t) => t.permission))].filter((p) => p !== null));
+
+  it("Finance is six entries", () => {
+    const fin = visibleNav(all).find((g) => g.id === "finance");
+    expect(fin!.items.map((i) => i.label)).toEqual(["Books", "Bank reconciliation", "Budgets", "Commissions", "Financial reports", "Assets & investments"]);
+  });
+
+  it("Services & clients is six entries", () => {
+    const cl = visibleNav(all).find((g) => g.id === "clients");
+    expect(cl!.items.map((i) => i.label)).toEqual(["Service catalog", "Clients", "Retainers", "Contracts", "Support requests", "Billing"]);
+  });
+
+  it("Assets & investments shows whichever of the two a person may open", () => {
+    expect(visibleNav(perms("investments.view")).find((g) => g.id === "finance")!.items).toEqual([{ href: "/investments", label: "Assets & investments" }]);
+  });
+
+  it("the whole menu is 47 entries for somebody who may see everything", () => {
+    expect(visibleNav(all).reduce((n, g) => n + g.items.length, 0)).toBe(47);
+  });
+});

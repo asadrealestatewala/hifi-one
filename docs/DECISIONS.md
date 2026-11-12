@@ -179,3 +179,12 @@ Newest last. Each entry: what was decided, why, and what it costs.
 - Contacts, Opportunities, Campaigns, Clout Leader and Quotations stay as they are: each answers its own question.
 - `/settings/lead-sources` is a CRM screen that happens to live under the settings routes. It is a tab of Leads, not part of the Settings page, because the person who sets up a website form is working on leads.
 - Two titles were in Title Case and are fixed by the group titles: "My Prospects" and the link to it from Field visits.
+
+## 2026-11-12: Finance is six entries, Services & clients is six
+
+- **Books** holds the five screens that are one set of books: general ledger, chart of accounts, manual journals, close periods, year-end. They were five menu entries although nobody opens one without the others.
+- **Assets & investments** holds the two registers. **Billing** holds invoices, payments & receipts and subscriptions, which are three views of the same money owed. **Contracts** holds contracts and agreements.
+- Bank reconciliation, Budgets, Commissions, Financial reports, Service catalog, Clients, Retainers and Support requests stay as their own entries: each is opened on its own.
+- Billing sits under Services & clients, where it already was, not under Finance. The person chasing an invoice is working on a client; the person closing the books is not.
+- The five Books screens and Fixed assets still had Title Case titles ("General Ledger", "Chart of Accounts", "Manual Journal Entries", "Close Accounting Periods", "Year-End Close", "Fixed Assets"), which the menu-label pass in PR #90 had not reached because it changed the menu, not those headings. The group titles fix them.
+- The menu is 47 entries for somebody who may see everything, down from 89, and `nav.test.ts` holds that number so it cannot creep back up unnoticed.
