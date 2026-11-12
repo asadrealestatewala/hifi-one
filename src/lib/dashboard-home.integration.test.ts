@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { loadAttention, loadHero, periodRange } from "./dashboard-home";
+import { calendarFrom } from "./working-calendar";
 import { loadLeadsReport } from "./leads-report";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
@@ -10,7 +11,7 @@ const range = { from: "2026-10-01", to: "2026-10-31" };
 const at = (d: string) => new Date(`${d}T10:00:00Z`);
 
 beforeAll(async () => {
-  await db.$executeRawUnsafe('TRUNCATE "ContactActivity","Contact","LeadActivity","Lead","PipelineStage","Client","Payment","BankAccount","ExpenseVoucher","User","Organization" CASCADE');
+  await db.$executeRawUnsafe('TRUNCATE "ContactActivity","Contact","LeadActivity","Lead","PipelineStage","Client","Payment","BankAccount","ExpenseVoucher","AttendanceRecord","LeaveRequest","LeaveType","EmployeeProfile","User","Organization" CASCADE');
   org = (await db.organization.create({ data: { name: "Dash Org" } })).id;
   const mk = (e: string) => db.user.create({ data: { organizationId: org, email: e, name: e, passwordHash: "x" } }).then((u) => u.id);
   ann = await mk("ann@d.test"); bob = await mk("bob@d.test");
@@ -67,6 +68,64 @@ describe("hero numbers and what needs attention", () => {
     expect(sales.followups).toMatchObject({ count: 1, rows: [expect.objectContaining({ name: "A", due: "2026-10-05" })] });
     expect(sales.urgent).toBe(1); // the follow-up from 5 Oct is past due
     const hr = await loadAttention(db, org, { id: ann, permissions: new Set(["attendance.view_all", "leave.approve"]) }, today, now, null);
-    expect(hr.attendance?.count).toBe(2); // nobody has marked attendance today
+    expect(hr.attendance?.count).toBe(0); // these two have no HR record, so neither is expected to mark attendance
+  });
+});
+
+// The owner's home screen said "attendance not marked" about the reader themselves, about people on leave and
+// about days nobody works. Only someone with an active HR record, not on leave, on a working day, counts.
+describe("attendance not marked", () => {
+  const today = "2026-10-13", now = new Date("2026-10-13T08:00:00Z"); // a Tuesday
+  const cal = calendarFrom(null, "UTC"); // Monday to Friday, 09:00 to 18:30
+  const boss = () => ({ id: ids.boss, permissions: new Set(["attendance.view_all"]) });
+  const ids: Record<string, string> = {};
+
+  beforeAll(async () => {
+    const mk = async (key: string, no: string, profile = true) => {
+      const u = await db.user.create({ data: { organizationId: org, name: key, email: `${key}@att.test`, passwordHash: "x", userType: "EMPLOYEE" } });
+      if (profile) await db.employeeProfile.create({ data: { organizationId: org, userId: u.id, employeeNo: no, status: "ACTIVE" } });
+      ids[key] = u.id;
+    };
+    await mk("boss", "E1");
+    await mk("marked", "E2");
+    await mk("silent", "E3");
+    await mk("onleave", "E4");
+    await mk("noprofile", "E5", false);
+    await db.attendanceRecord.create({ data: { userId: ids.marked, workDate: today, clockIn: new Date(`${today}T04:00:00Z`) } });
+    const type = await db.leaveType.create({ data: { organizationId: org, name: "Annual", daysPerYear: 20 } });
+    await db.leaveRequest.create({ data: { userId: ids.onleave, leaveTypeId: type.id, startDate: "2026-10-12", endDate: "2026-10-14", days: 3, status: "APPROVED" } });
+  });
+
+  it("names only the person who is at work and recorded nothing", async () => {
+    const a = (await loadAttention(db, org, boss(), today, now, null, { calendar: cal, holidays: [] })).attendance!;
+    expect(a.rows.map((r) => r.name)).toEqual(["silent"]);
+    expect(a).toMatchObject({ count: 1, present: 1, away: 1, staff: 3, workingToday: true });
+  });
+
+  it("never counts the person reading the screen", async () => {
+    const a = (await loadAttention(db, org, boss(), today, now, null, { calendar: cal, holidays: [] })).attendance!;
+    expect(a.rows.map((r) => r.id)).not.toContain(ids.boss);
+  });
+
+  it("counts nobody on a weekly day off", async () => {
+    const sunday = "2026-10-18";
+    const a = (await loadAttention(db, org, boss(), sunday, new Date(`${sunday}T08:00:00Z`), null, { calendar: cal, holidays: [] })).attendance!;
+    expect(a).toMatchObject({ count: 0, rows: [], workingToday: false });
+  });
+
+  it("counts nobody on a public holiday", async () => {
+    const a = (await loadAttention(db, org, boss(), today, now, null, { calendar: cal, holidays: [today] })).attendance!;
+    expect(a).toMatchObject({ count: 0, workingToday: false });
+  });
+
+  it("still names everyone when no calendar is given", async () => {
+    const a = (await loadAttention(db, org, boss(), today, now, null)).attendance!;
+    expect(a.workingToday).toBe(true);
+    expect(a.rows.map((r) => r.name)).toEqual(["silent"]); // leave and the HR record still count; only the day rule needs a calendar
+  });
+
+  it("tells nobody without the permission who marked attendance", async () => {
+    const a = await loadAttention(db, org, { id: ids.boss, permissions: new Set() }, today, now, null, { calendar: cal, holidays: [] });
+    expect(a.attendance).toBeNull();
   });
 });

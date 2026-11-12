@@ -139,3 +139,10 @@ Newest last. Each entry: what was decided, why, and what it costs.
 - HR had no leave screen; leave was decided inside My leave, which reads as a personal screen. `/hr/leave` is HR's own view, with each person's remaining balance beside the request, and it calls the same `decideLeave` service.
 - `/me/team` gives a manager the one thing the data already allowed and no screen showed: their direct reports' day, what of theirs is waiting, and a way into each person's scorecard.
 - `SubmitButton` gained a `formAction` prop. A submit button's `name` and `value` do not reach a server action reliably from a client component, which silently turned an approve into a reject; two submit buttons in one form now point at two actions instead.
+
+## 2026-11-12: Nobody is "absent" on a day nobody works
+
+- The home screen's "attendance not marked today" counted every active employee user without a record for the date. That included the person reading the screen, people on approved leave, accounts with no HR record at all (service and portal users), and every weekend and public holiday, so an owner opened the system on a Sunday and was told the whole company had not marked attendance.
+- `loadAttention` now asks for people with an active, unarchived `EmployeeProfile`, never the reader (`id: { not: user.id }`), never someone whose approved leave covers the date, and nobody at all when the working calendar says the date is a weekly day off or a public holiday. The section carries `workingToday`, `present`, `away` and `staff` so the screen can say "4 of 6 at work, 1 on leave" instead of only naming a problem.
+- The People tab shows "—" with "not a working day" rather than a zero, because zero reads as "everyone marked attendance".
+- "Work overdue" on the hero uses the same rule as the Projects page's "Overdue tasks" card (not done, due before now, on an active project) so the two figures cannot disagree, and it is only built for someone with `projects.view_all` or `projects.manage`.

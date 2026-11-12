@@ -23,6 +23,7 @@ import { Bars, CardPanel, FlowChart, Row, money } from "./parts";
 export const dynamic = "force-dynamic";
 
 type SP = { tab?: string; period?: string; cur?: string };
+type HeroCard = { label: string; value: string | number; sub: string; href: string };
 const TABS = [["overview", "Overview", "home"], ["leads", "Leads & sales", "target"], ["campaigns", "Campaigns", "chart"], ["finance", "Finance", "wallet"], ["people", "People", "users"], ["assets", "Assets", "layers"]] as const;
 
 export default async function Dashboard({ searchParams }: { searchParams: Promise<SP> }) {
@@ -44,7 +45,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const work = await getWorkingContext(db, org, today, today);
   const [hero, att, myDay] = await Promise.all([
     loadHero(db, org, range, now, canFinance, leadWhere),
-    loadAttention(db, org, user, today, now, leadWhere),
+    loadAttention(db, org, user, today, now, leadWhere, { calendar: work.calendar, holidays: work.holidayDates }),
     loadMyDay(db, { organizationId: org, userId: user.id, permissions: user.permissions, date: today, timeZone: profile?.timezone ?? "UTC", calendar: work.calendar, holidayName: work.holidays.find((h) => h.date === today)?.name ?? null, now }),
   ]);
   // The person's own day comes first: nothing else counts as "attention" while their own attendance or report is open.
@@ -60,6 +61,23 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     ["New lead", "/leads?new=1", "target", has("crm.edit")], ["Receive payment", "/finance/payments?new=1", "receipt", has("finance.post")], ["New voucher", "/expenses", "wallet", has("self.expense")],
     ["Mark attendance", "/me/attendance", "clock", has("self.attendance")], ["Leave requests", "/me/leave", "calendar", has("self.leave")], ["Asset library", "/assets", "layers", has("assets.view")],
     ["My tasks", "/me/tasks", "check", true], ["Ask the assistant", "/assistant", "sparkles", has("assistant.use")],
+  ];
+
+  // The hero answers what an owner opens the system for: money in, money late, sales coming in,
+  // who is at work, and what work is late. Each card is only built when the reader may see that figure.
+  const heroCards: (HeroCard | null)[] = [
+    canFinance ? { label: "Collected", value: hero.collected.length ? hero.collected.slice(0, 2).map((m) => `${m.currency} ${Math.round(Number(m.amount)).toLocaleString()}`).join(" · ") : "0", sub: PERIODS[period].toLowerCase(), href: `/finance/payments?from=${range.from}&to=${range.to}&src=dashboard` } : null,
+    canFinance ? { label: "Overdue", value: hero.overdue.count, sub: hero.overdue.amounts.length ? money(hero.overdue.amounts) : "nothing overdue", href: "/finance/reports?type=aging" } : null,
+    canLeads ? { label: "New leads", value: hero.leads.fresh, sub: `${hero.leads.total} in total`, href: `/leads?from=${range.from}&to=${range.to}&src=dashboard` } : null,
+    att.attendance ? {
+      label: "People today",
+      value: att.attendance.workingToday ? `${att.attendance.present} of ${att.attendance.staff - att.attendance.away}` : "—",
+      sub: att.attendance.workingToday
+        ? `${att.attendance.away} on leave${att.attendance.count ? `, ${att.attendance.count} not marked` : ""}`
+        : "not a working day",
+      href: "/hr/attendance",
+    } : null,
+    att.teamOverdueTasks !== null ? { label: "Work overdue", value: att.teamOverdueTasks, sub: att.teamOverdueTasks === 0 ? "every task is on time" : "tasks past their due date", href: "/projects?view=tasks&who=all&due=overdue" } : null,
   ];
 
   let body: ReactNode;
@@ -146,8 +164,8 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     body = (
       <div className="space-y-5">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Stat label="Active staff" value={profiles} href={has("hr.view") ? "/hr/employees?status=ACTIVE&from=dashboard" : undefined} /><Stat label="Present today" value={presentToday} href={has("attendance.view_all") ? "/hr/attendance" : undefined} /><Stat label="Not marked" value={att.attendance?.count ?? "n/a"} hint="no attendance today" href={has("attendance.view_all") ? "/hr/attendance" : undefined} />
-          <Stat label="On leave today" value={onLeave.length} href={has("leave.approve") ? "/me/leave" : undefined} /><Stat label="Leave to approve" value={pending} href={has("leave.approve") ? "/me/leave" : undefined} />
+          <Stat label="Active staff" value={profiles} href={has("hr.view") ? "/hr/employees?status=ACTIVE&from=dashboard" : undefined} /><Stat label="Present today" value={presentToday} href={has("attendance.view_all") ? "/hr/attendance" : undefined} /><Stat label="Not marked" value={att.attendance ? (att.attendance.workingToday ? att.attendance.count : "—") : "n/a"} hint={att.attendance && !att.attendance.workingToday ? "not a working day" : "at work today, nothing recorded"} href={has("attendance.view_all") ? "/hr/attendance" : undefined} />
+          <Stat label="On leave today" value={onLeave.length} href={has("leave.approve") ? "/hr/leave" : undefined} /><Stat label="Leave to approve" value={pending} href={has("leave.approve") ? "/hr/leave" : undefined} />
         </div>
         <div className="grid gap-5 lg:grid-cols-2">
           <section className="card"><h3 className="mb-1 font-semibold">Birthdays this month</h3>{bdays.length === 0 ? <p className="py-4 text-sm text-muted">None recorded for this month.</p> : bdays.sort((a, b) => (a.dateOfBirth ?? "").slice(8).localeCompare((b.dateOfBirth ?? "").slice(8))).map((b) => <div key={b.userId} className="flex items-center justify-between border-b border-border py-2 text-sm last:border-0"><span className="flex items-center gap-2"><Avatar name={nm.get(b.userId) ?? "?"} userId={b.userId} size={26} />{nm.get(b.userId)}</span><span className="text-muted">{b.dateOfBirth!.slice(8)} {new Date(today + "T00:00:00Z").toLocaleDateString(undefined, { month: "short", timeZone: "UTC" })}</span></div>)}</section>
@@ -208,7 +226,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       att.vouchers && att.vouchers.count > 0 ? { icon: "wallet", tone: "primary" as const, n: att.vouchers.count, text: "vouchers awaiting approval", sub: att.vouchers.rows[0] ? `${att.vouchers.rows[0].number} · ${att.vouchers.rows[0].description}` : undefined, href: "/expenses" } : null,
       att.commissions && att.commissions.count > 0 ? { icon: "wallet", tone: "primary" as const, n: att.commissions.count, text: "commissions to approve", href: "/finance/commissions" } : null,
       att.attendance && att.attendance.count > 0 ? { icon: "clock", tone: "warning" as const, n: att.attendance.count, text: "attendance not marked today", sub: att.attendance.rows[0]?.name, href: "/hr/attendance" } : null,
-      att.leave && att.leave.count > 0 ? { icon: "calendar", tone: "primary" as const, n: att.leave.count, text: "leave requests to decide", href: "/me/leave" } : null,
+      att.leave && att.leave.count > 0 ? { icon: "calendar", tone: "primary" as const, n: att.leave.count, text: "leave requests to decide", href: "/hr/leave" } : null,
       att.posts && att.posts.count > 0 ? { icon: "calendar", tone: "primary" as const, n: att.posts.count, text: "posts to publish today", sub: att.posts.rows[0]?.title, href: "/content" } : null,
       att.myOverdueTasks > 0 ? { icon: "check", tone: "danger" as const, n: att.myOverdueTasks, text: "of your tasks are overdue", href: "/me/tasks" } : null,
     ].filter((x): x is NonNullable<typeof x> => x !== null);
@@ -253,10 +271,14 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
             <p className="mt-1 text-sm text-white/85">{!myDay.kind.working ? `${myDay.kind.reason} ${needsMe === 0 ? "Nothing is waiting." : `${needsMe} thing${needsMe === 1 ? "" : "s"} can wait until you are back.`}` : needsMe === 0 ? "Nothing needs your attention today." : `${needsMe} thing${needsMe === 1 ? "" : "s"} need${needsMe === 1 ? "s" : ""} your attention today${att.urgent ? `, ${att.urgent} urgent` : ""}.`}</p></div>
           <PeriodSelect value={period} light />
         </div>
-        <div className="relative mt-6 grid gap-3 sm:grid-cols-3">
-          {canFinance && <Link href={`/finance/payments?from=${range.from}&to=${range.to}&src=dashboard`} className="block rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur transition hover:bg-white/20 focus-visible:outline-white"><p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">Collected</p><p className="mt-1 text-2xl font-semibold tabular-nums">{hero.collected.length ? hero.collected.slice(0, 2).map((m) => `${m.currency} ${Math.round(Number(m.amount)).toLocaleString()}`).join(" · ") : "0"}</p><p className="text-xs text-white/70">{PERIODS[period].toLowerCase()}</p></Link>}
-          {canFinance && <Link href={"/finance/reports?type=aging"} className="block rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur transition hover:bg-white/20 focus-visible:outline-white"><p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">Overdue</p><p className="mt-1 text-2xl font-semibold tabular-nums">{hero.overdue.count}</p><p className="truncate text-xs text-white/70">{hero.overdue.amounts.length ? money(hero.overdue.amounts) : "nothing overdue"}</p></Link>}
-          {canLeads && <Link href={`/leads?from=${range.from}&to=${range.to}&src=dashboard`} className="block rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur transition hover:bg-white/20 focus-visible:outline-white"><p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">New leads</p><p className="mt-1 text-2xl font-semibold tabular-nums">{hero.leads.fresh}</p><p className="text-xs text-white/70">{hero.leads.total} in total</p></Link>}
+        <div className="relative mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {heroCards.filter((c): c is HeroCard => c !== null).map((c) => (
+            <Link key={c.label} href={c.href} className="block rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur transition hover:bg-white/20 focus-visible:outline-white">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">{c.label}</p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums">{c.value}</p>
+              <p className="truncate text-xs text-white/70">{c.sub}</p>
+            </Link>
+          ))}
         </div>
       </section>
 
