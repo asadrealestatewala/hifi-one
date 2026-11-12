@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { leadScope } from "@/lib/leads";
 import { formatMoney } from "@/lib/money";
 import { Badge, Empty, Notice, PageHeader, Pager } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import { paging } from "@/lib/paging";
 import { deleteListAction, saveListAction } from "../crm-actions";
 
@@ -45,7 +46,7 @@ export default async function SmartLists({ searchParams }: { searchParams: Promi
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Smart lists" subtitle="Live views of your leads. Built-in lists answer the everyday questions; build your own filter, save it, and share it with the team." actions={<Link href="/leads" className="btn-ghost">All leads</Link>} />
+      <PageHeader tabs={<ScreenTabs group="crm-leads" current="/leads/lists" />} title="Leads" subtitle="Live views of your leads. Built-in lists answer the everyday questions; build your own filter, save it, and share it with the team." actions={<Link href="/leads" className="btn-ghost">All leads</Link>} />
       {one("error") && <Notice kind="error">{one("error")}</Notice>}
       <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
         <aside className="space-y-4">

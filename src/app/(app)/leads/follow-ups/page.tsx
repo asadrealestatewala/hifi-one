@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { mailConfig } from "@/lib/mailer";
 import { STOP_REASONS } from "@/lib/followups";
 import { Badge, Empty, Notice, PageHeader, SubmitButton } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import { createSequenceAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +29,7 @@ export default async function FollowUps({ searchParams }: { searchParams: Promis
   const auto = process.env.JOBS_AUTORUN === "1";
   return (
     <div className="space-y-5 max-w-6xl">
-      <PageHeader title="Follow-up sequences" subtitle="Automatic email follow-ups for new CRM leads: a series of timed emails that stops by itself when the lead replies, changes stage, is won or lost, or unsubscribes." />
+      <PageHeader tabs={<ScreenTabs group="crm-leads" current="/leads/follow-ups" />} title="Leads" subtitle="Automatic email follow-ups for new CRM leads: a series of timed emails that stops by itself when the lead replies, changes stage, is won or lost, or unsubscribes." />
       {sp.ok && <Notice kind="ok">{sp.ok}</Notice>}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       <section className="grid gap-3 sm:grid-cols-3">

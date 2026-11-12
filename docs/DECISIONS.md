@@ -171,3 +171,11 @@ Newest last. Each entry: what was decided, why, and what it costs.
 - `/settings` holds no data of its own: it lists only the screens the reader may open, each behind its own permission, and sends somebody who may open none to `/forbidden`. That is why it is on the `OWN_DATA_PAGES` list in `src/lib/guards.test.ts` beside `/approvals`, which works the same way.
 - Users and Roles & permissions became the tab group **Users & roles**; Audit logs and the Security checklist became **Audit & security**. The "Manage roles" button on Users is gone, because the Roles tab is beside it now.
 - Two screens that still wrote their own `<h1>` are on `PageHeader` now, which also fixed their casing: "Company Settings" is **Company details** and "Bank Accounts" is **Bank accounts**. "Audit Logs" was the last title in Title Case. The three sentences elsewhere that named those screens now say "Settings › Company details" and "Settings › Bank accounts".
+
+## 2026-11-12: CRM & sales is nine menu entries
+
+- CRM & sales was 18 links, the longest group after Administration. Three tab groups take it to nine: **Leads** (all leads, pending approvals, smart lists, worklists, follow-up automation, website forms), **Prospector** (all prospects, my prospects, field sales team, demo queue) and **Sales reports** (activity, leads report).
+- **Field visits stays its own entry.** For a field agent it is the only screen they open, it works offline, and burying it in a tab group would cost them a tap on a phone in the street. A field agent's menu is now Prospector (their own list) and Field visits, nothing else.
+- Contacts, Opportunities, Campaigns, Clout Leader and Quotations stay as they are: each answers its own question.
+- `/settings/lead-sources` is a CRM screen that happens to live under the settings routes. It is a tab of Leads, not part of the Settings page, because the person who sets up a website form is working on leads.
+- Two titles were in Title Case and are fixed by the group titles: "My Prospects" and the link to it from Field visits.

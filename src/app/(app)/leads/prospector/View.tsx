@@ -16,6 +16,7 @@ import { CHANNELS, CHANNEL_LABEL, OUTCOME_LABEL, OUTCOMES, RESULTS, RESULT_LABEL
 import { MANUAL_SOURCE_LABEL } from "@/lib/prospect-manual";
 import { getPolicy } from "@/lib/lead-duplicates";
 import { Badge, Chips, DateFilterBar, Empty, Notice, PageHeader, Pager, SearchBox, SubmitButton } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import { checkWebsites, claimProspectAction, getFacebookData, reviewProspects, saveFacebookLink, saveSearchLimits, logProspectContact, removeOwnProspectAction, searchProspects, updateScores } from "./actions";
 import AutoRefresh from "./AutoRefresh";
 import AddProspect from "./AddProspect";
@@ -258,7 +259,7 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
 
   return (
     <div className="space-y-6">
-      <PageHeader title={mineView ? "My Prospects" : "Prospector"} subtitle={mineView ? "Prospects assigned to you or added by you. Press Add prospect for someone you found yourself, and Log contact on a row after you speak to them." : "Find businesses by type and city, assign them to the sales team, and record each contact. A business found here is a prospect, not a lead: it becomes a lead only when it says it is interested."} />
+      <PageHeader tabs={<ScreenTabs group="crm-prospector" current={BASE} />} title="Prospector" subtitle={mineView ? "Prospects assigned to you or added by you. Press Add prospect for someone you found yourself, and Log contact on a row after you speak to them." : "Find businesses by type and city, assign them to the sales team, and record each contact. A business found here is a prospect, not a lead: it becomes a lead only when it says it is interested."} />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {sp.ok && <Notice kind="ok">{sp.ok}</Notice>}
 

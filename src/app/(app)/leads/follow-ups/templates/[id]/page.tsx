@@ -24,7 +24,7 @@ export default async function FollowUpTemplate({ params, searchParams }: { param
     : { name: "", subject: "", preheader: "", heading: "", body: "Hi {{first_name}},\n\n", buttonLabel: starter.buttonLabel, buttonUrl: "mailto:{{owner_email}}", highlights: "" };
   return (
     <div className="space-y-5">
-      <Link href="/leads/follow-ups" className="text-sm text-muted hover:underline">← Follow-up sequences</Link>
+      <Link href="/leads/follow-ups" className="text-sm text-muted hover:underline">← Follow-up automation</Link>
       <PageHeader title={t ? t.name : "New follow-up template"} subtitle="Follow-up emails go to leads, signed by their owner, with an unsubscribe link added automatically."
         actions={t ? (
           <form action={archiveFollowUpTemplateAction}><input type="hidden" name="id" value={t.id} /><input type="hidden" name="archived" value={t.archived ? "0" : "1"} />

@@ -83,3 +83,16 @@ describe("Administration", () => {
     expect(settingsSections(perms())).toEqual([]);
   });
 });
+
+describe("CRM & sales", () => {
+  it("is nine entries, with Field visits on its own", () => {
+    const all = new Set<string>([...NAV.flatMap((g) => g.items.map((i) => i.permission)), ...SCREEN_GROUPS.flatMap((g) => g.tabs.map((t) => t.permission))].filter((p) => p !== null));
+    const crm = visibleNav(all).find((g) => g.id === "crm");
+    expect(crm!.items.map((i) => i.label)).toEqual(["Contacts", "Leads", "Opportunities", "Prospector", "Field visits", "Campaigns", "Clout Leader", "Quotations", "Sales reports"]);
+  });
+
+  it("a field agent sees Field visits and their own prospects, not the team screens", () => {
+    const crm = visibleNav(perms("field.capture", "crm.edit")).find((g) => g.id === "crm");
+    expect(crm!.items).toEqual([{ href: "/leads/prospector/mine", label: "Prospector" }, { href: "/field", label: "Field visits" }]);
+  });
+})

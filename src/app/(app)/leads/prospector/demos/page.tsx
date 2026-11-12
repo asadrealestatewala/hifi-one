@@ -5,6 +5,7 @@ import { DEMO_MODES, DEMO_MODE_LABEL, DEMO_STATUS_LABEL, demoQueue, trainers, ty
 import { listProducts, zoneOffsetMinutes } from "@/lib/field-visits";
 import { companyZone } from "@/lib/mobile-api";
 import { Badge, Chips, ConfirmButton, Empty, Notice, PageHeader, Pager, SearchBox, SubmitButton } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import { closeDemoAction, scheduleDemoAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +39,7 @@ export default async function DemoQueue({ searchParams }: { searchParams: Promis
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Demo queue" subtitle="Businesses that asked a field agent for a demo. Book the time; the business then becomes a lead of the agent who found it." actions={<Link className="btn-ghost" href="/leads/prospector">Back to Prospector</Link>} />
+      <PageHeader tabs={<ScreenTabs group="crm-prospector" current="/leads/prospector/demos" />} title="Prospector" subtitle="Businesses that asked a field agent for a demo. Book the time; the business then becomes a lead of the agent who found it." actions={<Link className="btn-ghost" href="/leads/prospector">Back to Prospector</Link>} />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {sp.ok && <Notice kind="ok">{sp.ok}</Notice>}
 

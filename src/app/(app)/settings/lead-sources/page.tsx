@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Badge, ConfirmButton, Empty, PageHeader } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import { NewSourceForm, RotateKey } from "./SourceForms";
 import { toggleSourceAction } from "./actions";
 
@@ -23,7 +24,7 @@ export default async function LeadSources() {
   const recent = new Map(week.map((w) => [w.leadSourceId, w._count]));
   return (
     <div className="space-y-5">
-      <PageHeader title="Website lead forms" subtitle="Forms on your websites that create leads here, tagged with the campaign and assigned to your sales team." />
+      <PageHeader tabs={<ScreenTabs group="crm-leads" current="/settings/lead-sources" />} title="Leads" subtitle="Forms on your websites that create leads here, tagged with the campaign and assigned to your sales team." />
       <NewSourceForm campaigns={campaigns} staff={staff} />
       {sources.length === 0 ? <Empty title="No forms yet">Create one above, paste the code into the website, and its leads appear in Leads.</Empty> : (
         <div className="grid gap-4 md:grid-cols-2">

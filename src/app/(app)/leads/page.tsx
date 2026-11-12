@@ -6,6 +6,7 @@ import { leadScope } from "@/lib/leads";
 import { formatMoney } from "@/lib/money";
 import { rangeLabel } from "@/lib/date-range";
 import { AppliedFilters, Badge, DateRangeForm, Chips, Empty, ExportLink, NewButton, PageHeader, Pager, PanelForm, SearchBox, SortTh, Stat } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import { orderFor } from "@/lib/sort";
 import { listHref } from "@/lib/list-params";
 import { LEAD_SORTS, leadParams, leadWhere } from "@/lib/lists";
@@ -38,7 +39,7 @@ export default async function Leads({ searchParams }: { searchParams: Promise<{ 
   const campaignName = new Map(campaigns.map((c) => [c.id, c.name]));
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader tabs={<ScreenTabs group="crm-leads" current="/leads" />}
         title="Leads"
         subtitle={user.permissions.has("crm.view_all") ? "Every lead in the organization." : "Leads assigned to or created by you."}
         actions={<>
