@@ -38,7 +38,7 @@ jobs:
       - run: npx expo prebuild --platform android --no-install
       - name: Build APK
         working-directory: mobile/android
-        run: ./gradlew assembleRelease --no-daemon
+        run: ./gradlew assembleRelease --no-daemon -Pandroid.enableMinifyInReleaseBuilds=false -Pandroid.enableShrinkResourcesInReleaseBuilds=false
       - name: Name the file
         run: |
           mkdir -p ../out
