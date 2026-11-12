@@ -13,14 +13,17 @@ const monthLabel = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleDateStri
 const shift = (m: string, n: number) => { const d = new Date(`${m}-01T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + n); return d.toISOString().slice(0, 7); };
 const weekday = (s: string) => new Date(`${s}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 
-// The same numbers HR sees, shown to the person they are about. HR (attendance.view_all) can open anyone's with ?user=.
+// The same numbers HR sees, shown to the person they are about. HR (attendance.view_all) can open anyone's with
+// ?user=, and a manager can open one of their own direct reports'. Anyone else only ever sees their own.
 export default async function MyScorecard({ searchParams }: { searchParams: Promise<{ month?: string; user?: string }> }) {
   const user = await requirePermission("self.attendance");
   const sp = await searchParams;
   const org = user.organizationId;
   const canSeeAll = user.permissions.has("attendance.view_all");
-  const subjectId = sp.user && canSeeAll ? sp.user : user.id;
-  const subject = subjectId === user.id ? { id: user.id, name: user.name } : await db.user.findFirst({ where: { id: subjectId, organizationId: org }, select: { id: true, name: true } });
+  const asked = sp.user && sp.user !== user.id ? sp.user : null;
+  const subject = asked
+    ? await db.user.findFirst({ where: { id: asked, organizationId: org, ...(canSeeAll ? {} : { managerId: user.id }) }, select: { id: true, name: true } })
+    : { id: user.id, name: user.name };
   const profile = await db.companyProfile.findFirst({ where: { organizationId: org, isDefault: true }, select: { timezone: true } });
   const cal = await getCalendar(db, org);
   const thisMonth = dateInZone(new Date(), profile?.timezone ?? "UTC").slice(0, 7);
