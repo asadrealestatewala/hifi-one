@@ -26,7 +26,7 @@ export default async function Engagements({ searchParams }: { searchParams: Prom
   const href = (k: string) => (k === "active" ? "/engagements" : `/engagements?show=${k}`);
   return (
     <div className="space-y-5">
-      <PageHeader title="Retainers and recurring revenue" subtitle="What clients have bought, how much of it is delivered this month, and the recurring revenue it adds up to. One-time orders are never counted in MRR or ARR." />
+      <PageHeader title="Retainers" subtitle="What clients have bought, how much of it is delivered this month, and the recurring revenue it adds up to. One-time orders are never counted in MRR or ARR." />
       {revenue.length === 0 ? <Empty title="No recurring revenue yet">Start a retainer from a client&apos;s Services tab.</Empty> : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {revenue.flatMap((r) => [
