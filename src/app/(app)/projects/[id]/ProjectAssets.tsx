@@ -14,7 +14,9 @@ const kb = (n: number) => (n >= 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` :
 const day = (d: Date) => d.toISOString().slice(0, 10);
 
 // The project's asset library: brand guides, logos, videos and creatives, grouped by folder, with versions and public preview links.
-export default async function ProjectAssets({ user, projectId, folder, flash }: { user: SessionUser; projectId: string; folder?: string; flash: { assetError?: string; assetOk?: string } }) {
+// `basePath` is the page that shows the library (default: the project page); uploads and edits send the person back there.
+export default async function ProjectAssets({ user, projectId, folder, flash, basePath }: { user: SessionUser; projectId: string; folder?: string; flash: { assetError?: string; assetOk?: string }; basePath?: string }) {
+  const base = basePath ?? `/projects/${projectId}`;
   const rights = await projectAssetRights(db, toFileActor(user), projectId);
   if (!rights.read) return null;
   const [all, shares] = await Promise.all([
@@ -39,8 +41,8 @@ export default async function ProjectAssets({ user, projectId, folder, flash }: 
 
       {folders.length > 0 && (
         <nav className="flex flex-wrap gap-1.5 text-sm" aria-label="Folders">
-          <a href={`/projects/${projectId}#assets`} className={`rounded-full border px-3 py-1 ${!folder ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-hover"}`}>All</a>
-          {folders.map((f) => <a key={f} href={`/projects/${projectId}?folder=${encodeURIComponent(f)}#assets`} className={`rounded-full border px-3 py-1 ${folder === f ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-hover"}`}>{f} <span className="text-xs text-muted">{all.filter((a) => a.folder === f).length}</span></a>)}
+          <a href={`${base}#assets`} className={`rounded-full border px-3 py-1 ${!folder ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-hover"}`}>All</a>
+          {folders.map((f) => <a key={f} href={`${base}?folder=${encodeURIComponent(f)}#assets`} className={`rounded-full border px-3 py-1 ${folder === f ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-hover"}`}>{f} <span className="text-xs text-muted">{all.filter((a) => a.folder === f).length}</span></a>)}
         </nav>
       )}
 
@@ -76,6 +78,7 @@ export default async function ProjectAssets({ user, projectId, folder, flash }: 
                   <details className="text-sm">
                     <summary className="cursor-pointer text-primary">Upload a new version</summary>
                     <form action={`/api/projects/${projectId}/assets`} method="post" encType="multipart/form-data" className="mt-2 flex flex-wrap items-center gap-2">
+                      <input type="hidden" name="returnTo" value={base} />
                       <input type="hidden" name="assetId" value={a.id} />
                       <input type="file" name="file" required accept={accept} aria-label="New version file" className="input" />
                       <button className="btn-ghost">Upload version</button>
@@ -86,7 +89,7 @@ export default async function ProjectAssets({ user, projectId, folder, flash }: 
                   <details className="text-sm">
                     <summary className="cursor-pointer text-primary">Edit details</summary>
                     <form action={updateAssetAction} className="mt-2 grid gap-2">
-                      <input type="hidden" name="projectId" value={projectId} /><input type="hidden" name="assetId" value={a.id} />
+                      <input type="hidden" name="projectId" value={projectId} /><input type="hidden" name="returnTo" value={base} /><input type="hidden" name="assetId" value={a.id} />
                       <input name="name" defaultValue={a.name} required aria-label="Name" className="input" />
                       <input name="folder" defaultValue={a.folder} list="asset-folders" aria-label="Folder" className="input" />
                       <input name="tags" defaultValue={a.tags.join(", ")} placeholder="Tags, separated by commas" aria-label="Tags" className="input" />
@@ -94,7 +97,7 @@ export default async function ProjectAssets({ user, projectId, folder, flash }: 
                       <div className="flex gap-2"><button className="btn-ghost">Save</button></div>
                     </form>
                     <form action={deleteAssetAction} className="mt-2">
-                      <input type="hidden" name="projectId" value={projectId} /><input type="hidden" name="assetId" value={a.id} />
+                      <input type="hidden" name="projectId" value={projectId} /><input type="hidden" name="returnTo" value={base} /><input type="hidden" name="assetId" value={a.id} />
                       <ConfirmButton title="Remove from library" confirmLabel="Remove" message={`Remove ${a.name} and all its versions from the library? Share links will stop showing it.`} className="text-xs text-brand hover:underline">Remove from library</ConfirmButton>
                     </form>
                   </details>
@@ -107,6 +110,7 @@ export default async function ProjectAssets({ user, projectId, folder, flash }: 
 
       {rights.upload && (
         <form action={`/api/projects/${projectId}/assets`} method="post" encType="multipart/form-data" className="space-y-2 rounded-xl bg-hover/50 p-3">
+          <input type="hidden" name="returnTo" value={base} />
           <h3 className="text-sm font-medium">Add a file</h3>
           <div className="grid gap-2 sm:grid-cols-2">
             <div><label className="label" htmlFor="asset-file">File</label><input id="asset-file" type="file" name="file" required accept={accept} className="input" /></div>
@@ -126,7 +130,7 @@ export default async function ProjectAssets({ user, projectId, folder, flash }: 
         <div className="space-y-3">
           <h3 className="text-sm font-medium">Preview links for people without a login</h3>
           <form action={createShareAction} className="grid gap-2 rounded-xl bg-hover/50 p-3 sm:grid-cols-5 sm:items-end">
-            <input type="hidden" name="projectId" value={projectId} />
+            <input type="hidden" name="projectId" value={projectId} /><input type="hidden" name="returnTo" value={base} />
             <div className="sm:col-span-2"><label className="label" htmlFor="share-label">Who is it for?</label><input id="share-label" name="label" placeholder="e.g. Brand manager at Acme" className="input" /></div>
             <div><label className="label" htmlFor="share-folder">Share</label>
               <select id="share-folder" name="folder" className="input" defaultValue={folder ?? ""}><option value="">Whole library</option>{folders.map((f) => <option key={f} value={f}>{f} only</option>)}</select></div>
@@ -144,7 +148,7 @@ export default async function ProjectAssets({ user, projectId, folder, flash }: 
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="font-medium">{sh.label ?? "Preview link"} <span className="text-xs font-normal text-muted">· {sh.folder ?? "whole library"} · {state}{sh.passwordHash && " · password"}{sh.expiresAt && state === "Live" && ` · until ${day(sh.expiresAt)}`} · opened {sh.viewCount}×{sh.lastViewedAt && ` (last ${day(sh.lastViewedAt)})`}</span></span>
                       {state === "Live" && (
-                        <form action={revokeShareAction}><input type="hidden" name="projectId" value={projectId} /><input type="hidden" name="shareId" value={sh.id} />
+                        <form action={revokeShareAction}><input type="hidden" name="projectId" value={projectId} /><input type="hidden" name="returnTo" value={base} /><input type="hidden" name="shareId" value={sh.id} />
                           <ConfirmButton title="Switch off link" confirmLabel="Switch off" message="Anyone who has this link will lose access." className="text-xs text-brand hover:underline">Switch off</ConfirmButton></form>
                       )}
                     </div>
