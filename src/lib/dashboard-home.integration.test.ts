@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { loadAttention, loadHero, periodRange } from "./dashboard-home";
-import { DEFAULT_CALENDAR } from "./working-calendar";
+import { calendarFrom } from "./working-calendar";
 import { loadLeadsReport } from "./leads-report";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
@@ -76,7 +76,7 @@ describe("hero numbers and what needs attention", () => {
 // about days nobody works. Only someone with an active HR record, not on leave, on a working day, counts.
 describe("attendance not marked", () => {
   const today = "2026-10-13", now = new Date("2026-10-13T08:00:00Z"); // a Tuesday
-  const cal = { ...DEFAULT_CALENDAR, workDays: [...DEFAULT_CALENDAR.workDays] };
+  const cal = calendarFrom(null, "UTC"); // Monday to Friday, 09:00 to 18:30
   const boss = () => ({ id: ids.boss, permissions: new Set(["attendance.view_all"]) });
   const ids: Record<string, string> = {};
 
