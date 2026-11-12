@@ -51,7 +51,7 @@ export default async function ExchangeRates({ searchParams }: { searchParams: Pr
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <PageHeader title="Exchange rates" />
+      <PageHeader back={{ href: "/settings", label: "Settings" }} title="Exchange rates" />
       <p className="text-sm text-muted">
         Rates convert other currencies into the base currency for consolidated reports. Each entry says how many {base} one unit of the currency is worth from a given date.
         Entries are never edited: to correct a rate, add a new entry for the same date. Invoices, payments and the ledger always stay in their own currency.

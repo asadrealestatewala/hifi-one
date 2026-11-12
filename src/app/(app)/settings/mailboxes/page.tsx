@@ -31,7 +31,7 @@ export default async function MailboxSettings({ searchParams }: { searchParams: 
   const webhook = `${await baseUrl()}/api/mail/inbound`;
   return (
     <div className="space-y-5 max-w-5xl">
-      <PageHeader title="Mailboxes" subtitle={<>Company addresses on {domain}. Each person reads and sends with their own Hifi One sign-in; nobody, administrators included, can open a mailbox they are not a member of.</>} />
+      <PageHeader back={{ href: "/settings", label: "Settings" }} title="Mailboxes" subtitle={<>Company addresses on {domain}. Each person reads and sends with their own Hifi One sign-in; nobody, administrators included, can open a mailbox they are not a member of.</>} />
       {sp.ok && <Notice kind="ok">{sp.ok}</Notice>}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
 

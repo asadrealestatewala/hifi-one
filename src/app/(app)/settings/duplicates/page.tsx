@@ -21,7 +21,7 @@ export default async function Duplicates({ searchParams }: { searchParams: Promi
   const report = sp.scan ? await scanLeadDuplicates(db, user.organizationId) : null;
   return (
     <div className="max-w-4xl space-y-5">
-      <PageHeader title="Duplicate leads" subtitle="One person, one lead. Phone numbers are compared in international form and emails in lower case. A lead that is Not interested or lost still counts. Only a Super Admin can open this page." />
+      <PageHeader back={{ href: "/settings", label: "Settings" }} title="Duplicate leads" subtitle="One person, one lead. Phone numbers are compared in international form and emails in lower case. A lead that is Not interested or lost still counts. Only a Super Admin can open this page." />
       {sp.ok && <Notice kind="ok">{sp.ok}</Notice>}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       <form action={saveDuplicatePolicy} className="card space-y-4">

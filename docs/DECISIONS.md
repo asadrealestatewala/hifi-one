@@ -163,3 +163,11 @@ Newest last. Each entry: what was decided, why, and what it costs.
 - The menu entry appears when a person can open at least one tab and points at the first tab they can open, so somebody with only `monitoring.view_team` still reaches Time tracking. When they can open nothing in the group, the entry is dropped. `src/components/shell/nav.test.ts` holds those cases, including the denied one.
 - Page titles follow the group, so the menu label is still the page title word for word. The tab chip and the header's subtitle say which view you are on.
 - First group folded: People & HR, 14 links to 5 (Staff directory, Staff activity, Requests & notices, Hiring, Payroll). Administration, CRM and sales, Finance, and Services and clients follow in that order.
+
+## 2026-11-12: Administration is three menu entries, and Settings is a page
+
+- Administration was 19 links, more than any other group. Fifteen of them are setup screens a person opens once a quarter.
+- Those fifteen now sit on a new **Settings** screen (`/settings`), laid out in five sections: Company, Money setup, Email, Sales rules, Monitoring & jobs (`SETTINGS_SECTIONS` in `screen-groups.ts`). A screen group with a `hub` sends its menu entry to that landing screen instead of its first tab, and each setup screen carries a "← Settings" link through a new `back` prop on `PageHeader` rather than a tab row, because fifteen tabs would be worse than the menu it replaced.
+- `/settings` holds no data of its own: it lists only the screens the reader may open, each behind its own permission, and sends somebody who may open none to `/forbidden`. That is why it is on the `OWN_DATA_PAGES` list in `src/lib/guards.test.ts` beside `/approvals`, which works the same way.
+- Users and Roles & permissions became the tab group **Users & roles**; Audit logs and the Security checklist became **Audit & security**. The "Manage roles" button on Users is gone, because the Roles tab is beside it now.
+- Two screens that still wrote their own `<h1>` are on `PageHeader` now, which also fixed their casing: "Company Settings" is **Company details** and "Bank Accounts" is **Bank accounts**. "Audit Logs" was the last title in Title Case. The three sentences elsewhere that named those screens now say "Settings › Company details" and "Settings › Bank accounts".

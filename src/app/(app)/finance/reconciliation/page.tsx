@@ -84,7 +84,7 @@ export default async function Reconciliation({ searchParams }: { searchParams: P
                   <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-border py-2 first:border-0">
                     <span><strong>{b.internalName}</strong> <span className="text-muted">({b.currency}){!b.ledgerAccountId && " · not linked to a ledger account"}</span></span>
                     <span className="text-muted">{l ? `Last reconciled to ${l.statementDate}` : "Never reconciled"}</span>
-                    {b.ledgerAccountId ? <Link className="btn-ghost" href={`/finance/reconciliation?bank=${b.id}`}>Open</Link> : <span className="text-xs">Link it in Bank Accounts first</span>}
+                    {b.ledgerAccountId ? <Link className="btn-ghost" href={`/finance/reconciliation?bank=${b.id}`}>Open</Link> : <span className="text-xs">Link it in Settings › Bank accounts first</span>}
                   </li>
                 );
               })}

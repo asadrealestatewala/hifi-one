@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { PageHeader } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import Avatar from "@/components/ui/Avatar";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -15,10 +17,7 @@ export default async function Users() {
   ]);
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
-        {user.permissions.has("roles.manage") && <Link href="/roles" className="btn-ghost">Manage roles</Link>}
-      </div>
+      <PageHeader tabs={<ScreenTabs group="admin-people" current="/users" />} title="Users & roles" subtitle="Everyone who can sign in, the roles they hold and whether two-step is on." />
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">Name</th><th className="pr-4">Email</th><th className="pr-4">Type</th><th className="pr-4">Roles</th><th className="pr-4">2-step</th><th>Status</th></tr></thead>

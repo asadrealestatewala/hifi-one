@@ -82,7 +82,7 @@ export default async function Setup({ searchParams }: { searchParams: Promise<{ 
         </div>
         <button className="btn w-full">Create installation</button>
         <p className="text-xs text-muted">
-          This creates roles, a starter chart of accounts, pipeline stages and leave types. Company address, bank accounts and other details are added afterwards in Company Settings.
+          This creates roles, a starter chart of accounts, pipeline stages and leave types. Company address, bank accounts and other details are added afterwards in Settings › Company details.
           This page closes permanently once the first user exists.
         </p>
       </form>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { NAV, visibleNav } from "./nav";
-import { SCREEN_GROUPS, groupTabs } from "./screen-groups";
+import { SCREEN_GROUPS, SETTINGS_SECTIONS, groupTabs, settingsSections } from "./screen-groups";
 
 const perms = (...keys: string[]) => new Set(keys);
 
@@ -11,7 +11,8 @@ describe("screen groups", () => {
         if (!i.group) continue;
         const group = SCREEN_GROUPS.find((x) => x.id === i.group);
         expect(group, `${i.label} names a group that does not exist`).toBeTruthy();
-        expect(group!.tabs.map((t) => t.href)).toContain(i.href);
+        // a group with a hub (Settings) sends the menu entry to that landing screen instead of a tab
+        expect(group!.hub ? [group!.hub] : group!.tabs.map((t) => t.href)).toContain(i.href);
       }
     }
   });
@@ -52,5 +53,33 @@ describe("visibleNav", () => {
     const all = new Set<string>(keys.filter((p) => p !== null));
     const people = visibleNav(all).find((g) => g.id === "people");
     expect(people!.items.map((i) => i.label)).toEqual(["Staff directory", "Staff activity", "Requests & notices", "Hiring", "Payroll"]);
+  });
+});
+
+describe("Administration", () => {
+  it("is three entries, and Settings opens the Settings page rather than the first setup screen", () => {
+    const all = new Set<string>([...NAV.flatMap((g) => g.items.map((i) => i.permission)), ...SCREEN_GROUPS.flatMap((g) => g.tabs.map((t) => t.permission))].filter((p) => p !== null));
+    const admin = visibleNav(all).find((g) => g.id === "admin");
+    expect(admin!.items).toEqual([
+      { href: "/settings", label: "Settings" },
+      { href: "/users", label: "Users & roles" },
+      { href: "/audit-logs", label: "Audit & security" },
+    ]);
+  });
+
+  it("shows Settings to somebody who may open only one setup screen", () => {
+    const admin = visibleNav(perms("jobs.run")).find((g) => g.id === "admin");
+    expect(admin!.items).toEqual([{ href: "/settings", label: "Settings" }]);
+  });
+
+  it("every settings screen sits in exactly one section of the Settings page", () => {
+    const inSections = SETTINGS_SECTIONS.flatMap((s) => s.hrefs);
+    expect(new Set(inSections).size).toBe(inSections.length);
+    expect([...inSections].sort()).toEqual(SCREEN_GROUPS.find((g) => g.id === "admin-settings")!.tabs.map((t) => t.href).sort());
+  });
+
+  it("the Settings page lists only the sections a person may open", () => {
+    expect(settingsSections(perms("jobs.run"))).toEqual([{ title: "Monitoring & jobs", what: "What is tracked, and the work that runs on its own.", icon: "clock", tabs: [{ href: "/settings/jobs", label: "Scheduled jobs", permission: "jobs.run" }] }]);
+    expect(settingsSections(perms())).toEqual([]);
   });
 });

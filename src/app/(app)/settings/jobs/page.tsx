@@ -26,7 +26,7 @@ export default async function JobsPage() {
   const endpoint = Boolean(process.env.JOBS_TOKEN && process.env.JOBS_TOKEN.length >= 24);
   return (
     <div className="space-y-5">
-      <PageHeader title="Scheduled jobs" subtitle="The daily work that keeps billing, reminders and cleanup moving without anyone pressing a button." />
+      <PageHeader back={{ href: "/settings", label: "Settings" }} title="Scheduled jobs" subtitle="The daily work that keeps billing, reminders and cleanup moving without anyone pressing a button." />
       <section className="card space-y-1 text-sm">
         <h2 className="font-semibold">How they run</h2>
         <p>In-server scheduler: {automatic ? <Badge tone="success">on</Badge> : <Badge tone="warning">off</Badge>} <span className="text-muted">(set JOBS_AUTORUN=1)</span></p>

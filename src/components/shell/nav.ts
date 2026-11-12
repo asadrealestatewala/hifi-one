@@ -1,5 +1,5 @@
 import type { PermissionKey } from "@/lib/permissions";
-import { groupTabs } from "./screen-groups";
+import { groupTabs, screenGroup } from "./screen-groups";
 
 // permission null = every signed-in employee (own profile, own tasks, help, own security)
 // group = a screen group from screen-groups.ts: one entry standing for several tabbed screens. It shows when the
@@ -90,26 +90,11 @@ export const NAV: NavGroup[] = [
     { href: "/me/payslips", label: "My payslips", permission: "self.payslip" },
     { href: "/me/profile", label: "My profile", permission: null },
   ] },
+  // Three entries: the Settings page (fifteen setup screens, grouped there), and two tab groups.
   { id: "admin", title: "Administration", icon: "settings", items: [
-    { href: "/users", label: "Users", permission: "users.view" },
-    { href: "/roles", label: "Roles & permissions", permission: "roles.manage" },
-    { href: "/settings/company", label: "Company settings", permission: "settings.company.view" },
-    { href: "/settings/calendar", label: "Working calendar", permission: "settings.company.view" },
-    { href: "/settings/organization", label: "Offices & departments", permission: "users.view" },
-    { href: "/settings/bank-accounts", label: "Bank accounts", permission: "bank.view" },
-    { href: "/settings/documents", label: "Document templates", permission: "settings.company.view" },
-    { href: "/settings/exchange-rates", label: "Exchange rates", permission: "reports.view" },
-    { href: "/settings/tax-rates", label: "Tax rates", permission: "settings.company.view" },
-    { href: "/settings/duplicates", label: "Duplicate leads", permission: "crm.duplicates" },
-    { href: "/settings/quest", label: "Sales quest", permission: "crm.quest_settings" },
-    { href: "/settings/integrations", label: "Integrations", permission: "integrations.manage" },
-    { href: "/settings/email", label: "Email", permission: "settings.company.view" },
-    { href: "/settings/mailboxes", label: "Mailboxes", permission: "mail.manage" },
-    { href: "/settings/email-templates", label: "Email templates", permission: "email_templates.manage" },
-    { href: "/settings/monitoring", label: "Monitoring policy", permission: "monitoring.configure" },
-    { href: "/settings/jobs", label: "Scheduled jobs", permission: "jobs.run" },
-    { href: "/audit-logs", label: "Audit logs", permission: "audit.view" },
-    { href: "/settings/security", label: "Security checklist", permission: "audit.view" },
+    { href: "/settings", label: "Settings", permission: null, group: "admin-settings" },
+    { href: "/users", label: "Users & roles", permission: null, group: "admin-people" },
+    { href: "/audit-logs", label: "Audit & security", permission: null, group: "admin-audit" },
   ] },
 ];
 
@@ -132,7 +117,8 @@ export function visibleNav(permissions: ReadonlySet<string>) {
     items: g.items.flatMap((i) => {
       if (i.group) {
         const tabs = groupTabs(i.group, permissions);
-        return tabs.length === 0 ? [] : [{ href: tabs[0].href, label: i.label }];
+        if (tabs.length === 0) return [];
+        return [{ href: screenGroup(i.group).hub ?? tabs[0].href, label: i.label }];
       }
       return i.permission === null || permissions.has(i.permission) ? [{ href: i.href, label: i.label }] : [];
     }),

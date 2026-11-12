@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { PageHeader } from "@/components/ui";
 import { z } from "zod";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -105,13 +106,7 @@ export default async function BankAccounts() {
   });
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Bank Accounts</h1>
-        <p className="text-sm text-muted">
-          Account numbers are masked unless your role allows full access. Entering details here does not verify the
-          account. Issued invoices keep the bank details they were issued with.
-        </p>
-      </div>
+      <PageHeader back={{ href: "/settings", label: "Settings" }} title="Bank accounts" subtitle="Account numbers are masked unless your role allows full access. Entering details here does not verify the account. Issued invoices keep the bank details they were issued with." />
       <div className="card overflow-x-auto">
         {accounts.length === 0 ? (
           <p className="text-sm text-muted">No bank accounts yet.</p>

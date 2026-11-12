@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { listHref } from "@/lib/list-params";
 import { auditParams, auditWhere } from "@/lib/lists";
 import { Empty, ExportLink, PageHeader, Pager, SearchBox } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export default async function AuditLogs({ searchParams }: { searchParams: Promis
   const href = (n: number) => { const p = new URLSearchParams(); if (q) p.set("q", q); if (n > 1) p.set("page", String(n)); const t = p.toString(); return `/audit-logs${t ? `?${t}` : ""}`; };
   return (
     <div className="space-y-5">
-      <PageHeader title="Audit Logs" subtitle="Who changed what, newest first." actions={<ExportLink href={listHref("/audit-logs/export", { q })} />} />
+      <PageHeader tabs={<ScreenTabs group="admin-audit" current="/audit-logs" />} title="Audit & security" subtitle="Who changed what, newest first." actions={<ExportLink href={listHref("/audit-logs/export", { q })} />} />
       <SearchBox q={q} placeholder="Search action, record or person" />
       {logs.length === 0 ? <Empty title={q ? "No events match" : "No events yet"} /> : (
         <div className="card overflow-x-auto !p-0">

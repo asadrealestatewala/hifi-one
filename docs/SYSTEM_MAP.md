@@ -68,7 +68,7 @@ Guards: `src/lib/auth.ts` (`getSessionUser` cached per request, `requireUser`, `
 | Procurement | `vendors`, `procurement` | `vendors.ts` |
 | My Space | `me/{profile,help,attendance,leave,visits,report,scorecard,requests,payslips,tasks,time,commissions,documents,calendar}`, `account/*`, `expenses`, `assistant` | `hr.ts`, `assistant.ts`, `mfa.ts`, `totp.ts` |
 | Campaigns | `campaigns`, `campaigns/[id]` | `campaigns.ts` |
-| Administration | `users`, `roles`, `settings/*`, `audit-logs`, `menu` | `permissions.ts`, `mfa-policy.ts`, `mailer.ts`, `menu-layout.ts`, `working-calendar.ts` |
+| Administration (3 menu entries: `settings` lists the fifteen setup screens, `screen-groups.ts`) | `settings` (the hub), `settings/*`, `users` + `roles`, `audit-logs` + `settings/security`, `menu` | `permissions.ts`, `mfa-policy.ts`, `mailer.ts`, `menu-layout.ts`, `working-calendar.ts` |
 | Portals | `src/app/portal/*` (client), `src/app/vendor/*` (vendor) | `portal.ts`, `vendors.ts`, `statements.ts` |
 
 Downloads: `/reports/download?report=…&format=csv|pdf` (`report-tables.ts`). Workfolio dock: `src/components/shell/WorkfolioDock.tsx` with `api/monitor/state` and `api/monitor/snapshot`. Client portal: `portal/{projects,notifications,…}`; vendor portal: `vendor/{profile,notifications,…}`.

@@ -13,7 +13,7 @@ export default async function QuestSettingsPage({ searchParams }: { searchParams
   const [s, roles] = await Promise.all([getQuestSettings(db, user.organizationId), db.role.findMany({ where: { organizationId: user.organizationId }, orderBy: { name: "asc" }, select: { key: true, name: true } })]);
   return (
     <div className="max-w-4xl space-y-5">
-      <PageHeader title="Sales quest" subtitle="Daily goals, XP and levels shown on the sales card. Only contacts with a phone number count, short notes earn nothing, and the daily cap stops XP farming. Days run on Pakistan time and the streak skips weekends (Saturday and Sunday) and the holidays below. Only a Super Admin can open this page." />
+      <PageHeader back={{ href: "/settings", label: "Settings" }} title="Sales quest" subtitle="Daily goals, XP and levels shown on the sales card. Only contacts with a phone number count, short notes earn nothing, and the daily cap stops XP farming. Days run on Pakistan time and the streak skips weekends (Saturday and Sunday) and the holidays below. Only a Super Admin can open this page." />
       {sp.ok && <Notice kind="ok">{sp.ok}</Notice>}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       <form action={saveQuestSettings} className="space-y-5">

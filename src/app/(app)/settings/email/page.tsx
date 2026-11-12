@@ -17,7 +17,7 @@ export default async function EmailSettings({ searchParams }: { searchParams: Pr
   const log = await db.emailMessage.findMany({ where: { organizationId: user.organizationId }, orderBy: { createdAt: "desc" }, take: 40 });
   return (
     <div className="space-y-5 max-w-3xl">
-      <PageHeader title="Email" subtitle="Outgoing email uses any SMTP mail account (Google Workspace, Microsoft 365, SendGrid, Mailgun, Amazon SES and others). The login is set by the person who runs the server, in environment settings, not on this screen, so it can never be read from here." />
+      <PageHeader back={{ href: "/settings", label: "Settings" }} title="Email" subtitle="Outgoing email uses any SMTP mail account (Google Workspace, Microsoft 365, SendGrid, Mailgun, Amazon SES and others). The login is set by the person who runs the server, in environment settings, not on this screen, so it can never be read from here." />
       {sp.ok && <Notice kind="ok">{sp.ok}</Notice>}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       <section className="card space-y-2 text-sm">

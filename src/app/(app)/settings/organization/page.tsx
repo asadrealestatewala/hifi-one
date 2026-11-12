@@ -42,7 +42,7 @@ export default async function Organization({ searchParams }: { searchParams: Pro
   const hid = (op: string, id?: string) => (<><input type="hidden" name="op" value={op} />{id && <input type="hidden" name="id" value={id} />}</>);
   return (
     <div className="space-y-6 max-w-4xl">
-      <PageHeader title="Offices and departments" />
+      <PageHeader back={{ href: "/settings", label: "Settings" }} title="Offices and departments" />
       {sp.msg && <Notice kind="ok">{sp.msg}</Notice>}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
 

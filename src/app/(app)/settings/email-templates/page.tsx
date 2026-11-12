@@ -17,7 +17,7 @@ export default async function EmailTemplates() {
   const groups = ["Staff", "Clients"] as const;
   return (
     <div className="space-y-5 max-w-5xl">
-      <PageHeader title="Email templates" subtitle="The branded emails Hifi One sends. Change the wording, preview it on desktop and phone, and send yourself a test. Layout, logo and company details stay consistent." />
+      <PageHeader back={{ href: "/settings", label: "Settings" }} title="Email templates" subtitle="The branded emails Hifi One sends. Change the wording, preview it on desktop and phone, and send yourself a test. Layout, logo and company details stay consistent." />
       {!mailConfig().transportReady && <p className="card text-sm text-amber-700">Email is not connected yet, so these emails are logged as not sent. Connect it under <Link className="underline" href="/settings/email">Settings › Email</Link>.</p>}
       {groups.map((g) => (
         <section key={g} className="card !p-0 overflow-hidden">

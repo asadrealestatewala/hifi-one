@@ -194,7 +194,9 @@ Done: **People & HR, 14 entries to 5** — Staff directory (directory, documents
 
 Verified: `npx tsc --noEmit`, `npx eslint src` (3 pre-existing warnings), the suite. Not checked in a browser.
 
-Still to fold: Administration 19 to 3, CRM and sales 18 to 9, Finance 11 to 6, Services and clients 9 to 6. Not started: making Team time tracking and the attendance screens agree on worked minutes, and labelling clocked, active and project hours apart.
+Done: **Administration, 19 entries to 3** — Settings (a new `/settings` page holding the fifteen setup screens in five sections, each screen linking back to it), Users & roles, Audit & security. `PageHeader` gained a `back` prop; `/settings/company` and `/settings/bank-accounts` moved onto `PageHeader` ("Company details", "Bank accounts").
+
+Still to fold: CRM and sales 18 to 9, Finance 11 to 6, Services and clients 9 to 6. The menu is 64 links now, down from 89. Not started: making Team time tracking and the attendance screens agree on worked minutes, and labelling clocked, active and project hours apart.
 
 ## Working calendar (2026-11-12)
 
