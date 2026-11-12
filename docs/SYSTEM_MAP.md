@@ -64,11 +64,11 @@ Guards: `src/lib/auth.ts` (`getSessionUser` cached per request, `requireUser`, `
 | Services & Clients | `services`, `clients`, `contracts`, `finance/subscriptions`, `finance/invoices`, `finance/payments` | `catalog.ts`, `sales.ts`, `accounting.ts`, `bookkeeping.ts`, `statements.ts` |
 | Project Operations | `projects`, `content`, `meetings` | `projects.ts`, `tasks.ts`, `task-rules.ts`, `project-finance.ts`, `content.ts`, `content-rules.ts`, `meetings.ts`, `meeting-hub.ts` |
 | Finance & Accounting | `finance/{ledger,accounts,journals,reconciliation,budgets,commissions,reports,close,year-end}`, `assets`, `investments` | `accounting.ts` (`postJournal`), `bookkeeping.ts`, `bank-rec.ts`, `expenses.ts`, `commissions.ts`, `fx.ts`, `tax.ts`, `period-lock.ts`, `year-end.ts`, `assets.ts` |
-| People & HR | `hr/employees` (staff directory, `export`), `hr/attendance`, `hr/visits`, `hr/documents`, `hr/reports`, `hr/reports/eod`, `hr/scorecards`, `hr/requests`, `payroll`, `hr/monitoring` | `staff.ts`, `hr.ts`, `hr-rules.ts`, `payroll.ts`, `payroll-rules.ts`, `monitoring.ts`, `org-structure.ts` |
+| People & HR (5 menu entries, 13 screens in four tab groups: `screen-groups.ts`) | `hr/employees` (staff directory, `export`), `hr/documents`; `hr/attendance`, `hr/reports`, `hr/reports/eod`, `hr/scorecards`, `hr/visits`, `hr/monitoring`; `hr/leave`, `hr/requests`, `hr/circulars`; `hr/applications`, `hr/onboarding`; `payroll` | `staff.ts`, `hr.ts`, `hr-rules.ts`, `payroll.ts`, `payroll-rules.ts`, `monitoring.ts`, `org-structure.ts` |
 | Procurement | `vendors`, `procurement` | `vendors.ts` |
 | My Space | `me/{profile,help,attendance,leave,visits,report,scorecard,requests,payslips,tasks,time,commissions,documents,calendar}`, `account/*`, `expenses`, `assistant` | `hr.ts`, `assistant.ts`, `mfa.ts`, `totp.ts` |
 | Campaigns | `campaigns`, `campaigns/[id]` | `campaigns.ts` |
-| Administration | `users`, `roles`, `settings/*`, `audit-logs`, `menu` | `permissions.ts`, `mfa-policy.ts`, `mailer.ts`, `menu-layout.ts`, `working-calendar.ts` |
+| Administration (3 menu entries: `settings` lists the fifteen setup screens, `screen-groups.ts`) | `settings` (the hub), `settings/*`, `users` + `roles`, `audit-logs` + `settings/security`, `menu` | `permissions.ts`, `mfa-policy.ts`, `mailer.ts`, `menu-layout.ts`, `working-calendar.ts` |
 | Portals | `src/app/portal/*` (client), `src/app/vendor/*` (vendor) | `portal.ts`, `vendors.ts`, `statements.ts` |
 
 Downloads: `/reports/download?report=…&format=csv|pdf` (`report-tables.ts`). Workfolio dock: `src/components/shell/WorkfolioDock.tsx` with `api/monitor/state` and `api/monitor/snapshot`. Client portal: `portal/{projects,notifications,…}`; vendor portal: `vendor/{profile,notifications,…}`.

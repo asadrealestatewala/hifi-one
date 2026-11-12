@@ -13,7 +13,7 @@ export default async function Integrations({ searchParams }: { searchParams: Pro
   const statuses = await keyStatuses(db, user.organizationId);
   return (
     <div className="max-w-3xl space-y-5">
-      <PageHeader title="Integrations" subtitle="API keys for outside services. Keys are stored encrypted and are never shown again after saving: you can only replace or remove them. Only a Super Admin can open this page." />
+      <PageHeader back={{ href: "/settings", label: "Settings" }} title="Integrations" subtitle="API keys for outside services. Keys are stored encrypted and are never shown again after saving: you can only replace or remove them. Only a Super Admin can open this page." />
       {sp.ok && <Notice kind="ok">{sp.ok}</Notice>}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {statuses.map((s) => {

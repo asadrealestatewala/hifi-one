@@ -5,6 +5,7 @@ import { dayStatus } from "@/lib/daily-reports";
 import { dateInZone, fmtMinutes, isDateString } from "@/lib/hr-rules";
 import { getWorkingContext } from "@/lib/working-calendar";
 import { Avatar, Badge, Chips, Empty, Notice, PageHeader, Stat } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import SubmitButton from "@/components/ui/SubmitButton";
 import { reviewDailyReportAction } from "./actions";
 
@@ -43,7 +44,7 @@ export default async function DailyReports({ searchParams }: { searchParams: Pro
   const open = sp.open;
   return (
     <div className="space-y-5">
-      <PageHeader title="Staff daily reports" subtitle={all ? "Every employee's end-of-day report, and who has not sent one." : "End-of-day reports from the people who report to you."} actions={
+      <PageHeader tabs={<ScreenTabs group="hr-activity" current="/hr/reports" />} title="Staff activity" subtitle={all ? "Every employee's end-of-day report, and who has not sent one." : "End-of-day reports from the people who report to you."} actions={
         <form method="get" action="/hr/reports" className="flex items-center gap-2 text-sm">
           {sp.dep && <input type="hidden" name="dep" value={sp.dep} />}
           <Link href={href({ date: addDays(date, -1) })} className="btn-ghost" aria-label="Previous day">‹</Link>

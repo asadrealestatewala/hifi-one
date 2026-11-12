@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { PageHeader } from "@/components/ui";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
@@ -71,13 +72,7 @@ export default async function CompanySettings() {
   });
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Company Settings</h1>
-        <p className="text-sm text-muted">
-          Version {p.version}, last updated {p.updatedAt.toLocaleString()}. New documents use these details; documents
-          already issued keep their own snapshot.
-        </p>
-      </div>
+      <PageHeader back={{ href: "/settings", label: "Settings" }} title="Company details" subtitle={`Version ${p.version}, last updated ${p.updatedAt.toLocaleString()}. New documents use these details; documents already issued keep their own snapshot.`} />
       <form action={save} className="card grid gap-4 sm:grid-cols-2">
         {FIELDS.map((f) => (
           <div key={f.name} className={f.wide ? "sm:col-span-2" : ""}>

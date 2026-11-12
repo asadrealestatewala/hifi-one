@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Badge, ConfirmButton, Empty, Notice, PageHeader, SubmitButton } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import { decideOnboardingAction, resendCodeAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +27,7 @@ export default async function OnboardingApprovals({ searchParams }: { searchPara
   const people = new Map((await db.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, email: true, emailVerifiedAt: true, roles: { select: { role: { select: { name: true } } } }, employeeProfile: { select: { id: true, designation: true } } } })).map((u) => [u.id, u]));
   return (
     <div className="space-y-5 max-w-5xl">
-      <PageHeader title="Onboarding approvals" subtitle="New staff accounts cannot sign in until the person enters the code we emailed them and someone with approval rights accepts the account. Accounts made before this existed are not affected." />
+      <PageHeader tabs={<ScreenTabs group="hr-hiring" current="/hr/onboarding" />} title="Hiring" subtitle="New staff accounts cannot sign in until the person enters the code we emailed them and someone with approval rights accepts the account. Accounts made before this existed are not affected." />
       {sp.ok && <Notice kind="ok">{sp.ok}</Notice>}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       <section className="card !p-0 overflow-x-auto">

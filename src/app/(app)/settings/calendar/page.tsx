@@ -23,7 +23,7 @@ export default async function WorkingCalendarSettings({ searchParams }: { search
   const past = holidays.filter((h) => h.date < today).reverse();
   return (
     <div className="max-w-3xl space-y-5">
-      <PageHeader
+      <PageHeader back={{ href: "/settings", label: "Settings" }}
         title="Working calendar"
         subtitle={`When the company works. Attendance, leave, daily reports, scorecards, the sales streak, payroll and the automatic reminders all read these settings, so a change here moves all of them. Times are ${cal.timezone}, set under Company settings.`}
       />

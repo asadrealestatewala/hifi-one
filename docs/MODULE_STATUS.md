@@ -190,6 +190,18 @@ Done: per-project library with folders, tags, versions, image/video/PDF previews
 - **Notifications** (`/notifications`) no longer claims "in-app only for now" (emails and phone alerts do go out); it uses `PageHeader`, groups into Today / Yesterday / Earlier, and has a real empty state.
 - **Not changed:** per-person notification preferences, and the menu grouping itself (both are later steps).
 
+## Folding the menu (2026-11-12)
+
+The menu was 89 links in nine groups; the plan agreed with Asad takes it to 47 without deleting a screen, by giving screens that answer one question a single menu entry and a tab row (`docs/DECISIONS.md`, 2026-11-12).
+
+Done: **People & HR, 14 entries to 5** — Staff directory (directory, documents), Staff activity (attendance, daily reports, end of day, scorecards, site visits, time tracking), Requests & notices (leave, other requests, circulars), Hiring (applications, onboarding), Payroll. New: `src/components/shell/screen-groups.ts`, `ScreenTabs`, a `tabs` prop on `PageHeader`, and `src/components/shell/nav.test.ts` (the entry points at the first tab a person may open; it disappears when they may open none).
+
+Verified: `npx tsc --noEmit`, `npx eslint src` (3 pre-existing warnings), the suite. Not checked in a browser.
+
+Done: **Administration, 19 entries to 3** — Settings (a new `/settings` page holding the fifteen setup screens in five sections, each screen linking back to it), Users & roles, Audit & security. `PageHeader` gained a `back` prop; `/settings/company` and `/settings/bank-accounts` moved onto `PageHeader` ("Company details", "Bank accounts").
+
+Still to fold: CRM and sales 18 to 9, Finance 11 to 6, Services and clients 9 to 6. The menu is 64 links now, down from 89. Not started: making Team time tracking and the attendance screens agree on worked minutes, and labelling clocked, active and project hours apart.
+
 ## Working calendar (2026-11-12)
 
 Done: `/settings/calendar` (office hours, lunch, lateness grace, working weekdays, public holidays with Pakistan's 2026 and 2027 lists), `src/lib/working-calendar.ts`, and the wiring of leave, daily reports, the end-of-day report, scorecards, the sales quest streak, payroll unpaid days and the scheduled jobs to it. A holiday now shows as a notice on My Daily Report, Staff daily reports and the End-of-day report, and My Leave lists the holidays coming up instead of saying none are configured.

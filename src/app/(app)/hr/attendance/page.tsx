@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Notice, PageHeader, Stat } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import { HrError, correctClockOut } from "@/lib/hr";
 import { dateInZone, fmtMinutes, workedMinutes } from "@/lib/hr-rules";
 import { describeVisit, visitsOn } from "@/lib/site-visits";
@@ -43,7 +44,7 @@ export default async function HrAttendance({ searchParams }: { searchParams: Pro
   ]);
   return (
     <div className="space-y-6">
-      <PageHeader title="Staff attendance" subtitle="Everyone's clock-ins, breaks and open sessions." />
+      <PageHeader tabs={<ScreenTabs group="hr-activity" current="/hr/attendance" />} title="Staff activity" subtitle="Everyone's clock-ins, breaks and open sessions." />
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Clocked in now" value={openRecs.length} hint="sessions still open" />
         <Stat label="Records shown" value={recent.length} hint="most recent 60" />

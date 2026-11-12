@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { leaveBalances } from "@/lib/hr";
 import { dateInZone } from "@/lib/hr-rules";
 import { Avatar, Chips, Empty, Notice, PageHeader, StatusBadge } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import SubmitButton from "@/components/ui/SubmitButton";
 import { approveLeaveRequest, rejectLeaveRequest } from "./actions";
 
@@ -45,7 +46,7 @@ export default async function StaffLeave({ searchParams }: { searchParams: Promi
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Staff leave" subtitle={all ? "Every leave request in the company, with the person's balance beside it." : "Leave asked for by the people who report to you."} />
+      <PageHeader tabs={<ScreenTabs group="hr-requests" current="/hr/leave" />} title="Requests & notices" subtitle={all ? "Every leave request in the company, with the person's balance beside it." : "Leave asked for by the people who report to you."} />
       {sp.ok && <Notice kind="ok">{sp.ok}</Notice>}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
 

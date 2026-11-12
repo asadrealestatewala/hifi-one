@@ -6,14 +6,20 @@ import SubmitButton from "./ui/SubmitButton";
 import { rangePresets } from "@/lib/date-range";
 import { listHref } from "@/lib/list-params";
 
-export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
+// `tabs` is the row of screens this one belongs to (a ScreenTabs element), shown under the title so several
+// screens on one subject read as one screen with tabs instead of several menu entries.
+export function PageHeader({ title, subtitle, actions, tabs, back }: { title: string; subtitle?: ReactNode; actions?: ReactNode; tabs?: ReactNode; back?: { href: string; label: string } }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-3">
-      <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-        {subtitle && <p className="mt-1 max-w-2xl text-sm text-muted">{subtitle}</p>}
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          {back && <Link href={back.href} className="mb-1 inline-flex items-center gap-1 text-sm text-muted transition hover:text-foreground">← {back.label}</Link>}
+          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+          {subtitle && <p className="mt-1 max-w-2xl text-sm text-muted">{subtitle}</p>}
+        </div>
+        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {tabs}
     </div>
   );
 }

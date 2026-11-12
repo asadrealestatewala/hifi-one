@@ -2,6 +2,7 @@ import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { REQUEST_TYPES, REQUEST_TYPE_LABEL, attachmentsFor, isOpen, requestCounts, requestsForHr, type RequestType } from "@/lib/employee-requests";
 import { Avatar, Chips, ConfirmButton, Empty, Notice, PageHeader, Stat, StatusBadge, SubmitButton } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import RequestAttachments from "@/components/RequestAttachments";
 import { reviewRequestAction } from "./actions";
 
@@ -37,7 +38,7 @@ export default async function HrRequests({ searchParams }: { searchParams: Promi
   const oldest = rows.find((r) => isOpen(r.status));
   return (
     <div className="space-y-5">
-      <PageHeader title="Employee requests" subtitle="Applications from staff that have no form of their own: certificates, advances, resignations, complaints, equipment. Take one up so the person knows it is being looked at, then approve or decline it with a note." />
+      <PageHeader tabs={<ScreenTabs group="hr-requests" current="/hr/requests" />} title="Requests & notices" subtitle="Applications from staff that have no form of their own: certificates, advances, resignations, complaints, equipment. Take one up so the person knows it is being looked at, then approve or decline it with a note." />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {sp.msg && <Notice kind="ok">{sp.msg}</Notice>}
       <div className="grid gap-3 sm:grid-cols-4">

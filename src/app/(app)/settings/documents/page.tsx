@@ -45,9 +45,9 @@ export default async function DocumentSettings({ searchParams }: { searchParams:
   const configs = await Promise.all(DOC_TYPES.map(async (t) => [t, await getDocConfig(db, user.organizationId, t)] as const));
   return (
     <div className="space-y-6 max-w-3xl">
-      <PageHeader title="Document templates" />
+      <PageHeader back={{ href: "/settings", label: "Settings" }} title="Document templates" />
       <p className="text-sm text-muted">
-        Choose which company details appear on each kind of PDF and add footer text. Company name, addresses, phone numbers and bank details come from Company Settings and Bank Accounts.
+        Choose which company details appear on each kind of PDF and add footer text. Company name, addresses, phone numbers and bank details come from Settings › Company details and Settings › Bank accounts.
         <strong> Invoices keep the details and template they were issued with</strong>, so changing a template or the company profile never alters an invoice already sent. Receipts, statements, payslips and vouchers use the current template and company profile.
       </p>
       {saved && <Notice kind="ok">Saved {TITLES[saved as DocType] ?? saved}.</Notice>}

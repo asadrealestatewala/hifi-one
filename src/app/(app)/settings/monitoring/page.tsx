@@ -38,7 +38,7 @@ export default async function MonitoringSettings({ searchParams }: { searchParam
   const days = new Set(policy.workDays.split(","));
   return (
     <div className="space-y-6 max-w-4xl">
-      <PageHeader title="Monitoring policy and devices" subtitle="Time and activity tracking is off until you write the policy people will read and turn it on. Changing what is collected asks everyone to accept the new version first."
+      <PageHeader back={{ href: "/settings", label: "Settings" }} title="Monitoring policy and devices" subtitle="Time and activity tracking is off until you write the policy people will read and turn it on. Changing what is collected asks everyone to accept the new version first."
         actions={<Badge tone={policy.enabled ? "success" : "neutral"}>{policy.enabled ? `On · version ${policy.version}` : "Off"}</Badge>} />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {sp.msg && <Notice kind="ok">{sp.msg}</Notice>}

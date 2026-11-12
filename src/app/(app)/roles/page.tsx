@@ -4,6 +4,7 @@ import { ALL_PERMISSIONS, PERMISSIONS } from "@/lib/permissions";
 import { setRoleMfa } from "./actions";
 import { NewRole, RoleCard, type Group } from "./RoleEditor";
 import { PageHeader } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,7 @@ export default async function Roles() {
   const external = ["CLIENT", "VENDOR", "BUSINESS_PARTNER", "INVESTOR"];
   return (
     <div className="space-y-6 max-w-4xl">
-      <PageHeader title="Roles and permissions" />
+      <PageHeader tabs={<ScreenTabs group="admin-people" current="/roles" />} title="Users & roles" subtitle="What each role may see and do. Everyone holding the role is affected at their next sign-in." />
       <p className="text-sm text-muted">
         Changes apply to everyone holding the role from their next sign-in; they are signed out now so nobody keeps old access. You can only grant or remove permissions you hold yourself.
         Every change is recorded in the audit log. The complete matrix is also in docs/ROLES.md.

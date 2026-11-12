@@ -5,6 +5,7 @@ import { EMPLOYEE_DOC_CATEGORIES, employeeDocOverview } from "@/lib/employee-doc
 import { signDownload } from "@/lib/files";
 import { dateInZone } from "@/lib/hr-rules";
 import { Avatar, Badge, Empty, Notice, PageHeader, Stat } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import ConfirmButton from "@/components/ui/ConfirmButton";
 import SubmitButton from "@/components/ui/SubmitButton";
 import { cancelDocumentRequestAction, requestDocumentAction, reviewDocumentAction } from "./actions";
@@ -34,7 +35,7 @@ export default async function EmployeeDocuments({ searchParams }: { searchParams
   };
   return (
     <div className="space-y-5">
-      <PageHeader title="Employee documents" subtitle="Documents employees uploaded that wait for your verification, and documents you asked for that have not arrived." />
+      <PageHeader tabs={<ScreenTabs group="hr-records" current="/hr/documents" />} title="Staff directory" subtitle="Documents employees uploaded that wait for your verification, and documents you asked for that have not arrived." />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {sp.msg && <Notice kind="ok">{sp.msg}</Notice>}
       <div className="grid gap-3 sm:grid-cols-3">
