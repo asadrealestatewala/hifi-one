@@ -4,6 +4,7 @@ import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PayrollError, createRun } from "@/lib/payroll";
 import { formatMoney } from "@/lib/money";
+import { getWorkingContext } from "@/lib/working-calendar";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,8 @@ async function create(formData: FormData) {
   const period = String(formData.get("period") ?? "");
   const currency = String(formData.get("currency") ?? "");
   try {
-    const run = await createRun(db, { organizationId: user.organizationId, period, currency, createdById: user.id });
+    const { holidayDates } = await getWorkingContext(db, user.organizationId);
+    const run = await createRun(db, { organizationId: user.organizationId, period, currency, createdById: user.id, holidays: holidayDates });
     await audit(user, { action: "payroll.create_run", entity: "PayrollRun", entityId: run.id, after: { period, currency } });
     redirect(`/payroll/${run.id}`);
   } catch (e) {

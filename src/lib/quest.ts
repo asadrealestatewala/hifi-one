@@ -19,7 +19,7 @@ export type QuestConfig = {
 export const DEFAULT_QUEST: QuestConfig = {
   tz: "Asia/Karachi", goalContacts: 5, goalActivities: 10, goalVisits: 0,
   xpContact: 10, xpActivity: 5, xpVerifiedCall: 15, xpConversion: 100,
-  dailyXpCap: 150, levelBase: 600, minNoteLength: 15, weekendDays: [0, 6], // same as HR leave (hr-rules WEEKEND_DAYS)
+  dailyXpCap: 150, levelBase: 600, minNoteLength: 15, weekendDays: [0, 6], // overridden by the working calendar at read time (see questFor)
 };
 export const LEVELS = ["Rookie", "Prospector", "Closer", "Rainmaker", "Legend"];
 

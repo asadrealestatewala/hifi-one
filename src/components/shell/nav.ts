@@ -106,6 +106,7 @@ export const NAV: NavGroup[] = [
     { href: "/users", label: "Users", permission: "users.view" },
     { href: "/roles", label: "Roles & permissions", permission: "roles.manage" },
     { href: "/settings/company", label: "Company settings", permission: "settings.company.view" },
+    { href: "/settings/calendar", label: "Working calendar", permission: "settings.company.view" },
     { href: "/settings/organization", label: "Offices & departments", permission: "users.view" },
     { href: "/settings/bank-accounts", label: "Bank accounts", permission: "bank.view" },
     { href: "/settings/documents", label: "Document templates", permission: "settings.company.view" },

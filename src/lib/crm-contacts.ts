@@ -10,6 +10,7 @@ import { dec } from "./ledger-math";
 import { claimLeadKeys, guardNewLead, resyncLeadKeys, DuplicateLeadError, presentDuplicate } from "./lead-duplicates";
 import { CURRENCIES } from "./money";
 import { dayKey, dayStartInstant, levelFor, parseSettings, resolveConfig, streakFor, tallyByDay, totalXp, type QuestSettingsData } from "./quest";
+import { getWorkingContext } from "./working-calendar";
 
 export class ContactError extends Error {
   constructor(message: string, public duplicates?: { id: string; name: string; email: string | null; phone: string | null }[]) { super(message); }
@@ -408,11 +409,15 @@ export async function getQuestSettings(db: Db, organizationId: string): Promise<
 
 export async function questFor(db: Db, p: { organizationId: string; userId: string; now?: Date }) {
   const now = p.now ?? new Date();
-  const [settings, roles] = await Promise.all([
+  const [settings, roles, work] = await Promise.all([
     getQuestSettings(db, p.organizationId),
     db.userRole.findMany({ where: { userId: p.userId }, select: { role: { select: { key: true } } } }),
+    getWorkingContext(db, p.organizationId),
   ]);
-  const cfg = resolveConfig(settings, roles.map((r) => r.role.key));
+  // The streak skips the company's weekly offs and public holidays from the working calendar, plus any extra date
+  // typed into the quest settings, so one calendar governs the whole system.
+  const cfg = { ...resolveConfig(settings, roles.map((r) => r.role.key)), weekendDays: work.calendar.weekendDays };
+  const offDates = [...new Set([...settings.holidays, ...work.holidayDates])];
   const today = dayKey(now, cfg.tz);
   const dayStart = dayStartInstant(today, cfg.tz);
   const [contacts, acts, visits, conversions, verifiedCalls, overdue, openLeads] = await Promise.all([
@@ -426,7 +431,7 @@ export async function questFor(db: Db, p: { organizationId: string; userId: stri
   ]);
   const days = tallyByDay(cfg, contacts.map((c) => c.createdAt), acts.map((a) => ({ at: a.createdAt, kind: a.kind, body: a.body })), visits.map((v) => v.visitedAt));
   const t = days.get(today) ?? { contacts: 0, activities: 0, visits: 0 };
-  const streak = streakFor(cfg, settings.holidays, days, today);
+  const streak = streakFor(cfg, offDates, days, today);
   const xp = totalXp(cfg, days, verifiedCalls, conversions);
   const lv = levelFor(cfg, xp);
   const madeAll = contacts.length;

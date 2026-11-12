@@ -185,3 +185,11 @@ Done: per-project library with folders, tags, versions, image/video/PDF previews
 - **Help & guide** (`/me/help`) is rebuilt: 39 jobs in six groups (your day, selling, clients and money, projects and content, people and HR, running the system) covering the November features that were missing entirely (daily report, scorecard, site visits, requests to HR, documents, circulars, team chat, field visits, demo queue, project files, time tracking).
 - **Notifications** (`/notifications`) no longer claims "in-app only for now" (emails and phone alerts do go out); it uses `PageHeader`, groups into Today / Yesterday / Earlier, and has a real empty state.
 - **Not changed:** per-person notification preferences, and the menu grouping itself (both are later steps).
+
+## Working calendar (2026-11-12)
+
+Done: `/settings/calendar` (office hours, lunch, lateness grace, working weekdays, public holidays with Pakistan's 2026 and 2027 lists), `src/lib/working-calendar.ts`, and the wiring of leave, daily reports, the end-of-day report, scorecards, the sales quest streak, payroll unpaid days and the scheduled jobs to it. A holiday now shows as a notice on My Daily Report, Staff daily reports and the End-of-day report, and My Leave lists the holidays coming up instead of saying none are configured.
+
+Verified: `npx tsc --noEmit`, `npx eslint src` (3 pre-existing warnings), the whole suite 136 files / 1802 tests including a new `working-calendar.integration.test.ts` (a holiday is not counted against leave, expects no report, writes no scorecard; shorter office hours change the attendance mark; Saturday becomes a working day when ticked).
+
+Not done: `MonitoringPolicy.workStart/workEnd/workDays` still have their own hours for the activity charts; half-day holidays, per-office calendars and per-department hours are not supported; Islamic holiday dates are seeded as expected dates and need correcting when notified.

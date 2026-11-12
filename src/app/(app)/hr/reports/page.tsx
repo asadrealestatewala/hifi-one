@@ -3,6 +3,7 @@ import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { dayStatus } from "@/lib/daily-reports";
 import { dateInZone, fmtMinutes, isDateString } from "@/lib/hr-rules";
+import { getWorkingContext } from "@/lib/working-calendar";
 import { Avatar, Badge, Chips, Empty, Notice, PageHeader, Stat } from "@/components/ui";
 import SubmitButton from "@/components/ui/SubmitButton";
 import { reviewDailyReportAction } from "./actions";
@@ -24,8 +25,10 @@ export default async function DailyReports({ searchParams }: { searchParams: Pro
   const today = dateInZone(new Date(), tz);
   const date = sp.date && isDateString(sp.date) && sp.date <= today ? sp.date : today;
   const show = sp.show === "missing" ? "missing" : sp.show === "sent" ? "sent" : sp.show === "review" ? "review" : "all";
+  const work = await getWorkingContext(db, org, date, date);
+  const holiday = work.holidays.find((h) => h.date === date) ?? null;
   const [rows, departments] = await Promise.all([
-    dayStatus(db, { organizationId: org, workDate: date, timeZone: tz, managerId: all ? undefined : user.id }),
+    dayStatus(db, { organizationId: org, workDate: date, timeZone: tz, managerId: all ? undefined : user.id, weekend: work.calendar.weekendDays, holidays: work.holidayDates }),
     db.department.findMany({ where: { organizationId: org }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
   const depName = new Map(departments.map((d) => [d.id, d.name]));
@@ -50,6 +53,7 @@ export default async function DailyReports({ searchParams }: { searchParams: Pro
         </form>
       } />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
+      {holiday && <Notice kind="ok">{holiday.name} &mdash; a public holiday on the working calendar, so nobody is expected to report.</Notice>}
       {sp.msg && <Notice kind="ok">{sp.msg}</Notice>}
       <p className="text-sm text-muted">{weekday(date)}{date === today ? " (today)" : ""} · {tz}{all && <> · <Link href={`/hr/reports/eod?date=${date}`} className="underline">End-of-day report</Link></>}</p>
       <div className="grid gap-3 sm:grid-cols-4">

@@ -2,7 +2,8 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { dateInZone, fmtMinutes } from "@/lib/hr-rules";
-import { OFFICE, SCORE, monthlyScorecards, type ScoreParts } from "@/lib/scorecards";
+import { SCORE, monthlyScorecards, type ScoreParts } from "@/lib/scorecards";
+import { getCalendar } from "@/lib/working-calendar";
 import { Badge, Empty, PageHeader, Stat } from "@/components/ui";
 import ScoreCell from "@/components/ScoreCell";
 
@@ -21,6 +22,7 @@ export default async function MyScorecard({ searchParams }: { searchParams: Prom
   const subjectId = sp.user && canSeeAll ? sp.user : user.id;
   const subject = subjectId === user.id ? { id: user.id, name: user.name } : await db.user.findFirst({ where: { id: subjectId, organizationId: org }, select: { id: true, name: true } });
   const profile = await db.companyProfile.findFirst({ where: { organizationId: org, isDefault: true }, select: { timezone: true } });
+  const cal = await getCalendar(db, org);
   const thisMonth = dateInZone(new Date(), profile?.timezone ?? "UTC").slice(0, 7);
   const month = sp.month && /^\d{4}-(0[1-9]|1[0-2])$/.test(sp.month) && sp.month <= thisMonth ? sp.month : thisMonth;
   const [summary, days] = subject ? await Promise.all([
@@ -51,7 +53,7 @@ export default async function MyScorecard({ searchParams }: { searchParams: Prom
             <Stat label={summary.target > 0 ? "Sales activity" : "Tasks done"} value={summary.target > 0 ? `${summary.activity} / ${summary.target}` : summary.tasksDone} hint={summary.target > 0 ? `${Math.round((summary.activity / summary.target) * 100)}% of target` : summary.hoursLogged ? `${summary.hoursLogged} h logged` : undefined} />
           </div>
         )}
-        {days.length === 0 ? <Empty title="Nothing recorded for this month yet">The end-of-day report is written at {OFFICE.end} on each working day.</Empty> : (
+        {days.length === 0 ? <Empty title="Nothing recorded for this month yet">The end-of-day report is written at {cal.workEnd} on each working day.</Empty> : (
           <div className="card overflow-x-auto p-0">
             <table className="w-full text-sm">
               <thead><tr className="text-left text-xs text-muted"><th className="px-4 py-2">Day</th><th className="px-2 py-2">In / out</th><th className="px-2 py-2">Worked</th><th className="px-2 py-2">Tasks</th><th className="px-2 py-2">Sales activity</th><th className="px-2 py-2">Daily report</th><th className="px-4 py-2 text-right">Score</th></tr></thead>
@@ -71,7 +73,7 @@ export default async function MyScorecard({ searchParams }: { searchParams: Prom
             </table>
           </div>
         )}
-        <p className="text-xs text-muted">Score out of 100: attendance {SCORE.attendance}, punctuality {SCORE.punctuality}, daily report {SCORE.report} (half if late), output {SCORE.output} (sales agents: activity against the daily target; everyone else: the manager&apos;s rating of the daily report, half when the report is in but not rated yet). Office hours {OFFICE.start} to {OFFICE.end}, {OFFICE.graceMinutes} minutes grace.</p>
+        <p className="text-xs text-muted">Score out of 100: attendance {SCORE.attendance}, punctuality {SCORE.punctuality}, daily report {SCORE.report} (half if late), output {SCORE.output} (sales agents: activity against the daily target; everyone else: the manager&apos;s rating of the daily report, half when the report is in but not rated yet). Office hours {cal.workStart} to {cal.workEnd}, {cal.graceMinutes} minutes grace, from the working calendar.</p>
       </>)}
     </div>
   );
