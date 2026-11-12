@@ -3,6 +3,7 @@ import { trialBalance } from "@/lib/accounting";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { PageHeader } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export default async function Ledger() {
   const currencies = [...new Set(tb.map((r) => r.currency))];
   return (
     <div className="space-y-6">
-      <PageHeader title="General Ledger" />
+      <PageHeader tabs={<ScreenTabs group="fin-books" current="/finance/ledger" />} title="Books" />
       <p className="text-sm text-muted">
         Balances are shown per currency. Cross-currency consolidation arrives with exchange rates, so no totals are mixed across currencies here.
       </p>

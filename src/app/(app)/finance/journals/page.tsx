@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { LedgerError } from "@/lib/ledger-math";
 import { formatMoney } from "@/lib/money";
 import { Notice, PageHeader } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +69,7 @@ export default async function Journals({ searchParams }: { searchParams: Promise
   const today = new Date().toISOString().slice(0, 10);
   return (
     <div className="space-y-6">
-      <PageHeader title="Manual Journal Entries" />
+      <PageHeader tabs={<ScreenTabs group="fin-books" current="/finance/journals" />} title="Books" />
       <p className="text-sm text-muted">Prepared by one person and posted by another. Control accounts (receivables, payables, customer advances) are closed to manual entries: use invoices, payments, credit notes and refunds. {lock && <>Books are closed through <strong>{lock.lockedThrough}</strong>.</>}</p>
       {error && <Notice kind="error">{error}</Notice>}
 

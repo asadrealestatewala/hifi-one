@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { YearEndError, closeYear, previewYearEnd } from "@/lib/year-end";
 import { Notice, PageHeader } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ export default async function YearEnd({ searchParams }: { searchParams: Promise<
   const ended = `${year}-12-31` < new Date().toISOString().slice(0, 10);
   return (
     <div className="space-y-5 max-w-3xl">
-      <PageHeader title="Year-End Close" subtitle="Closing a year brings every revenue, cost and expense account back to zero and moves the profit or loss into Retained Earnings, one entry per currency, dated 31 December. Profit and loss reports for that year still show its results. Years must be closed in order, and a year can only be closed once it has ended." />
+      <PageHeader tabs={<ScreenTabs group="fin-books" current="/finance/year-end" />} title="Books" subtitle="Closing a year brings every revenue, cost and expense account back to zero and moves the profit or loss into Retained Earnings, one entry per currency, dated 31 December. Profit and loss reports for that year still show its results. Years must be closed in order, and a year can only be closed once it has ended." />
       {sp.done && <Notice kind="ok">Year {year} is closed.</Notice>}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       <form className="card flex flex-wrap items-end gap-3">

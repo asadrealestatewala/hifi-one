@@ -4,6 +4,7 @@ import { setPeriodLock } from "@/lib/bookkeeping";
 import { db } from "@/lib/db";
 import { LedgerError } from "@/lib/ledger-math";
 import { Notice, PageHeader } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ export default async function Close({ searchParams }: { searchParams: Promise<{ 
   const history = await db.settingChange.findMany({ where: { organizationId: user.organizationId, section: "period_lock" }, orderBy: { createdAt: "desc" }, take: 10 });
   return (
     <div className="space-y-6 max-w-2xl">
-      <PageHeader title="Close Accounting Periods" subtitle="Closing a period stops anyone, from any module, from posting an entry dated on or before the closing date. Corrections after that go in the open period or need the period reopened with a written reason. This is not a year-end close: profit is not yet moved into retained earnings." />
+      <PageHeader tabs={<ScreenTabs group="fin-books" current="/finance/close" />} title="Books" subtitle="Closing a period stops anyone, from any module, from posting an entry dated on or before the closing date. Corrections after that go in the open period or need the period reopened with a written reason. This is not a year-end close: profit is not yet moved into retained earnings." />
       {ok && <Notice kind="ok">Saved.</Notice>}
       {error && <Notice kind="error">{error}</Notice>}
       <div className="card"><p className="text-sm">Books are closed through: <strong>{current?.lockedThrough ?? "not closed"}</strong></p></div>
