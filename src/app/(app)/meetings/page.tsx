@@ -34,7 +34,7 @@ export default async function Meetings({ searchParams }: { searchParams: Promise
   );
   return (
     <div className="space-y-6">
-      <PageHeader title="Meetings & workshops" subtitle="Video calls with screen sharing and chat, right inside Hifi One. Share a link with a client: they join from their browser with no account, and wait until you let them in." />
+      <PageHeader title="Meetings" subtitle="Video calls with screen sharing and chat, right inside Hifi One. Share a link with a client: they join from their browser with no account, and wait until you let them in." />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {sp.msg && <Notice kind="ok">{sp.msg}</Notice>}
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
