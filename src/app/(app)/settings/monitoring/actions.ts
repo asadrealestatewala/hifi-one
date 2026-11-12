@@ -16,12 +16,12 @@ export async function savePolicyAction(formData: FormData) {
     const p = await savePolicy(db, {
       organizationId: user.organizationId, actorId: user.id,
       patch: {
-        enabled: formData.get("enabled") === "on", policyText: s(formData, "policyText"), trackActivity: formData.get("trackActivity") === "on", trackApps: formData.get("trackApps") === "on", screenshots: formData.get("screenshots") === "on",
+        enabled: formData.get("enabled") === "on", policyText: s(formData, "policyText"), trackActivity: formData.get("trackActivity") === "on", trackApps: formData.get("trackApps") === "on", trackWebsites: formData.get("trackWebsites") === "on", screenshots: formData.get("screenshots") === "on",
         screenshotIntervalMin: Number(s(formData, "screenshotIntervalMin")), idleThresholdMin: Number(s(formData, "idleThresholdMin")), timezone: s(formData, "timezone").trim(), workStart: s(formData, "workStart"), workEnd: s(formData, "workEnd"),
         workDays: formData.getAll("workDays").map(String).sort().join(","), retentionDays: Number(s(formData, "retentionDays")),
       },
     });
-    await db.settingChange.create({ data: { organizationId: user.organizationId, section: "monitoring_policy", actorId: user.id, before: before ? { version: before.version, enabled: before.enabled, screenshots: before.screenshots, trackApps: before.trackApps } : undefined, after: { version: p.version, enabled: p.enabled, screenshots: p.screenshots, trackApps: p.trackApps } } });
+    await db.settingChange.create({ data: { organizationId: user.organizationId, section: "monitoring_policy", actorId: user.id, before: before ? { version: before.version, enabled: before.enabled, screenshots: before.screenshots, trackApps: before.trackApps, trackWebsites: before.trackWebsites } : undefined, after: { version: p.version, enabled: p.enabled, screenshots: p.screenshots, trackApps: p.trackApps, trackWebsites: p.trackWebsites } } });
     await audit(user, { action: "monitoring.policy_save", entity: "MonitoringPolicy", after: { version: p.version, enabled: p.enabled } });
   } catch (e) {
     if (e instanceof MonitorError) return back("error", e.message);

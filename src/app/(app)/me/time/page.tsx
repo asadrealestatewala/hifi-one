@@ -37,7 +37,8 @@ export default async function MyTime({ searchParams }: { searchParams: Promise<{
           <dl className="grid gap-x-6 gap-y-1 border-t border-border pt-4 text-sm sm:grid-cols-2">
             <dt className="text-muted">Working hours recorded</dt><dd>{policy.workStart} to {policy.workEnd} ({policy.timezone}), days {policy.workDays.split(",").map((d) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][Number(d)]).join(", ")}</dd>
             <dt className="text-muted">Activity</dt><dd>{policy.trackActivity ? "Active and idle time, and counts of key presses and clicks. Never what you type." : "Not collected"}</dd>
-            <dt className="text-muted">Applications</dt><dd>{policy.trackApps ? "Names of applications you use, as durations. Never window titles or web addresses." : "Not collected"}</dd>
+            <dt className="text-muted">Applications</dt><dd>{policy.trackApps ? "Names of applications you use, as durations. Never window titles." : "Not collected"}</dd>
+            <dt className="text-muted">Websites</dt><dd>{policy.trackWebsites ? "Only the website name (for example github.com) and the time spent on it. Never the page, what you searched for, or the page title." : "Not collected"}</dd>
             <dt className="text-muted">Screenshots</dt><dd>{policy.screenshots ? `Every ${policy.screenshotIntervalMin} minutes during working hours, from the desktop app, or from your browser while you choose to share your screen. Never during breaks or outside work hours, and only while you are clocked in.` : "Not collected"}</dd>
             <dt className="text-muted">Kept for</dt><dd>Screenshots {policy.retentionDays} days; activity totals 180 days</dd>
           </dl>
@@ -52,12 +53,13 @@ export default async function MyTime({ searchParams }: { searchParams: Promise<{
   const today = dayStr(now);
   const open = await db.workSession.findFirst({ where: { userId: user.id, endedAt: null, lastBeatAt: { gte: new Date(now.getTime() - STALE_MS) } }, include: { breaks: { where: { endedAt: null } } } });
   const days = Array.from({ length: 7 }, (_, i) => dayStr(new Date(now.getTime() - i * 86400000)));
-  const [week, projects, corrections, shots, apps, access] = await Promise.all([
+  const [week, projects, corrections, shots, apps, sites, access] = await Promise.all([
     summarize(db, { organizationId: org, userIds: [user.id], from: days[6], to: today }),
     db.project.findMany({ where: { organizationId: org, status: "ACTIVE", OR: [{ managerId: user.id }, { members: { some: { userId: user.id } } }] }, select: { id: true, name: true }, take: 50 }),
     db.timesheetCorrection.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 8 }),
     db.screenshot.findMany({ where: { userId: user.id, deletedAt: null }, orderBy: { capturedAt: "desc" }, take: 12 }),
     db.appUsage.findMany({ where: { userId: user.id, day: today }, orderBy: { seconds: "desc" }, take: 8 }),
+    db.webUsage.findMany({ where: { userId: user.id, day: today }, orderBy: { seconds: "desc" }, take: 10 }),
     db.monitoringAccess.findMany({ where: { subjectId: user.id }, orderBy: { createdAt: "desc" }, take: 10 }),
   ]);
   const perDay = await Promise.all(days.map(async (d) => [d, (await summarize(db, { organizationId: org, userIds: [user.id], from: d, to: d }))[0]] as const));
@@ -121,6 +123,7 @@ export default async function MyTime({ searchParams }: { searchParams: Promise<{
           <h2 className="font-semibold">Who has looked at my data</h2>
           {access.length === 0 ? <p className="text-sm text-muted">Nobody has opened your screenshots or detailed reports.</p> : <ul className="text-sm">{access.map((a) => <li key={a.id} className="flex justify-between border-t border-border py-1.5 first:border-0"><span>{viewers.get(a.viewerId) ?? "Someone"} opened {a.what === "SCREENSHOT" ? "a screenshot" : "a report"}</span><span className="text-muted">{a.createdAt.toLocaleString()}</span></li>)}</ul>}
           {apps.length > 0 && <><h3 className="pt-2 text-sm font-semibold">Applications today</h3><ul className="text-sm">{apps.map((a) => <li key={a.id} className="flex justify-between border-t border-border py-1 first:border-0"><span>{a.name}</span><span className="text-muted">{Math.round(a.seconds / 60)} min</span></li>)}</ul></>}
+          {policy.trackWebsites && <><h3 className="pt-2 text-sm font-semibold">Websites today</h3>{sites.length === 0 ? <p className="text-sm text-muted">Nothing recorded yet. Websites are reported by the Hifi One browser add-on once it is installed and you are clocked in.</p> : <ul className="text-sm">{sites.map((w) => <li key={w.id} className="flex justify-between border-t border-border py-1 first:border-0"><span>{w.domain}</span><span className="text-muted">{Math.round(w.seconds / 60)} min</span></li>)}</ul>}</>}
         </section>
       </div>
 

@@ -2039,6 +2039,7 @@ model MonitoringPolicy {
   policyText            String   @default("")
   trackActivity         Boolean  @default(true) // aggregate active/idle time and key and click COUNTS (never what was typed)
   trackApps             Boolean  @default(false) // names of applications used, as durations
+  trackWebsites         Boolean  @default(false) // website DOMAINS visited, as durations: never the page, path, query or title
   screenshots           Boolean  @default(false)
   screenshotIntervalMin Int      @default(10)
   idleThresholdMin      Int      @default(5)
@@ -2114,6 +2115,19 @@ model AppUsage {
   seconds        Int    @default(0)
 
   @@unique([userId, day, name])
+  @@index([organizationId, day])
+}
+
+// Time on a website, by domain only (for example "github.com"). There is no column for a page address, path, query or page title.
+model WebUsage {
+  id             String @id @default(cuid())
+  organizationId String
+  userId         String
+  day            String // YYYY-MM-DD
+  domain         String
+  seconds        Int    @default(0)
+
+  @@unique([userId, day, domain])
   @@index([organizationId, day])
 }
 
