@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Hifi One work sites",
+  "version": "1.0.0",
+  "description": "Tells Hifi One which website names you spend work time on, only while you are clocked in. Never the page, search or title.",
+  "permissions": ["tabs", "storage", "alarms", "idle"],
+  "host_permissions": ["https://*/*"],
+  "optional_host_permissions": [],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Hifi One work sites", "default_popup": "popup.html" }
+}

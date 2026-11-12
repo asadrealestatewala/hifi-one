@@ -271,6 +271,35 @@ export function normalizeDomain(raw: unknown): string | null {
   return d;
 }
 
+async function recordSites(db: Db, d: { organizationId: string; userId: string }, sites: { domain: string; seconds: number }[], now: Date) {
+  const day = now.toISOString().slice(0, 10);
+  let accepted = 0, dropped = 0;
+  for (const w of sites.slice(0, 100)) {
+    const domain = normalizeDomain(w?.domain);
+    if (!domain || !Number.isInteger(w.seconds) || w.seconds <= 0 || w.seconds > 300) { dropped++; continue; }
+    await db.webUsage.upsert({ where: { userId_day_domain: { userId: d.userId, day, domain } }, update: { seconds: { increment: w.seconds } }, create: { organizationId: d.organizationId, userId: d.userId, day, domain, seconds: w.seconds } });
+    accepted++;
+  }
+  return { accepted, dropped };
+}
+
+// What the browser add-on may do right now. It never starts a session: the person must be clocked in (My Attendance), accepted the
+// current terms, the policy must include websites, and it must be inside working hours and not on a break.
+export async function addonState(db: Db, d: { organizationId: string; userId: string }, now = new Date()) {
+  const policy = await getPolicy(db, d.organizationId);
+  const accepted = policy.enabled && (await hasAccepted(db, d.userId, policy.version));
+  const open = await db.workSession.findFirst({ where: { userId: d.userId, endedAt: null }, include: { breaks: { where: { endedAt: null } } } });
+  const reason = !policy.enabled || !policy.trackWebsites ? "Website tracking is switched off." : !accepted ? "Accept the terms in Hifi One first." : !open ? "Clock in to start." : open.breaks.length ? "You are on a break." : !withinSchedule(policy, now) ? "Outside working hours." : null;
+  return { reporting: reason === null, reason, policyVersion: policy.version };
+}
+
+export async function ingestFromAddon(db: Db, d: { organizationId: string; userId: string }, sites: { domain: string; seconds: number }[], now = new Date()) {
+  const st = await addonState(db, d, now);
+  if (!st.reporting) return { accepted: 0, dropped: sites.length, reason: st.reason };
+  await db.workSession.updateMany({ where: { userId: d.userId, endedAt: null }, data: { lastBeatAt: now } });
+  return { ...(await recordSites(db, d, sites, now)), reason: null as string | null };
+}
+
 const safeAppName = (s: string) => s.replace(/[\\/:*?"<>|\r\n\0]+/g, " ").trim().slice(0, 80);
 
 export async function ingestAgent(db: Db, d: { organizationId: string; userId: string }, p: { buckets?: { start: string; active: number; idle: number; keys?: number; clicks?: number }[]; apps?: { name: string; seconds: number }[]; sites?: { domain: string; seconds: number }[]; now?: Date }) {
@@ -307,13 +336,8 @@ export async function ingestAgent(db: Db, d: { organizationId: string; userId: s
     }
   }
   if (policy.trackWebsites && !onBreak && withinSchedule(policy, now)) {
-    const day = now.toISOString().slice(0, 10);
-    for (const w of (p.sites ?? []).slice(0, 100)) {
-      const domain = normalizeDomain(w.domain);
-      if (!domain || !Number.isInteger(w.seconds) || w.seconds <= 0 || w.seconds > 300) { dropped++; continue; }
-      await db.webUsage.upsert({ where: { userId_day_domain: { userId: d.userId, day, domain } }, update: { seconds: { increment: w.seconds } }, create: { organizationId: d.organizationId, userId: d.userId, day, domain, seconds: w.seconds } });
-      accepted++;
-    }
+    const r = await recordSites(db, d, p.sites ?? [], now);
+    accepted += r.accepted; dropped += r.dropped;
   }
   return { accepted, dropped, onBreak };
 }
