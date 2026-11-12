@@ -90,3 +90,13 @@ These are the standards new and touched screens must meet. Components marked *pl
 Added 2026-10-17: `SortTh` (sortable table header with `aria-sort`, address-driven, `src/lib/sort.ts`), `SavedViews` (personal saved filters on a list), `CommandPalette` (Ctrl K, in the shell), `ProjectTimeline` (Gantt bars with text alternatives). The `SIGNED` status uses the success tone.
 
 Tokens stay as listed at the top (brand red, violet primary, navy sidebar). If a tone is missing (for example an info blue or tinted backgrounds for status), add a token to `globals.css` and record it in `docs/DECISIONS.md`; do not adopt the reference's teal palette or font.
+
+## Naming screens (added 2026-11-12)
+
+One rule, so nobody has to learn two names for one screen:
+
+- **The menu label is the page title, word for word.** Changing one means changing the other (`src/components/shell/nav.ts` and the screen's `PageHeader`).
+- **Sentence case** everywhere: "My daily report", not "My Daily Report". Proper nouns keep their capitals (Hifi One, Clout Leader, Prospector, HR).
+- **Short.** Three words at most where the name allows it; the `PageHeader` subtitle carries the detail, not the title.
+- **"My" means the signed-in person; "Staff" or "Team" means everyone or your reports.** So My attendance / Staff attendance, My daily report / Staff daily reports, Time tracking / Team time tracking. Never "(all)".
+- A screen's own name never repeats its menu group: inside Finance & accounting it is "Invoices", not "Finance invoices".

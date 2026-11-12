@@ -131,7 +131,7 @@ export const JOBS: JobDef[] = [
     },
   },
   {
-    key: "monitoring_purge", label: "Workfolio retention", what: "Deletes screenshots and activity records that passed the retention period in the monitoring policy.",
+    key: "monitoring_purge", label: "Time tracking retention", what: "Deletes screenshots and activity records that passed the retention period in the monitoring policy.",
     async run({ db }) {
       const r = await purgeMonitoring(db, defaultStorage());
       return `${r.screenshots} screenshot${r.screenshots === 1 ? "" : "s"}, ${r.buckets} activity and ${r.appUsage} application records removed`;

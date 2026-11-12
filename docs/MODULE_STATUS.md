@@ -180,6 +180,12 @@ Done: per-project library with folders, tags, versions, image/video/PDF previews
 - **Done (service tested, tsc and eslint clean):** an agent without `crm.convert` who picks Closed Won (lead page or board) sends a request instead of getting an error; the lead stays in its stage and shows "waiting for Closed Won approval". Everyone with `crm.convert` is notified (in-app and phone push) and sees it under Leads › Pending Approvals (`/leads/approvals`) with Approve and convert / Reject (reason required). The agent is notified of the outcome; both are audited and noted on the lead. One open request per lead (partial unique index).
 - **Not verified in a browser or on a phone.** Managers keep the direct Closed Won route.
 
+## Screen names and Help (2026-11-12)
+- **Done (tsc, eslint, 928 unit tests pass; checked in a browser at 1280px):** every menu label now matches its page title, in sentence case, under the rule in `docs/DESIGN_SYSTEM.md`. The mismatches that are gone: "My Payroll" → My payslips, "My Workfolio" → Time tracking, "Calendar Feed" → My calendar, "Customers" → Clients, "Attendance (all)" → Staff attendance, "Site Visits (all)" → Staff site visits, "Workfolio" → Team time tracking, "Procurement" → Orders & bills. "Workfolio" is gone from every screen staff see.
+- **Help & guide** (`/me/help`) is rebuilt: 39 jobs in six groups (your day, selling, clients and money, projects and content, people and HR, running the system) covering the November features that were missing entirely (daily report, scorecard, site visits, requests to HR, documents, circulars, team chat, field visits, demo queue, project files, time tracking).
+- **Notifications** (`/notifications`) no longer claims "in-app only for now" (emails and phone alerts do go out); it uses `PageHeader`, groups into Today / Yesterday / Earlier, and has a real empty state.
+- **Not changed:** per-person notification preferences, and the menu grouping itself (both are later steps).
+
 ## Working calendar (2026-11-12)
 
 Done: `/settings/calendar` (office hours, lunch, lateness grace, working weekdays, public holidays with Pakistan's 2026 and 2027 lists), `src/lib/working-calendar.ts`, and the wiring of leave, daily reports, the end-of-day report, scorecards, the sales quest streak, payroll unpaid days and the scheduled jobs to it. A holiday now shows as a notice on My Daily Report, Staff daily reports and the End-of-day report, and My Leave lists the holidays coming up instead of saying none are configured.

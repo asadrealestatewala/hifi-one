@@ -43,7 +43,7 @@ export default async function HrAttendance({ searchParams }: { searchParams: Pro
   ]);
   return (
     <div className="space-y-6">
-      <PageHeader title="Attendance" subtitle="Everyone's clock-ins, breaks and open sessions." />
+      <PageHeader title="Staff attendance" subtitle="Everyone's clock-ins, breaks and open sessions." />
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Clocked in now" value={openRecs.length} hint="sessions still open" />
         <Stat label="Records shown" value={recent.length} hint="most recent 60" />
