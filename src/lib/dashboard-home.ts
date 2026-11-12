@@ -2,6 +2,7 @@
 // so a figure here can never disagree with a report. Currencies are never added together.
 import type { PrismaClient } from "@prisma/client";
 import { buildIncomeStatement, groupByCurrency, loadBalances, loadReceivablesAging } from "./statements";
+import { type Calendar, isWorkingDate } from "./working-calendar";
 
 export const PERIODS = { month: "This month", last: "Last month", quarter: "This quarter", year: "This year" } as const;
 export type Period = keyof typeof PERIODS;
@@ -71,24 +72,33 @@ export type Attention = Awaited<ReturnType<typeof loadAttention>>;
 // What needs a person today, limited to what their role may see. Counts are exact; the lists show the first few.
 export async function loadAttention(
   db: PrismaClient, organizationId: string, user: { id: string; permissions: ReadonlySet<string> }, today: string, now: Date, leadWhere: object | null,
+  work?: { calendar: Calendar; holidays: readonly string[] },
 ) {
   const has = (p: string) => user.permissions.has(p);
   const dayEnd = endOfDay(today);
   const lateInv = has("finance.view") ? (await loadReceivablesAging(db, organizationId, now)).detail.filter((d) => d.bucket !== "Not yet due") : null;
-  const [followCount, followRows, voucherCount, voucherRows, commissions, staff, marked, posts, leave, myOverdue] = await Promise.all([
+  const [followCount, followRows, voucherCount, voucherRows, commissions, staff, marked, posts, leave, awayToday, myOverdue, teamOverdue] = await Promise.all([
     leadWhere ? db.lead.count({ where: { ...leadWhere, clientId: null, stage: { isWon: false, isLost: false }, nextFollowUp: { lte: dayEnd } } }) : 0,
     leadWhere ? db.lead.findMany({ where: { ...leadWhere, clientId: null, stage: { isWon: false, isLost: false }, nextFollowUp: { lte: dayEnd } }, orderBy: { nextFollowUp: "asc" }, take: 5, select: { id: true, name: true, phone: true, nextFollowUp: true } }) : [],
     has("expenses.review") || has("expenses.approve") ? db.expenseVoucher.count({ where: { organizationId, status: { in: ["SUBMITTED", "UNDER_REVIEW"] } } }) : 0,
     has("expenses.review") || has("expenses.approve") ? db.expenseVoucher.findMany({ where: { organizationId, status: { in: ["SUBMITTED", "UNDER_REVIEW"] } }, orderBy: { createdAt: "asc" }, take: 3, select: { id: true, number: true, description: true, amount: true, currency: true } }) : [],
     has("commissions.approve") || has("commissions.manage") ? db.commissionEntry.count({ where: { organizationId, status: "EARNED" } }) : 0,
-    has("attendance.view_all") ? db.user.findMany({ where: { organizationId, active: true, userType: "EMPLOYEE" }, select: { id: true, name: true } }) : [],
+    // Only people with an active HR record, and never the reader: an owner is not "staff who did not mark attendance".
+    has("attendance.view_all") ? db.user.findMany({ where: { organizationId, active: true, userType: "EMPLOYEE", id: { not: user.id }, employeeProfile: { is: { organizationId, status: "ACTIVE", archivedAt: null } } }, select: { id: true, name: true } }) : [],
     has("attendance.view_all") ? db.attendanceRecord.findMany({ where: { workDate: today }, select: { userId: true } }) : [],
     has("content.view") ? db.contentItem.findMany({ where: { organizationId, plannedDate: today, status: { in: ["APPROVED", "SCHEDULED"] } }, orderBy: { plannedTime: "asc" }, take: 5, select: { id: true, title: true, plannedTime: true } }) : [],
     has("leave.approve") ? db.leaveRequest.count({ where: { status: "PENDING", leaveType: { organizationId } } }) : 0,
+    has("attendance.view_all") ? db.leaveRequest.findMany({ where: { status: "APPROVED", startDate: { lte: today }, endDate: { gte: today }, leaveType: { organizationId } }, select: { userId: true } }) : [],
     db.task.count({ where: { assigneeId: user.id, status: { not: "DONE" }, dueDate: { lt: startOfDay(today) }, project: { organizationId } } }),
+    // Late work across the company, for someone who may see every project. Same rule as the Projects page's
+    // "Overdue tasks" figure (isOverdue: not done, due before now, on an active project) so the two agree.
+    has("projects.view_all") || has("projects.manage") ? db.task.count({ where: { status: { not: "DONE" }, dueDate: { lt: now }, project: { organizationId, status: "ACTIVE" } } }) : null,
   ]);
+  // Nobody is "missing" on a day the company does not work, or while they are on approved leave.
+  const workingToday = !work || isWorkingDate(work.calendar, today, work.holidays);
   const done = new Set(marked.map((m) => m.userId));
-  const missing = staff.filter((s) => !done.has(s.id));
+  const away = new Set(awayToday.map((l) => l.userId));
+  const missing = workingToday ? staff.filter((s) => !done.has(s.id) && !away.has(s.id)) : [];
   const lateForFollow = followRows.filter((f) => f.nextFollowUp && f.nextFollowUp < startOfDay(today)).length;
   const veryLate = lateInv?.filter((d) => d.bucket === "61-90 days" || d.bucket === "Over 90 days").length ?? 0;
   const overdueAmounts = new Map<string, number>();
@@ -98,10 +108,11 @@ export async function loadAttention(
     overdue: lateInv ? { count: lateInv.length, amounts: toList(overdueAmounts), rows: lateInv.slice(0, 5).map((d) => ({ id: d.id, number: d.number ?? "Draft", client: d.client, currency: d.currency, outstanding: d.outstanding.toString(), due: d.dueDate ? iso(d.dueDate) : null })) } : null,
     vouchers: has("expenses.review") || has("expenses.approve") ? { count: voucherCount, rows: voucherRows.map((v) => ({ id: v.id, number: v.number, description: v.description, currency: v.currency, amount: v.amount.toString() })) } : null,
     commissions: has("commissions.approve") || has("commissions.manage") ? { count: commissions } : null,
-    attendance: has("attendance.view_all") ? { count: missing.length, rows: missing.slice(0, 5).map((m) => ({ id: m.id, name: m.name })) } : null,
+    attendance: has("attendance.view_all") ? { count: missing.length, rows: missing.slice(0, 5).map((m) => ({ id: m.id, name: m.name })), workingToday, present: staff.filter((s) => done.has(s.id)).length, away: staff.filter((s) => away.has(s.id)).length, staff: staff.length } : null,
     posts: has("content.view") ? { count: posts.length, rows: posts.map((p) => ({ id: p.id, title: p.title, time: p.plannedTime })) } : null,
     leave: has("leave.approve") ? { count: leave } : null,
     myOverdueTasks: myOverdue,
+    teamOverdueTasks: teamOverdue, // null when the reader may not see every project
   };
   const total = (sections.followups?.count ?? 0) + (sections.overdue?.count ?? 0) + (sections.vouchers?.count ?? 0) + (sections.commissions?.count ?? 0) + (sections.attendance?.count ?? 0) + (sections.posts?.count ?? 0) + (sections.leave?.count ?? 0) + myOverdue;
   return { ...sections, total, urgent: lateForFollow + veryLate + myOverdue };

@@ -17,6 +17,9 @@ How data moves between modules. Entities, canonical records and constraints are 
 | Dashboard numbers | the same loaders as the reports (`dashboard-home.ts`) | home dashboard |
 | Staff record, sign-in identity | `src/lib/staff.ts` (`User` + `EmployeeProfile`) | directory, sign-in, assignments, payroll |
 | Campaign, its team, clients and project links | `src/lib/campaigns.ts` | campaigns, My tasks, staff directory filter, projects, leads, dashboard |
+| When the company works: office hours, lunch, lateness grace, working weekdays, public holidays | `WorkingCalendar` + `PublicHoliday` via `src/lib/working-calendar.ts` (Company settings -> Working calendar) | leave (`hr.ts`), daily reports (`daily-reports.ts`), scorecards and the end-of-day report (`scorecards.ts`), the sales quest streak (`crm-contacts.ts`), payroll unpaid days (`payroll-rules.ts`), the scheduled reminders (`jobs.ts`) |
+
+Rule: nothing hardcodes office hours, a weekend or a holiday. A service that needs to know whether a date was a working day takes the calendar from `getWorkingContext(db, organizationId)` and passes it down; `WEEKEND_DAYS` in `hr-rules.ts` and `DEFAULT_CALENDAR` in `working-calendar.ts` are fallbacks for when nothing has been saved, not the rule. The time zone stays on `CompanyProfile`.
 
 Rule: a screen never computes a stored total itself, and a total is never copied into a second table unless it is a cache updated in the same transaction as its source.
 

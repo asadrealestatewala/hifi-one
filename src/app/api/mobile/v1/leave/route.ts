@@ -2,6 +2,7 @@ import { audit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { HrError, cancelLeave, leaveBalances, requestLeave } from "@/lib/hr";
 import { dateInZone } from "@/lib/hr-rules";
+import { getWorkingContext } from "@/lib/working-calendar";
 import { notify } from "@/lib/notifications";
 import { companyZone, isResponse, json, readJson, requireMobileUser, str } from "@/lib/mobile-api";
 
@@ -39,9 +40,11 @@ export async function POST(req: Request) {
       await cancelLeave(db, { requestId: body.cancelId, userId: user.id, today: dateInZone(new Date(), zone) });
       await audit(user, { action: "leave.cancel", entity: "LeaveRequest", entityId: body.cancelId, after: { via: "mobile" } });
     } else {
+      const cal = await getWorkingContext(db, user.organizationId);
       const r = await requestLeave(db, {
         organizationId: user.organizationId, userId: user.id, leaveTypeId: str(body.leaveTypeId, 60),
         startDate: str(body.startDate, 10), endDate: str(body.endDate, 10), reason: str(body.reason, 500),
+        holidays: cal.holidayDates, weekend: cal.calendar.weekendDays,
       });
       await audit(user, { action: "leave.request", entity: "LeaveRequest", entityId: r.id, after: { start: r.startDate, end: r.endDate, days: r.days.toString(), via: "mobile" } });
       const me = await db.user.findUnique({ where: { id: user.id }, select: { managerId: true } });

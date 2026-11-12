@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { LiveViewError, markPhone } from "@/lib/live-view";
 import { MonitorError, createEnrollmentCode, purgeMonitoring, revokeDevice, savePolicy } from "@/lib/monitoring";
 import { defaultStorage } from "@/lib/storage";
 
@@ -16,12 +17,12 @@ export async function savePolicyAction(formData: FormData) {
     const p = await savePolicy(db, {
       organizationId: user.organizationId, actorId: user.id,
       patch: {
-        enabled: formData.get("enabled") === "on", policyText: s(formData, "policyText"), trackActivity: formData.get("trackActivity") === "on", trackApps: formData.get("trackApps") === "on", screenshots: formData.get("screenshots") === "on",
+        enabled: formData.get("enabled") === "on", policyText: s(formData, "policyText"), trackActivity: formData.get("trackActivity") === "on", trackApps: formData.get("trackApps") === "on", trackWebsites: formData.get("trackWebsites") === "on", liveView: formData.get("liveView") === "on", remoteSupport: formData.get("remoteSupport") === "on", screenshots: formData.get("screenshots") === "on",
         screenshotIntervalMin: Number(s(formData, "screenshotIntervalMin")), idleThresholdMin: Number(s(formData, "idleThresholdMin")), timezone: s(formData, "timezone").trim(), workStart: s(formData, "workStart"), workEnd: s(formData, "workEnd"),
         workDays: formData.getAll("workDays").map(String).sort().join(","), retentionDays: Number(s(formData, "retentionDays")),
       },
     });
-    await db.settingChange.create({ data: { organizationId: user.organizationId, section: "monitoring_policy", actorId: user.id, before: before ? { version: before.version, enabled: before.enabled, screenshots: before.screenshots, trackApps: before.trackApps } : undefined, after: { version: p.version, enabled: p.enabled, screenshots: p.screenshots, trackApps: p.trackApps } } });
+    await db.settingChange.create({ data: { organizationId: user.organizationId, section: "monitoring_policy", actorId: user.id, before: before ? { version: before.version, enabled: before.enabled, screenshots: before.screenshots, trackApps: before.trackApps, trackWebsites: before.trackWebsites } : undefined, after: { version: p.version, enabled: p.enabled, screenshots: p.screenshots, trackApps: p.trackApps, trackWebsites: p.trackWebsites } } });
     await audit(user, { action: "monitoring.policy_save", entity: "MonitoringPolicy", after: { version: p.version, enabled: p.enabled } });
   } catch (e) {
     if (e instanceof MonitorError) return back("error", e.message);
@@ -43,6 +44,19 @@ export async function categoryAction(formData: FormData) {
     await db.appCategory.deleteMany({ where: { id: s(formData, "id"), organizationId: user.organizationId } });
   }
   redirect("/settings/monitoring");
+}
+
+export async function phoneAction(formData: FormData) {
+  const user = await requirePermission("monitoring.configure");
+  try {
+    const on = formData.get("companyOwned") === "yes";
+    await markPhone(db, { organizationId: user.organizationId, deviceId: s(formData, "id"), companyOwned: on, label: s(formData, "label") });
+    await audit(user, { action: on ? "monitoring.phone_company_owned" : "monitoring.phone_not_company_owned", entity: "PushDevice", entityId: s(formData, "id") });
+  } catch (e) {
+    if (e instanceof LiveViewError) return back("error", e.message);
+    throw e;
+  }
+  back("msg", "Phone updated.");
 }
 
 export async function revokeAction(formData: FormData) {

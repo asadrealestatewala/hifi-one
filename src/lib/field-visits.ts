@@ -59,14 +59,14 @@ export const listProducts = (db: Db, organizationId: string, opts: { activeOnly?
   db.saasProduct.findMany({ where: { organizationId, ...(opts.activeOnly ? { active: true } : {}) }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
 
 export async function saveProduct(db: Db, actor: Actor, input: ProductInput) {
-  if (!canReview(actor)) throw new ProspectorError("Only a sales manager can change the product list.");
+  if (!canReview(actor)) throw new ProspectorError("Only a sales manager can change the list of solutions.");
   const org = actor.organizationId;
   const name = clean(input.name, 80);
-  if (!name) throw new ProspectorError("Enter the product's name.", "name");
+  if (!name) throw new ProspectorError("Enter the solution's name.", "name");
   const businessLabel = clean(input.businessLabel, 60);
   if (!businessLabel) throw new ProspectorError("Say what kind of business a prospect is (for example Pharmacy).", "businessLabel");
   const code = clean(input.code, 24).toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "") || name.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 24);
-  if (!code) throw new ProspectorError("The product needs a short code made of letters and digits.", "code");
+  if (!code) throw new ProspectorError("The solution needs a short code made of letters and digits.", "code");
   const target = Number(input.dailyVisitTarget ?? DEFAULT_DAILY_TARGET);
   if (!Number.isInteger(target) || target < 0 || target > 500) throw new ProspectorError("The daily visit target must be a whole number from 0 to 500.", "dailyVisitTarget");
   const sortOrder = Number(input.sortOrder ?? 0);
@@ -75,9 +75,9 @@ export async function saveProduct(db: Db, actor: Actor, input: ProductInput) {
   const data = { name, businessLabel, code, website, dailyVisitTarget: target, active: input.active ?? true, sortOrder: Number.isInteger(sortOrder) ? sortOrder : 0 };
   if (input.id) {
     const row = await db.saasProduct.findFirst({ where: { id: input.id, organizationId: org }, select: { id: true } });
-    if (!row) throw new ProspectorError("That product no longer exists.");
+    if (!row) throw new ProspectorError("That solution no longer exists.");
     const clash = await db.saasProduct.findFirst({ where: { organizationId: org, code, id: { not: row.id } }, select: { id: true } });
-    if (clash) throw new ProspectorError(`Another product already uses the code ${code}.`, "code");
+    if (clash) throw new ProspectorError(`Another solution already uses the code ${code}.`, "code");
     return db.saasProduct.update({ where: { id: row.id }, data });
   }
   if (await db.saasProduct.findFirst({ where: { organizationId: org, code }, select: { id: true } })) throw new ProspectorError(`A product with the code ${code} already exists.`, "code");
@@ -94,7 +94,7 @@ export async function agentProfile(db: Db, organizationId: string, userId: strin
 }
 
 export async function setAgentProfile(db: Db, actor: Actor, p: { userId: string; productId: string | null; kind: string; dailyVisitTarget: number | string | null }) {
-  if (!canReview(actor)) throw new ProspectorError("Only a sales manager can change who works which product.");
+  if (!canReview(actor)) throw new ProspectorError("Only a sales manager can change who works which solution.");
   const org = actor.organizationId;
   if (!(AGENT_KINDS as readonly string[]).includes(p.kind)) throw new ProspectorError("Choose office or field.", "kind");
   const user = await db.user.findFirst({ where: { id: p.userId, organizationId: org, userType: "EMPLOYEE" }, select: { id: true } });
@@ -144,12 +144,12 @@ export function metresBetween(a: { lat: number; lng: number }, b: { lat: number;
 // The sentence the agent reads. A match in another product is information; a lead or client is a refusal; a prospect of the same product is a
 // refusal unless it is the agent's own (then the visit is added to it).
 export function describeMatch(m: Match, productName: string | null): string {
-  if (m.kind === "CLIENT") return `${m.name}${m.code ? ` (${m.code})` : ""} is already a client of ours. Nothing to add here; tell your manager if they want to buy another product.`;
+  if (m.kind === "CLIENT") return `${m.name}${m.code ? ` (${m.code})` : ""} is already a client of ours. Nothing to add here; tell your manager if they want to buy another solution.`;
   if (m.kind === "LEAD") return m.text;
   const when = `added ${fmtDate(m.createdAt)}`;
-  if (!m.sameProduct) return `${m.name} is also a prospect for ${m.productName ?? "another product"} (${when}). That is fine: it is kept separately for ${productName ?? "your product"}.`;
+  if (!m.sameProduct) return `${m.name} is also a prospect for ${m.productName ?? "another solution"} (${when}). That is fine: it is kept separately for ${productName ?? "your solution"}.`;
   if (m.by === "place") return `${m.name} looks like the same business as a prospect ${when} nearby. If it is the same shop, add your visit to it; if it is a different branch, tick "Different business" and save again.`;
-  return `${m.name} is already a prospect for ${m.productName ?? productName ?? "this product"} (${when}) and belongs to another team member. Ask a sales manager if it should be reassigned.`;
+  return `${m.name} is already a prospect for ${m.productName ?? productName ?? "this solution"} (${when}) and belongs to another team member. Ask a sales manager if it should be reassigned.`;
 }
 
 export async function findMatches(tx: Tx | Db, actor: Actor, p: { phone: string | null; email: string | null; productId: string | null; name?: string; lat?: number | null; lng?: number | null }): Promise<Match[]> {

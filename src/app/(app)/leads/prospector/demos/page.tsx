@@ -50,8 +50,8 @@ export default async function DemoQueue({ searchParams }: { searchParams: Promis
         ]} />
         <SearchBox q={sp.q} placeholder="Business, owner, phone or city" hidden={{ tab: queue.tab, product: sp.product }} />
         {products.length > 1 && (
-          <nav aria-label="Product" className="flex flex-wrap gap-1.5 text-[13px]">
-            <Link href={href({ product: undefined, page: undefined })} aria-current={!sp.product ? "page" : undefined} className={`rounded-full border px-3 py-1 ${!sp.product ? "border-primary text-primary" : "border-border text-muted"}`}>All products</Link>
+          <nav aria-label="Solution" className="flex flex-wrap gap-1.5 text-[13px]">
+            <Link href={href({ product: undefined, page: undefined })} aria-current={!sp.product ? "page" : undefined} className={`rounded-full border px-3 py-1 ${!sp.product ? "border-primary text-primary" : "border-border text-muted"}`}>All solutions</Link>
             {products.map((p) => <Link key={p.id} href={href({ product: p.id, page: undefined })} aria-current={sp.product === p.id ? "page" : undefined} className={`rounded-full border px-3 py-1 ${sp.product === p.id ? "border-primary text-primary" : "border-border text-muted"}`}>{p.name}</Link>)}
           </nav>
         )}

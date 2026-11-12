@@ -113,7 +113,7 @@ describe("the spreadsheet", () => {
     expect(csv.filename).toBe("field-visits-2026-11-08-to-2026-11-08");
     expect(csv.count).toBe(7);
     const lines = csv.text.trim().split("\r\n");
-    expect(lines[0]).toBe("Date and time,Agent,Product,Business,Phone,Email,Address,City,Outcome,Reason,Note,Latitude,Longitude,Accuracy (m),Photos,Prospect status,Lead");
+    expect(lines[0]).toBe("Date and time,Agent,Solution,Business,Phone,Email,Address,City,Outcome,Reason,Note,Latitude,Longitude,Accuracy (m),Photos,Prospect status,Lead");
     expect(lines[1]).toMatch(/^2026-11-08 09:00,Ali Field,Pharmivo,Shop 1,'\+923007770001,,,,Owner absent,,,31\.52/);
     expect(lines[3]).toMatch(/Demo requested,Any day,,31\.52.*,Converted,yes$/);
     expect(lines[5]).toMatch(/Owner absent,,,,,,0,/); // the one without a location

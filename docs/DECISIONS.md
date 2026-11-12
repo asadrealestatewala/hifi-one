@@ -115,3 +115,42 @@ Newest last. Each entry: what was decided, why, and what it costs.
 - Asad asked for a commission % per product (Agentify ERP, Velocity ERP, Pharmivo) on each subscription, not on recurring renewals. `ProductCommissionRate` holds an agent and a manager rate per `SaasProduct`, set on Field Sales Team (needs `commissions.manage`, audited as `commission.product_rate`).
 - The product sold is the one on the prospect that was sent to the CRM as the converted lead (`Prospect.leadId`), or on the demo booked for that lead. Leads created any other way have no product and keep the campaign and personal rules.
 - The product rate applies only to payments on a client's first subscription invoice (no earlier `SubscriptionInvoice` for that subscription). It wins over the campaign rate on that invoice; renewals and one-off invoices fall back to the campaign rate, then the personal rate. Changing a rate only affects later payments. Not covered: choosing a product by hand on a lead.
+
+## 2026-11-12: One working calendar, with Pakistan's public holidays
+
+- Office hours lived in three places (`scorecards.ts` `OFFICE`, `MonitoringPolicy.workStart/workEnd`, the job's `notBefore`), the weekend in two (`hr-rules.WEEKEND_DAYS`, `quest.weekendDays`) and holidays in one that only the sales streak read (quest settings). A public holiday therefore left everyone marked absent with a missing daily report. Asad approved adding Pakistan's holidays (2026-11-12) and asked for Saturday to be a setting rather than a rule.
+- `WorkingCalendar` and `PublicHoliday` are now the single source, edited at Company settings -> Working calendar (`settings.company.edit`, audited, with a `SettingChange` row). Leave, daily reports, the end-of-day report, scorecards, the quest streak, payroll and the reminders all read it through `getWorkingContext`. The end-of-day job runs at the calendar's closing time instead of a hardcoded 18:30.
+- Saturday stays off by default, as a tick box rather than a rule. The constants that remain (`WEEKEND_DAYS`, `DEFAULT_CALENDAR`) are fallbacks for an organization that has saved nothing.
+- Pakistan's gazetted holidays are built in for 2026 and 2027 and seeded by `seedBaseline` for the current and next year. The fixed national days are certain; Eid, Ashura and Milad-un-Nabi depend on the moon, so they are added with "(expected)" in the name and an administrator corrects the date when it is notified. Nothing invents a confirmed date.
+- `MonitoringPolicy.workStart/workEnd/workDays` are left alone for now: they shape the activity tracker's charts, not attendance or pay. Folding them in is a later change.
+
+## 2026-11-12: The home screen starts with the person's own day
+
+- The home screen counted other people's work (follow-ups, vouchers, attendance of staff) but nothing of the reader's own, so it told an employee "Nothing needs your attention today" while their attendance was unmarked and their daily report unwritten. Asad asked for screens that are honest and for fewer repeated entries.
+- `src/lib/my-day.ts` is one read of a person's own day. Its items are built by a pure function (`dayItems`), so the rules — clock in before anything else, no report on a non-working day, overdue tasks above tasks due today — are tested on their own. The home screen puts those items at the top of "Needs attention" and counts them in the greeting.
+- A day that is not a working day (weekly off, public holiday, approved leave) says so instead of showing empty prompts. The reason comes from the working calendar.
+- My space in the sidebar is capped at six entries. The other fourteen are not hidden: `/me` lists every one of them in six groups with a line each. Mailbox and the assistant moved to Overview, because they are tools everybody opens, not personal records.
+- The sales quest card now needs `crm.edit` rather than `crm.view`: a manager who can only read leads was being shown a game they cannot play.
+
+## 2026-11-12: One place to see approvals, but the decision stays where it belongs
+
+- Approving things happened in nine screens, so nobody could say what was waiting on them. `/approvals` gathers all of it. It deliberately does not decide anything: each row links to the screen that owns that decision, so the rule and the audit entry stay in one service and nothing is duplicated.
+- `pendingApprovals` applies the same scope the decision itself applies: `attendance.view_all` sees the company, `leave.approve` alone sees only the people who report to the reader, and nobody is ever shown their own request to decide.
+- HR had no leave screen; leave was decided inside My leave, which reads as a personal screen. `/hr/leave` is HR's own view, with each person's remaining balance beside the request, and it calls the same `decideLeave` service.
+- `/me/team` gives a manager the one thing the data already allowed and no screen showed: their direct reports' day, what of theirs is waiting, and a way into each person's scorecard.
+- `SubmitButton` gained a `formAction` prop. A submit button's `name` and `value` do not reach a server action reliably from a client component, which silently turned an approve into a reject; two submit buttons in one form now point at two actions instead.
+
+## 2026-11-12: Nobody is "absent" on a day nobody works
+
+- The home screen's "attendance not marked today" counted every active employee user without a record for the date. That included the person reading the screen, people on approved leave, accounts with no HR record at all (service and portal users), and every weekend and public holiday, so an owner opened the system on a Sunday and was told the whole company had not marked attendance.
+- `loadAttention` now asks for people with an active, unarchived `EmployeeProfile`, never the reader (`id: { not: user.id }`), never someone whose approved leave covers the date, and nobody at all when the working calendar says the date is a weekly day off or a public holiday. The section carries `workingToday`, `present`, `away` and `staff` so the screen can say "4 of 6 at work, 1 on leave" instead of only naming a problem.
+- The People tab shows "—" with "not a working day" rather than a zero, because zero reads as "everyone marked attendance".
+- "Work overdue" on the hero uses the same rule as the Projects page's "Overdue tasks" card (not done, due before now, on an active project) so the two figures cannot disagree, and it is only built for someone with `projects.view_all` or `projects.manage`.
+
+## 2026-11-12: The software lines are called a "Solution", and buyers are "Clients"
+
+- Asad asked for enterprise wording and said the software lines must not be called a "product" in the screens (2026-11-12). He chose **Solution** over Platform and over Project, which would clash with Projects & Tasks.
+- The rename is a wording change only. Every label, heading, hint, error message, option and CSV header a person reads now says Solution: Field Sales Team ("Solutions", "Add a solution", "Commission per solution", "Who works which solution"), the Demo queue filter, the visit-report spreadsheet column, the duplicate-prospect sentences an agent reads in the field, the lead note a prospect carries into the CRM, the Field sales permission, and the SaaS client type.
+- The code is left as it is: the `SaasProduct` model, `productId` columns, the `field.review` permission key, the `?product=` address parameters and the `product:<code>` lead tag. Renaming them would be a migration and a rewrite with no gain to anyone reading a screen, and it would break the saved addresses and tags already in use.
+- "Customer" becomes "Client" where it means someone we bill: the menu entry and the page title agree on Clients, "Owed by clients" on the dashboard, Client statements, Client support, and the Client contact category. Three things keep the old word on purpose: the "Customer Advances" ledger account, because renaming a posted account would break existing books; the customer success manager, which is the role's real name; and the Customer Service Representative job advert.
+- The service category "SaaS Products and Subscriptions" is seeded data, not a label in the code, so it is left alone: renaming the constant would give organizations that already have the category a second one. HR can rename it in Services if Asad wants.

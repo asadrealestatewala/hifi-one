@@ -31,6 +31,9 @@ Setup the owner must do once: `cd mobile && npx eas-cli init` (writes the projec
 2. Google Play Console developer account (one-time fee) to publish; signing keys are created and held by EAS. iOS needs an Apple Developer account (yearly fee) and a Mac is not required with EAS.
 3. Replace the icon and splash in `mobile/assets` with the Hifi One brand.
 
+## Support requests (groundwork)
+`GET|POST support`: terms to accept and a waiting support request for company-owned phones. See docs/MONITORING.md (Company phones). Version 0.2.0 adds `react-native-webrtc` (a native module, so it needs a fresh `eas build`/APK, not Expo Go) and the Support screen. Untested on a device.
+
 ## Not built yet
 Client and vendor portals in the app, expenses, payslips, offline mode, biometric unlock, password change / forgot password in the app.
 Not verified on a device or emulator: the app type-checks (`cd mobile && npx tsc --noEmit`) and the server checks pass, but it has not been run on a phone.

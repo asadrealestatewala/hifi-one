@@ -1,6 +1,7 @@
 import { audit } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { HrError, clockIn, clockOut, endBreak, startBreak } from "@/lib/hr";
+import { HrError } from "@/lib/hr";
+import { breakEndAll, breakStartAll, clockInAll, clockOutAll } from "@/lib/clock";
 import { workedMinutes } from "@/lib/hr-rules";
 import { companyZone, isResponse, json, readJson, requireMobileUser, str } from "@/lib/mobile-api";
 
@@ -33,10 +34,10 @@ export async function POST(req: Request) {
   const action = str(body.action, 20);
   if (!["in", "out", "break_start", "break_end"].includes(action)) return json({ error: "Unknown action." }, 400);
   try {
-    if (action === "in") await clockIn(db, { userId: user.id, timeZone: await companyZone(user.organizationId), workMode: body.mode === "REMOTE" ? "REMOTE" : "OFFICE" });
-    else if (action === "out") await clockOut(db, { userId: user.id });
-    else if (action === "break_start") await startBreak(db, { userId: user.id });
-    else await endBreak(db, { userId: user.id });
+    if (action === "in") await clockInAll(db, { organizationId: user.organizationId, userId: user.id, timeZone: await companyZone(user.organizationId), workMode: body.mode === "REMOTE" ? "REMOTE" : "OFFICE" });
+    else if (action === "out") await clockOutAll(db, { userId: user.id });
+    else if (action === "break_start") await breakStartAll(db, { userId: user.id });
+    else await breakEndAll(db, { userId: user.id });
     await audit(user, { action: `attendance.${action}`, entity: "AttendanceRecord", after: { via: "mobile" } });
   } catch (e) {
     if (e instanceof HrError) return json({ error: e.message }, 409);

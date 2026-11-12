@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { HrError, cancelLeave, decideLeave, leaveBalances, requestLeave } from "@/lib/hr";
 import { dateInZone } from "@/lib/hr-rules";
 import { notify } from "@/lib/notifications";
+import { DAY_NAMES, getWorkingContext } from "@/lib/working-calendar";
 import { Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -17,9 +18,11 @@ async function submit(formData: FormData) {
   "use server";
   const user = await requirePermission("self.leave");
   try {
+    const cal = await getWorkingContext(db, user.organizationId);
     const r = await requestLeave(db, {
       organizationId: user.organizationId, userId: user.id, leaveTypeId: String(formData.get("leaveTypeId")),
       startDate: String(formData.get("startDate")), endDate: String(formData.get("endDate")), reason: String(formData.get("reason") ?? ""),
+      holidays: cal.holidayDates, weekend: cal.calendar.weekendDays,
     });
     await audit(user, { action: "leave.request", entity: "LeaveRequest", entityId: r.id, after: { start: r.startDate, end: r.endDate, days: r.days.toString() } });
     const me = await db.user.findUnique({ where: { id: user.id }, select: { managerId: true } });
@@ -69,11 +72,16 @@ export default async function MyLeave({ searchParams }: { searchParams: Promise<
   const { error } = await searchParams;
   const profile = await db.companyProfile.findFirst({ where: { organizationId: user.organizationId, isDefault: true } });
   const year = dateInZone(new Date(), profile?.timezone ?? "UTC").slice(0, 4);
-  const [balances, mine, types] = await Promise.all([
+  const [balances, mine, types, cal] = await Promise.all([
     leaveBalances(db, user.organizationId, user.id, year),
     db.leaveRequest.findMany({ where: { userId: user.id }, orderBy: { startDate: "desc" }, include: { leaveType: true }, take: 50 }),
     db.leaveType.findMany({ where: { organizationId: user.organizationId, active: true }, orderBy: { name: "asc" } }),
+    getWorkingContext(db, user.organizationId, dateInZone(new Date(), profile?.timezone ?? "UTC"), `${Number(year) + 1}-12-31`),
   ]);
+  const offNames = cal.calendar.weekendDays.map((d) => DAY_NAMES[d]);
+  const notCounted = [...offNames, "public holidays"];
+  const offDays = notCounted.length > 1 ? `${notCounted.slice(0, -1).join(", ")} and ${notCounted[notCounted.length - 1]}` : notCounted[0];
+  const upcoming = cal.holidays.slice(0, 6);
   const canApprove = user.permissions.has("leave.approve");
   const toDecide = canApprove
     ? await db.leaveRequest.findMany({
@@ -85,7 +93,7 @@ export default async function MyLeave({ searchParams }: { searchParams: Promise<
   const approvable = toDecide.filter((r) => user.permissions.has("attendance.view_all") || people.get(r.userId)?.managerId === user.id);
   return (
     <div className="space-y-6">
-      <PageHeader title="My Leave" />
+      <PageHeader title="My leave" />
       {error && <Notice kind="error">{error}</Notice>}
       <div className="grid gap-4 sm:grid-cols-4">
         {balances.map((b) => (
@@ -104,8 +112,18 @@ export default async function MyLeave({ searchParams }: { searchParams: Promise<
         <div><label className="label" htmlFor="startDate">From</label><input id="startDate" name="startDate" type="date" required className="input" /></div>
         <div><label className="label" htmlFor="endDate">To</label><input id="endDate" name="endDate" type="date" required className="input" /></div>
         <div><label className="label" htmlFor="reason">Reason</label><input id="reason" name="reason" className="input" /></div>
-        <div className="sm:col-span-4"><button className="btn">Submit request</button> <span className="text-xs text-muted ml-2">Weekends are not counted. Public holidays are not configured yet.</span></div>
+        <div className="sm:col-span-4"><button className="btn">Submit request</button> <span className="ml-2 text-xs text-muted">Only working days count: {offDays} are not counted.</span></div>
       </form>
+
+      {upcoming.length > 0 && (
+        <section className="card">
+          <h2 className="mb-2 font-semibold">Public holidays coming up</h2>
+          <ul className="grid gap-1 text-sm sm:grid-cols-2">
+            {upcoming.map((h) => <li key={h.date} className="flex justify-between gap-4"><span>{h.name}</span><span className="text-muted">{h.date}</span></li>)}
+          </ul>
+          <p className="mt-2 text-xs text-muted">A holiday in your dates is not counted against your balance. Dates that move with the moon are marked as expected until they are notified.</p>
+        </section>
+      )}
 
       <section className="card overflow-x-auto">
         <h2 className="font-semibold mb-2">My requests</h2>

@@ -2,6 +2,10 @@
 
 Hifi One includes a transparent time-tracking and activity module in the spirit of tools such as Workfolio. It is built around consent, minimal collection and visibility to the person being measured. This page says exactly what it does and does not do.
 
+## One clock
+
+Clock in, break and clock out go through one service (`src/lib/clock.ts`) from My Attendance, My Workfolio and the mobile API. Attendance (what payroll and HR use) is always recorded. The activity tracker's work session is opened and closed with it only when monitoring is switched on and the person has accepted the current terms; otherwise only attendance is recorded. My Attendance shows the terms with a checkbox; ticking it records the acceptance against the policy version shown (same record as the My Workfolio accept screen).
+
 ## What is collected
 
 | Item | Browser tracker | Desktop app |
@@ -12,7 +16,7 @@ Hifi One includes a transparent time-tracking and activity module in the spirit 
 | Application names | No (a browser cannot see other apps) | Optional, names only, durations |
 | Screenshots | No | Optional, at the policy interval |
 
-**Never collected, by design:** what is typed, passwords, messages, window titles, web addresses, pointer positions, microphone or camera. The database has no column that could hold them.
+**Never collected, by design:** what is typed, passwords, messages, window titles, full web addresses (page, path, query), page titles, pointer positions, microphone or camera. The database has no column that could hold them. Website tracking (off by default, its own tick in the policy) keeps only the domain, such as `github.com`, with seconds per day (`WebUsage`); anything that is not a bare host name is dropped. Turning it on raises the policy version, so everyone accepts again. Reporting comes from the disclosed browser add-on in `extension/` (load it unpacked; see its README). It calls `/api/monitor/sites` with the person's own sign-in and a required `x-hifi-addon` header, never starts a work session, and reports only while the person is clocked in, has accepted the current terms, the policy includes websites, it is working hours and no break is running. Private windows are never read. Not yet published to a web store.
 
 ## Workfolio screen sharing from the browser
 
@@ -24,7 +28,27 @@ The module is called **Workfolio** in the menu (Workfolio for HR and managers, M
 4. The server applies the same rules as for the desktop agent (`storeScreenshot`): policy on, consent for the current version, clocked in, inside working hours, not on a break, no faster than the interval, real JPEG or PNG. Stopping the share, a break, clocking out or leaving working hours ends capture.
 5. Managers see **Working now** on the Workfolio page: who is clocked in, on a break or without signal, and when each person's last snapshot was taken. They do not see a live video feed. Opening a snapshot still needs `monitoring.screenshots` and is logged for the person.
 
-Not built: a live video view of someone's screen for managers (it would need a media relay like the meeting module; recommended only with explicit written consent), and capture of screens when the browser is closed. Real screen capture could not be exercised in the automated browser here (it blocks capture); the snapshot route, limits and consent rules are covered by tests and the dock was checked in the browser.
+## Live screen view
+
+Off by default (policy tick "Live screen view"; turning it on raises the policy version, so everyone accepts again). A person holding `monitoring.live_view` (Super Admin only by default) can press **Ask to watch** beside someone who is working now on the Workfolio page. Rules, enforced in `src/lib/live-view.ts`:
+
+1. The person is asked on their own screen and must press Allow every time; no answer within 60 seconds expires the request. Saying no changes nothing and is not logged against them.
+2. They must be clocked in, not on a break, inside working hours, and have accepted the current terms. Clocking out or starting a break ends a running view at once.
+3. The viewer sees only the screen or window the person is sharing in their browser (the person chooses it in the browser's own picker). The video goes browser to browser (WebRTC, same relay settings as meetings, `ICE_SERVERS`); the server relays only the handshake and stores no video.
+4. While it runs the person sees a red banner with **Stop now**. Either side can stop it.
+5. The view is written to the access log they can read ("opened your screen live") when they allow it.
+
+## Remote support (company computers)
+
+Off by default (policy tick "Remote support"; raises the policy version). A person with `monitoring.remote_support` (Super Admin only by default) presses **Offer help** next to anyone on the Workfolio page. It uses the same consent flow as live view with these differences: the helper must write a reason (shown to the person before they answer), it may happen outside working hours or while not clocked in, but only while the person is signed in to Hifi One to answer, and clocking out does not cut it. The person sees a banner ("is helping you and can see your shared screen") with **Stop now**, and the session is logged as "remote support" in the access log they can read.
+
+### Company phones (groundwork)
+
+Settings → Monitoring Policy → **Company phones** lists phones that have signed in to the Hifi One app; an administrator marks the ones the company owns (`PushDevice.companyOwned`). Support can only be requested for a company-owned phone, for the person who signed in on it, with permission, a stated reason, the policy tick and the person's acceptance of the current terms (`requestPhoneSupport`). The app reads `GET /api/mobile/v1/support` (terms to accept, request waiting) and answers with `POST /api/mobile/v1/support` (`accept_terms`, `respond`, `end`). The app (`mobile/src/screens/Support.tsx`, app version 0.2.0) shows the terms with a tick-box, then a request naming the helper and the reason with **Allow** / **No thanks**; Allow opens Android's own screen-sharing prompt and recording indicator, and a red banner with **Stop** stays on screen. The video goes phone to helper over WebRTC (`react-native-webrtc`); the helper's handshake messages wait in a short in-memory queue the phone reads by polling (`GET support?signals=`). The helper side is the same page as computer support (Workfolio → Offer help → choose the phone). **Not tested on a real phone or emulator:** the app type-checks, and the server rules and queue are covered by tests, but this needs a new Android build (native module) and a real company phone before staff get it. Needs no extra Firebase setup beyond what push already uses. Personal phones are never covered.
+
+**View only for now.** The helper sees the screen the person chooses to share. Taking control of the mouse and keyboard, a terminal or file access are not built. When control is added it will need a company-installed helper app, its own permission and a second explicit "allow control" step from the person each session. Personal phones are never covered by remote support.
+
+Not verified in a real browser pair. Strict networks may need a relay server, as with meetings. Not built: capture of screens when the browser is closed. Real screen capture could not be exercised in the automated browser here (it blocks capture); the snapshot route, limits and consent rules are covered by tests and the dock was checked in the browser.
 
 ## The rules the system enforces (not just documents)
 

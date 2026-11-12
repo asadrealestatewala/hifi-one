@@ -68,7 +68,7 @@ Guards: `src/lib/auth.ts` (`getSessionUser` cached per request, `requireUser`, `
 | Procurement | `vendors`, `procurement` | `vendors.ts` |
 | My Space | `me/{profile,help,attendance,leave,visits,report,scorecard,requests,payslips,tasks,time,commissions,documents,calendar}`, `account/*`, `expenses`, `assistant` | `hr.ts`, `assistant.ts`, `mfa.ts`, `totp.ts` |
 | Campaigns | `campaigns`, `campaigns/[id]` | `campaigns.ts` |
-| Administration | `users`, `roles`, `settings/*`, `audit-logs`, `menu` | `permissions.ts`, `mfa-policy.ts`, `mailer.ts`, `menu-layout.ts` |
+| Administration | `users`, `roles`, `settings/*`, `audit-logs`, `menu` | `permissions.ts`, `mfa-policy.ts`, `mailer.ts`, `menu-layout.ts`, `working-calendar.ts` |
 | Portals | `src/app/portal/*` (client), `src/app/vendor/*` (vendor) | `portal.ts`, `vendors.ts`, `statements.ts` |
 
 Downloads: `/reports/download?report=…&format=csv|pdf` (`report-tables.ts`). Workfolio dock: `src/components/shell/WorkfolioDock.tsx` with `api/monitor/state` and `api/monitor/snapshot`. Client portal: `portal/{projects,notifications,…}`; vendor portal: `vendor/{profile,notifications,…}`.
@@ -90,3 +90,9 @@ Mail through the Resend API or SMTP (`mailer.ts`), company mailboxes with Resend
 ## Measured conventions (2026-10-13)
 
 Baseline before the first improvement batch: 102 `page.tsx`; 28 used `PageHeader`, 73 rendered their own `<h1>`; 53 files hand-wrote `<table>`; 56 pages define inline server actions, 19 `actions.ts` files; 1 `loading.tsx`, 0 `error.tsx`, 0 `not-found.tsx`; 15 pages use `Drawer`. Now: `error.tsx` in `(app)`, `portal`, `vendor`; `not-found.tsx` at the root and in `(app)`; 11 lists paged.
+
+Added 2026-11-12: **Working calendar** (`/settings/calendar`, view `settings.company.view`, edit `settings.company.edit`). `src/lib/working-calendar.ts` owns office hours, lunch, the lateness grace period, which weekdays are working days and the public holidays (`WorkingCalendar`, `PublicHoliday`), with Pakistan's list built in for the current and next year. Leave, daily reports, scorecards, the end-of-day job, the sales quest streak and payroll read it instead of their own constants; `src/lib/jobs.ts` passes the calendar to every job in its context and the end-of-day job waits for the calendar's closing time (`notBeforeClose`).
+
+Added 2026-11-12: **My day** (`/me`, `requireUser`, every signed-in employee). `src/lib/my-day.ts` reads one person's day — the clock, the daily report, circulars still to confirm, tasks due and overdue, today's meetings — and turns it into a short "still to do" list that both `/me` and the home dashboard show. The sidebar's My space is six entries (My day, My attendance, My tasks, My leave, My payslips, My profile); everything else a person owns is grouped on `/me`, and Mailbox and Assistant moved to Overview.
+
+Added 2026-11-12 (step 4 of the UI fixes): **Approvals** (`/approvals`, `requireUser`; every kind inside is gated by its own permission in `src/lib/approvals.ts`), **Staff leave** (`/hr/leave`, `leave.approve`; HR with `attendance.view_all` sees everyone, a manager only their direct reports) and **My team** (`/me/team`, `leave.approve`). `src/lib/approvals.ts` is a read-only aggregator: it gathers leave, off-site days, employee requests, expense vouchers, commissions, lead conversions, onboarding, time corrections and client deliverables, and links each to the screen that owns the decision. My scorecard (`/me/scorecard?user=`) now also opens for a manager's own direct report, not only for `attendance.view_all`.

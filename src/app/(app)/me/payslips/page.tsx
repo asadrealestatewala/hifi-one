@@ -16,7 +16,7 @@ export default async function MyPayslips() {
   });
   return (
     <div className="space-y-4">
-      <PageHeader title="My Payslips" />
+      <PageHeader title="My payslips" />
       <div className="card">
         {items.length === 0 ? <p className="text-sm text-muted">No payslips yet.</p> : (
           <ul className="text-sm">

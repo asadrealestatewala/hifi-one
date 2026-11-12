@@ -54,7 +54,7 @@ Master prompt section in brackets.
 - **Not built:** discounts, input tax on purchases, FX gain or loss accounting, direct bank feeds, reimbursements as a separate flow.
 
 ## Dashboards and reports [13]
-- **Home dashboard (done, tested at data level):** hero with period picker (this month, last month, this quarter, this year), collected, overdue and new-lead numbers; quick-action pills (new lead, receive payment, new voucher, mark attendance, leave requests, asset library, my tasks, ask the assistant) shown by role; tabs Overview, Leads & sales, Finance, People, Assets shown by role. Overview has the collected-and-spent chart, a Needs-attention list and arrangeable cards (follow-ups, overdue invoices, vouchers, commissions, attendance not marked, posts today, tasks, meetings, contacts, goals). Leads & sales is the leads report (also at CRM > Leads Report). Finance shows profit and loss for the period from the same ledger loader as Financial reports, position today, and overdue invoices. People: headcount, present, on leave, birthdays, new joiners. Assets: counts, cost, categories.
+- **Home dashboard (done, tested at data level):** hero with period picker (this month, last month, this quarter, this year) and up to five cards by role: collected, overdue, new leads, people at work today and work overdue; quick-action pills (new lead, receive payment, new voucher, mark attendance, leave requests, asset library, my tasks, ask the assistant) shown by role; tabs Overview, Leads & sales, Finance, People, Assets shown by role. Overview has the collected-and-spent chart, a Needs-attention list and arrangeable cards (follow-ups, overdue invoices, vouchers, commissions, attendance not marked, posts today, tasks, meetings, contacts, goals). Leads & sales is the leads report (also at CRM > Leads Report). Finance shows profit and loss for the period from the same ledger loader as Financial reports, position today, and overdue invoices. People: headcount, present, on leave, birthdays, new joiners; "Not marked" counts only people with an active HR record who are neither the reader nor on approved leave, and shows "—" on a day the working calendar says nobody works. Assets: counts, cost, categories.
 - **Customize menu:** each person can drag menu groups into any order, either straight in the sidebar (desktop) or with drag handles and arrows in Customize menu at the bottom of the sidebar (works on touch), hide groups or items, pick an icon colour per group and a sidebar colour. Saved to the person's account (follows them across devices), with Reset to default. Hiding only tidies the menu; pages still check permission, and are reachable from search.
 - **My Space:** My Profile (details, branch, company assets, update contact details, picture), Help & Guide, Account Security, My Attendance, My Leave, My Payroll, My Tasks; a floating Ask button opens the assistant.
 - Old widgets (money tiles, KPIs) were replaced by the above; saved layouts keep any card ids that still exist.
@@ -183,3 +183,33 @@ Done: per-project library with folders, tags, versions, image/video/PDF previews
 ## Solution details and brand assets (2026-11-12)
 - **Done (tested at service level, `tsc` and `eslint` clean, full suite passing):** each solution at Leads → Prospector → Field Sales Team has a details page (`/leads/prospector/field-team/[id]`) with one-line pitch, description, who it is for, key features, pricing, demo link and pitch notes, plus its brand assets. The assets are a project's asset library (folders, previews, versions, no-login share links), created from the page or linked to an existing project, so nothing is duplicated. Sales managers (`field.review`) edit; seeing the files also needs `projects.view` and project membership.
 - **Not built:** read-only solution page for office and field agents (today only sales managers open it). Not checked in a browser.
+
+## Screen names and Help (2026-11-12)
+- **Done (tsc, eslint, 928 unit tests pass; checked in a browser at 1280px):** every menu label now matches its page title, in sentence case, under the rule in `docs/DESIGN_SYSTEM.md`. The mismatches that are gone: "My Payroll" → My payslips, "My Workfolio" → Time tracking, "Calendar Feed" → My calendar, "Customers" → Clients, "Attendance (all)" → Staff attendance, "Site Visits (all)" → Staff site visits, "Workfolio" → Team time tracking, "Procurement" → Orders & bills. "Workfolio" is gone from every screen staff see.
+- **Help & guide** (`/me/help`) is rebuilt: 39 jobs in six groups (your day, selling, clients and money, projects and content, people and HR, running the system) covering the November features that were missing entirely (daily report, scorecard, site visits, requests to HR, documents, circulars, team chat, field visits, demo queue, project files, time tracking).
+- **Notifications** (`/notifications`) no longer claims "in-app only for now" (emails and phone alerts do go out); it uses `PageHeader`, groups into Today / Yesterday / Earlier, and has a real empty state.
+- **Not changed:** per-person notification preferences, and the menu grouping itself (both are later steps).
+
+## Working calendar (2026-11-12)
+
+Done: `/settings/calendar` (office hours, lunch, lateness grace, working weekdays, public holidays with Pakistan's 2026 and 2027 lists), `src/lib/working-calendar.ts`, and the wiring of leave, daily reports, the end-of-day report, scorecards, the sales quest streak, payroll unpaid days and the scheduled jobs to it. A holiday now shows as a notice on My Daily Report, Staff daily reports and the End-of-day report, and My Leave lists the holidays coming up instead of saying none are configured.
+
+Verified: `npx tsc --noEmit`, `npx eslint src` (3 pre-existing warnings), the whole suite 136 files / 1802 tests including a new `working-calendar.integration.test.ts` (a holiday is not counted against leave, expects no report, writes no scorecard; shorter office hours change the attendance mark; Saturday becomes a working day when ticked).
+
+Not done: `MonitoringPolicy.workStart/workEnd/workDays` still have their own hours for the activity charts; half-day holidays, per-office calendars and per-department hours are not supported; Islamic holiday dates are seeded as expected dates and need correcting when notified.
+
+## My day and the home screen (2026-11-12)
+
+Done: `/me` (My day) with the day's state, a "still to do" list and every My space destination in six groups; `src/lib/my-day.ts`; the home screen's greeting and "Needs attention" now start with the reader's own day and say when it is not a working day; My space in the sidebar reduced from twenty entries to six; Mailbox and Assistant moved to Overview; the sales quest card limited to `crm.edit`.
+
+Verified: `npx tsc --noEmit`, `npx eslint src` (3 pre-existing warnings), `npm run build`, the whole suite including `my-day.test.ts` (13 rules) and `my-day.integration.test.ts` (10 cases: clock states, breaks, report, circulars, overdue against due today, holiday, weekly off, approved leave, and that another person sees none of it). Opened `/me` and `/dashboard` signed in.
+
+Not done: the pages under My day are still separate screens rather than tabs; per-person notification preferences; the approvals, HR leave and My Team screens (the next step).
+
+## Approvals, staff leave and My team (2026-11-12)
+
+Done: `/approvals` (one list of everything waiting for the reader, oldest first, nine kinds), `/hr/leave` (HR and manager leave screen with balances and decisions), `/me/team` (a manager's direct reports with today's attendance, daily report, tasks and what is waiting), `src/lib/approvals.ts`, and a manager's access to a direct report's scorecard.
+
+Verified: `npx tsc --noEmit`, `npx eslint src` (3 pre-existing warnings), `npm run build`, 140 test files / 1845 tests including `approvals.test.ts` and `approvals.integration.test.ts` (scope per permission, own requests excluded, exact counts, one organization never sees another's). Opened all three screens signed in and approved a real leave request end to end, which is how the approve/reject button bug was found and fixed.
+
+Not done: deciding from the Approvals screen itself (by design, for now); quotations and purchase orders are not yet among the kinds; `/me/team` needs `leave.approve`, so a team lead without it still sees nothing.

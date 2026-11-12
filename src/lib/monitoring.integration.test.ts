@@ -230,3 +230,56 @@ describe("desktop agent", () => {
     await expect(createEnrollmentCode(db, { organizationId: org, userId: bob, createdById: hr })).rejects.toThrow(MonitorError);
   });
 });
+
+import { normalizeDomain, ingestAgent as ingestSites } from "./monitoring";
+describe("website tracking keeps domains only", () => {
+  it("normalizes to a bare host and refuses anything that looks like a page", () => {
+    expect(normalizeDomain("WWW.GitHub.com")).toBe("github.com");
+    for (const bad of ["https://github.com/a?q=secret", "github.com/path", "user@github.com", "github.com:8080", "localhost", "a b.com", "", 5]) expect(normalizeDomain(bad as unknown)).toBeNull();
+  });
+  it("stores nothing unless switched on and accepted, and only inside working hours", async () => {
+    const o = (await db.organization.create({ data: { name: "Web Org" } })).id;
+    const u = (await db.user.create({ data: { organizationId: o, email: "w@web.test", name: "w", passwordHash: "x" } })).id;
+    const noon = new Date("2026-10-12T07:00:00.000Z"); // 12:00 in Karachi, a Monday
+    await savePolicy(db, { organizationId: o, actorId: u, patch: { enabled: true, policyText: "x".repeat(60), trackWebsites: false } });
+    const v1 = (await getPolicy(db, o)).version;
+    await acknowledge(db, { userId: u, version: v1 });
+    await ingestSites(db, { organizationId: o, userId: u }, { sites: [{ domain: "github.com", seconds: 60 }], now: noon });
+    expect(await db.webUsage.count({ where: { userId: u } })).toBe(0);
+    await savePolicy(db, { organizationId: o, actorId: u, patch: { trackWebsites: true } });
+    const v2 = (await getPolicy(db, o)).version;
+    expect(v2).toBe(v1 + 1);
+    await expect(ingestSites(db, { organizationId: o, userId: u }, { sites: [{ domain: "github.com", seconds: 60 }], now: noon })).rejects.toThrow(/accept/);
+    await acknowledge(db, { userId: u, version: v2 });
+    const r = await ingestSites(db, { organizationId: o, userId: u }, { sites: [{ domain: "github.com", seconds: 60 }, { domain: "https://x.com/secret", seconds: 60 }, { domain: "ok.org", seconds: 999 }], now: noon });
+    expect(r.accepted).toBe(1);
+    expect(r.dropped).toBe(2);
+    expect((await db.webUsage.findMany({ where: { userId: u } })).map((x) => x.domain)).toEqual(["github.com"]);
+    await ingestSites(db, { organizationId: o, userId: u }, { sites: [{ domain: "late.com", seconds: 60 }], now: new Date("2026-10-12T20:00:00.000Z") });
+    expect(await db.webUsage.count({ where: { userId: u } })).toBe(1);
+  });
+});
+
+import { addonState, ingestFromAddon } from "./monitoring";
+describe("browser add-on reporting", () => {
+  it("reports only inside a clocked-in, consented, working-hours session, and never starts one", async () => {
+    const o = (await db.organization.create({ data: { name: "Addon Org" } })).id;
+    const u = (await db.user.create({ data: { organizationId: o, email: "a@addon.test", name: "a", passwordHash: "x" } })).id;
+    const noon = new Date("2026-10-12T07:00:00.000Z");
+    const d = { organizationId: o, userId: u };
+    expect((await addonState(db, d, noon)).reason).toMatch(/switched off/);
+    await savePolicy(db, { organizationId: o, actorId: u, patch: { enabled: true, policyText: "x".repeat(60), trackWebsites: true } });
+    expect((await addonState(db, d, noon)).reason).toMatch(/Accept/);
+    await acknowledge(db, { userId: u, version: (await getPolicy(db, o)).version });
+    expect((await addonState(db, d, noon)).reason).toMatch(/Clock in/);
+    expect((await ingestFromAddon(db, d, [{ domain: "github.com", seconds: 30 }], noon)).accepted).toBe(0);
+    expect(await db.workSession.count({ where: { userId: u } })).toBe(0);
+    const { startSession, startBreak } = await import("./monitoring");
+    const sess = await startSession(db, { ...d, now: noon });
+    expect((await ingestFromAddon(db, d, [{ domain: "github.com", seconds: 30 }, { domain: "https://a.com/x", seconds: 30 }], noon))).toMatchObject({ accepted: 1, dropped: 1 });
+    expect((await addonState(db, d, new Date("2026-10-12T20:00:00.000Z"))).reason).toMatch(/working hours/);
+    await startBreak(db, { userId: u, sessionId: sess.id, now: noon });
+    expect((await addonState(db, d, noon)).reason).toMatch(/break/);
+    expect(await db.webUsage.count({ where: { userId: u } })).toBe(1);
+  });
+});

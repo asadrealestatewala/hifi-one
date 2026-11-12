@@ -58,7 +58,7 @@ export default async function Expenses({ searchParams }: { searchParams: Promise
   const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ status, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/expenses${t ? `?${t}` : ""}`; };
   return (
     <div className="space-y-6">
-      <PageHeader title="Expense Vouchers" subtitle={`${all ? "All vouchers in the organization." : "Your vouchers."} Approved spending is committed against its budget; posting records the expense; only payment moves cash.`} actions={<ExportLink href={listHref("/expenses/export", { status })} />} />
+      <PageHeader title="Expense vouchers" subtitle={`${all ? "All vouchers in the organization." : "Your vouchers."} Approved spending is committed against its budget; posting records the expense; only payment moves cash.`} actions={<ExportLink href={listHref("/expenses/export", { status })} />} />
       <Chips current={status ?? "all"} items={[{ key: "all", label: "All", count: counts.reduce((n, c) => n + c._count, 0), href: href({ status: undefined }) }, ...STATUSES.map((s) => ({ key: s, label: s.toLowerCase().replace("_", " ").replace(/^./, (c) => c.toUpperCase()), count: count.get(s) ?? 0, href: href({ status: s }) }))]} />
       {vouchers.length === 0 ? <Empty title={status ? "No vouchers with this status" : "No vouchers yet"}>Submit one with the form below.</Empty> : (
       <div className="card overflow-x-auto !p-0">

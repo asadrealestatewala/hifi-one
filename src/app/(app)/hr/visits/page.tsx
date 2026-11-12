@@ -32,7 +32,7 @@ export default async function HrVisits({ searchParams }: { searchParams: Promise
   const weekday = (s: string) => new Date(`${s}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
   return (
     <div className="space-y-5">
-      <PageHeader title="Site visits & field work" subtitle="Who is out of the office for work, and requests waiting for a decision." actions={
+      <PageHeader title="Staff site visits" subtitle="Who is out of the office for work, and requests waiting for a decision." actions={
         <form method="get" action="/hr/visits" className="flex items-center gap-2 text-sm"><Link href={`/hr/visits?from=${addDays(from, -14)}`} className="btn-ghost" aria-label="Earlier">‹</Link><input type="date" name="from" defaultValue={from} className="input !w-auto" /><button className="btn-ghost">Go</button><Link href={`/hr/visits?from=${addDays(from, 14)}`} className="btn-ghost" aria-label="Later">›</Link></form>
       } />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}

@@ -3,6 +3,7 @@ import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { MAX_DAYS_BACK, dayBounds, myRecentDays } from "@/lib/daily-reports";
 import { dateInZone, fmtMinutes, isDateString, workedMinutes } from "@/lib/hr-rules";
+import { getWorkingContext } from "@/lib/working-calendar";
 import { Badge, Notice, PageHeader, Stat } from "@/components/ui";
 import SubmitButton from "@/components/ui/SubmitButton";
 import { submitDailyReportAction } from "./actions";
@@ -23,9 +24,11 @@ export default async function MyDailyReport({ searchParams }: { searchParams: Pr
   const earliest = addDays(today, -MAX_DAYS_BACK);
   const date = sp.date && isDateString(sp.date) && sp.date <= today && sp.date >= earliest ? sp.date : today;
   const bounds = dayBounds(date, tz);
+  const work = await getWorkingContext(db, user.organizationId, addDays(today, -30), today);
+  const todayHoliday = work.holidays.find((h) => h.date === date) ?? null;
   const [report, days, attendance, tasksDone, hasProfile] = await Promise.all([
     db.dailyReport.findUnique({ where: { userId_workDate: { userId: user.id, workDate: date } } }),
-    myRecentDays(db, { organizationId: user.organizationId, userId: user.id, today }),
+    myRecentDays(db, { organizationId: user.organizationId, userId: user.id, today, weekend: work.calendar.weekendDays, holidays: work.holidayDates }),
     db.attendanceRecord.findFirst({ where: { userId: user.id, workDate: date }, include: { breaks: true } }),
     db.task.findMany({ where: { assigneeId: user.id, status: "DONE", completedAt: { gte: bounds.gte, lt: bounds.lt } }, select: { id: true, title: true, projectId: true, project: { select: { name: true } } }, take: 20 }),
     db.employeeProfile.findUnique({ where: { userId: user.id }, select: { id: true } }),
@@ -37,7 +40,7 @@ export default async function MyDailyReport({ searchParams }: { searchParams: Pr
   const expectedDays = days.filter((d) => d.expected).length;
   return (
     <div className="space-y-5 max-w-4xl">
-      <PageHeader title="My Daily Report" subtitle={`A short note at the end of each working day, for your manager and HR. Today in ${tz}: ${today}.`} actions={
+      <PageHeader title="My daily report" subtitle={`A short note at the end of each working day, for your manager and HR. Today in ${tz}: ${today}.`} actions={
         <form method="get" action="/me/report" className="flex items-center gap-2 text-sm">
           <label htmlFor="pick-date" className="text-muted">Day</label>
           <input id="pick-date" type="date" name="date" defaultValue={date} min={earliest} max={today} className="input !w-auto" />
@@ -45,6 +48,7 @@ export default async function MyDailyReport({ searchParams }: { searchParams: Pr
         </form>
       } />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
+      {todayHoliday && <Notice kind="ok">{todayHoliday.name} &mdash; a public holiday, so no report is expected for {date}.</Notice>}
       {sp.msg && <Notice kind="ok">{sp.msg}</Notice>}
       {!hasProfile && <Notice kind="error">You do not have an HR profile yet, so your reports will not appear on HR&apos;s list. Ask HR to create one.</Notice>}
       <div className="grid gap-3 sm:grid-cols-3">

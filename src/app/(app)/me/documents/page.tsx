@@ -21,7 +21,7 @@ export default async function MyDocuments({ searchParams }: { searchParams: Prom
   const today = new Date().toISOString().slice(0, 10);
   return (
     <div className="space-y-4 max-w-3xl">
-      <PageHeader title="My Documents" subtitle="Your employment documents (identity, certificates, contracts, health papers). Only you and authorized HR staff can see them; your manager cannot." />
+      <PageHeader title="My documents" subtitle="Your employment documents (identity, certificates, contracts, health papers). Only you and authorized HR staff can see them; your manager cannot." />
       {!hasProfile ? (
         <div className="card text-sm text-muted">You do not have an HR profile yet. Ask HR to create one.</div>
       ) : (

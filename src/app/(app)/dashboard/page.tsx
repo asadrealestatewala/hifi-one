@@ -9,6 +9,8 @@ import { loadLayout } from "@/lib/dashboard-layout";
 import { availableWidgets } from "@/lib/dashboard-widgets";
 import { leadScope } from "@/lib/leads";
 import { questFor } from "@/lib/crm-contacts";
+import { loadMyDay } from "@/lib/my-day";
+import { getWorkingContext } from "@/lib/working-calendar";
 import { formatMoney } from "@/lib/money";
 import Icon from "@/components/shell/Icon";
 import { Avatar, Empty, Stat } from "@/components/ui";
@@ -21,6 +23,7 @@ import { Bars, CardPanel, FlowChart, Row, money } from "./parts";
 export const dynamic = "force-dynamic";
 
 type SP = { tab?: string; period?: string; cur?: string };
+type HeroCard = { label: string; value: string | number; sub: string; href: string };
 const TABS = [["overview", "Overview", "home"], ["leads", "Leads & sales", "target"], ["campaigns", "Campaigns", "chart"], ["finance", "Finance", "wallet"], ["people", "People", "users"], ["assets", "Assets", "layers"]] as const;
 
 export default async function Dashboard({ searchParams }: { searchParams: Promise<SP> }) {
@@ -39,19 +42,42 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const tab = visibleTabs.some(([k]) => k === sp.tab) ? sp.tab! : "overview";
   const leadWhere = canLeads ? leadScope(user) : null;
 
-  const [hero, att] = await Promise.all([
+  const work = await getWorkingContext(db, org, today, today);
+  const [hero, att, myDay] = await Promise.all([
     loadHero(db, org, range, now, canFinance, leadWhere),
-    loadAttention(db, org, user, today, now, leadWhere),
+    loadAttention(db, org, user, today, now, leadWhere, { calendar: work.calendar, holidays: work.holidayDates }),
+    loadMyDay(db, { organizationId: org, userId: user.id, permissions: user.permissions, date: today, timeZone: profile?.timezone ?? "UTC", calendar: work.calendar, holidayName: work.holidays.find((h) => h.date === today)?.name ?? null, now }),
   ]);
+  // The person's own day comes first: nothing else counts as "attention" while their own attendance or report is open.
+  const mine = myDay.items.filter((i) => i.id !== "tasks-overdue"); // the overdue-task line is already in the list below
+  const needsMe = mine.length + att.total;
   const date = new Date(today + "T12:00:00Z").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
   const greet = Number(now.toLocaleTimeString("en-GB", { hour: "2-digit", hour12: false, timeZone: profile?.timezone ?? "UTC" }).slice(0, 2));
   const hello = greet < 12 ? "Good morning" : greet < 18 ? "Good afternoon" : "Good evening";
   const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ tab: tab === "overview" ? undefined : tab, period: period === "month" ? undefined : period, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/dashboard${t ? `?${t}` : ""}`; };
 
   const actions: [string, string, string, boolean][] = [
+    ["My day", "/me", "user", true],
     ["New lead", "/leads?new=1", "target", has("crm.edit")], ["Receive payment", "/finance/payments?new=1", "receipt", has("finance.post")], ["New voucher", "/expenses", "wallet", has("self.expense")],
     ["Mark attendance", "/me/attendance", "clock", has("self.attendance")], ["Leave requests", "/me/leave", "calendar", has("self.leave")], ["Asset library", "/assets", "layers", has("assets.view")],
     ["My tasks", "/me/tasks", "check", true], ["Ask the assistant", "/assistant", "sparkles", has("assistant.use")],
+  ];
+
+  // The hero answers what an owner opens the system for: money in, money late, sales coming in,
+  // who is at work, and what work is late. Each card is only built when the reader may see that figure.
+  const heroCards: (HeroCard | null)[] = [
+    canFinance ? { label: "Collected", value: hero.collected.length ? hero.collected.slice(0, 2).map((m) => `${m.currency} ${Math.round(Number(m.amount)).toLocaleString()}`).join(" · ") : "0", sub: PERIODS[period].toLowerCase(), href: `/finance/payments?from=${range.from}&to=${range.to}&src=dashboard` } : null,
+    canFinance ? { label: "Overdue", value: hero.overdue.count, sub: hero.overdue.amounts.length ? money(hero.overdue.amounts) : "nothing overdue", href: "/finance/reports?type=aging" } : null,
+    canLeads ? { label: "New leads", value: hero.leads.fresh, sub: `${hero.leads.total} in total`, href: `/leads?from=${range.from}&to=${range.to}&src=dashboard` } : null,
+    att.attendance ? {
+      label: "People today",
+      value: att.attendance.workingToday ? `${att.attendance.present} of ${att.attendance.staff - att.attendance.away}` : "—",
+      sub: att.attendance.workingToday
+        ? `${att.attendance.away} on leave${att.attendance.count ? `, ${att.attendance.count} not marked` : ""}`
+        : "not a working day",
+      href: "/hr/attendance",
+    } : null,
+    att.teamOverdueTasks !== null ? { label: "Work overdue", value: att.teamOverdueTasks, sub: att.teamOverdueTasks === 0 ? "every task is on time" : "tasks past their due date", href: "/projects?view=tasks&who=all&due=overdue" } : null,
   ];
 
   let body: ReactNode;
@@ -109,7 +135,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           <section className="card space-y-3"><div className="flex items-center justify-between"><h3 className="font-semibold">Collected and spent</h3>{flow.length > 1 && <span className="flex gap-1">{flow.map((f) => <Link key={f.currency} href={href({ cur: f.currency })} className={`rounded-full border px-2.5 py-0.5 text-xs ${f.currency === cur.currency ? "border-primary bg-primary text-white" : "border-border"}`}>{f.currency}</Link>)}</span>}</div>
             {cur ? <FlowChart data={cur.data} currency={cur.currency} /> : <p className="py-8 text-center text-sm text-muted">No payments or expenses yet.</p>}</section>
           <section className="card space-y-3"><h3 className="font-semibold">Position today</h3>
-            {ex.money.length === 0 ? <p className="text-sm text-muted">No postings yet.</p> : ex.money.map((m) => <div key={m.currency}><p className="mb-1 text-xs font-medium text-muted">{m.currency}</p><dl className="grid grid-cols-3 gap-2 text-sm">{[["Cash and bank", m.cash], ["Owed by customers", m.receivables], ["Accounts payable", m.payables]].map(([l, v]) => <div key={l} className="rounded-xl bg-hover p-2.5"><dt className="text-[11px] text-muted">{l}</dt><dd className="mt-0.5 font-semibold tabular-nums">{formatMoney(v, m.currency)}</dd></div>)}</dl></div>)}
+            {ex.money.length === 0 ? <p className="text-sm text-muted">No postings yet.</p> : ex.money.map((m) => <div key={m.currency}><p className="mb-1 text-xs font-medium text-muted">{m.currency}</p><dl className="grid grid-cols-3 gap-2 text-sm">{[["Cash and bank", m.cash], ["Owed by clients", m.receivables], ["Accounts payable", m.payables]].map(([l, v]) => <div key={l} className="rounded-xl bg-hover p-2.5"><dt className="text-[11px] text-muted">{l}</dt><dd className="mt-0.5 font-semibold tabular-nums">{formatMoney(v, m.currency)}</dd></div>)}</dl></div>)}
             <Link href="/finance/reports?type=aging" className="text-sm text-primary hover:underline">Receivables aging</Link></section>
         </div>
         {att.overdue && att.overdue.rows.length > 0 && <section className="card"><h3 className="mb-1 font-semibold">Most overdue invoices</h3>{att.overdue.rows.map((r) => <Row key={r.id} href={`/finance/invoices/${r.id}`} title={`${r.number} · ${r.client}`} sub={r.due ? `due ${r.due}` : undefined} right={formatMoney(r.outstanding, r.currency)} />)}</section>}
@@ -138,8 +164,8 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     body = (
       <div className="space-y-5">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Stat label="Active staff" value={profiles} href={has("hr.view") ? "/hr/employees?status=ACTIVE&from=dashboard" : undefined} /><Stat label="Present today" value={presentToday} href={has("attendance.view_all") ? "/hr/attendance" : undefined} /><Stat label="Not marked" value={att.attendance?.count ?? "n/a"} hint="no attendance today" href={has("attendance.view_all") ? "/hr/attendance" : undefined} />
-          <Stat label="On leave today" value={onLeave.length} href={has("leave.approve") ? "/me/leave" : undefined} /><Stat label="Leave to approve" value={pending} href={has("leave.approve") ? "/me/leave" : undefined} />
+          <Stat label="Active staff" value={profiles} href={has("hr.view") ? "/hr/employees?status=ACTIVE&from=dashboard" : undefined} /><Stat label="Present today" value={presentToday} href={has("attendance.view_all") ? "/hr/attendance" : undefined} /><Stat label="Not marked" value={att.attendance ? (att.attendance.workingToday ? att.attendance.count : "—") : "n/a"} hint={att.attendance && !att.attendance.workingToday ? "not a working day" : "at work today, nothing recorded"} href={has("attendance.view_all") ? "/hr/attendance" : undefined} />
+          <Stat label="On leave today" value={onLeave.length} href={has("leave.approve") ? "/hr/leave" : undefined} /><Stat label="Leave to approve" value={pending} href={has("leave.approve") ? "/hr/leave" : undefined} />
         </div>
         <div className="grid gap-5 lg:grid-cols-2">
           <section className="card"><h3 className="mb-1 font-semibold">Birthdays this month</h3>{bdays.length === 0 ? <p className="py-4 text-sm text-muted">None recorded for this month.</p> : bdays.sort((a, b) => (a.dateOfBirth ?? "").slice(8).localeCompare((b.dateOfBirth ?? "").slice(8))).map((b) => <div key={b.userId} className="flex items-center justify-between border-b border-border py-2 text-sm last:border-0"><span className="flex items-center gap-2"><Avatar name={nm.get(b.userId) ?? "?"} userId={b.userId} size={26} />{nm.get(b.userId)}</span><span className="text-muted">{b.dateOfBirth!.slice(8)} {new Date(today + "T00:00:00Z").toLocaleDateString(undefined, { month: "short", timeZone: "UTC" })}</span></div>)}</section>
@@ -187,19 +213,20 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     const [flow, layout, quest, tasks, meetings, contacts] = await Promise.all([
       canFinance ? loadFlow(db, org, today) : [],
       loadLayout(db, user.id, availableWidgets(user.permissions).map((w) => w.id)),
-      canLeads ? questFor(db, { organizationId: org, userId: user.id }) : null,
+      has("crm.edit") ? questFor(db, { organizationId: org, userId: user.id }) : null,
       has("projects.view") ? db.task.findMany({ where: { assigneeId: user.id, status: { not: "DONE" }, project: { organizationId: org } }, orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }], take: 5, select: { id: true, title: true, dueDate: true, projectId: true } }) : [],
       has("meetings.use") ? db.meeting.findMany({ where: { organizationId: org, purpose: { not: "CALL" }, status: { in: ["SCHEDULED", "LIVE"] }, OR: [{ hostId: user.id }, { participants: { some: { userId: user.id } } }] }, orderBy: { scheduledAt: { sort: "asc", nulls: "first" } }, take: 5, select: { id: true, title: true, status: true, scheduledAt: true } }) : [],
       canLeads ? db.contact.findMany({ where: { organizationId: org, archived: false, ...(has("crm.view_all") ? {} : { OR: [{ ownerId: user.id }, { createdById: user.id }, { followers: { has: user.id } }] }) }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, name: true, category: true } }) : [],
     ]);
     const cur = flow.find((f) => f.currency === sp.cur) ?? flow[0];
-    const need: { icon: string; tone: "primary" | "danger" | "warning"; n: number; text: string; sub?: string; href: string }[] = [
+    const need: { icon: string; tone: "primary" | "danger" | "warning"; n: number | null; text: string; sub?: string; href: string }[] = [
+      ...mine.map((i) => ({ icon: i.icon, tone: i.tone, n: null, text: i.text, sub: i.sub, href: i.href })),
       att.followups && att.followups.count > 0 ? { icon: "phone", tone: "primary" as const, n: att.followups.count, text: "follow-ups due", sub: att.followups.rows[0]?.name, href: "/leads" } : null,
       att.overdue && att.overdue.count > 0 ? { icon: "receipt", tone: "danger" as const, n: att.overdue.count, text: "overdue invoices", sub: money(att.overdue.amounts), href: "/finance/reports?type=aging" } : null,
       att.vouchers && att.vouchers.count > 0 ? { icon: "wallet", tone: "primary" as const, n: att.vouchers.count, text: "vouchers awaiting approval", sub: att.vouchers.rows[0] ? `${att.vouchers.rows[0].number} · ${att.vouchers.rows[0].description}` : undefined, href: "/expenses" } : null,
       att.commissions && att.commissions.count > 0 ? { icon: "wallet", tone: "primary" as const, n: att.commissions.count, text: "commissions to approve", href: "/finance/commissions" } : null,
       att.attendance && att.attendance.count > 0 ? { icon: "clock", tone: "warning" as const, n: att.attendance.count, text: "attendance not marked today", sub: att.attendance.rows[0]?.name, href: "/hr/attendance" } : null,
-      att.leave && att.leave.count > 0 ? { icon: "calendar", tone: "primary" as const, n: att.leave.count, text: "leave requests to decide", href: "/me/leave" } : null,
+      att.leave && att.leave.count > 0 ? { icon: "calendar", tone: "primary" as const, n: att.leave.count, text: "leave requests to decide", href: "/hr/leave" } : null,
       att.posts && att.posts.count > 0 ? { icon: "calendar", tone: "primary" as const, n: att.posts.count, text: "posts to publish today", sub: att.posts.rows[0]?.title, href: "/content" } : null,
       att.myOverdueTasks > 0 ? { icon: "check", tone: "danger" as const, n: att.myOverdueTasks, text: "of your tasks are overdue", href: "/me/tasks" } : null,
     ].filter((x): x is NonNullable<typeof x> => x !== null);
@@ -226,8 +253,8 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
               {cur ? <FlowChart data={cur.data} currency={cur.currency} /> : <p className="py-10 text-center text-sm text-muted">No payments or expenses yet.</p>}</section>
           )}
           <section className={`card !p-0 ${canFinance ? "" : "xl:col-span-2"}`}>
-            <header className="flex items-center justify-between border-b border-border px-4 py-3"><h2 className="font-semibold">Needs attention</h2><span className="rounded-full bg-brand/10 px-2 text-xs font-semibold leading-5 text-brand">{att.total}</span></header>
-            {need.length === 0 ? <p className="px-4 py-10 text-center text-sm text-muted">Nothing needs attention right now.</p> : <ul>{need.map((n) => <li key={n.text}><Link href={n.href} className="flex items-center gap-3 border-b border-border px-4 py-3 text-sm transition last:border-0 hover:bg-hover/60"><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone[n.tone]}`}><Icon name={n.icon} className="h-4 w-4" /></span><span className="min-w-0 flex-1"><span className="block"><strong className={n.tone === "danger" ? "text-brand" : ""}>{n.n}</strong> {n.text}</span>{n.sub && <span className="block truncate text-xs text-muted">{n.sub}</span>}</span><Icon name="chevron" className="h-4 w-4 text-muted" /></Link></li>)}</ul>}
+            <header className="flex items-center justify-between border-b border-border px-4 py-3"><h2 className="font-semibold">Needs attention</h2><span className="rounded-full bg-brand/10 px-2 text-xs font-semibold leading-5 text-brand">{needsMe}</span></header>
+            {need.length === 0 ? <p className="px-4 py-10 text-center text-sm text-muted">{myDay.kind.working ? "Nothing needs attention right now." : `${myDay.kind.reason} Nothing is waiting.`}</p> : <ul>{need.map((n) => <li key={n.text}><Link href={n.href} className="flex items-center gap-3 border-b border-border px-4 py-3 text-sm transition last:border-0 hover:bg-hover/60"><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone[n.tone]}`}><Icon name={n.icon} className="h-4 w-4" /></span><span className="min-w-0 flex-1"><span className="block">{n.n !== null && <strong className={n.tone === "danger" ? "text-brand" : ""}>{n.n} </strong>}{n.text}</span>{n.sub && <span className="block truncate text-xs text-muted">{n.sub}</span>}</span><Icon name="chevron" className="h-4 w-4 text-muted" /></Link></li>)}</ul>}
           </section>
         </div>
         <DashboardGrid key={`${layout.order.join(",")}|${layout.hidden.join(",")}`} widgets={widgets} order={layout.order} hidden={layout.hidden} />
@@ -241,13 +268,17 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <span aria-hidden className="pointer-events-none absolute -right-16 -top-16 h-72 w-72 rounded-full bg-white/10" />
         <div className="relative flex flex-wrap items-start justify-between gap-4">
           <div><p className="text-sm text-white/80">{date} · {user.roles[0] ?? "Staff"}</p><h1 className="mt-1 text-3xl font-semibold tracking-tight">{hello}, {user.name.split(" ")[0]}</h1>
-            <p className="mt-1 text-sm text-white/85">{att.total === 0 ? "Nothing needs your attention today." : `${att.total} thing${att.total === 1 ? "" : "s"} need${att.total === 1 ? "s" : ""} your attention today${att.urgent ? `, ${att.urgent} urgent` : ""}.`}</p></div>
+            <p className="mt-1 text-sm text-white/85">{!myDay.kind.working ? `${myDay.kind.reason} ${needsMe === 0 ? "Nothing is waiting." : `${needsMe} thing${needsMe === 1 ? "" : "s"} can wait until you are back.`}` : needsMe === 0 ? "Nothing needs your attention today." : `${needsMe} thing${needsMe === 1 ? "" : "s"} need${needsMe === 1 ? "s" : ""} your attention today${att.urgent ? `, ${att.urgent} urgent` : ""}.`}</p></div>
           <PeriodSelect value={period} light />
         </div>
-        <div className="relative mt-6 grid gap-3 sm:grid-cols-3">
-          {canFinance && <Link href={`/finance/payments?from=${range.from}&to=${range.to}&src=dashboard`} className="block rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur transition hover:bg-white/20 focus-visible:outline-white"><p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">Collected</p><p className="mt-1 text-2xl font-semibold tabular-nums">{hero.collected.length ? hero.collected.slice(0, 2).map((m) => `${m.currency} ${Math.round(Number(m.amount)).toLocaleString()}`).join(" · ") : "0"}</p><p className="text-xs text-white/70">{PERIODS[period].toLowerCase()}</p></Link>}
-          {canFinance && <Link href={"/finance/reports?type=aging"} className="block rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur transition hover:bg-white/20 focus-visible:outline-white"><p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">Overdue</p><p className="mt-1 text-2xl font-semibold tabular-nums">{hero.overdue.count}</p><p className="truncate text-xs text-white/70">{hero.overdue.amounts.length ? money(hero.overdue.amounts) : "nothing overdue"}</p></Link>}
-          {canLeads && <Link href={`/leads?from=${range.from}&to=${range.to}&src=dashboard`} className="block rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur transition hover:bg-white/20 focus-visible:outline-white"><p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">New leads</p><p className="mt-1 text-2xl font-semibold tabular-nums">{hero.leads.fresh}</p><p className="text-xs text-white/70">{hero.leads.total} in total</p></Link>}
+        <div className="relative mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {heroCards.filter((c): c is HeroCard => c !== null).map((c) => (
+            <Link key={c.label} href={c.href} className="block rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur transition hover:bg-white/20 focus-visible:outline-white">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">{c.label}</p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums">{c.value}</p>
+              <p className="truncate text-xs text-white/70">{c.sub}</p>
+            </Link>
+          ))}
         </div>
       </section>
 

@@ -150,7 +150,7 @@ export default async function Commissions({ searchParams }: { searchParams: Prom
       </section>
 
       <section className="card space-y-3">
-        <h2 className="font-semibold">Rates by campaign or product</h2>
+        <h2 className="font-semibold">Rates by campaign or solution</h2>
         <p className="text-xs text-muted">What each campaign pays the sales agent who closed the client and that agent&apos;s manager (for example 3% for digital marketing, 5% for an Agentify ERP subscription). Sales staff see these on My commissions. A campaign rate wins over a person&apos;s own rate; without one, the personal rate above still applies. The manager is the agent&apos;s manager in the staff directory.</p>
         <ul className="text-sm">{crates.map((c) => <li key={c.campaignId} className="flex flex-wrap justify-between gap-2 border-t border-border py-1 first:border-0"><span>{c.campaign}{c.category ? <span className="text-xs text-muted"> · {c.category}</span> : null}</span><span>agent {c.agent ? `${c.agent}%` : "none"} · manager {c.manager ? `${c.manager}%` : "none"}</span></li>)}
           {crates.length === 0 && <li className="text-muted">No campaign rates set yet.</li>}</ul>

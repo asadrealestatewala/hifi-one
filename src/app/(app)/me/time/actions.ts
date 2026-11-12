@@ -3,7 +3,9 @@
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { MonitorError, acknowledge, disputeScreenshot, endBreak, endSession, getPolicy, heartbeat, requestCorrection, startBreak, startSession } from "@/lib/monitoring";
+import { HrError } from "@/lib/hr";
+import { breakEndAll, breakStartAll, clockInAll, clockOutAll } from "@/lib/clock";
+import { MonitorError, acknowledge, disputeScreenshot, getPolicy, heartbeat, requestCorrection } from "@/lib/monitoring";
 
 export type Beat = { ok: boolean; error?: string; recorded?: boolean; onBreak?: boolean; outsideHours?: boolean };
 const s = (f: FormData, k: string) => String(f.get(k) ?? "");
@@ -23,16 +25,14 @@ export async function clock(formData: FormData) {
   const op = s(formData, "op");
   try {
     if (op === "start") {
-      const sess = await startSession(db, { organizationId: user.organizationId, userId: user.id, projectId: s(formData, "projectId") || null, note: s(formData, "note") });
-      await audit(user, { action: "monitoring.clock_in", entity: "WorkSession", entityId: sess.id });
-    } else {
-      const id = s(formData, "sessionId");
-      if (op === "stop") { await endSession(db, { userId: user.id, sessionId: id }); await audit(user, { action: "monitoring.clock_out", entity: "WorkSession", entityId: id }); }
-      else if (op === "breakStart") await startBreak(db, { userId: user.id, sessionId: id });
-      else if (op === "breakEnd") await endBreak(db, { userId: user.id, sessionId: id });
-    }
+      const prof = await db.companyProfile.findFirst({ where: { organizationId: user.organizationId, isDefault: true } });
+      const r = await clockInAll(db, { organizationId: user.organizationId, userId: user.id, timeZone: prof?.timezone ?? "UTC", workMode: "OFFICE", projectId: s(formData, "projectId") || null, note: s(formData, "note") });
+      await audit(user, { action: "attendance.in", entity: "AttendanceRecord", entityId: r.attendance.id });
+    } else if (op === "stop") { await clockOutAll(db, { userId: user.id }); await audit(user, { action: "attendance.out", entity: "AttendanceRecord" }); }
+    else if (op === "breakStart") await breakStartAll(db, { userId: user.id });
+    else if (op === "breakEnd") await breakEndAll(db, { userId: user.id });
   } catch (e) {
-    if (e instanceof MonitorError) return back("error", e.message);
+    if (e instanceof MonitorError || e instanceof HrError) return back("error", e.message);
     throw e;
   }
   redirect("/me/time");

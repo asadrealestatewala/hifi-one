@@ -2039,6 +2039,9 @@ model MonitoringPolicy {
   policyText            String   @default("")
   trackActivity         Boolean  @default(true) // aggregate active/idle time and key and click COUNTS (never what was typed)
   trackApps             Boolean  @default(false) // names of applications used, as durations
+  remoteSupport         Boolean  @default(false) // a support person may ASK to help on a company computer; the person says yes each time
+  liveView              Boolean  @default(false) // managers may ASK to watch a screen the person is already sharing; the person says yes each time
+  trackWebsites         Boolean  @default(false) // website DOMAINS visited, as durations: never the page, path, query or title
   screenshots           Boolean  @default(false)
   screenshotIntervalMin Int      @default(10)
   idleThresholdMin      Int      @default(5)
@@ -2115,6 +2118,37 @@ model AppUsage {
 
   @@unique([userId, day, name])
   @@index([organizationId, day])
+}
+
+// Time on a website, by domain only (for example "github.com"). There is no column for a page address, path, query or page title.
+model WebUsage {
+  id             String @id @default(cuid())
+  organizationId String
+  userId         String
+  day            String // YYYY-MM-DD
+  domain         String
+  seconds        Int    @default(0)
+
+  @@unique([userId, day, domain])
+  @@index([organizationId, day])
+}
+
+// One request to watch a person's shared screen live. The person must accept every time; they see a banner for as long as it runs.
+model LiveView {
+  id             String    @id @default(cuid())
+  organizationId String
+  viewerId       String
+  subjectId      String
+  deviceId       String? // a company phone (PushDevice) when the support is for a phone
+  kind           String    @default("VIEW") // VIEW (manager watches) | SUPPORT (helper assists, needs a stated reason)
+  reason         String?
+  status         String    @default("REQUESTED") // REQUESTED | ACCEPTED | DECLINED | ENDED | EXPIRED
+  createdAt      DateTime  @default(now())
+  answeredAt     DateTime?
+  endedAt        DateTime?
+
+  @@index([subjectId, createdAt])
+  @@index([viewerId, createdAt])
 }
 
 model AppCategory {
@@ -2953,6 +2987,8 @@ model PushDevice {
   userId     String
   token      String   @unique
   platform   String   @default("android")
+  companyOwned Boolean @default(false) // set by an administrator; only company phones can be offered remote support
+  label      String?
   createdAt  DateTime @default(now())
   lastSeenAt DateTime @default(now())
 
@@ -3425,4 +3461,36 @@ model LeadConversionRequest {
   @@index([organizationId, status, createdAt])
   @@index([leadId])
   @@index([requestedById, createdAt])
+}
+
+// ---------- Working calendar ----------
+
+// The one place that says when the company works: office hours, which weekdays are working days, lunch and the
+// grace period before a clock-in counts as late. Read by attendance, leave, daily reports, scorecards, the sales
+// quest streak, payroll and the scheduled reminders, so a change here moves all of them together. The time zone
+// stays on CompanyProfile, which already owns it. One row per organization; missing means the defaults in
+// src/lib/working-calendar.ts.
+model WorkingCalendar {
+  organizationId String   @id
+  workStart      String   @default("09:00") // HH:MM in the company time zone
+  workEnd        String   @default("18:30")
+  lunchMinutes   Int      @default(30)
+  graceMinutes   Int      @default(10) // minutes after workStart before a clock-in counts as late
+  workDays       String   @default("1,2,3,4,5") // 0 = Sunday; days not listed are weekly off
+  updatedById    String?
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+}
+
+// A public or company holiday: a day nobody is expected to work. Leave, daily reports, scorecards and the quest
+// streak all skip these dates.
+model PublicHoliday {
+  id             String   @id @default(cuid())
+  organizationId String
+  date           String // YYYY-MM-DD in the company time zone
+  name           String
+  createdAt      DateTime @default(now())
+
+  @@unique([organizationId, date])
+  @@index([organizationId, date])
 }

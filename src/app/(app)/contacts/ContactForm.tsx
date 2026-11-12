@@ -17,7 +17,7 @@ type Opt = { id: string; name: string };
 
 const INDUSTRIES = ["Retail", "Real estate", "Healthcare", "Education", "Hospitality", "Finance", "Technology", "Manufacturing", "Construction", "Food & beverage", "Automotive", "Non-profit", "Professional services", "E-commerce", "Media & entertainment"];
 const SOURCES = ["Facebook", "Instagram", "LinkedIn", "Referral", "Website form", "Cold calling", "Email campaign", "Advertising", "Imported list", "Event", "Other"];
-const CATEGORIES: [string, string][] = [["LEAD", "Lead"], ["CUSTOMER", "Customer"], ["PARTNER", "Partner"], ["VENDOR", "Vendor"], ["INVESTOR", "Investor"], ["OTHER", "Other"]];
+const CATEGORIES: [string, string][] = [["LEAD", "Lead"], ["CUSTOMER", "Client"], ["PARTNER", "Partner"], ["VENDOR", "Vendor"], ["INVESTOR", "Investor"], ["OTHER", "Other"]];
 
 function Section({ title, hint, open = true, children }: { title: string; hint?: string; open?: boolean; children: React.ReactNode }) {
   return (

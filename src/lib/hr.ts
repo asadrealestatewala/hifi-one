@@ -81,12 +81,12 @@ export async function leaveBalances(db: PrismaClient, organizationId: string, us
 
 export async function requestLeave(
   db: PrismaClient,
-  p: { organizationId: string; userId: string; leaveTypeId: string; startDate: string; endDate: string; reason?: string; holidays?: string[] },
+  p: { organizationId: string; userId: string; leaveTypeId: string; startDate: string; endDate: string; reason?: string; holidays?: string[]; weekend?: number[] },
 ) {
   if (!isDateString(p.startDate) || !isDateString(p.endDate)) throw new HrError("Enter valid dates.");
   if (p.endDate < p.startDate) throw new HrError("The end date cannot be before the start date.");
   if (p.startDate.slice(0, 4) !== p.endDate.slice(0, 4)) throw new HrError("Split requests that cross into a new year.");
-  const days = workingDays(p.startDate, p.endDate, p.holidays);
+  const days = workingDays(p.startDate, p.endDate, p.holidays, p.weekend);
   if (days === 0) throw new HrError("That range has no working days.");
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${p.userId} FOR UPDATE`; // serialise this person's requests
