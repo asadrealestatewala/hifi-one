@@ -124,3 +124,25 @@ describe("remote support on company phones", () => {
     expect(await db.monitoringAccess.count({ where: { targetId: lv.id } })).toBe(0);
   });
 });
+
+import { phoneSignals } from "./live-view";
+describe("phone handshake queue", () => {
+  it("queues the helper's messages for the phone only after it accepted, and only for that person", async () => {
+    await db.liveView.deleteMany({});
+    await db.pushDevice.deleteMany({});
+    const helper = viewer(boss, ["monitoring.remote_support"]);
+    const phone = await db.pushDevice.create({ data: { userId: ann, token: "ExponentPushToken[abcdefgh]", companyOwned: true } });
+    const lv = await requestPhoneSupport(db, helper, phone.id, "screen frozen", noon);
+    await expect(relayLiveSignal(db, boss, lv.id, { sdp: "offer" })).rejects.toThrow(/not running/);
+    await respondLiveView(db, ann, lv.id, true, noon);
+    await relayLiveSignal(db, boss, lv.id, { sdp: "offer" });
+    await relayLiveSignal(db, boss, lv.id, { candidate: "c1" });
+    const first = await phoneSignals(db, ann, lv.id, 0);
+    expect(first.status).toBe("ACCEPTED");
+    expect(first.signals.map((s) => s.seq)).toEqual([1, 2]);
+    expect((await phoneSignals(db, ann, lv.id, 2)).signals).toEqual([]);
+    await expect(phoneSignals(db, bob, lv.id, 0)).rejects.toThrow(/not found/);
+    await endLiveView(db, ann, lv.id, noon);
+    expect((await phoneSignals(db, ann, lv.id, 0)).signals).toEqual([]);
+  });
+});

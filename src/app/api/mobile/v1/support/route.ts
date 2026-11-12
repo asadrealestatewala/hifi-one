@@ -1,7 +1,8 @@
 import { audit } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { LiveViewError, endLiveView, phoneSupportState, respondLiveView } from "@/lib/live-view";
+import { LiveViewError, endLiveView, phoneSignals, phoneSupportState, relayLiveSignal, respondLiveView } from "@/lib/live-view";
 import { acknowledge, getPolicy } from "@/lib/monitoring";
+import { iceServers } from "@/lib/meetings";
 import { isResponse, json, readJson, requireMobileUser, str } from "@/lib/mobile-api";
 
 export const dynamic = "force-dynamic";
@@ -10,10 +11,16 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   const a = await requireMobileUser(req, "monitoring.own");
   if (isResponse(a)) return a;
-  return json(await phoneSupportState(db, a.user));
+  const url = new URL(req.url);
+  const sid = url.searchParams.get("signals");
+  if (sid) {
+    try { return json(await phoneSignals(db, a.user.id, sid, Number(url.searchParams.get("after") ?? 0) || 0)); }
+    catch (e) { if (e instanceof LiveViewError) return json({ error: e.message }, 409); throw e; }
+  }
+  return json({ ...(await phoneSupportState(db, a.user)), iceServers: iceServers() });
 }
 
-// { op: "accept_terms", version } | { op: "respond", id, accept } | { op: "end", id }
+// { op: "accept_terms", version } | { op: "respond", id, accept } | { op: "signal", id, data } | { op: "end", id }
 export async function POST(req: Request) {
   const a = await requireMobileUser(req, "monitoring.own");
   if (isResponse(a)) return a;
@@ -28,6 +35,9 @@ export async function POST(req: Request) {
       await audit(user, { action: "monitoring.accept_policy", entity: "MonitoringPolicy", after: { version: policy.version, via: "mobile" } });
     } else if (op === "respond") {
       await respondLiveView(db, user.id, str(b.id, 60), b.accept === true);
+    } else if (op === "signal") {
+      await relayLiveSignal(db, user.id, str(b.id, 60), b.data);
+      return json({ ok: true });
     } else if (op === "end") {
       await endLiveView(db, user.id, str(b.id, 60));
     } else return json({ error: "Unknown request." }, 400);

@@ -1,7 +1,8 @@
 import { requirePermission } from "@/lib/auth";
 import { subscribe } from "@/lib/chat-hub";
 import { db } from "@/lib/db";
-import { LiveViewError, endLiveView, liveKey, relayLiveSignal, requestLiveView, respondLiveView } from "@/lib/live-view";
+import { LiveViewError, endLiveView, liveKey, relayLiveSignal, requestLiveView, requestPhoneSupport, respondLiveView } from "@/lib/live-view";
+import { pushToUser } from "@/lib/push";
 import { iceServers } from "@/lib/meetings";
 
 export const dynamic = "force-dynamic";
@@ -34,10 +35,15 @@ export async function POST(req: Request) {
   const user = await requirePermission("monitoring.own", { json: true });
   if (user instanceof Response) return user;
   if (user.userType !== "EMPLOYEE") return reply({ error: "Staff only." }, 403);
-  let b: { op?: string; subjectId?: string; id?: string; accept?: boolean; data?: unknown; kind?: string; reason?: string };
+  let b: { op?: string; subjectId?: string; id?: string; accept?: boolean; data?: unknown; kind?: string; reason?: string; deviceId?: string };
   try { b = await req.json(); } catch { return reply({ error: "Bad request." }, 400); }
   try {
     if (b.op === "request") { const lv = await requestLiveView(db, { id: user.id, organizationId: user.organizationId, name: user.name, permissions: user.permissions }, String(b.subjectId ?? ""), new Date(), { kind: b.kind === "SUPPORT" ? "SUPPORT" : "VIEW", reason: b.reason }); return reply({ id: lv.id }); }
+    if (b.op === "request_phone") {
+      const lv = await requestPhoneSupport(db, { id: user.id, organizationId: user.organizationId, name: user.name, permissions: user.permissions }, String(b.deviceId ?? ""), String(b.reason ?? ""));
+      await pushToUser(db, lv.subjectId, { title: "Support request", body: `${user.name} would like to help you on your phone. Open Hifi One to answer.` }).catch(() => undefined);
+      return reply({ id: lv.id });
+    }
     if (b.op === "respond") { await respondLiveView(db, user.id, String(b.id ?? ""), b.accept === true); return reply({ ok: true }); }
     if (b.op === "end") { await endLiveView(db, user.id, String(b.id ?? "")); return reply({ ok: true }); }
     if (b.op === "signal") { await relayLiveSignal(db, user.id, String(b.id ?? ""), b.data); return reply({ ok: true }); }

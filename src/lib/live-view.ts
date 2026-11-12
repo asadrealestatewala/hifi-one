@@ -64,16 +64,35 @@ export async function endLiveView(db: Db, userId: string, id: string, now = new 
   if (!lv) throw new LiveViewError("Live view not found.");
   if (!["REQUESTED", "ACCEPTED"].includes(lv.status)) return lv;
   const next = await db.liveView.update({ where: { id }, data: { status: lv.status === "REQUESTED" ? "EXPIRED" : "ENDED", endedAt: now } });
+  qs().delete(id);
   notify(lv.viewerId === userId ? lv.subjectId : lv.viewerId, "ended", { id });
   return next;
 }
 
 // Hands the connection handshake to the other person, only for an accepted request and only between its two people.
+// A phone cannot hold the browser event stream, so handshake messages for a phone wait in a short queue it reads by polling.
+type Q = { seq: number; items: { seq: number; data: unknown }[] };
+const qs = () => ((globalThis as unknown as { __phoneQ?: Map<string, Q> }).__phoneQ ??= new Map<string, Q>());
+
 export async function relayLiveSignal(db: Db, userId: string, id: string, data: unknown) {
   if (JSON.stringify(data ?? null).length > 20_000) throw new LiveViewError("Message too large.");
   const lv = await db.liveView.findFirst({ where: { id, status: "ACCEPTED", OR: [{ viewerId: userId }, { subjectId: userId }] } });
   if (!lv) throw new LiveViewError("This live view is not running.");
+  if (lv.deviceId && lv.viewerId === userId) {
+    const q = qs().get(id) ?? { seq: 0, items: [] };
+    q.items.push({ seq: ++q.seq, data });
+    if (q.items.length > 200) q.items.shift();
+    qs().set(id, q);
+    return;
+  }
   notify(lv.viewerId === userId ? lv.subjectId : lv.viewerId, "signal", { id, data });
+}
+
+export async function phoneSignals(db: Db, userId: string, id: string, after: number) {
+  const lv = await db.liveView.findFirst({ where: { id, subjectId: userId, deviceId: { not: null } } });
+  if (!lv) throw new LiveViewError("Request not found.");
+  const q = qs().get(id);
+  return { status: lv.status, signals: (q?.items ?? []).filter((i) => i.seq > after) };
 }
 
 // A clock-out, a break or a policy change ends any running view at once.

@@ -32,7 +32,7 @@ Setup the owner must do once: `cd mobile && npx eas-cli init` (writes the projec
 3. Replace the icon and splash in `mobile/assets` with the Hifi One brand.
 
 ## Support requests (groundwork)
-`GET|POST support`: terms to accept and a waiting support request for company-owned phones. See docs/MONITORING.md (Company phones). The app screens and screen sharing are not built yet.
+`GET|POST support`: terms to accept and a waiting support request for company-owned phones. See docs/MONITORING.md (Company phones). Version 0.2.0 adds `react-native-webrtc` (a native module, so it needs a fresh `eas build`/APK, not Expo Go) and the Support screen. Untested on a device.
 
 ## Not built yet
 Client and vendor portals in the app, expenses, payslips, offline mode, biometric unlock, password change / forgot password in the app.

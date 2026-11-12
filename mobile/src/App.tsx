@@ -7,6 +7,7 @@ import Inbox from "./screens/Inbox";
 import Leave from "./screens/Leave";
 import Login from "./screens/Login";
 import Tasks from "./screens/Tasks";
+import SupportGate from "./screens/Support";
 import Time from "./screens/Time";
 import { onNotificationTap, registerForPush, unregisterPush } from "./push";
 import { C, Loading } from "./ui";
@@ -39,6 +40,7 @@ export default function App() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
       <StatusBar style="dark" />
+      <SupportGate />
       <View style={{ flex: 1 }}>
         {tab === "home" && <Home go={(t) => setTab(t)} onSignOut={signOut} />}
         {tab === "tasks" && <Tasks canEdit={!!me?.can.editTasks} />}

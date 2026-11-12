@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 // The manager's side. Nothing starts until the person accepts; the video arrives straight from their browser.
-export default function LiveViewer({ subjectId, name, support = false }: { subjectId: string; name: string; support?: boolean }) {
+export default function LiveViewer({ subjectId, name, support = false, deviceId }: { subjectId: string; name: string; support?: boolean; deviceId?: string }) {
   const [why, setWhy] = useState("");
   const [status, setStatus] = useState<string>("Not started.");
   const [running, setRunning] = useState(false);
@@ -48,7 +48,7 @@ export default function LiveViewer({ subjectId, name, support = false }: { subje
     });
     on<{ id: string }>("ended", (d) => { if (d.id === reqId.current) cleanup("The live view ended."); });
     await new Promise((r) => setTimeout(r, 400)); // let the stream open before the answer can arrive
-    const r = await post({ op: "request", subjectId, kind: support ? "SUPPORT" : "VIEW", reason: why });
+    const r = await post(deviceId ? { op: "request_phone", deviceId, reason: why } : { op: "request", subjectId, kind: support ? "SUPPORT" : "VIEW", reason: why });
     const j = (await r.json()) as { id?: string; error?: string };
     if (!r.ok || !j.id) return cleanup(j.error ?? "Could not ask.");
     reqId.current = j.id;
