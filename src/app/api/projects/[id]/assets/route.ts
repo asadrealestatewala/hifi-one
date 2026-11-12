@@ -13,8 +13,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const user = await requirePermission("projects.view");
   const { id } = await params;
   // Relative address on purpose: behind nginx the request URL says localhost:3000, so an absolute address built from it sends the browser to localhost
-  const back = (kind: "assetError" | "assetOk", m: string) =>
-    new NextResponse(null, { status: 303, headers: { Location: `/projects/${encodeURIComponent(id)}?${kind}=${encodeURIComponent(m)}#assets` } });
+  let path: string | null = null; // a caller-given same-site page (the product details page), else the project page
+  const back = (kind: "assetError" | "assetOk", m: string) => {
+    if (path) return new NextResponse(null, { status: 303, headers: { Location: `${path}${path.includes("?") ? "&" : "?"}${kind}=${encodeURIComponent(m)}#assets` } });
+    return new NextResponse(null, { status: 303, headers: { Location: `/projects/${encodeURIComponent(id)}?${kind}=${encodeURIComponent(m)}#assets` } });
+  };
   // Same-site posts only: a form on another site cannot upload on someone's behalf
   const origin = req.headers.get("origin");
   if (origin && new URL(origin).host !== (req.headers.get("x-forwarded-host") ?? req.headers.get("host"))) return new NextResponse("Not found", { status: 404 });
@@ -23,6 +26,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const file = form.get("file");
   if (!(file instanceof File) || file.size === 0) return back("assetError", "Choose a file to upload.");
   const s = (k: string) => String(form.get(k) ?? "");
+  const ret = s("returnTo");
+  if (/^\/[^/\\]/.test(ret)) path = ret; // same-site paths only
   try {
     const r = await addAssetFile(db, defaultStorage(), {
       actor: toFileActor(user), projectId: id, assetId: s("assetId") || null, name: s("name"), folder: s("folder") || s("folderPick"), tags: s("tags"), description: s("description"),
