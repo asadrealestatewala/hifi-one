@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     if (!auth) return json({ error: "Unauthorized" }, 401);
     const text = await req.text();
     if (text.length > 200_000) return json({ error: "Too large" }, 413);
-    const body = JSON.parse(text || "{}") as { buckets?: { start: string; active: number; idle: number; keys?: number; clicks?: number }[]; apps?: { name: string; seconds: number }[] };
-    return json(await ingestAgent(db, { organizationId: auth.user.organizationId, userId: auth.user.id }, { buckets: body.buckets, apps: body.apps }));
+    const body = JSON.parse(text || "{}") as { buckets?: { start: string; active: number; idle: number; keys?: number; clicks?: number }[]; apps?: { name: string; seconds: number }[]; sites?: { domain: string; seconds: number }[] };
+    return json(await ingestAgent(db, { organizationId: auth.user.organizationId, userId: auth.user.id }, { buckets: body.buckets, apps: body.apps, sites: body.sites }));
   });
 }

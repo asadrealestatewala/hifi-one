@@ -23,10 +23,10 @@ const floorBucket = (d: Date) => new Date(Math.floor(d.getTime() / BUCKET_MS) * 
 
 // ---------- policy ----------
 export type PolicyPatch = Partial<{
-  enabled: boolean; policyText: string; trackActivity: boolean; trackApps: boolean; screenshots: boolean; screenshotIntervalMin: number; idleThresholdMin: number;
+  enabled: boolean; policyText: string; trackActivity: boolean; trackApps: boolean; trackWebsites: boolean; screenshots: boolean; screenshotIntervalMin: number; idleThresholdMin: number;
   timezone: string; workStart: string; workEnd: string; workDays: string; retentionDays: number;
 }>;
-const COLLECTION_FIELDS = ["enabled", "policyText", "trackActivity", "trackApps", "screenshots", "screenshotIntervalMin", "idleThresholdMin", "timezone", "workStart", "workEnd", "workDays", "retentionDays"] as const;
+const COLLECTION_FIELDS = ["enabled", "policyText", "trackActivity", "trackApps", "trackWebsites", "screenshots", "screenshotIntervalMin", "idleThresholdMin", "timezone", "workStart", "workEnd", "workDays", "retentionDays"] as const;
 
 export async function getPolicy(db: Db, organizationId: string) {
   return (await db.monitoringPolicy.findUnique({ where: { organizationId } })) ?? db.monitoringPolicy.create({ data: { organizationId } });
@@ -255,15 +255,25 @@ export async function agentPolicy(db: Db, d: { organizationId: string; userId: s
   const open = accepted ? await db.workSession.findFirst({ where: { userId: d.userId, endedAt: null }, include: { breaks: { where: { endedAt: null } } } }) : null;
   return {
     active: accepted, reason: !policy.enabled ? "Monitoring is switched off." : !accepted ? "Waiting for you to accept the policy in Hifi One (My Time)." : null,
-    version: policy.version, trackActivity: accepted && policy.trackActivity, trackApps: accepted && policy.trackApps, screenshots: accepted && policy.screenshots,
+    version: policy.version, trackActivity: accepted && policy.trackActivity, trackApps: accepted && policy.trackApps, trackWebsites: accepted && policy.trackWebsites, screenshots: accepted && policy.screenshots,
     screenshotIntervalMin: policy.screenshotIntervalMin, idleThresholdMin: policy.idleThresholdMin, inWorkingHours: withinSchedule(policy, now), onBreak: Boolean(open?.breaks.length),
     schedule: { timezone: policy.timezone, start: policy.workStart, end: policy.workEnd, days: policy.workDays },
   };
 }
 
+// Only a bare host name is ever kept. Anything that looks like a page address, a path, a query, credentials or a port is refused,
+// so the database cannot end up holding what someone read or searched for.
+export function normalizeDomain(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const d = raw.trim().toLowerCase().replace(/^www\./, "");
+  if (d.length < 3 || d.length > 100) return null;
+  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(d)) return null;
+  return d;
+}
+
 const safeAppName = (s: string) => s.replace(/[\\/:*?"<>|\r\n\0]+/g, " ").trim().slice(0, 80);
 
-export async function ingestAgent(db: Db, d: { organizationId: string; userId: string }, p: { buckets?: { start: string; active: number; idle: number; keys?: number; clicks?: number }[]; apps?: { name: string; seconds: number }[]; now?: Date }) {
+export async function ingestAgent(db: Db, d: { organizationId: string; userId: string }, p: { buckets?: { start: string; active: number; idle: number; keys?: number; clicks?: number }[]; apps?: { name: string; seconds: number }[]; sites?: { domain: string; seconds: number }[]; now?: Date }) {
   const now = p.now ?? new Date();
   const policy = await gate(db, d.organizationId, d.userId);
   await closeStale(db, d.userId, now);
@@ -293,6 +303,15 @@ export async function ingestAgent(db: Db, d: { organizationId: string; userId: s
       const name = safeAppName(a.name);
       if (!name || !Number.isInteger(a.seconds) || a.seconds <= 0 || a.seconds > 300) { dropped++; continue; }
       await db.appUsage.upsert({ where: { userId_day_name: { userId: d.userId, day, name } }, update: { seconds: { increment: a.seconds } }, create: { organizationId: d.organizationId, userId: d.userId, day, name, seconds: a.seconds } });
+      accepted++;
+    }
+  }
+  if (policy.trackWebsites && !onBreak && withinSchedule(policy, now)) {
+    const day = now.toISOString().slice(0, 10);
+    for (const w of (p.sites ?? []).slice(0, 100)) {
+      const domain = normalizeDomain(w.domain);
+      if (!domain || !Number.isInteger(w.seconds) || w.seconds <= 0 || w.seconds > 300) { dropped++; continue; }
+      await db.webUsage.upsert({ where: { userId_day_domain: { userId: d.userId, day, domain } }, update: { seconds: { increment: w.seconds } }, create: { organizationId: d.organizationId, userId: d.userId, day, domain, seconds: w.seconds } });
       accepted++;
     }
   }
@@ -356,7 +375,8 @@ export async function purgeMonitoring(db: Db, storage: StorageProvider, now = ne
   const cut = new Date(now.getTime() - BUCKET_RETENTION_DAYS * 86400000);
   const b = await db.activityBucket.deleteMany({ where: { bucketStart: { lt: cut } } });
   const a = await db.appUsage.deleteMany({ where: { day: { lt: cut.toISOString().slice(0, 10) } } });
-  return { screenshots: shots, buckets: b.count, appUsage: a.count };
+  const w = await db.webUsage.deleteMany({ where: { day: { lt: cut.toISOString().slice(0, 10) } } });
+  return { screenshots: shots, buckets: b.count, appUsage: a.count, webUsage: w.count };
 }
 
 export async function logReportAccess(db: Db, p: { organizationId: string; viewerId: string; subjectIds: string[] }) {

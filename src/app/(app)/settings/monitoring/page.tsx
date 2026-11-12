@@ -53,6 +53,7 @@ export default async function MonitoringSettings({ searchParams }: { searchParam
           <legend className="label">What is collected</legend>
           <label className="flex items-start gap-2"><input type="checkbox" name="trackActivity" defaultChecked={policy.trackActivity} className="mt-1" /> Active and idle time, key and click counts</label>
           <label className="flex items-start gap-2"><input type="checkbox" name="trackApps" defaultChecked={policy.trackApps} className="mt-1" /> Application names (desktop app only)</label>
+          <label className="flex items-start gap-2"><input type="checkbox" name="trackWebsites" defaultChecked={policy.trackWebsites} className="mt-1" /> Website names, as time per domain (never the page, search or title)</label>
           <label className="flex items-start gap-2"><input type="checkbox" name="screenshots" defaultChecked={policy.screenshots} className="mt-1" /> Screenshots (desktop app only)</label>
         </fieldset>
         <div className="grid gap-3 sm:grid-cols-4">

@@ -16,7 +16,7 @@ Clock in, break and clock out go through one service (`src/lib/clock.ts`) from M
 | Application names | No (a browser cannot see other apps) | Optional, names only, durations |
 | Screenshots | No | Optional, at the policy interval |
 
-**Never collected, by design:** what is typed, passwords, messages, window titles, web addresses, pointer positions, microphone or camera. The database has no column that could hold them.
+**Never collected, by design:** what is typed, passwords, messages, window titles, full web addresses (page, path, query), page titles, pointer positions, microphone or camera. The database has no column that could hold them. Website tracking (off by default, its own tick in the policy) keeps only the domain, such as `github.com`, with seconds per day (`WebUsage`); anything that is not a bare host name is dropped. Turning it on raises the policy version, so everyone accepts again. Reporting comes from a disclosed browser add-on (not built yet); until then nothing is recorded.
 
 ## Workfolio screen sharing from the browser
 
