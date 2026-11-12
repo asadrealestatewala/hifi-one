@@ -65,7 +65,7 @@ export default async function Worklists({ searchParams }: { searchParams: Promis
   const suppressed = await db.suppressedContact.count({ where: { organizationId: user.organizationId } });
   return (
     <div className="space-y-6">
-      <PageHeader title="Prospecting Worklists" subtitle="Raw outreach lists live here, apart from the CRM, so unqualified records never inflate lead numbers. A row becomes a lead only when you convert it. Only legally sourced contacts belong in a worklist; respect local outreach and privacy rules." />
+      <PageHeader title="Prospecting worklists" subtitle="Raw outreach lists live here, apart from the CRM, so unqualified records never inflate lead numbers. A row becomes a lead only when you convert it. Only legally sourced contacts belong in a worklist; respect local outreach and privacy rules." />
       {error && <Notice kind="error">{error}</Notice>}
       <div className="card overflow-x-auto">
         {lists.length === 0 ? <p className="text-sm text-muted">No worklists yet.</p> : (

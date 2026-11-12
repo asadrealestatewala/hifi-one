@@ -63,7 +63,7 @@ export default async function MyAttendance({ searchParams }: { searchParams: Pro
   const live = open ? workedMinutes(open, open.breaks) : null;
   return (
     <div className="space-y-6">
-      <PageHeader title="My Attendance" />
+      <PageHeader title="My attendance" />
       <p className="text-sm text-muted">
         Attendance time is the time between clock in and clock out, minus breaks. Being signed in to this system does not count as working time.
         Today in {zone}: {dateInZone(new Date(), zone)}.
@@ -83,7 +83,7 @@ export default async function MyAttendance({ searchParams }: { searchParams: Pro
             <li>Remote support: {policy.remoteSupport ? "a support person with permission can ask to help on your company computer and must give a reason; you can say no every time, you see a banner for as long as it runs, and each session is logged where you can read it" : "not used"}.</li>
             <li>Live view: {policy.liveView ? "a manager with permission can ask to watch the screen you are sharing; you can say no every time, you see a banner for as long as it runs, and each view is logged where you can read it" : "not used"}.</li>
             <li>Screenshots: {policy.screenshots ? `every ${policy.screenshotIntervalMin} minutes, only while you choose to share your screen or run the desktop app` : "not collected"}.</li>
-            <li>You can see everything recorded about you, and who looked at it, under My Workfolio.</li>
+            <li>You can see everything recorded about you, and who looked at it, under Time tracking.</li>
           </ul>
           <input type="hidden" name="version" value={policy.version} />
           <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="agree" value="yes" className="mt-1" /> I have read the terms and permissions above (version {policy.version}) and I accept them.</label>
