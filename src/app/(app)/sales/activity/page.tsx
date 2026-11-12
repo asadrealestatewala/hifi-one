@@ -4,6 +4,7 @@ import { METRICS, salesDashboard, type Metric } from "@/lib/crm";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { Badge, Empty, Notice, PageHeader, Progress, Stat } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import { setTargetAction, verifyAction } from "../../leads/crm-actions";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export default async function SalesActivity({ searchParams }: { searchParams: Pr
   const staff = manager ? await db.user.findMany({ where: { organizationId: org, userType: "EMPLOYEE", active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }) : [];
   return (
     <div className="space-y-6">
-      <PageHeader title="Sales activity" subtitle="Today and this month against each person's targets. Only connected calls that a manager has verified count as connected." actions={<Link href="/leads/lists" className="btn-ghost">Smart lists</Link>} />
+      <PageHeader tabs={<ScreenTabs group="crm-reports" current="/sales/activity" />} title="Sales reports" subtitle="Today and this month against each person's targets. Only connected calls that a manager has verified count as connected." actions={<Link href="/leads/lists" className="btn-ghost">Smart lists</Link>} />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {sp.msg && <Notice kind="ok">{sp.msg}</Notice>}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">

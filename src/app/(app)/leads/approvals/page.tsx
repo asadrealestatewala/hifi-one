@@ -2,6 +2,7 @@ import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { Empty, PageHeader } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import ApprovalRows from "./ApprovalRows";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export default async function Approvals() {
   const names = new Map((await db.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
   return (
     <div className="space-y-5 max-w-5xl">
-      <PageHeader title="Pending approvals" subtitle="Closed Won requests from sales agents. Approving converts the lead into a client and creates a draft invoice when a deal value is set." />
+      <PageHeader tabs={<ScreenTabs group="crm-leads" current="/leads/approvals" />} title="Leads" subtitle="Closed Won requests from sales agents. Approving converts the lead into a client and creates a draft invoice when a deal value is set." />
       {pending.length === 0 ? <Empty title="Nothing waiting">When an agent moves a lead to Closed Won, the request shows up here and you get a notification.</Empty> : (
         <ApprovalRows rows={pending.map((r) => ({
           id: r.id, leadId: r.lead.id, lead: `${r.lead.name}${r.lead.company ? ` · ${r.lead.company}` : ""}`, number: r.lead.number,

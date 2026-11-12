@@ -30,6 +30,24 @@ export const SCREEN_GROUPS: ScreenGroup[] = [
     { href: "/hr/applications", label: "Applications", permission: "hr.view" },
     { href: "/hr/onboarding", label: "Onboarding", permission: "hr.view" },
   ] },
+  { id: "crm-leads", label: "Leads", tabs: [
+    { href: "/leads", label: "All leads", permission: "crm.view" },
+    { href: "/leads/approvals", label: "Pending approvals", permission: "crm.convert" },
+    { href: "/leads/lists", label: "Smart lists", permission: "crm.view" },
+    { href: "/leads/worklists", label: "Worklists", permission: "crm.view" },
+    { href: "/leads/follow-ups", label: "Follow-up automation", permission: "followups.manage" },
+    { href: "/settings/lead-sources", label: "Website forms", permission: "leadsources.manage" },
+  ] },
+  { id: "crm-prospector", label: "Prospector", tabs: [
+    { href: "/leads/prospector", label: "All prospects", permission: "crm.view" },
+    { href: "/leads/prospector/mine", label: "My prospects", permission: "crm.edit" },
+    { href: "/leads/prospector/field-team", label: "Field sales team", permission: "field.review" },
+    { href: "/leads/prospector/demos", label: "Demo queue", permission: "prospector.schedule_demo" },
+  ] },
+  { id: "crm-reports", label: "Sales reports", tabs: [
+    { href: "/sales/activity", label: "Activity", permission: "crm.view" },
+    { href: "/sales/leads-report", label: "Leads report", permission: "crm.view" },
+  ] },
   { id: "admin-people", label: "Users & roles", tabs: [
     { href: "/users", label: "Users", permission: "users.view" },
     { href: "/roles", label: "Roles & permissions", permission: "roles.manage" },

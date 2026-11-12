@@ -26,7 +26,7 @@ export default async function FieldPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
-      <PageHeader title="Field visits" subtitle={profile.productId ? `${profile.productName}: ${profile.businessLabel ?? "businesses"}. Log every visit, whatever happened.` : "Log the businesses you visit."} actions={<Link className="btn-ghost" href="/leads/prospector/mine">My Prospects</Link>} />
+      <PageHeader title="Field visits" subtitle={profile.productId ? `${profile.productName}: ${profile.businessLabel ?? "businesses"}. Log every visit, whatever happened.` : "Log the businesses you visit."} actions={<Link className="btn-ghost" href="/leads/prospector/mine">My prospects</Link>} />
 
       {!profile.productId && <Notice kind="error">You are not on a product yet. Ask your sales manager to put you on one (Field Sales Team), then come back here.</Notice>}
       {profile.productId && profile.kind !== "FIELD" && !user.permissions.has("field.review") && <Notice kind="error">Your profile is set to office work. Ask your sales manager to mark you as a field agent to log visits.</Notice>}

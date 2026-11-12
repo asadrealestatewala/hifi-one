@@ -196,7 +196,9 @@ Verified: `npx tsc --noEmit`, `npx eslint src` (3 pre-existing warnings), the su
 
 Done: **Administration, 19 entries to 3** — Settings (a new `/settings` page holding the fifteen setup screens in five sections, each screen linking back to it), Users & roles, Audit & security. `PageHeader` gained a `back` prop; `/settings/company` and `/settings/bank-accounts` moved onto `PageHeader` ("Company details", "Bank accounts").
 
-Still to fold: CRM and sales 18 to 9, Finance 11 to 6, Services and clients 9 to 6. The menu is 64 links now, down from 89. Not started: making Team time tracking and the attendance screens agree on worked minutes, and labelling clocked, active and project hours apart.
+Done: **CRM and sales, 18 entries to 9** — Leads (6 tabs), Prospector (4 tabs), Sales reports (2 tabs), with Contacts, Opportunities, Field visits, Campaigns, Clout Leader and Quotations unchanged. Field visits deliberately stays its own entry.
+
+Still to fold: Finance 11 to 6, Services and clients 9 to 6. The menu is 55 links now, down from 89. Not started: making Team time tracking and the attendance screens agree on worked minutes, and labelling clocked, active and project hours apart.
 
 ## Working calendar (2026-11-12)
 

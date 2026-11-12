@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { WorklistError, addSuppression, importWorklist, worklistMetrics } from "@/lib/worklists";
 import { isExcelFile, xlsxToCsv } from "@/lib/spreadsheet";
 import { Notice, PageHeader } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,7 @@ export default async function Worklists({ searchParams }: { searchParams: Promis
   const suppressed = await db.suppressedContact.count({ where: { organizationId: user.organizationId } });
   return (
     <div className="space-y-6">
-      <PageHeader title="Prospecting worklists" subtitle="Raw outreach lists live here, apart from the CRM, so unqualified records never inflate lead numbers. A row becomes a lead only when you convert it. Only legally sourced contacts belong in a worklist; respect local outreach and privacy rules." />
+      <PageHeader tabs={<ScreenTabs group="crm-leads" current="/leads/worklists" />} title="Leads" subtitle="Raw outreach lists live here, apart from the CRM, so unqualified records never inflate lead numbers. A row becomes a lead only when you convert it. Only legally sourced contacts belong in a worklist; respect local outreach and privacy rules." />
       {error && <Notice kind="error">{error}</Notice>}
       <div className="card overflow-x-auto">
         {lists.length === 0 ? <p className="text-sm text-muted">No worklists yet.</p> : (

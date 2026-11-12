@@ -3,6 +3,7 @@ import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AGENT_KINDS, AGENT_KIND_LABEL, DEFAULT_DAILY_TARGET, listProducts, salesTeam } from "@/lib/field-visits";
 import { Badge, Notice, PageHeader, SubmitButton } from "@/components/ui";
+import ScreenTabs from "@/components/shell/ScreenTabs";
 import { productRates } from "@/lib/commissions";
 import { saveAgentAction, saveProductAction, saveProductCommissionAction } from "./actions";
 
@@ -26,7 +27,7 @@ export default async function FieldTeam({ searchParams }: { searchParams: Promis
 
   return (
     <div className="max-w-5xl space-y-6">
-      <PageHeader title="Field sales team" subtitle="Each solution has office agents who call and field agents who visit businesses. A prospect belongs to one solution, and the same business can be a prospect for another solution, but never twice for the same one." actions={<><Link className="btn" href="/leads/prospector/field-team/visits">Visit reports</Link><Link className="btn-ghost" href="/leads/prospector">Back to Prospector</Link></>} />
+      <PageHeader tabs={<ScreenTabs group="crm-prospector" current="/leads/prospector/field-team" />} title="Prospector" subtitle="Each solution has office agents who call and field agents who visit businesses. A prospect belongs to one solution, and the same business can be a prospect for another solution, but never twice for the same one." actions={<><Link className="btn" href="/leads/prospector/field-team/visits">Visit reports</Link><Link className="btn-ghost" href="/leads/prospector">Back to Prospector</Link></>} />
       {sp.ok && <Notice kind="ok">{sp.ok}</Notice>}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
 
