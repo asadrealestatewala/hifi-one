@@ -6,7 +6,7 @@ import type { Entry } from "@/lib/crm-contacts";
 import EditableSection from "../EditableSection";
 import { EntryEditor, PairsEditor, ShippingFields } from "../Editors";
 
-const CATS: [string, string][] = [["LEAD", "Lead"], ["CUSTOMER", "Customer"], ["PARTNER", "Partner"], ["VENDOR", "Vendor"], ["INVESTOR", "Investor"], ["OTHER", "Other"]];
+const CATS: [string, string][] = [["LEAD", "Lead"], ["CUSTOMER", "Client"], ["PARTNER", "Partner"], ["VENDOR", "Vendor"], ["INVESTOR", "Investor"], ["OTHER", "Other"]];
 const SOCIAL: [string, string][] = [["facebook", "Facebook"], ["linkedin", "LinkedIn"], ["telegram", "Telegram"], ["x", "X"], ["skype", "Skype"], ["instagram", "Instagram"]];
 const UTM = ["source", "medium", "campaign", "term", "content"];
 const TONE: Record<string, "success" | "primary" | "warning" | "neutral"> = { CUSTOMER: "success", LEAD: "primary", PARTNER: "warning" };

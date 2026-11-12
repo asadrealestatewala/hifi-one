@@ -92,7 +92,7 @@ describe("booking the demo", () => {
     const lead = await db.lead.findUniqueOrThrow({ where: { id: leadId }, include: { activities: true } });
     expect(lead).toMatchObject({ assignedToId: ali.id, createdById: ona.id, name: "Noor Pharmacy", phone: "+923008880001", source: "Prospector: Field visit" });
     expect(lead.tags).toEqual(expect.arrayContaining(["prospector", "product:pharmivo", "field-visit"]));
-    expect(lead.notes).toContain("Product: Pharmivo");
+    expect(lead.notes).toContain("Solution: Pharmivo");
     expect(lead.nextFollowUp?.toISOString()).toBe(LATER.toISOString());
     const kinds = lead.activities.map((a) => a.kind);
     expect(kinds).toContain("CREATED");
