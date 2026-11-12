@@ -71,7 +71,7 @@ export default async function EndOfDayReport({ searchParams }: { searchParams: P
       ) : (
         <div className="card overflow-x-auto p-0">
           <table className="w-full text-sm">
-            <thead><tr className="text-left text-xs text-muted"><th className="px-4 py-2">Employee</th><th className="px-2 py-2">In / out</th><th className="px-2 py-2">Worked</th><th className="px-2 py-2">Tasks</th><th className="px-2 py-2">Hours logged</th><th className="px-2 py-2">Sales activity</th><th className="px-2 py-2">Daily report</th><th className="px-4 py-2 text-right">Score</th></tr></thead>
+            <thead><tr className="text-left text-xs text-muted"><th className="px-4 py-2">Employee</th><th className="px-2 py-2">In / out</th><th className="px-2 py-2">Clocked</th><th className="px-2 py-2">Tasks</th><th className="px-2 py-2">Hours on projects</th><th className="px-2 py-2">Sales activity</th><th className="px-2 py-2">Daily report</th><th className="px-4 py-2 text-right">Score</th></tr></thead>
             <tbody className="divide-y divide-border">
               {rows.map((r) => (
                 <tr key={r.id} className={r.expected ? "" : "text-muted"}>

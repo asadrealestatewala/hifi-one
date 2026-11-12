@@ -50,7 +50,7 @@ export default async function Scorecards({ searchParams }: { searchParams: Promi
       {rows.length === 0 ? <Empty title="No scorecards for this month yet">They build up from the end-of-day report, written each working day at office close.</Empty> : (
         <div className="card overflow-x-auto p-0">
           <table className="w-full text-sm">
-            <thead><tr className="text-left text-xs text-muted"><th className="px-4 py-2">Employee</th><th className="px-2 py-2">Present</th><th className="px-2 py-2">Avg day</th><th className="px-2 py-2">Late days</th><th className="px-2 py-2">Daily reports</th><th className="px-2 py-2">Avg rating</th><th className="px-2 py-2">Tasks done</th><th className="px-2 py-2">Hours logged</th><th className="px-2 py-2">Sales activity</th><th className="px-4 py-2 text-right">Avg score</th></tr></thead>
+            <thead><tr className="text-left text-xs text-muted"><th className="px-4 py-2">Employee</th><th className="px-2 py-2">Present</th><th className="px-2 py-2">Avg day</th><th className="px-2 py-2">Late days</th><th className="px-2 py-2">Daily reports</th><th className="px-2 py-2">Avg rating</th><th className="px-2 py-2">Tasks done</th><th className="px-2 py-2">Hours on projects</th><th className="px-2 py-2">Sales activity</th><th className="px-4 py-2 text-right">Avg score</th></tr></thead>
             <tbody className="divide-y divide-border">
               {rows.map((r) => (
                 <tr key={r.userId}>

@@ -100,10 +100,10 @@ export async function buildReport(db: PrismaClient, key: ReportKey, p: ReportPar
     const rows = await summarize(db, { organizationId: p.organizationId, userIds: people.map((x) => x.id), from: p.from, to: p.to });
     const by = new Map(rows.map((x) => [x.userId, x]));
     r.sections.push({
-      heading: "Per person", columns: [{ label: "Person" }, { label: "Department" }, { label: "Attendance min", align: "right" }, { label: "Break min", align: "right" }, { label: "Active min", align: "right" }, { label: "Idle min", align: "right" }, { label: "Screenshots", align: "right" }, { label: "Corrections min", align: "right" }],
-      rows: people.map((x) => { const s = by.get(x.id); return [x.name, x.department?.name ?? "", String(s?.attendanceMinutes ?? 0), String(s?.breakMinutes ?? 0), String(s?.activeMinutes ?? 0), String(s?.idleMinutes ?? 0), String(s?.screenshots ?? 0), String(s?.correctedMinutes ?? 0)]; }),
+      heading: "Per person", columns: [{ label: "Person" }, { label: "Department" }, { label: "Clocked min", align: "right" }, { label: "Break min", align: "right" }, { label: "Active min", align: "right" }, { label: "Idle min", align: "right" }, { label: "Screenshots", align: "right" }, { label: "Corrections min", align: "right" }],
+      rows: people.map((x) => { const s = by.get(x.id); return [x.name, x.department?.name ?? "", String(s?.clockedMinutes ?? 0), String(s?.breakMinutes ?? 0), String(s?.activeMinutes ?? 0), String(s?.idleMinutes ?? 0), String(s?.screenshots ?? 0), String(s?.correctedMinutes ?? 0)]; }),
     });
-    r.notes.push("Figures are context, not a verdict. Only people who accepted the monitoring policy are recorded.");
+    r.notes.push("Clocked minutes come from the attendance record (clock in to clock out, less breaks), the same figure as Staff activity. Active and idle minutes are what the tracker saw on the computer during that time, and only for people who accepted the monitoring policy. Figures are context, not a verdict.");
   }
   else if (key === "campaign" || key === "campaign_client") {
     const c = p.campaignId ? await db.campaign.findFirst({ where: { id: p.campaignId, organizationId: p.organizationId }, include: { category: { select: { name: true } } } }) : null;
