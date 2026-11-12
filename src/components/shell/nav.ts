@@ -10,6 +10,7 @@ export const NAV: NavGroup[] = [
   { id: "overview", title: "Overview", icon: "home", items: [
     { href: "/dashboard", label: "Dashboard", permission: "dashboard.view" },
     { href: "/search", label: "Search", permission: "dashboard.view" },
+    { href: "/approvals", label: "Approvals", permission: null },
     { href: "/mail", label: "Mailbox", permission: null },
     { href: "/assistant", label: "Assistant", permission: "assistant.use" },
   ] },
@@ -69,6 +70,7 @@ export const NAV: NavGroup[] = [
     { href: "/hr/onboarding", label: "Onboarding approvals", permission: "hr.view" },
     { href: "/hr/circulars", label: "Circulars", permission: "circulars.send" },
     { href: "/hr/attendance", label: "Staff attendance", permission: "attendance.view_all" },
+    { href: "/hr/leave", label: "Staff leave", permission: "leave.approve" },
     { href: "/hr/reports", label: "Staff daily reports", permission: "leave.approve" },
     { href: "/hr/reports/eod", label: "End-of-day report", permission: "attendance.view_all" },
     { href: "/hr/scorecards", label: "Scorecards", permission: "attendance.view_all" },
@@ -88,6 +90,7 @@ export const NAV: NavGroup[] = [
     { href: "/me", label: "My day", permission: null },
     { href: "/me/attendance", label: "My attendance", permission: "self.attendance" },
     { href: "/me/tasks", label: "My tasks", permission: null },
+    { href: "/me/team", label: "My team", permission: "leave.approve" },
     { href: "/me/leave", label: "My leave", permission: "self.leave" },
     { href: "/me/payslips", label: "My payslips", permission: "self.payslip" },
     { href: "/me/profile", label: "My profile", permission: null },

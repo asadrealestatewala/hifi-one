@@ -201,3 +201,11 @@ Done: `/me` (My day) with the day's state, a "still to do" list and every My spa
 Verified: `npx tsc --noEmit`, `npx eslint src` (3 pre-existing warnings), `npm run build`, the whole suite including `my-day.test.ts` (13 rules) and `my-day.integration.test.ts` (10 cases: clock states, breaks, report, circulars, overdue against due today, holiday, weekly off, approved leave, and that another person sees none of it). Opened `/me` and `/dashboard` signed in.
 
 Not done: the pages under My day are still separate screens rather than tabs; per-person notification preferences; the approvals, HR leave and My Team screens (the next step).
+
+## Approvals, staff leave and My team (2026-11-12)
+
+Done: `/approvals` (one list of everything waiting for the reader, oldest first, nine kinds), `/hr/leave` (HR and manager leave screen with balances and decisions), `/me/team` (a manager's direct reports with today's attendance, daily report, tasks and what is waiting), `src/lib/approvals.ts`, and a manager's access to a direct report's scorecard.
+
+Verified: `npx tsc --noEmit`, `npx eslint src` (3 pre-existing warnings), `npm run build`, 140 test files / 1845 tests including `approvals.test.ts` and `approvals.integration.test.ts` (scope per permission, own requests excluded, exact counts, one organization never sees another's). Opened all three screens signed in and approved a real leave request end to end, which is how the approve/reject button bug was found and fixed.
+
+Not done: deciding from the Approvals screen itself (by design, for now); quotations and purchase orders are not yet among the kinds; `/me/team` needs `leave.approve`, so a team lead without it still sees nothing.

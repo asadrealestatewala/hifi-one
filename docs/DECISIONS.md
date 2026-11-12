@@ -131,3 +131,11 @@ Newest last. Each entry: what was decided, why, and what it costs.
 - A day that is not a working day (weekly off, public holiday, approved leave) says so instead of showing empty prompts. The reason comes from the working calendar.
 - My space in the sidebar is capped at six entries. The other fourteen are not hidden: `/me` lists every one of them in six groups with a line each. Mailbox and the assistant moved to Overview, because they are tools everybody opens, not personal records.
 - The sales quest card now needs `crm.edit` rather than `crm.view`: a manager who can only read leads was being shown a game they cannot play.
+
+## 2026-11-12: One place to see approvals, but the decision stays where it belongs
+
+- Approving things happened in nine screens, so nobody could say what was waiting on them. `/approvals` gathers all of it. It deliberately does not decide anything: each row links to the screen that owns that decision, so the rule and the audit entry stay in one service and nothing is duplicated.
+- `pendingApprovals` applies the same scope the decision itself applies: `attendance.view_all` sees the company, `leave.approve` alone sees only the people who report to the reader, and nobody is ever shown their own request to decide.
+- HR had no leave screen; leave was decided inside My leave, which reads as a personal screen. `/hr/leave` is HR's own view, with each person's remaining balance beside the request, and it calls the same `decideLeave` service.
+- `/me/team` gives a manager the one thing the data already allowed and no screen showed: their direct reports' day, what of theirs is waiting, and a way into each person's scorecard.
+- `SubmitButton` gained a `formAction` prop. A submit button's `name` and `value` do not reach a server action reliably from a client component, which silently turned an approve into a reject; two submit buttons in one form now point at two actions instead.

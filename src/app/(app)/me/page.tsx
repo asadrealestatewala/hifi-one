@@ -20,6 +20,8 @@ const GROUPS: { id: string; title: string; icon: string; entries: Entry[] }[] = 
     { href: "/me/tasks", label: "My tasks", what: "Everything assigned to you, with due dates.", permission: null },
     { href: "/me/circulars", label: "Circulars", what: "Notices from HR and management addressed to you.", permission: null },
     { href: "/me/calendar", label: "My calendar", what: "Your days in a calendar, and a feed you can subscribe to.", permission: "self.leave" },
+    { href: "/approvals", label: "Approvals", what: "Everything from anywhere in the system that is waiting for your word.", permission: null },
+    { href: "/me/team", label: "My team", what: "The people who report to you: their day, and what of theirs is waiting.", permission: "leave.approve" },
   ] },
   { id: "time", title: "Time and attendance", icon: "clock", entries: [
     { href: "/me/time", label: "Time tracking", what: "Your hours and activity, and who has looked at them.", permission: "monitoring.own" },
