@@ -96,3 +96,31 @@ describe("remote support", () => {
     off();
   });
 });
+
+import { markPhone, phoneSupportState, requestPhoneSupport } from "./live-view";
+describe("remote support on company phones", () => {
+  it("only company-owned phones, only with permission, reason, policy and consent; the phone sees the terms then the request", async () => {
+    await db.liveView.deleteMany({});
+    await db.pushDevice.deleteMany({});
+    const helper = viewer(boss, ["monitoring.remote_support"]);
+    const phone = await db.pushDevice.create({ data: { userId: ann, token: "ExponentPushToken[abcdefgh]" } });
+    await expect(requestPhoneSupport(db, viewer(boss, []), phone.id, "screen frozen", noon)).rejects.toThrow(/permission/);
+    await expect(requestPhoneSupport(db, helper, phone.id, "screen frozen", noon)).rejects.toThrow(/company-owned/);
+    await expect(markPhone(db, { organizationId: "other-org", deviceId: phone.id, companyOwned: true })).rejects.toThrow(/not found/);
+    await markPhone(db, { organizationId: org, deviceId: phone.id, companyOwned: true, label: "Sales phone 3" });
+    await expect(requestPhoneSupport(db, helper, phone.id, "hi", noon)).rejects.toThrow(/why/);
+    await savePolicy(db, { organizationId: org, actorId: boss, patch: { remoteSupport: false } });
+    await expect(requestPhoneSupport(db, helper, phone.id, "screen frozen", noon)).rejects.toThrow(/not switched on/);
+    await savePolicy(db, { organizationId: org, actorId: boss, patch: { remoteSupport: true } });
+    expect((await phoneSupportState(db, { id: ann, organizationId: org }, noon)).needsTerms).toBe(true);
+    await expect(requestPhoneSupport(db, helper, phone.id, "screen frozen", noon)).rejects.toThrow(/accepted/);
+    await acknowledge(db, { userId: ann, version: (await getPolicy(db, org)).version });
+    const lv = await requestPhoneSupport(db, helper, phone.id, "screen frozen", noon);
+    const st = await phoneSupportState(db, { id: ann, organizationId: org }, noon);
+    expect(st.request).toMatchObject({ id: lv.id, status: "REQUESTED", reason: "screen frozen" });
+    expect((await phoneSupportState(db, { id: bob, organizationId: org }, noon)).request).toBeNull();
+    await respondLiveView(db, ann, lv.id, false, noon);
+    expect((await phoneSupportState(db, { id: ann, organizationId: org }, noon)).request).toBeNull();
+    expect(await db.monitoringAccess.count({ where: { targetId: lv.id } })).toBe(0);
+  });
+});

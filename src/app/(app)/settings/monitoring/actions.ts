@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { LiveViewError, markPhone } from "@/lib/live-view";
 import { MonitorError, createEnrollmentCode, purgeMonitoring, revokeDevice, savePolicy } from "@/lib/monitoring";
 import { defaultStorage } from "@/lib/storage";
 
@@ -43,6 +44,19 @@ export async function categoryAction(formData: FormData) {
     await db.appCategory.deleteMany({ where: { id: s(formData, "id"), organizationId: user.organizationId } });
   }
   redirect("/settings/monitoring");
+}
+
+export async function phoneAction(formData: FormData) {
+  const user = await requirePermission("monitoring.configure");
+  try {
+    const on = formData.get("companyOwned") === "yes";
+    await markPhone(db, { organizationId: user.organizationId, deviceId: s(formData, "id"), companyOwned: on, label: s(formData, "label") });
+    await audit(user, { action: on ? "monitoring.phone_company_owned" : "monitoring.phone_not_company_owned", entity: "PushDevice", entityId: s(formData, "id") });
+  } catch (e) {
+    if (e instanceof LiveViewError) return back("error", e.message);
+    throw e;
+  }
+  back("msg", "Phone updated.");
 }
 
 export async function revokeAction(formData: FormData) {
