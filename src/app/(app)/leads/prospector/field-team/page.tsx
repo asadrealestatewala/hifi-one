@@ -37,13 +37,13 @@ export default async function FieldTeam({ searchParams }: { searchParams: Promis
           <thead className="text-left text-xs text-muted"><tr><th className="py-2 pl-4 pr-4">Solution</th><th className="pr-4">A prospect is a</th><th className="pr-4">Daily visit target</th><th className="pr-4">Prospects</th><th className="pr-4">Commission (agent / manager)</th><th className="pr-4">Status</th><th className="pr-4"></th></tr></thead>
           <tbody>{products.map((p) => (
             <tr key={p.id} className="border-t border-border">
-              <td className="py-2 pl-4 pr-4"><p className="font-medium">{p.name}</p><p className="text-xs text-muted">{p.code}{p.website ? ` · ${p.website.replace(/^https?:\/\//, "")}` : ""}</p></td>
+              <td className="py-2 pl-4 pr-4"><Link className="font-medium text-primary hover:underline" href={`/leads/prospector/field-team/${p.id}`}>{p.name}</Link><p className="text-xs text-muted">{p.code}{p.website ? ` · ${p.website.replace(/^https?:\/\//, "")}` : ""}</p></td>
               <td className="pr-4">{p.businessLabel}</td>
               <td className="pr-4">{p.dailyVisitTarget} a day</td>
               <td className="pr-4">{prospectCount.get(p.id) ?? 0}</td>
               <td className="pr-4">{rates.get(p.id)?.agent || rates.get(p.id)?.manager ? `${rates.get(p.id)?.agent ?? "0"}% / ${rates.get(p.id)?.manager ?? "0"}%` : <span className="text-muted">none</span>}</td>
               <td className="pr-4">{p.active ? <Badge tone="success">active</Badge> : <Badge tone="neutral">off</Badge>}</td>
-              <td className="py-2 pr-4 text-right"><Link className="text-primary hover:underline" href={`/leads/prospector/field-team?edit=${p.id}`}>Edit</Link></td>
+              <td className="py-2 pr-4 text-right"><Link className="text-primary hover:underline" href={`/leads/prospector/field-team/${p.id}`}>Details &amp; assets</Link> · <Link className="text-primary hover:underline" href={`/leads/prospector/field-team?edit=${p.id}`}>Edit</Link></td>
             </tr>
           ))}</tbody>
         </table></div>}
