@@ -41,11 +41,20 @@ beforeAll(async () => {
 afterAll(async () => { await db.$disconnect(); });
 
 describe("importing prospects from a hand-made sheet", () => {
-  it("only a sales manager can import", async () => {
+  it("someone who cannot edit the CRM cannot import", async () => {
     const s = sheet("T", [HEAD, row("1", "A", "0300 5550001")]);
-    await expect(importProspects(db, ali, input([s]), NOW)).rejects.toThrow(/sales manager/);
-    await expect(planImport(db, viewer, input([s]))).rejects.toThrow(/sales manager/);
+    await expect(importProspects(db, viewer, input([s]), NOW)).rejects.toThrow(/permission/);
+    await expect(planImport(db, viewer, input([s]))).rejects.toThrow(/permission/);
     await expect(planImport(db, foreign, input([s]))).resolves.toBeTruthy(); // their own organization, nothing of ours
+  });
+
+  it("a salesperson imports into their own list only, even if they ask for someone else", async () => {
+    const s = sheet("T", [HEAD, row("1", "Own Import Co", "0300 5550077")]);
+    const r = await importProspects(db, ali, { ...input([s]), assignToId: agent.id }, NOW);
+    expect(r.imported).toBe(1);
+    const p = await db.prospect.findFirst({ where: { organizationId: org, name: "Own Import Co" } });
+    expect(p).toMatchObject({ assignedToId: ali.id, status: "ASSIGNED", addedById: ali.id });
+    await db.prospect.deleteMany({ where: { organizationId: org, name: "Own Import Co" } }); // keep the later counts as they were
   });
 
   it("needs a name column and at least one sheet", async () => {

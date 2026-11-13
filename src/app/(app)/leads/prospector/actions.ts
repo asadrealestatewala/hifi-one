@@ -254,7 +254,6 @@ export async function runProspectImport(_prev: ImportView, formData: FormData): 
   const user = await requirePermission("crm.edit");
   const intent = s(formData, "intent");
   try {
-    if (!isManager(user)) throw new ProspectorError("Only a sales manager can import prospects.");
     const { name, sheets } = await readUpload(formData);
     if (sheets.length === 0) throw new ProspectorError("That file has no rows.");
     const shapes = sheets.map((sh) => detectSheet(sh.rows));

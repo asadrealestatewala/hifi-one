@@ -13,7 +13,7 @@ const colLetter = (i: number) => { let n = i, out = ""; do { out = String.fromCh
 const colName = (headers: string[], i: number) => (headers[i] ? headers[i] : `Column ${colLetter(i)}`);
 const KIND_LABEL: Record<string, string> = { invalid: "Missing or invalid details", inFile: "Repeated in the file", prospect: "Already a prospect", lead: "Already a CRM lead", suppressed: "On the do-not-contact list" };
 
-function ImportForm({ countries, defaultCountry, agents, onClose }: { countries: Option[]; defaultCountry: string; agents: Option[]; onClose: () => void }) {
+function ImportForm({ countries, defaultCountry, agents, onClose }: { countries: Option[]; defaultCountry: string; agents: Option[] | null; onClose: () => void }) {
   const [view, action, pending] = useActionState<ImportView, FormData>(runProspectImport, {});
   const formRef = useRef<HTMLFormElement>(null);
   const [fileName, setFileName] = useState("");
@@ -76,10 +76,10 @@ function ImportForm({ countries, defaultCountry, agents, onClose }: { countries:
               <input id="ip-label" name="label" defaultValue="Manual scrape" maxLength={40} className="input" />
               <p className="mt-1 text-xs text-muted">Shown beside each prospect. The tab name is kept as the detail.</p>
             </div>
-            <div>
+            {agents ? <div>
               <label className="label" htmlFor="ip-assign">Assign to</label>
               <select id="ip-assign" name="assignToId" defaultValue="" className="input"><option value="">Nobody yet (assign later)</option>{agents.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select>
-            </div>
+            </div> : <p className="self-end text-xs text-muted">Everything you import goes into your own list under My prospects.</p>}
             <label className="flex items-start gap-2 self-end text-sm"><input type="checkbox" name="closeNo" value="1" defaultChecked className="mt-0.5" /> Keep rows whose status says &ldquo;Not interested&rdquo; closed, so nobody calls them again</label>
           </div>
         </>
@@ -122,8 +122,8 @@ function ImportForm({ countries, defaultCountry, agents, onClose }: { countries:
   );
 }
 
-// "Import prospects" for sales managers: a file of businesses someone collected by hand. Opens as a sheet from the bottom on a phone.
-export default function ImportProspects({ countries, defaultCountry, agents }: { countries: Option[]; defaultCountry: string; agents: Option[] }) {
+// "Import prospects" for sales managers (whole team) and salespeople (their own list): a file of businesses someone collected by hand. Opens as a sheet from the bottom on a phone.
+export default function ImportProspects({ countries, defaultCountry, agents }: { countries: Option[]; defaultCountry: string; agents: Option[] | null }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (!open) return;

@@ -112,8 +112,11 @@ export type Plan = {
 const STATUS_WORD: Record<string, string> = { NEW: "new", REVIEWED: "reviewed", ASSIGNED: "assigned", CONTACTED: "contacted", NOT_INTERESTED: "closed as not interested", SENT_TO_CRM: "already a lead", DISMISSED: "dismissed" };
 const NOT_INTERESTED = /not\s*inter+est|no\s*interest|do\s*not\s*call|don'?t\s*call|wrong\s*number/i;
 
+// Managers import for the whole team; a salesperson imports into their own list only (rows are assigned to them).
+export const canImport = (a: Actor) => a.permissions.has("crm.edit");
+
 export async function planImport(db: Db, actor: Actor, input: ImportInput): Promise<Plan> {
-  if (!isManager(actor)) throw new ProspectorError("Only a sales manager can import prospects.");
+  if (!canImport(actor)) throw new ProspectorError("You do not have permission to import prospects.");
   const org = actor.organizationId;
   const policy = await getPolicy(db, org);
   const picked = clean(input.country, 2).toUpperCase();
@@ -212,8 +215,9 @@ export type ImportReport = { imported: number; closed: number; assigned: number;
 export async function importProspects(db: Db, actor: Actor, input: ImportInput, now = new Date()): Promise<ImportReport> {
   const plan = await planImport(db, actor, input);
   const org = actor.organizationId;
-  const agentId = input.assignToId || null;
-  if (agentId && !(await assignableAgents(db, org)).some((a) => a.id === agentId)) throw new ProspectorError("Choose an active sales team member.");
+  const manager = isManager(actor);
+  const agentId = manager ? input.assignToId || null : actor.id;
+  if (manager && agentId && !(await assignableAgents(db, org)).some((a) => a.id === agentId)) throw new ProspectorError("Choose an active sales team member.");
   if (plan.rows.length === 0) throw new ProspectorError(plan.skipped[0] ? `Nothing to import. First problem: ${plan.skipped[0].sheet} row ${plan.skipped[0].row}, ${plan.skipped[0].reason}` : "Nothing to import: the sheet has no rows.");
 
   const ids: string[] = [];
