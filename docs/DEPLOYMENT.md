@@ -48,7 +48,7 @@ Terminate HTTPS at a reverse proxy or the platform and forward to the Node proce
 
 ## Serving hifimarketing.co (website and ERP on one domain)
 
-Production runs on the VPS behind hifimarketing.co (DNS pointed there on 2026-10-31; nginx 1.24 with a Let's Encrypt certificate for hifimarketing.co and www already answered on 443): `.github/workflows/deploy.yml` deploys every push to `main` into `/var/www/hifi-one` and restarts it with pm2 (`hifi-one`, port 3000). The server fetches the code with the workflow run's own `GITHUB_TOKEN` (passed over SSH as an environment variable), so no GitHub credential needs to live on the VPS; the repository is private and a stored credential expiring there broke every deploy on 2026-11-09. `/` shows the public website to visitors and sends signed-in staff to `/dashboard`. Steps to put the domain on it (run on the VPS as root or with sudo; each is safe to repeat):
+Production runs on the VPS behind hifimarketing.co (DNS pointed there on 2026-10-31; nginx 1.24 with a Let's Encrypt certificate for hifimarketing.co and www already answered on 443): `deploy/auto-deploy.sh` (run by cron on the VPS, see "Automatic deploys" below) deploys every new commit on `main` into `/var/www/hifi-one` and restarts it with pm2 (`hifi-one`, port 3000). It reads the private repository with a read-only GitHub deploy key, so nothing expires. (Until 2026-11-13 a GitHub Actions workflow did this; Actions was blocked by billing.) `/` shows the public website to visitors and sends signed-in staff to `/dashboard`. Steps to put the domain on it (run on the VPS as root or with sudo; each is safe to repeat):
 
 1. **Check the app is up:** `pm2 ls` shows `hifi-one` online; `curl -sI http://127.0.0.1:3000/site` returns 200.
 2. **DNS (Namecheap → Domain List → hifimarketing.co → Advanced DNS):** an `A` record for `@` and one for `www` pointing at the VPS IP; remove the old records that point at the PHP host. Optional `AAAA` records if the VPS has IPv6. Wait until `nslookup hifimarketing.co` returns the VPS IP.
@@ -172,3 +172,18 @@ Local development database: stop it, then `npm run db:backup`. Restore with `npm
 ## Known gaps before real production use
 
 Read `docs/GAP_ANALYSIS.md` and `docs/SECURITY.md`. The most important: no file storage, no email delivery (invitations and starting passwords are copied by hand), no email delivery (links are copied by hand), no exchange rates, no year-end closing, and tax handling is a flat percentage.
+
+
+## Automatic deploys (server cron)
+
+`deploy/auto-deploy.sh` checks GitHub for a new commit on `main` every 2 minutes. If there is none it ends quietly. If there is one it fetches, runs `npm ci`, database migrations, role sync, builds beside the live build, swaps it in and restarts pm2: the same steps the old workflow ran. Only one deploy runs at a time. A commit that fails twice is not retried until a newer commit arrives, or until you run it with `--force`.
+
+One-time setup on the VPS, as the same user that runs pm2:
+
+1. Make a read-only key: `ssh-keygen -t ed25519 -N "" -f ~/.ssh/hifi_one_deploy -C hifi-one-vps`, then `cat ~/.ssh/hifi_one_deploy.pub`.
+2. GitHub, repository hifi-one, Settings, Deploy keys, Add deploy key: paste it, leave "Allow write access" off.
+3. Get the script: `cd /var/www/hifi-one && GIT_SSH_COMMAND="ssh -i ~/.ssh/hifi_one_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" git fetch git@github.com:asadrealestatewala/hifi-one.git main && git reset --hard FETCH_HEAD`.
+4. Install the schedule: `(crontab -l 2>/dev/null; echo '*/2 * * * * /var/www/hifi-one/deploy/auto-deploy.sh >> /var/log/hifi-one-deploy.log 2>&1') | crontab -`.
+5. Run it once by hand to see it work: `/var/www/hifi-one/deploy/auto-deploy.sh --force`.
+
+See what happened: `tail -50 /var/log/hifi-one-deploy.log` (only deploys and problems are logged) or `/var/www/hifi-one/deploy/auto-deploy.sh --status` (last check time, live commit, last result). The log can grow: add it to logrotate or empty it now and then.
