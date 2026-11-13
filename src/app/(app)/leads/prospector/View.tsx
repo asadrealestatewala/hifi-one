@@ -298,7 +298,7 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
       {canAdd && (
         <div className="flex flex-wrap items-start gap-2">
           <AddProspect campaigns={campaignOptions} countries={callingCodeOptions().map((c) => ({ code: c.code, label: c.label }))} defaultCountry={defaultCountry} />
-          {manager && !mineView && <ImportProspects countries={callingCodeOptions().map((c) => ({ code: c.code, label: c.label }))} defaultCountry={defaultCountry} agents={agents.map((a) => ({ id: a.id, label: a.name }))} />}
+          {(mineView || manager) && <ImportProspects countries={callingCodeOptions().map((c) => ({ code: c.code, label: c.label }))} defaultCountry={defaultCountry} agents={manager ? agents.map((a) => ({ id: a.id, label: a.name })) : null} />}
         </div>
       )}
 
