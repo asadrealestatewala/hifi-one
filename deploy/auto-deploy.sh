@@ -20,7 +20,9 @@ main() {
 
   APP_DIR="${APP_DIR:-/var/www/hifi-one}"
   BRANCH="${BRANCH:-main}"
-  REPO_URL="${REPO_URL:-git@github.com:asadrealestatewala/hifi-one.git}"
+  # Tried in this order: the read-only deploy key (works while the repo is private), then a plain HTTPS pull (works only
+  # while the repo is public). REPO_URL overrides both.
+  REPO_URLS="${REPO_URL:-git@github.com:asadrealestatewala/hifi-one.git https://github.com/asadrealestatewala/hifi-one.git}"
   DEPLOY_KEY="${DEPLOY_KEY:-$HOME/.ssh/hifi_one_deploy}"
   STATE_DIR="${STATE_DIR:-$HOME/.hifi-autodeploy}"
   MAX_FAILURES="${MAX_FAILURES:-2}"
@@ -60,11 +62,21 @@ main() {
 
   export GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20"
 
-  local remote_sha
-  remote_sha="$(git ls-remote "$REPO_URL" "refs/heads/$BRANCH" 2>/dev/null | cut -f1)"
+  local remote_sha="" REPO_URL="" u
+  for u in $REPO_URLS; do
+    remote_sha="$(GIT_TERMINAL_PROMPT=0 git ls-remote "$u" "refs/heads/$BRANCH" 2>/dev/null | cut -f1)"
+    if [ -n "$remote_sha" ]; then REPO_URL="$u"; break; fi
+  done
   if [ -z "$remote_sha" ]; then
-    log "WARNING: could not reach GitHub or read $BRANCH (is the deploy key installed?). Will try again next run."
-    echo "$(ts) could not reach GitHub" > "$result_file"
+    # Say it clearly, but at most once an hour, so a long outage does not fill the log.
+    local warn_file="$STATE_DIR/last-warning" now last
+    now="$(date +%s)"; last="$(cat "$warn_file" 2>/dev/null || echo 0)"
+    if [ $((now - last)) -ge 3600 ]; then
+      log "ERROR: cannot read the repository on GitHub, so nothing can deploy. If the repo is private, the server's deploy key"
+      log "       ($DEPLOY_KEY.pub) must be added at GitHub: hifi-one, Settings, Deploy keys (read-only). Checked: $REPO_URLS"
+      echo "$now" > "$warn_file"
+    fi
+    echo "$(ts) cannot read the repository (deploy key missing or repo private)" > "$result_file"
     return 1
   fi
   echo "$(ts)" > "$checked_file"
