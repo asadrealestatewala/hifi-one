@@ -107,13 +107,13 @@ export default async function Partners({ searchParams }: { searchParams: Promise
               {open.status === "ACTIVE" && open.solutions.length > 0 && (
                 <form action={issueCertificateAction} className="flex flex-wrap items-end gap-2">
                   <input type="hidden" name="id" value={open.id} />
-                  <div><label className="label" htmlFor="ic-kind">Certificate</label><select id="ic-kind" name="kind" className="input"><option value="TRAINING">Training certificate (training done)</option><option value="AUTHORISATION">Official certificate</option></select></div>
+                  <div><label className="label" htmlFor="ic-kind">Certificate</label><select id="ic-kind" name="kind" className="input"><option value="TRAINING">Training certificate (training done)</option><option value="AUTHORISATION">Certificate of authorisation</option></select></div>
                   <div><label className="label" htmlFor="ic-sol">For</label><select id="ic-sol" name="solutionCode" className="input">{open.solutions.map((s) => <option key={s.productId} value={s.product.code}>{s.product.name}</option>)}</select></div>
                   <SubmitButton>Issue and email</SubmitButton>
                 </form>
               )}
               {open.status === "ACTIVE" && open.solutions.length > 0 && (
-                <p className="text-xs text-muted">Training comes first: issue the training certificate when the partner finishes training on a Solution, then the official certificate for that Solution.</p>
+                <p className="text-xs text-muted">Training comes first: issue the training certificate when the partner finishes training on a Solution, then the certificate of authorisation for that Solution.</p>
               )}
             </section>
           </div>

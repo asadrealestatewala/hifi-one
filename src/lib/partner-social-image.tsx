@@ -1,5 +1,5 @@
 // The image version of a Hifi Partner Stack certificate, sized for social posts and link previews (1200 x 627, the
-// LinkedIn share size), for both training and official certificates. Used for the partner's PNG download
+// LinkedIn share size), for both training and certificate of authorisations. Used for the partner's PNG download
 // and as the preview card when a verify link is shared on LinkedIn, WhatsApp or X.
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -70,7 +70,7 @@ export function socialCertificateImage(c: SocialCard | null, init?: { headers?: 
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", flex: 1, padding: "56px 64px" }}>
           {shown ? (
             <div style={{ display: "flex", flexDirection: "column" }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: RED, letterSpacing: 4 }}>{shown.kind === "TRAINING" ? "CERTIFICATE OF TRAINING" : "OFFICIAL CERTIFICATE OF AUTHORISATION"}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: RED, letterSpacing: 4 }}>{shown.kind === "TRAINING" ? "CERTIFICATE OF TRAINING" : "CERTIFICATE OF AUTHORISATION"}</div>
               <div style={{ fontSize: 22, color: "#6b7080", marginTop: 40 }}>This certifies that</div>
               <div style={{ fontSize: shown.partnerName.length > 26 ? 48 : 60, fontWeight: 700, color: NAVY, marginTop: 6, lineHeight: 1.1 }}>{shown.partnerName}</div>
               <div style={{ fontSize: 18, color: "#6b7080", marginTop: 14, letterSpacing: 1 }}>{`Partner ID ${shown.partnerId}`}</div>

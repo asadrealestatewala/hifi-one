@@ -336,8 +336,8 @@ export const SYSTEM_TEMPLATES: TemplateDef[] = [
   },
   {
     key: "partner_certificate", name: "Partner Stack: certificate issued", audience: "Partners",
-    description: "Sent with the certificate PDF attached whenever a training or official certificate is issued, or an official one renewed.",
-    variables: { first_name: "Sara", company_name: "Hifi Marketing and Technologies", solution: "Agentify ERP", certificate: "official partner certificate", certificate_id: "HPS-7K3M-Q9XD-2F", issued: "14 Nov 2026", expires: "14 Dec 2026", link: "https://hifimarketing.co/partners/verify/HPS-7K3M-Q9XD-2F" },
+    description: "Sent with the certificate PDF attached whenever a training or certificate of authorisation is issued, or a certificate of authorisation renewed.",
+    variables: { first_name: "Sara", company_name: "Hifi Marketing and Technologies", solution: "Agentify ERP", certificate: "certificate of authorisation", certificate_id: "HPS-7K3M-Q9XD-2F", issued: "14 Nov 2026", expires: "14 Dec 2026", link: "https://hifimarketing.co/partners/verify/HPS-7K3M-Q9XD-2F" },
     blocks: { label: "Hifi Partner Stack", details: [["Certificate", "{{certificate}}"], ["Solution", "{{solution}}"], ["Certificate ID", "{{certificate_id}}"], ["Issued", "{{issued}}"], ["Valid until", "{{expires}}"]] },
     buttonUrlVar: "link",
     defaults: {

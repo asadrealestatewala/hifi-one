@@ -68,7 +68,7 @@ export default async function PartnerHome() {
           </table></div>
         )}
         <p className="px-4 pt-4 text-xs text-muted">Adding to your LinkedIn profile fills in the certificate name, issuer, ID and verify link for you. Sharing posts your verify link, which shows the certificate as a picture; the image download is for Facebook, Instagram, WhatsApp or anywhere else.</p>
-        <p className="p-4 text-xs text-muted">You get a training certificate when you finish training on a Solution, then the official certificate that lets you sell it. An official certificate that is about to expire is renewed by the partner team. We email you 7 days and 1 day before.</p>
+        <p className="p-4 text-xs text-muted">You get a training certificate when you finish training on a Solution, then the certificate of authorisation that lets you sell it. A certificate of authorisation that is about to expire is renewed by the partner team. We email you 7 days and 1 day before.</p>
       </section>
     </>
   );

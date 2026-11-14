@@ -5,7 +5,7 @@ import { notFound, pdfResponse } from "@/lib/pdf-response";
 
 export const dynamic = "force-dynamic";
 
-// A sample training or official certificate with example details and the saved signatory, linked from settings.
+// A sample training or certificate of authorisation with example details and the saved signatory, linked from settings.
 export async function GET(_req: Request, { params }: { params: Promise<{ kind: string }> }) {
   const user = await requirePermission("partners.settings");
   const { kind } = await params;

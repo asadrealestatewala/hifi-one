@@ -7,11 +7,11 @@ import path from "node:path";
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
 
-/** TRAINING: given when the partner finishes training on a Solution; never expires. AUTHORISATION: the official certificate. */
+/** TRAINING: given when the partner finishes training on a Solution; never expires. AUTHORISATION: the certificate of authorisation. */
 export type CertificateKind = "TRAINING" | "AUTHORISATION";
 export const CERTIFICATE_KINDS: { key: CertificateKind; label: string; design: string; hint: string }[] = [
   { key: "TRAINING", label: "Training certificate", design: "Course design", hint: "Given when the partner finishes training on a Solution. Does not expire." },
-  { key: "AUTHORISATION", label: "Official certificate", design: "Academy design", hint: "The official authorisation to sell a Solution. Needs a training certificate first; expires and is renewed." },
+  { key: "AUTHORISATION", label: "Certificate of authorisation", design: "Academy design", hint: "The authorisation to sell a Solution. Needs a training certificate first; expires and is renewed." },
 ];
 export const isCertificateKind = (v: string): v is CertificateKind => v === "TRAINING" || v === "AUTHORISATION";
 
@@ -103,7 +103,7 @@ function academy(ctx: Ctx) {
   doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(13).text("Hifi Partner Stack", l ? x + 44 : x, 58);
   doc.fillColor(MUTED).font("Helvetica").fontSize(9).text(latin(c.company), l ? x + 44 : x, 75);
 
-  doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(30).text("Official Certificate of Authorisation", x, 124);
+  doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(30).text("Certificate of Authorisation", x, 124);
   doc.fillColor(MUTED).font("Helvetica").fontSize(12).text("Awarded to", x, 178);
   const w = W - x - 300;
   const name = latin(c.partnerName);

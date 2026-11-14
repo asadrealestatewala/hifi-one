@@ -218,7 +218,7 @@ describe("certificates", () => {
     const c = await issueCertificate(db, { organizationId: org, earnerId, solutionCode: "AGENTIFY", kind: "AUTHORISATION", actorId: manager });
     certId = c.id; publicId = c.publicId;
   });
-  it("needs training first: no official certificate without a valid training certificate for that Solution", async () => {
+  it("needs training first: no certificate of authorisation without a valid training certificate for that Solution", async () => {
     await expect(issueCertificate(db, { organizationId: org, earnerId, solutionCode: "PHARMIVO", kind: "AUTHORISATION", actorId: manager })).rejects.toThrow(/training certificate first/);
     await expect(issueCertificate(db, { organizationId: org, earnerId, solutionCode: "PHARMIVO", kind: "GOLD", actorId: manager })).rejects.toThrow(PartnerError);
     const training = await db.partnerCertificate.findFirstOrThrow({ where: { earnerId, kind: "TRAINING", product: { code: "AGENTIFY" } } });
@@ -260,7 +260,7 @@ describe("certificates", () => {
     await issueCertificate(db, { organizationId: org, earnerId, solutionCode: "PHARMIVO", kind: "TRAINING", actorId: manager });
     await issueCertificate(db, { organizationId: org, earnerId, solutionCode: "PHARMIVO", kind: "AUTHORISATION", actorId: manager });
     expect(sent.some((m) => /Pharmivo training certificate/.test(m.subject))).toBe(true);
-    expect(sent.some((m) => /Pharmivo official partner certificate/.test(m.subject))).toBe(true);
+    expect(sent.some((m) => /Pharmivo certificate of authorisation/.test(m.subject))).toBe(true);
   });
   it("sends the 7-day reminder once, then the 1-day reminder once", async () => {
     const now = new Date("2027-06-01T00:00:00Z");

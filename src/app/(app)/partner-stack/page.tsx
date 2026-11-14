@@ -101,7 +101,7 @@ export default async function PartnerApplications({ searchParams }: { searchPara
               <>
                 <form action={approveApplicationAction} className="card space-y-3">
                   <h3 className="font-semibold">Approve</h3>
-                  <p className="text-xs text-muted">Creates the partner, emails a link to set their password, and issues a training certificate for each Solution ticked &ldquo;Training done&rdquo;. Issue the official certificate from the partner&rsquo;s page after training. Everything below can be changed later.</p>
+                  <p className="text-xs text-muted">Creates the partner, emails a link to set their password, and issues a training certificate for each Solution ticked &ldquo;Training done&rdquo;. Issue the certificate of authorisation from the partner&rsquo;s page after training. Everything below can be changed later.</p>
                   <input type="hidden" name="id" value={open.id} />
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div><label className="label" htmlFor="ap-type">Partner type</label>

@@ -326,7 +326,7 @@ export async function approveApplication(db: Db, p: ApprovalInput) {
       }
     }
     const certs = [];
-    // A Solution ticked "Training done" gets its training certificate now; the official certificate is issued later from the partner's page.
+    // A Solution ticked "Training done" gets its training certificate now; the certificate of authorisation is issued later from the partner's page.
     for (const s of certify) certs.push(await issueCertificateTx(tx, { organizationId: p.organizationId, earnerId: earner.id, productId: s.id, kind: "TRAINING", days: null, actorId: p.actorId, now }));
     await tx.partnerApplication.update({ where: { id: app.id }, data: { status: "APPROVED", decidedById: p.actorId, decidedAt: now, earnerId: earner.id } });
     return { user, earner, certs };
@@ -410,9 +410,9 @@ async function issueCertificateTx(tx: Tx | Db, p: { organizationId: string; earn
 /** A certificate that is not revoked and not past its expiry (training certificates have none). */
 const liveWhere = (now: Date) => ({ status: "ACTIVE", OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] });
 
-// Training first: the official certificate for a Solution needs a valid training certificate for the same Solution.
+// Training first: the certificate of authorisation for a Solution needs a valid training certificate for the same Solution.
 export async function issueCertificate(db: Db, p: { organizationId: string; earnerId: string; solutionCode: string; kind: string; actorId: string; now?: Date }) {
-  if (!isCertificateKind(p.kind)) throw new PartnerError("Choose a training or an official certificate.");
+  if (!isCertificateKind(p.kind)) throw new PartnerError("Choose a training or a certificate of authorisation.");
   const kind = p.kind;
   const now = p.now ?? new Date();
   const earner = await db.earner.findFirst({ where: { id: p.earnerId, organizationId: p.organizationId, status: "ACTIVE" }, include: { solutions: { include: { product: true } } } });
@@ -420,9 +420,9 @@ export async function issueCertificate(db: Db, p: { organizationId: string; earn
   const sol = earner.solutions.find((s) => s.product.code === p.solutionCode)?.product;
   if (!sol) throw new PartnerError("This partner is not approved for that Solution. Add it to their Solutions first.");
   const live = await db.partnerCertificate.findFirst({ where: { earnerId: earner.id, productId: sol.id, kind, ...liveWhere(now) } });
-  if (live) throw new PartnerError(kind === "TRAINING" ? "This partner already holds a training certificate for that Solution." : "This partner already holds a valid official certificate for that Solution. Renew it instead.");
+  if (live) throw new PartnerError(kind === "TRAINING" ? "This partner already holds a training certificate for that Solution." : "This partner already holds a valid certificate of authorisation for that Solution. Renew it instead.");
   if (kind === "AUTHORISATION" && !(await db.partnerCertificate.findFirst({ where: { earnerId: earner.id, productId: sol.id, kind: "TRAINING", ...liveWhere(now) } }))) {
-    throw new PartnerError(`Issue the ${sol.name} training certificate first. The official certificate follows training.`);
+    throw new PartnerError(`Issue the ${sol.name} training certificate first. The certificate of authorisation follows training.`);
   }
   const settings = await getSettings(db, p.organizationId);
   const days = kind === "TRAINING" ? null : certificateValidityDays(settings, sol.code, earner.certExpiryDays);
@@ -464,7 +464,7 @@ export async function revokeCertificate(db: Db, p: { organizationId: string; id:
 export const certificateStatus = (c: { status: string; expiresAt: Date | null }, now = new Date()): "VALID" | "EXPIRED" | "REVOKED" =>
   c.status === "REVOKED" ? "REVOKED" : c.expiresAt && c.expiresAt.getTime() <= now.getTime() ? "EXPIRED" : "VALID";
 
-export const certificateKindLabel = (kind: string) => (kind === "TRAINING" ? "Training certificate" : "Official certificate");
+export const certificateKindLabel = (kind: string) => (kind === "TRAINING" ? "Training certificate" : "Certificate of authorisation");
 
 export const verifyUrl = (publicId: string) => `${appUrl()}/partners/verify/${publicId}`;
 
@@ -539,7 +539,7 @@ async function emailCertificate(db: Db, id: string) {
     await sendTemplateQuietly(db, {
       organizationId: c.organizationId, key: "partner_certificate", to: c.earner.email, relatedType: "PartnerCertificate", relatedId: c.id, buttonUrl: link,
       attachment: { filename: pdf.filename, content: Buffer.from(pdf.bytes), contentType: "application/pdf" },
-      vars: { first_name: firstName(c.earner.name), solution: c.product.name, certificate: c.kind === "TRAINING" ? "training certificate" : "official partner certificate", certificate_id: c.publicId, issued: day(c.issuedAt), expires: c.expiresAt ? day(c.expiresAt) : "Does not expire", link },
+      vars: { first_name: firstName(c.earner.name), solution: c.product.name, certificate: c.kind === "TRAINING" ? "training certificate" : "certificate of authorisation", certificate_id: c.publicId, issued: day(c.issuedAt), expires: c.expiresAt ? day(c.expiresAt) : "Does not expire", link },
     });
   } catch (e) {
     console.error("Certificate email was not sent:", e instanceof Error ? e.message : e);

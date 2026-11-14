@@ -33,7 +33,7 @@ export default async function VerifyPage({ params }: { params: Promise<{ id: str
               <Icon name={c.status === "VALID" ? "check" : "close"} size={18} /> {c.status === "VALID" ? "Valid certificate" : c.status === "EXPIRED" ? "This certificate has expired" : "This certificate has been revoked"}
             </p>
             <dl className="hs-dl">
-              <dt>Certificate</dt><dd>{c.kind === "TRAINING" ? "Partner training completed" : "Official partner authorisation"}</dd>
+              <dt>Certificate</dt><dd>{c.kind === "TRAINING" ? "Partner training completed" : "Partner authorisation"}</dd>
               <dt>Partner</dt><dd>{c.partnerName}</dd>
               <dt>Partner ID</dt><dd>{c.partnerId}</dd>
               <dt>{c.kind === "TRAINING" ? "Trained on" : "Authorised for"}</dt><dd>{c.solution}</dd>

@@ -70,7 +70,7 @@ describe("the certificate PDF", () => {
   });
 });
 
-describe("training and official certificates", () => {
+describe("training and certificate of authorisations", () => {
   const base = { publicId: "HPS-ABCD-EFGH-JK", partnerId: "HPS-0012", partnerName: "A Very Long Partner Company Name (Private) Limited of Lahore", solutionName: "Agentify ERP", partnerType: "Exclusive Sales Partner", issuedAt: new Date(), expiresAt: new Date(Date.now() + 86_400_000 * 30), verifyUrl: "https://hifimarketing.co/partners/verify/HPS-ABCD-EFGH-JK", company: "Hifi Marketing and Technologies" };
   it("renders both kinds as a one-page PDF, with and without a signatory, and training without an expiry", async () => {
     for (const d of CERTIFICATE_KINDS) {

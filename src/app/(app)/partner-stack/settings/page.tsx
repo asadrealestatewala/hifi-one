@@ -50,7 +50,7 @@ export default async function PartnerSettings({ searchParams }: { searchParams: 
         <section className="card space-y-3">
           <h2 className="font-semibold">Certificates</h2>
           <div className="grid gap-3 sm:grid-cols-3">
-            <div><label className="label" htmlFor="s-exp">Official certificate validity (days), all Solutions</label><input id="s-exp" name="cert_expiry_days" type="number" min={1} defaultValue={s.cert_expiry_days} className="input" /></div>
+            <div><label className="label" htmlFor="s-exp">Certificate of authorisation validity (days), all Solutions</label><input id="s-exp" name="cert_expiry_days" type="number" min={1} defaultValue={s.cert_expiry_days} className="input" /></div>
             <div><label className="label" htmlFor="s-r1">First reminder (days before)</label><input id="s-r1" name="cert_first_reminder_days" type="number" min={1} defaultValue={s.cert_first_reminder_days} className="input" /></div>
             <div><label className="label" htmlFor="s-r2">Final reminder (days before)</label><input id="s-r2" name="cert_final_reminder_days" type="number" min={1} defaultValue={s.cert_final_reminder_days} className="input" /></div>
           </div>
