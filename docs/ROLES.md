@@ -115,12 +115,14 @@ A role grants a permission when it is listed; Super Admin holds every permission
 | `clout.view` | Clout Leader: see and add influencer posts for the campaigns you own or belong to |
 | `clout.manage` | Clout Leader: manage every campaign, influencer and post, refresh timers and exports |
 | `clout.settings` | Clout Leader: choose data providers and set fast-lane quotas per client (Super Admin only) |
+| `partners.manage` | Partner Stack: review partner inquiries and applications, approve or reject partners, set their terms and manage their certificates |
+| `partners.settings` | Partner Stack: set the programme defaults: rates, durations, certificate validity and reminders (Super Admin only) |
 
 ## Roles
 
 ### Super Admin
 
-`dashboard.view`, `settings.company.view`, `settings.company.edit`, `bank.view`, `bank.view_full`, `bank.edit`, `users.view`, `users.manage`, `roles.manage`, `audit.view`, `crm.view`, `crm.view_all`, `crm.edit`, `crm.convert`, `catalog.view`, `catalog.edit`, `projects.view`, `projects.view_all`, `projects.manage`, `tasks.edit`, `self.attendance`, `self.leave`, `leave.approve`, `hr.view`, `hr.manage`, `hr.view_sensitive`, `circulars.send`, `attendance.view_all`, `payroll.view`, `payroll.manage`, `payroll.approve`, `payroll.post`, `self.payslip`, `self.expense`, `expenses.view`, `expenses.review`, `expenses.approve`, `expenses.post`, `budget.view`, `budget.manage`, `budget.approve`, `budget.override`, `vendors.view`, `vendors.manage`, `vendors.bills`, `vendors.post`, `assets.view`, `assets.manage`, `assets.post`, `investments.view`, `investments.manage`, `reports.view`, `dashboard.executive`, `content.view`, `content.manage`, `content.publish`, `journal.create`, `journal.approve`, `coa.manage`, `period.lock`, `fx.manage`, `projects.costs`, `bank.reconcile`, `finance.writeoff`, `commissions.own`, `commissions.manage`, `commissions.approve`, `assistant.use`, `monitoring.own`, `monitoring.view_team`, `monitoring.screenshots`, `monitoring.remote_support`, `monitoring.live_view`, `monitoring.configure`, `meetings.use`, `chat.use`, `meetings.recordings`, `quotes.view`, `quotes.manage`, `contracts.view`, `contracts.manage`, `subscriptions.manage`, `finance.refund`, `clients.view`, `clients.edit`, `finance.view`, `finance.post`, `campaigns.view`, `campaigns.manage`, `jobs.run`, `leadsources.manage`, `support.view`, `support.manage`, `mail.manage`, `email_templates.manage`, `followups.manage`, `crm.quest_settings`, `crm.duplicates`, `integrations.manage`, `prospector.use`, `prospector.manage`, `field.capture`, `field.review`, `prospector.schedule_demo`, `onboarding.approve`, `clout.view`, `clout.manage`, `clout.settings`
+`dashboard.view`, `settings.company.view`, `settings.company.edit`, `bank.view`, `bank.view_full`, `bank.edit`, `users.view`, `users.manage`, `roles.manage`, `audit.view`, `crm.view`, `crm.view_all`, `crm.edit`, `crm.convert`, `catalog.view`, `catalog.edit`, `projects.view`, `projects.view_all`, `projects.manage`, `tasks.edit`, `self.attendance`, `self.leave`, `leave.approve`, `hr.view`, `hr.manage`, `hr.view_sensitive`, `circulars.send`, `attendance.view_all`, `payroll.view`, `payroll.manage`, `payroll.approve`, `payroll.post`, `self.payslip`, `self.expense`, `expenses.view`, `expenses.review`, `expenses.approve`, `expenses.post`, `budget.view`, `budget.manage`, `budget.approve`, `budget.override`, `vendors.view`, `vendors.manage`, `vendors.bills`, `vendors.post`, `assets.view`, `assets.manage`, `assets.post`, `investments.view`, `investments.manage`, `reports.view`, `dashboard.executive`, `content.view`, `content.manage`, `content.publish`, `journal.create`, `journal.approve`, `coa.manage`, `period.lock`, `fx.manage`, `projects.costs`, `bank.reconcile`, `finance.writeoff`, `commissions.own`, `commissions.manage`, `commissions.approve`, `assistant.use`, `monitoring.own`, `monitoring.view_team`, `monitoring.screenshots`, `monitoring.remote_support`, `monitoring.live_view`, `monitoring.configure`, `meetings.use`, `chat.use`, `meetings.recordings`, `quotes.view`, `quotes.manage`, `contracts.view`, `contracts.manage`, `subscriptions.manage`, `finance.refund`, `clients.view`, `clients.edit`, `finance.view`, `finance.post`, `campaigns.view`, `campaigns.manage`, `jobs.run`, `leadsources.manage`, `support.view`, `support.manage`, `mail.manage`, `email_templates.manage`, `followups.manage`, `crm.quest_settings`, `crm.duplicates`, `integrations.manage`, `prospector.use`, `prospector.manage`, `field.capture`, `field.review`, `prospector.schedule_demo`, `onboarding.approve`, `clout.view`, `clout.manage`, `clout.settings`, `partners.manage`, `partners.settings`
 
 ### CEO / Director
 
@@ -213,6 +215,10 @@ A role grants a permission when it is listed; Super Admin holds every permission
 ### AI Developer Intern
 
 `dashboard.view`, `projects.view`, `tasks.edit`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`
+
+### Partner Manager
+
+`dashboard.view`, `crm.view`, `catalog.view`, `partners.manage`, `self.attendance`, `self.leave`, `self.payslip`, `self.expense`, `assistant.use`, `monitoring.own`, `meetings.use`, `chat.use`
 
 ### Client
 

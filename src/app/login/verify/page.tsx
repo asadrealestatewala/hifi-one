@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { redirect } from "next/navigation";
-import { completeMfaLogin, getSessionUser } from "@/lib/auth";
+import { completeMfaLogin, getSessionUser, homePathFor } from "@/lib/auth";
 import { Notice } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ async function verify(formData: FormData) {
   const r = await completeMfaLogin(String(formData.get("code") ?? ""));
   if (!r.ok) redirect(r.restart ? `/login?error=${encodeURIComponent(r.error)}` : `/login/verify?error=${encodeURIComponent(r.error)}`);
   const u = await getSessionUser();
-  redirect(u?.userType === "CLIENT" ? "/portal" : u?.userType === "VENDOR" ? "/vendor" : "/dashboard");
+  redirect(homePathFor(u?.userType));
 }
 
 export default async function Verify({ searchParams }: { searchParams: Promise<{ error?: string }> }) {

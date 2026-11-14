@@ -10,6 +10,7 @@ import { generateEndOfDay } from "./scorecards";
 import { formatMoney } from "./money";
 import { notifyMany, usersWithPermission } from "./notifications";
 import { purgeMonitoring } from "./monitoring";
+import { sendCertificateReminders } from "./partner-stack";
 import { expireContracts, expireQuotes, generateDueInvoices } from "./sales";
 import { defaultStorage } from "./storage";
 import { type Calendar, getWorkingContext } from "./working-calendar";
@@ -50,6 +51,13 @@ export const JOBS: JobDef[] = [
     async run({ db, organizationId, today }) {
       const [q, c] = await Promise.all([expireQuotes(db, organizationId, today), expireContracts(db, organizationId, today)]);
       return `${q} quotation${q === 1 ? "" : "s"} and ${c} contract${c === 1 ? "" : "s"} expired`;
+    },
+  },
+  {
+    key: "partner_certificates", label: "Partner certificate reminders", what: "Emails partners before a Hifi Partner Stack certificate expires (the first and final reminder days are set in Partner Stack settings) and tells the Partner Managers.",
+    async run({ db, organizationId, now }) {
+      const n = await sendCertificateReminders(db, organizationId, now);
+      return `${n} reminder${n === 1 ? "" : "s"} sent`;
     },
   },
   {

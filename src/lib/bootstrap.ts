@@ -47,6 +47,7 @@ export const SAAS_PRODUCTS: { code: string; name: string; businessLabel: string;
   { code: "AGENTIFY", name: "Agentify ERP", businessLabel: "Real estate agency", website: "https://agentifyerp.co" },
   { code: "VELOCITY", name: "Velocity ERP", businessLabel: "Car dealer or workshop", website: "https://velocityerp.co" },
   { code: "PHARMIVO", name: "Pharmivo", businessLabel: "Pharmacy", website: null },
+  { code: "CAMPUSLY", name: "Campusly", businessLabel: "School", website: null },
 ];
 
 export const LEAVE_TYPES: [string, number, boolean][] = [["Annual", 14, true], ["Casual", 8, true], ["Sick", 8, true], ["Unpaid", 0, false]];

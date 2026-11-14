@@ -30,6 +30,13 @@ export const SCREEN_GROUPS: ScreenGroup[] = [
     { href: "/hr/applications", label: "Applications", permission: "hr.view" },
     { href: "/hr/onboarding", label: "Onboarding", permission: "hr.view" },
   ] },
+  { id: "partner-stack", label: "Partner Stack", tabs: [
+    { href: "/partner-stack", label: "Applications", permission: "partners.manage" },
+    { href: "/partner-stack/partners", label: "Partners", permission: "partners.manage" },
+    { href: "/partner-stack/certificates", label: "Certificates", permission: "partners.manage" },
+    { href: "/partner-stack/inquiries", label: "Inquiries", permission: "partners.manage" },
+    { href: "/partner-stack/settings", label: "Settings", permission: "partners.settings" },
+  ] },
   { id: "client-contracts", label: "Contracts", tabs: [
     { href: "/contracts", label: "Contracts", permission: "contracts.view" },
     { href: "/agreements", label: "Agreements", permission: "contracts.view" },

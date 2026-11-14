@@ -21,6 +21,7 @@ const AREAS: { prefix: string; guard: RegExp; label: string }[] = [
   { prefix: "(app)/", guard: /require(Permission|User)\(/, label: "requirePermission/requireUser" },
   { prefix: "portal/", guard: /requireClientUser\(/, label: "requireClientUser" },
   { prefix: "vendor/", guard: /requireVendorUser\(/, label: "requireVendorUser" },
+  { prefix: "partner/", guard: /requirePartnerUser\(/, label: "requirePartnerUser" },
   { prefix: "room/", guard: /requirePermission\(/, label: "requirePermission" },
 ];
 
@@ -92,7 +93,7 @@ describe("every server action checks the caller", () => {
       // Public by design: sign-in, and accepting an emailed invitation (protected by a secret token)
       if (PUBLIC_ACTIONS.has(r)) continue;
       it(`${r} › ${a.name}`, () => {
-        expect(/require(Permission|User|ClientUser|VendorUser|Session|MobileUser)\(|\blogout\(/.test(a.body), `${r} ${a.name} must call a require* guard`).toBe(true);
+        expect(/require(Permission|User|ClientUser|VendorUser|PartnerUser|Session|MobileUser)\(|\blogout\(/.test(a.body), `${r} ${a.name} must call a require* guard`).toBe(true);
       });
     }
   }
@@ -108,12 +109,12 @@ describe("every route handler checks the caller", () => {
   // and must resolve that secret through eventsForToken (which refuses unknown, switched-off and inactive-user tokens).
   // The desktop agent endpoints sign in with a device token instead of a browser session (see the agent test below).
   // The website's contact and apply forms are public by design: same-site, rate limited and validated (see the website tests below)
-  const PUBLIC_ROUTES = new Set(["api/site/contact/route.ts", "api/site/apply/route.ts", "api/health/route.ts", "api/calendar/[token]/route.ts", "api/agent/enroll/route.ts", "api/agent/policy/route.ts", "api/agent/ingest/route.ts", "api/agent/screenshot/route.ts", "api/jobs/run/route.ts", "api/leads/capture/route.ts", "api/meetings/[id]/events/route.ts", "api/meetings/[id]/signal/route.ts", "api/meetings/[id]/chat/route.ts", "api/meetings/[id]/admin/route.ts", "api/mail/inbound/route.ts", "api/unsubscribe/route.ts", "api/mobile/v1/login/route.ts", "api/mobile/v1/mfa/route.ts", "api/app/android/route.ts", "a/[token]/f/[fileId]/route.ts"]);
+  const PUBLIC_ROUTES = new Set(["api/site/contact/route.ts", "api/site/apply/route.ts", "api/partners/inquiry/route.ts", "api/partners/apply/route.ts", "api/health/route.ts", "api/calendar/[token]/route.ts", "api/agent/enroll/route.ts", "api/agent/policy/route.ts", "api/agent/ingest/route.ts", "api/agent/screenshot/route.ts", "api/jobs/run/route.ts", "api/leads/capture/route.ts", "api/meetings/[id]/events/route.ts", "api/meetings/[id]/signal/route.ts", "api/meetings/[id]/chat/route.ts", "api/meetings/[id]/admin/route.ts", "api/mail/inbound/route.ts", "api/unsubscribe/route.ts", "api/mobile/v1/login/route.ts", "api/mobile/v1/mfa/route.ts", "api/app/android/route.ts", "a/[token]/f/[fileId]/route.ts"]);
   for (const f of files.filter((x) => x.endsWith("/route.ts"))) {
     const r = rel(f);
     if (PUBLIC_ROUTES.has(r)) continue;
     it(`${r} is guarded`, () => {
-      expect(/require(Permission|User|ClientUser|VendorUser|Session|MobileUser)\(/.test(read(f)), `${r} must call a require* guard`).toBe(true);
+      expect(/require(Permission|User|ClientUser|VendorUser|PartnerUser|Session|MobileUser)\(/.test(read(f)), `${r} must call a require* guard`).toBe(true);
     });
   }
 });
@@ -141,8 +142,16 @@ describe("the public website", () => {
   });
   for (const f of siteFiles) {
     if (rel(f) === "(site)/page.tsx") continue;
-    it(`${rel(f)} is static content, without the database or a session`, () => {
+    // Hifi Partner Stack (/partners): the page shows the programme as configured in Partner Stack, and the certificate check reads one
+    // certificate by its secret id, so these two may read the database. They never touch a session, never write, and keep the same
+    // ban on cookies, headers and server actions (the forms post to /api/partners/*, which is rate limited and same-site only).
+    const readsProgramme = /^\(site\)\/partners\/(page|verify\/\[id\]\/page)\.tsx$/.test(rel(f));
+    it(`${rel(f)} is ${readsProgramme ? "read-only public content, without a session" : "static content, without the database or a session"}`, () => {
       const src = read(f);
+      if (readsProgramme) {
+        expect(src).not.toMatch(/@\/lib\/(auth|session|guards)|cookies\(|headers\(|["']use server["']|\.(create|update|upsert|delete)(Many)?\(/);
+        return;
+      }
       expect(src).not.toMatch(/@\/lib\/(db|auth|session|guards)|prisma|cookies\(|headers\(|["']use server["']/);
       expect(src).not.toMatch(/export const dynamic = "force-dynamic"/);
     });
@@ -153,7 +162,7 @@ describe("the public website", () => {
     expect(src).not.toMatch(/["']use server["']|export async function (POST|PUT|PATCH|DELETE)/);
   });
   it("the form endpoints only accept same-site, rate-limited submissions", () => {
-    for (const r of ["api/site/contact/route.ts", "api/site/apply/route.ts"]) {
+    for (const r of ["api/site/contact/route.ts", "api/site/apply/route.ts", "api/partners/inquiry/route.ts", "api/partners/apply/route.ts"]) {
       const src = read(path.join(root, r));
       expect(src, r).toContain("sameSite(req)");
       expect(src, r).toMatch(/limiter\(/);

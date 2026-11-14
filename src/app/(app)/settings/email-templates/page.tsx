@@ -14,14 +14,14 @@ export default async function EmailTemplates() {
     db.emailTemplate.count({ where: { organizationId: user.organizationId, kind: "FOLLOW_UP", archived: false } }),
   ]);
   const when = new Map(edited.map((e) => [e.key, e.updatedAt]));
-  const groups = ["Staff", "Clients"] as const;
+  const groups = ["Staff", "Clients", "Partners"] as const;
   return (
     <div className="space-y-5 max-w-5xl">
       <PageHeader back={{ href: "/settings", label: "Settings" }} title="Email templates" subtitle="The branded emails Hifi One sends. Change the wording, preview it on desktop and phone, and send yourself a test. Layout, logo and company details stay consistent." />
       {!mailConfig().transportReady && <p className="card text-sm text-amber-700">Email is not connected yet, so these emails are logged as not sent. Connect it under <Link className="underline" href="/settings/email">Settings › Email</Link>.</p>}
       {groups.map((g) => (
         <section key={g} className="card !p-0 overflow-hidden">
-          <h2 className="px-4 pt-4 font-semibold">{g === "Staff" ? "To staff" : "To clients"}</h2>
+          <h2 className="px-4 pt-4 font-semibold">{g === "Staff" ? "To staff" : g === "Clients" ? "To clients" : "To partners"}</h2>
           <ul className="mt-2 divide-y divide-border">
             {SYSTEM_TEMPLATES.filter((t) => t.audience === g).map((t) => (
               <li key={t.key}>

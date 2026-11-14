@@ -60,33 +60,33 @@ model Department {
 }
 
 model User {
-  id                 String    @id @default(cuid())
+  id                 String       @id @default(cuid())
   pushDevices        PushDevice[]
   organizationId     String
-  email              String?   @unique // official email; optional because some staff have none yet (never invented)
-  phone              String?   @unique // registered contact number in E.164 (+923001234567); can be used to sign in
+  email              String?      @unique // official email; optional because some staff have none yet (never invented)
+  phone              String?      @unique // registered contact number in E.164 (+923001234567); can be used to sign in
   emailVerifiedAt    DateTime? // set when the person proves they receive mail there, or an administrator confirms it
   phoneVerifiedAt    DateTime? // set when an administrator confirms the number (no SMS provider is configured)
   name               String
   passwordHash       String
-  active             Boolean   @default(true)
-  userType           String    @default("EMPLOYEE") // EMPLOYEE | CLIENT | VENDOR | PARTNER | INVESTOR
+  active             Boolean      @default(true)
+  userType           String       @default("EMPLOYEE") // EMPLOYEE | CLIENT | VENDOR | PARTNER | INVESTOR
   clientId           String? // set for client portal users: the only client they can ever see
   vendorId           String? // set for vendor portal users: the only vendor they can ever see
   branchId           String?
   departmentId       String?
   managerId          String?
-  mustChangePassword Boolean   @default(false)
+  mustChangePassword Boolean      @default(false)
   totpSecretEnc      String? // encrypted at rest
-  totpEnabled        Boolean   @default(false)
+  totpEnabled        Boolean      @default(false)
   totpLastStep       Int? // last accepted 30-second step, so a code cannot be used twice
-  calendarToken      String?   @unique // secret address of this person's calendar feed; null means no feed
+  calendarToken      String?      @unique // secret address of this person's calendar feed; null means no feed
   recoveryCodes      Json? // array of sha256 hashes of unused one-time codes
-  failedLogins       Int       @default(0)
+  failedLogins       Int          @default(0)
   lockedUntil        DateTime?
   lastLoginAt        DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
 
   organization    Organization     @relation(fields: [organizationId], references: [id])
   branch          Branch?          @relation(fields: [branchId], references: [id])
@@ -332,46 +332,46 @@ model PipelineStage {
 }
 
 model Lead {
-  id                String    @id @default(cuid())
+  id                 String                  @id @default(cuid())
   conversionRequests LeadConversionRequest[]
-  organizationId    String
-  number            Int       @default(autoincrement())
-  name              String
-  company           String?
-  email             String?
-  phone             String?
-  country           String?
-  source            String?
-  serviceInterest   String?
-  planId            String?
-  dealValue         Decimal?  @db.Decimal(14, 2)
-  currency          String    @default("USD")
-  priority          String    @default("MEDIUM")
-  stageId           String
-  stageChangedAt    DateTime  @default(now())
-  assignedToId      String?
-  nextFollowUp      DateTime?
-  notes             String?
-  createdById       String?
-  clientId          String?
-  convertedAt       DateTime?
-  contactId         String? // the contact record this lead belongs to; kept in sync
-  city              String?
-  timezone          String?
-  preferredContact  String? // CALL | WHATSAPP | EMAIL | SMS
-  expectedCloseDate String? // YYYY-MM-DD
-  tags              String[]  @default([])
-  campaignId        String?
-  website           String?
-  mapsUrl           String? // Google Maps link
-  leadSourceId      String? // the website form or webhook that captured it
-  utmSource         String?
-  utmMedium         String?
-  utmCampaign       String?
-  landingUrl        String?
-  lastContactAt     DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  organizationId     String
+  number             Int                     @default(autoincrement())
+  name               String
+  company            String?
+  email              String?
+  phone              String?
+  country            String?
+  source             String?
+  serviceInterest    String?
+  planId             String?
+  dealValue          Decimal?                @db.Decimal(14, 2)
+  currency           String                  @default("USD")
+  priority           String                  @default("MEDIUM")
+  stageId            String
+  stageChangedAt     DateTime                @default(now())
+  assignedToId       String?
+  nextFollowUp       DateTime?
+  notes              String?
+  createdById        String?
+  clientId           String?
+  convertedAt        DateTime?
+  contactId          String? // the contact record this lead belongs to; kept in sync
+  city               String?
+  timezone           String?
+  preferredContact   String? // CALL | WHATSAPP | EMAIL | SMS
+  expectedCloseDate  String? // YYYY-MM-DD
+  tags               String[]                @default([])
+  campaignId         String?
+  website            String?
+  mapsUrl            String? // Google Maps link
+  leadSourceId       String? // the website form or webhook that captured it
+  utmSource          String?
+  utmMedium          String?
+  utmCampaign        String?
+  landingUrl         String?
+  lastContactAt      DateTime?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
 
   client     Client?              @relation(fields: [clientId], references: [id])
   stage      PipelineStage        @relation(fields: [stageId], references: [id])
@@ -428,7 +428,7 @@ model Client {
   createdAt        DateTime @default(now())
 
   contactId        String?
-  clientType       String           @default("MARKETING") // MARKETING | SOFTWARE | INCORPORATION | SELLER_SERVICES | SAAS
+  clientType       String             @default("MARKETING") // MARKETING | SOFTWARE | INCORPORATION | SELLER_SERVICES | SAAS
   projectManagerId String? // the staff member allocated to run this client's work (shown in the client portal)
   supportManagerId String? // dedicated support manager for a SaaS customer; the project manager covers support when empty
   engagements      Engagement[]
@@ -607,7 +607,7 @@ model Project {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  campaign    Campaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  campaign    Campaign?           @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   updates     ProjectUpdate[]
   members     ProjectMember[]
   tasks       Task[]
@@ -1900,48 +1900,48 @@ model CloutCampaign {
 }
 
 model CloutPost {
-  id                 String    @id @default(cuid())
-  organizationId     String
-  cloutCampaignId    String
-  projectId          String?
-  influencerId       String?
-  platform           String // TIKTOK | INSTAGRAM | FACEBOOK
-  url                String
-  canonicalUrl       String
-  externalId         String?
-  status             String    @default("LIVE") // LIVE | FAILED | UNAVAILABLE | PAUSED
-  pinned             Boolean   @default(false)
-  trackingCode       String?
-  trackingLink       String?
-  caption            String?
-  authorHandle       String?
-  thumbnailUrl       String?
-  postedAt           DateTime?
-  views              BigInt    @default(0)
-  likes              BigInt    @default(0)
-  comments           BigInt    @default(0)
-  shares             BigInt?
-  saves              BigInt?
-  viewsDelta         BigInt    @default(0)
-  likesDelta         BigInt    @default(0)
-  commentsDelta      BigInt    @default(0)
-  refreshSeconds     Int? // this post's own timer; the campaign's timer is used when empty
-  effectiveSeconds   Int       @default(900) // the interval actually used, after the fast-lane quota
-  fastLane           Boolean   @default(false)
-  quotaFallback      Boolean   @default(false)
-  nextCheckAt        DateTime?
-  lastCheckedAt      DateTime?
-  lastSuccessAt      DateTime?
-  lastManualAt       DateTime?
-  lastViewedAt       DateTime?
-  consecutiveFailures Int      @default(0)
-  consecutiveGone    Int       @default(0)
-  lastError          String?
-  lastProvider       String?
-  unavailableAt      DateTime?
-  addedById          String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  organizationId      String
+  cloutCampaignId     String
+  projectId           String?
+  influencerId        String?
+  platform            String // TIKTOK | INSTAGRAM | FACEBOOK
+  url                 String
+  canonicalUrl        String
+  externalId          String?
+  status              String    @default("LIVE") // LIVE | FAILED | UNAVAILABLE | PAUSED
+  pinned              Boolean   @default(false)
+  trackingCode        String?
+  trackingLink        String?
+  caption             String?
+  authorHandle        String?
+  thumbnailUrl        String?
+  postedAt            DateTime?
+  views               BigInt    @default(0)
+  likes               BigInt    @default(0)
+  comments            BigInt    @default(0)
+  shares              BigInt?
+  saves               BigInt?
+  viewsDelta          BigInt    @default(0)
+  likesDelta          BigInt    @default(0)
+  commentsDelta       BigInt    @default(0)
+  refreshSeconds      Int? // this post's own timer; the campaign's timer is used when empty
+  effectiveSeconds    Int       @default(900) // the interval actually used, after the fast-lane quota
+  fastLane            Boolean   @default(false)
+  quotaFallback       Boolean   @default(false)
+  nextCheckAt         DateTime?
+  lastCheckedAt       DateTime?
+  lastSuccessAt       DateTime?
+  lastManualAt        DateTime?
+  lastViewedAt        DateTime?
+  consecutiveFailures Int       @default(0)
+  consecutiveGone     Int       @default(0)
+  lastError           String?
+  lastProvider        String?
+  unavailableAt       DateTime?
+  addedById           String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   cloutCampaign CloutCampaign    @relation(fields: [cloutCampaignId], references: [id], onDelete: Cascade)
   influencer    CloutInfluencer? @relation(fields: [influencerId], references: [id], onDelete: SetNull)
@@ -2983,14 +2983,14 @@ model ProjectUpdate {
 
 // A phone that has the mobile app signed in. The token comes from Expo's push service; one phone can move between people (the latest sign-in wins).
 model PushDevice {
-  id         String   @id @default(cuid())
-  userId     String
-  token      String   @unique
-  platform   String   @default("android")
-  companyOwned Boolean @default(false) // set by an administrator; only company phones can be offered remote support
-  label      String?
-  createdAt  DateTime @default(now())
-  lastSeenAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique
+  platform     String   @default("android")
+  companyOwned Boolean  @default(false) // set by an administrator; only company phones can be offered remote support
+  label        String?
+  createdAt    DateTime @default(now())
+  lastSeenAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -3108,11 +3108,13 @@ model SaasProduct {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  prospects Prospect[]
-  profiles  SalesAgentProfile[]
-  visits    ProspectVisit[]
-  demos     DemoBooking[]
-  commissionRates ProductCommissionRate[]
+  prospects           Prospect[]
+  profiles            SalesAgentProfile[]
+  earnerSolutions     EarnerSolution[]
+  partnerCertificates PartnerCertificate[]
+  visits              ProspectVisit[]
+  demos               DemoBooking[]
+  commissionRates     ProductCommissionRate[]
 
   @@unique([organizationId, code])
   @@index([organizationId, active, sortOrder])
@@ -3123,11 +3125,11 @@ model SalesAgentProfile {
   organizationId   String
   userId           String
   productId        String?
-  kind             String    @default("OFFICE") // OFFICE | FIELD
+  kind             String   @default("OFFICE") // OFFICE | FIELD
   dailyVisitTarget Int? // null: the product's default
   updatedById      String?
-  updatedAt        DateTime  @updatedAt
-  createdAt        DateTime  @default(now())
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
 
   product SaasProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
@@ -3139,22 +3141,22 @@ model SalesAgentProfile {
 // can be visited again on Thursday without a duplicate prospect. Photos (storefront, hoarding, visiting card) are StoredFile rows with
 // ownerType PROSPECT_VISIT. Location is taken once, when the visit is saved; nobody is tracked between visits.
 model ProspectVisit {
-  id             String    @id @default(cuid())
+  id             String   @id @default(cuid())
   organizationId String
   prospectId     String
   productId      String?
   agentId        String
   visitedAt      DateTime // when the agent was there (device time, checked against the server clock)
-  lat            Decimal?  @db.Decimal(9, 6)
-  lng            Decimal?  @db.Decimal(9, 6)
+  lat            Decimal? @db.Decimal(9, 6)
+  lng            Decimal? @db.Decimal(9, 6)
   accuracyM      Int? // GPS accuracy in metres as the phone reported it
-  locationSource String    @default("NONE") // GPS | NONE (denied, unavailable or too inaccurate)
+  locationSource String   @default("NONE") // GPS | NONE (denied, unavailable or too inaccurate)
   outcome        String // NOT_AVAILABLE | CLOSED | OWNER_ABSENT | NOT_INTERESTED | INTERESTED | DEMO_REQUESTED
   reason         String? // why: what the agent was told or saw
   note           String?
   followUpOn     String? // YYYY-MM-DD the agent plans to go back
   clientRef      String? // id the phone gave the visit while offline, so a retried upload never saves it twice
-  createdAt      DateTime  @default(now())
+  createdAt      DateTime @default(now())
 
   prospect Prospect     @relation(fields: [prospectId], references: [id], onDelete: Cascade)
   product  SaasProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
@@ -3233,9 +3235,9 @@ model ApiCall {
 // ---------- Duplicate lead protection (decision 65) ----------
 // One row per organization. mode: BLOCK (default) | WARN (agent may confirm) | OFF. defaultCountry anchors local phone numbers (0300...) to +92...
 model CrmSettings {
-  organizationId String @id
-  duplicateMode  String @default("BLOCK")
-  defaultCountry String @default("PK")
+  organizationId String   @id
+  duplicateMode  String   @default("BLOCK")
+  defaultCountry String   @default("PK")
   updatedAt      DateTime @updatedAt
 }
 
@@ -3352,15 +3354,15 @@ model ProspectSocial {
 // Team chat (phase 1): direct messages, groups and one group per project. Messages are plain text; pictures are StoredFile rows
 // (ownerType CHAT_MESSAGE) so they follow the same storage, validation and virus-scan rules as every other upload.
 model ChatRoom {
-  id              String   @id @default(cuid())
-  organizationId  String
-  kind            String // DIRECT | GROUP | PROJECT
-  name            String? // groups and project rooms; direct rooms are named after the other person
-  directKey       String? // DIRECT only: the two user ids sorted and joined, so a pair never gets two rooms
-  projectId       String? // PROJECT only
-  createdById     String
-  createdAt       DateTime @default(now())
-  lastMessageAt   DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String
+  kind           String // DIRECT | GROUP | PROJECT
+  name           String? // groups and project rooms; direct rooms are named after the other person
+  directKey      String? // DIRECT only: the two user ids sorted and joined, so a pair never gets two rooms
+  projectId      String? // PROJECT only
+  createdById    String
+  createdAt      DateTime @default(now())
+  lastMessageAt  DateTime @default(now())
 
   members  ChatMember[]
   messages ChatMessage[]
@@ -3493,4 +3495,156 @@ model PublicHoliday {
 
   @@unique([organizationId, date])
   @@index([organizationId, date])
+}
+
+// ---------- Partner Stack (Hifi Partner Stack): resellers, referral partners and exclusive partners ----------
+
+// The kinds of earner and their defaults. Each person can be given different terms when approved.
+model EarnerType {
+  id                    String   @id @default(cuid())
+  organizationId        String
+  key                   String // REFERRAL | RESELLER | EXCLUSIVE | SALES_AGENT
+  name                  String
+  description           String
+  defaultRate           Decimal  @db.Decimal(5, 2)
+  defaultDurationMonths Int? // null = lifetime: as long as the client keeps paying
+  leadSharing           Boolean  @default(false)
+  publicOffer           Boolean  @default(true) // shown on the public Hifi Partner Stack page
+  active                Boolean  @default(true)
+  sortOrder             Int      @default(0)
+  createdAt             DateTime @default(now())
+
+  earners Earner[]
+
+  @@unique([organizationId, key])
+}
+
+// A person who earns commission. userId is set once their login exists.
+model Earner {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?  @unique
+  typeId         String
+  name           String
+  email          String
+  phone          String?
+  city           String?
+  country        String?
+  ratePercent    Decimal  @db.Decimal(5, 2)
+  durationMonths Int? // null = lifetime
+  leadSharing    Boolean  @default(false)
+  territory      String? // plain text for now; structured territories arrive with lead distribution
+  certExpiryDays Int? // overrides the Solution and global certificate validity
+  status         String   @default("ACTIVE") // ACTIVE | SUSPENDED
+  referralCode   String   @unique
+  applicationId  String?  @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  type         EarnerType           @relation(fields: [typeId], references: [id])
+  solutions    EarnerSolution[]
+  certificates PartnerCertificate[]
+
+  @@index([organizationId, status])
+}
+
+// The Solutions (SaasProduct rows) a partner is approved to sell.
+model EarnerSolution {
+  earnerId  String
+  productId String
+
+  earner  Earner      @relation(fields: [earnerId], references: [id], onDelete: Cascade)
+  product SaasProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([earnerId, productId])
+}
+
+// A question from the public partner page.
+model PartnerInquiry {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  email          String
+  phone          String?
+  city           String?
+  country        String?
+  profession     String?
+  interestedType String? // REFERRAL | RESELLER | EXCLUSIVE | NOT_SURE
+  message        String
+  status         String    @default("NEW") // NEW | REPLIED | CLOSED
+  handledById    String?
+  handledAt      DateTime?
+  note           String?
+  createdAt      DateTime  @default(now())
+
+  @@index([organizationId, status, createdAt])
+}
+
+// A request to become a partner.
+model PartnerApplication {
+  id              String    @id @default(cuid())
+  organizationId  String
+  name            String
+  email           String
+  phone           String
+  city            String
+  country         String
+  professionKind  String // STUDENT | EMPLOYED | BUSINESS_OWNER | FREELANCER | INDUSTRY_PROFESSIONAL | OTHER
+  company         String?
+  jobTitle        String?
+  professionOther String?
+  solutionCodes   String[] // SaasProduct codes they are interested in
+  typeKey         String // REFERRAL | RESELLER | EXCLUSIVE | NOT_SURE
+  salesExperience String?
+  networkSize     String?
+  termsAcceptedAt DateTime
+  termsIp         String?
+  submissions     Int       @default(1)
+  status          String    @default("NEW") // NEW | APPROVED | REJECTED
+  decidedById     String?
+  decidedAt       DateTime?
+  decisionNote    String?
+  earnerId        String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, email])
+}
+
+// One certificate per partner and Solution. The public id is what the QR code and /partners/verify/<id> use.
+model PartnerCertificate {
+  id              String    @id @default(cuid())
+  organizationId  String
+  publicId        String    @unique
+  earnerId        String
+  productId       String
+  issuedAt        DateTime
+  expiresAt       DateTime
+  status          String    @default("ACTIVE") // ACTIVE | REVOKED (expired is worked out from expiresAt)
+  renewals        Int       @default(0)
+  revokedAt       DateTime?
+  revokeReason    String?
+  revokedById     String?
+  firstReminderAt DateTime?
+  finalReminderAt DateTime?
+  issuedById      String?
+  createdAt       DateTime  @default(now())
+
+  earner  Earner      @relation(fields: [earnerId], references: [id], onDelete: Cascade)
+  product SaasProduct @relation(fields: [productId], references: [id])
+
+  @@index([organizationId, status, expiresAt])
+  @@index([earnerId])
+}
+
+// Every default of the programme: rates live on EarnerType, the rest are key/value rows here.
+model PartnerSetting {
+  organizationId String
+  key            String
+  value          String
+  updatedById    String?
+  updatedAt      DateTime @updatedAt
+
+  @@id([organizationId, key])
 }

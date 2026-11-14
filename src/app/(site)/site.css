@@ -367,3 +367,39 @@ select.hs-input { appearance: none; padding-right: 40px; background-image: url("
 @media (prefers-reduced-motion: reduce) {
   .hs *, .hs *::before, .hs *::after { transition: none !important; animation: none !important; }
 }
+
+/* Hifi Partner Stack (/partners) */
+.hs-narrow { max-width: 760px; }
+.hs-type .hs-rate { font-size: 40px; font-weight: 800; color: var(--hs-primary); margin: 4px 0 8px; line-height: 1.1; }
+.hs-type .hs-rate small { display: block; font-size: 14px; font-weight: 700; color: var(--hs-muted); }
+.hs-steps { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 20px; counter-reset: s; }
+.hs-steps li { background: var(--hs-surface); border: 1px solid var(--hs-border); border-radius: var(--hs-radius); padding: 22px; }
+.hs-steps h3 { font-size: 18px; margin: 12px 0 6px; }
+.hs-steps p { margin: 0; font-size: 15px; }
+.hs-step-n { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: var(--hs-primary-soft); color: var(--hs-primary); font-weight: 800; }
+@media (max-width: 1000px) { .hs-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .hs-steps { grid-template-columns: 1fr; } }
+.hs-chips { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.hs-chips li { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 999px; background: var(--hs-surface); border: 1px solid var(--hs-border); font-weight: 700; }
+.hs-chips svg { color: var(--hs-primary); }
+.hs-calc { background: var(--hs-surface); border: 1px solid var(--hs-border); border-radius: var(--hs-radius); padding: 24px; display: grid; gap: 20px; }
+.hs-calc-out { display: grid; gap: 4px; padding: 20px; border-radius: 14px; background: var(--hs-primary-soft); text-align: center; }
+.hs-calc-out strong { font-size: clamp(34px, 6vw, 48px); color: var(--hs-primary); line-height: 1.1; }
+.hs-calc-out small { font-size: 16px; font-weight: 700; }
+.hs-faq { display: grid; gap: 10px; }
+.hs-faq details { background: var(--hs-surface); border: 1px solid var(--hs-border); border-radius: 14px; padding: 4px 18px; }
+.hs-faq summary { cursor: pointer; font-weight: 700; padding: 14px 0; min-height: 44px; }
+.hs-faq p { margin: 0 0 14px; }
+.hs-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.hs-checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 560px) { .hs-checks { grid-template-columns: 1fr; } }
+.hs-check { display: flex; gap: 10px; align-items: center; min-height: 44px; padding: 8px 12px; border: 1px solid var(--hs-border); border-radius: 12px; background: var(--hs-surface); font-weight: 600; cursor: pointer; }
+.hs-check input { width: 20px; height: 20px; accent-color: var(--hs-primary); flex: none; }
+.hs-terms summary { cursor: pointer; font-weight: 700; min-height: 32px; }
+.hs-terms pre { white-space: pre-wrap; font: inherit; font-size: 14px; max-height: 260px; overflow: auto; margin: 8px 0 0; padding: 12px; background: var(--hs-bg-soft); border-radius: 12px; }
+.hs-verify { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; margin: 0 0 16px; padding: 8px 14px; border-radius: 999px; }
+.hs-verify.ok { background: color-mix(in srgb, var(--hs-success) 14%, transparent); color: var(--hs-success); }
+.hs-verify.bad { background: color-mix(in srgb, var(--hs-danger) 12%, transparent); color: var(--hs-danger); }
+.hs-dl { display: grid; grid-template-columns: max-content 1fr; gap: 10px 20px; margin: 0; }
+.hs-dl dt { color: var(--hs-muted); font-weight: 600; }
+.hs-dl dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
