@@ -229,3 +229,15 @@ Done: `/approvals` (one list of everything waiting for the reader, oldest first,
 Verified: `npx tsc --noEmit`, `npx eslint src` (3 pre-existing warnings), `npm run build`, 140 test files / 1845 tests including `approvals.test.ts` and `approvals.integration.test.ts` (scope per permission, own requests excluded, exact counts, one organization never sees another's). Opened all three screens signed in and approved a real leave request end to end, which is how the approve/reject button bug was found and fixed.
 
 Not done: deciding from the Approvals screen itself (by design, for now); quotations and purchase orders are not yet among the kinds; `/me/team` needs `leave.approve`, so a team lead without it still sees nothing.
+
+## Partner Stack, Phase 1 (2026-11-14)
+
+Done: public `/partners` and `/partners/verify/<id>`, inquiry and application forms (rate limited, honeypot, same-site), admin Applications / Partners / Certificates / Inquiries / Settings, approval with certificates, PDF with QR, renew and revoke, daily expiry reminders, partner login and `/partner` home, "Partner Manager" role, Campusly Solution, sequential Partner ID, training and official certificates (training first) with an optional signatory, image download and LinkedIn add/share buttons, link-preview image on the verify page. See `docs/PARTNER_STACK.md`.
+
+Verified: `npx tsc --noEmit`, `npx eslint src` (3 pre-existing warnings), `npm run build`, 146 test files, including `partner-stack.test.ts` and `partner-stack.integration.test.ts`; browser pass at desktop and phone width against a local production build (forms, approval, certificate PDF, verify page, partner sign-in).
+
+Not verified: real email delivery (Resend not configured here), the draft partner terms (need review), counts on a phone device.
+
+Not done: partner CRM, lead distribution, commission engine, targets (Phases 2 to 6).
+
+Partner Academy step 1 (2026-11-14): courses, lessons with YouTube/Vimeo/mp4 videos, question bank (typed, spreadsheet import, Claude drafts), quick checks, lesson order, automatic training certificate, staff progress view. Verified: tsc, eslint (3 old warnings), 146 test files / 1989 tests, `npm run build`, browser pass against a local production build (staff builds a course, partner fails then passes a quick check, Solution course unlocks, phone width). Not verified: real YouTube/Vimeo playback tracking (no video sites reachable here), Claude drafting with a real key. Not done: final test, automatic certificate of authorisation, Student type, direct access, renewal refresher (steps 2 and 3).

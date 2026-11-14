@@ -38,7 +38,7 @@ export type TemplateDef = {
   key: string;
   name: string;
   description: string;
-  audience: "Staff" | "Clients" | "Leads";
+  audience: "Staff" | "Clients" | "Leads" | "Partners";
   defaults: TemplateContent;
   variables: Record<string, string>; // name -> sample value used in the preview and the test email
   blocks?: Blocks;
@@ -281,6 +281,87 @@ const ONBOARDING_STEPS = (current: number): StepItem[] => [
 ].map((s, i) => ({ ...s, done: i < current, current: i === current }));
 
 export const SYSTEM_TEMPLATES: TemplateDef[] = [
+  {
+    key: "partner_inquiry_reply", name: "Partner Stack: question received", audience: "Partners",
+    description: "Sent automatically when someone asks a question on the Hifi Partner Stack page.",
+    variables: { first_name: "Sara", company_name: "Hifi Marketing and Technologies", message: "How do payouts work for resellers?" },
+    blocks: { label: "Hifi Partner Stack", details: [["Your question", "{{message}}"]] },
+    defaults: {
+      subject: "We received your question | Hifi Partner Stack",
+      preheader: "A member of the partner team will reply soon.",
+      heading: "Thanks for getting in touch, {{first_name}}",
+      body: "We received your question about Hifi Partner Stack. A member of our partner team will reply by email, usually within one working day.",
+      buttonLabel: null,
+    },
+  },
+  {
+    key: "partner_application_received", name: "Partner Stack: application received", audience: "Partners",
+    description: "Sent automatically when someone applies to become a partner.",
+    variables: { first_name: "Sara", company_name: "Hifi Marketing and Technologies", type: "Reseller Partner", solutions: "Agentify ERP, Pharmivo" },
+    blocks: { label: "Hifi Partner Stack", progress: { percent: 25, caption: "Application received" }, details: [["Applying as", "{{type}}"], ["Solutions", "{{solutions}}"]] },
+    defaults: {
+      subject: "We received your application | Hifi Partner Stack",
+      preheader: "Our team will review it and email you the decision.",
+      heading: "Your application is in, {{first_name}}",
+      body: "Thank you for applying to Hifi Partner Stack. Our partner team reviews every application and will email you the decision, usually within three working days.",
+      buttonLabel: null,
+    },
+  },
+  {
+    key: "partner_approved", name: "Partner Stack: approved", audience: "Partners",
+    description: "Sent when a partner application is approved. The button lets them choose a password and sign in.",
+    variables: { first_name: "Sara", company_name: "Hifi Marketing and Technologies", partner_id: "HPS-0001", type: "Reseller Partner", rate: "30%", duration: "Lifetime (as long as the client keeps paying)", solutions: "Agentify ERP, Pharmivo", link: "https://hifimarketing.co/reset/sample", referral_code: "HP-7K3MQ9XD" },
+    blocks: { label: "Hifi Partner Stack", progress: { percent: 100, caption: "Approved" }, details: [["Partner ID", "{{partner_id}}"], ["Partner type", "{{type}}"], ["Commission", "{{rate}}"], ["Duration", "{{duration}}"], ["Solutions", "{{solutions}}"], ["Your referral code", "{{referral_code}}"]] },
+    buttonUrlVar: "link",
+    defaults: {
+      subject: "Welcome to Hifi Partner Stack, {{first_name}}",
+      preheader: "You are approved. Set your password and sign in.",
+      heading: "You're approved, {{first_name}}!",
+      body: "Congratulations, your application to Hifi Partner Stack is approved. Choose your password to sign in to your partner portal. The link works for 3 days.\n\nYour certificates arrive in separate emails, with the PDF attached.",
+      buttonLabel: "Set my password and sign in",
+    },
+  },
+  {
+    key: "partner_application_rejected", name: "Partner Stack: not approved", audience: "Partners",
+    description: "Sent when a partner application is not approved.",
+    variables: { first_name: "Sara", company_name: "Hifi Marketing and Technologies", note: "We are not onboarding new partners in your city right now." },
+    blocks: { label: "Hifi Partner Stack", details: [["Note from the team", "{{note}}"]] },
+    defaults: {
+      subject: "Your Hifi Partner Stack application",
+      preheader: "An update about your application.",
+      heading: "An update on your application",
+      body: "Hi {{first_name}},\n\nThank you for your interest in Hifi Partner Stack. We are not able to approve your application at this time. You are welcome to apply again later, or reply to this email with any questions.",
+      buttonLabel: null,
+    },
+  },
+  {
+    key: "partner_certificate", name: "Partner Stack: certificate issued", audience: "Partners",
+    description: "Sent with the certificate PDF attached whenever a training or certificate of authorisation is issued, or a certificate of authorisation renewed.",
+    variables: { first_name: "Sara", company_name: "Hifi Marketing and Technologies", solution: "Agentify ERP", certificate: "certificate of authorisation", certificate_id: "HPS-7K3M-Q9XD-2F", issued: "14 Nov 2026", expires: "14 Dec 2026", link: "https://hifimarketing.co/partners/verify/HPS-7K3M-Q9XD-2F" },
+    blocks: { label: "Hifi Partner Stack", details: [["Certificate", "{{certificate}}"], ["Solution", "{{solution}}"], ["Certificate ID", "{{certificate_id}}"], ["Issued", "{{issued}}"], ["Valid until", "{{expires}}"]] },
+    buttonUrlVar: "link",
+    defaults: {
+      subject: "Your {{solution}} {{certificate}} | Hifi Partner Stack",
+      preheader: "Your certificate is attached.",
+      heading: "Your {{certificate}} for {{solution}}",
+      body: "Hi {{first_name}},\n\nYour Hifi Partner Stack {{certificate}} for {{solution}} is attached as a PDF. Anyone can check it is genuine with the button below, or by scanning the QR code on the certificate.",
+      buttonLabel: "Verify this certificate",
+    },
+  },
+  {
+    key: "partner_certificate_reminder", name: "Partner Stack: certificate expiring", audience: "Partners",
+    description: "Sent before a certificate expires (the number of days is set in Partner Stack settings).",
+    variables: { first_name: "Sara", company_name: "Hifi Marketing and Technologies", solution: "Agentify ERP", certificate_id: "HPS-7K3M-Q9XD-2F", expires: "14 Dec 2026", days_left: "7", link: "https://hifimarketing.co/partner" },
+    blocks: { label: "Hifi Partner Stack", details: [["Solution", "{{solution}}"], ["Certificate ID", "{{certificate_id}}"], ["Expires", "{{expires}}"], ["Days left", "{{days_left}}"]] },
+    buttonUrlVar: "link",
+    defaults: {
+      subject: "Your {{solution}} certificate expires in {{days_left}} day(s) | Hifi Partner Stack",
+      preheader: "Ask the partner team to renew it.",
+      heading: "Your certificate is about to expire",
+      body: "Hi {{first_name}},\n\nYour {{solution}} partner certificate expires on {{expires}}. Contact the partner team to renew it so you stay certified to sell.",
+      buttonLabel: "Open my partner portal",
+    },
+  },
   {
     key: "onboarding_code", name: "Onboarding: verification code", audience: "Staff",
     description: "Sent to a new staff member when their account is created. The code proves the email is theirs; the button opens the page where they enter it and choose a password.",

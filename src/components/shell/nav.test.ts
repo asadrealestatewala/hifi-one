@@ -114,7 +114,13 @@ describe("Finance, and Services & clients", () => {
     expect(visibleNav(perms("investments.view")).find((g) => g.id === "finance")!.items).toEqual([{ href: "/investments", label: "Assets & investments" }]);
   });
 
-  it("the whole menu is 47 entries for somebody who may see everything", () => {
-    expect(visibleNav(all).reduce((n, g) => n + g.items.length, 0)).toBe(47);
+  it("Partner Stack is one entry, shown only to people who may manage partners", () => {
+    expect(visibleNav(perms("partners.manage")).find((g) => g.id === "partners")!.items).toEqual([{ href: "/partner-stack", label: "Partner Stack" }]);
+    expect(visibleNav(perms("partners.settings")).find((g) => g.id === "partners")!.items).toEqual([{ href: "/partner-stack/settings", label: "Partner Stack" }]);
+    expect(visibleNav(perms("crm.view_all")).find((g) => g.id === "partners")).toBeUndefined();
+  });
+
+  it("the whole menu is 48 entries for somebody who may see everything (47 plus Partner Stack)", () => {
+    expect(visibleNav(all).reduce((n, g) => n + g.items.length, 0)).toBe(48);
   });
 });

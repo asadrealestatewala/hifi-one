@@ -270,8 +270,22 @@ export async function requireUser(opts: { allowMustChange?: boolean; allowMfaSet
   if (needsMfaSetup(user) && !opts.allowMfaSetup) redirect("/account/security?required=1");
   if (user.userType === "CLIENT") redirect("/portal");
   if (user.userType === "VENDOR") redirect("/vendor");
+  if (user.userType === "PARTNER") redirect("/partner");
   if (user.userType !== "EMPLOYEE") redirect("/forbidden");
   return user;
+}
+
+// Where a person lands after signing in.
+export const homePathFor = (userType: string | null | undefined) => (userType === "CLIENT" ? "/portal" : userType === "VENDOR" ? "/vendor" : userType === "PARTNER" ? "/partner" : "/dashboard");
+
+// Partner portal pages: only a partner user bound to exactly one earner record. The earner always comes from the session, never from the request.
+export async function requirePartnerUser() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login?for=partner");
+  if (user.userType !== "PARTNER") redirect("/forbidden");
+  const earner = await db.earner.findFirst({ where: { userId: user.id, organizationId: user.organizationId, status: "ACTIVE" } });
+  if (!earner) redirect("/forbidden");
+  return { user, earner };
 }
 
 // Vendor portal pages: only a vendor user bound to exactly one vendor record.

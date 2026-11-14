@@ -30,6 +30,9 @@ export const NAV: NavGroup[] = [
     { href: "/quotes", label: "Quotations", permission: "quotes.view" },
     { href: "/sales/activity", label: "Sales reports", permission: null, group: "crm-reports" },
   ] },
+  { id: "partners", title: "Partner Stack", icon: "link", items: [
+    { href: "/partner-stack", label: "Partner Stack", permission: null, group: "partner-stack" },
+  ] },
   { id: "clients", title: "Services & clients", icon: "layers", items: [
     { href: "/services", label: "Service catalog", permission: "catalog.view" },
     { href: "/clients", label: "Clients", permission: "clients.view" },

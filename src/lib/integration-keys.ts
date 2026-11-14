@@ -10,6 +10,7 @@ export class IntegrationKeyError extends Error {}
 export const INTEGRATIONS = {
   GOOGLE_PLACES: { label: "Google Places", env: "GOOGLE_PLACES_API_KEY", usedFor: "Prospector: finding businesses by type and city (stage 1). Enable “Places API (New)” and billing for the key.", stage: "In use" },
   GOOGLE_PAGESPEED: { label: "Google PageSpeed Insights", env: "GOOGLE_PAGESPEED_API_KEY", usedFor: "Prospector: website speed and SEO checks (stage 2).", stage: "In use" },
+  ANTHROPIC: { label: "Anthropic (Claude)", env: "ANTHROPIC_API_KEY", usedFor: "Partner Academy: drafting quick-check questions from a lesson script (drafts only; a person reviews and publishes them). The Ask assistant reads the server setting only.", stage: "In use" },
   SOCIALAPIS: { label: "SocialAPIs", env: "SOCIALAPIS_API_KEY", usedFor: "Prospector: Facebook followers and last post date (stage 3). The free plan allows 200 requests a month; each business uses 2.", stage: "In use" },
 } as const;
 export type IntegrationProvider = keyof typeof INTEGRATIONS;
