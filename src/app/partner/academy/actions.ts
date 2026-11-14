@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requirePartnerUser } from "@/lib/auth";
+import { audit, requirePartnerUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AcademyError, type QuizQuestion, recordWatch, saveTestAnswers, startQuiz, startTest, submitQuiz, submitTest } from "@/lib/partner-academy";
 
@@ -82,9 +82,11 @@ export async function saveTestAnswersAction(attemptId: string, answers: Record<s
 
 export type TestSubmitResult = { ok: true; attemptId: string } | { ok: false; error: string };
 export async function submitTestAction(attemptId: string, answers: Record<string, number[]>): Promise<TestSubmitResult> {
-  const { earner } = await requirePartnerUser();
+  const { user, earner } = await requirePartnerUser();
   try {
     const r = await submitTest(db, { earner: who(earner), attemptId: String(attemptId), answers: answers ?? {} });
+    // A pass changes a certificate: issued (final test) or renewed (refresher), recorded as the partner's own action
+    if (r.certificateId) await audit(user, { action: r.kind === "REFRESHER" ? "partner.certificate.renew_by_test" : "partner.certificate.issue_by_test", entity: "PartnerCertificate", entityId: r.certificateId, after: { attemptId: String(attemptId), scorePct: r.scorePct, passMark: r.passMark } });
     revalidatePath("/partner/academy");
     if (r.certificateId) revalidatePath("/partner");
     return { ok: true, attemptId: String(attemptId) };

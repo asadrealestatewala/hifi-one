@@ -62,8 +62,10 @@ export const DEFAULT_TERMS = `Hifi Partner Stack: partner terms (draft for revie
 7. Changes. Hifi may update these terms and will tell you before they apply.`;
 
 export const DEFAULT_SETTINGS: Record<string, string> = {
-  cert_expiry_days: "30",
-  cert_first_reminder_days: "7",
+  // The certificate of authorisation lasts 12 months; reminders go 30, 7 and 1 day before it expires
+  cert_expiry_days: "365",
+  cert_first_reminder_days: "30",
+  cert_second_reminder_days: "7",
   cert_final_reminder_days: "1",
   calculator_price: "50",
   calculator_currency: "USD",
@@ -78,6 +80,10 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   academy_retake_hours: "24",
   academy_max_tries: "3",
   academy_pause_days: "7",
+  // Refresher test that renews the certificate of authorisation (same pass mark and retake rules)
+  academy_refresher_questions: "15",
+  academy_refresher_minutes: "20",
+  academy_refresher_window_days: "30",
 };
 
 // Bounds for the final test settings: [label, min, max]
@@ -88,6 +94,9 @@ export const ACADEMY_TEST_SETTINGS: Record<string, [string, number, number]> = {
   academy_retake_hours: ["Wait before a retake (hours)", 0, 720],
   academy_max_tries: ["Tries before a pause", 1, 10],
   academy_pause_days: ["Pause after the last try (days)", 1, 90],
+  academy_refresher_questions: ["Questions in the refresher test", 5, 100],
+  academy_refresher_minutes: ["Refresher time allowed (minutes)", 5, 240],
+  academy_refresher_window_days: ["Refresher opens (days before expiry)", 1, 180],
 };
 
 export const SOLUTION_EXPIRY_KEY = (code: string) => `cert_expiry_days:${code}`;
@@ -135,6 +144,7 @@ export async function saveSettings(db: Db, p: { organizationId: string; actorId:
     const v = raw.replace(/\r\n/g, "\n");
     if (key === "cert_expiry_days") clean[key] = days("Certificate validity", v, false);
     else if (key === "cert_first_reminder_days") clean[key] = days("First reminder", v, false);
+    else if (key === "cert_second_reminder_days") clean[key] = days("Second reminder", v, false);
     else if (key === "cert_final_reminder_days") clean[key] = days("Final reminder", v, false);
     else if (key.startsWith("cert_expiry_days:")) clean[key] = days(`Validity for ${key.split(":")[1]}`, v, true);
     else if (key === "calculator_price") { if (!/^\d{1,6}(\.\d{1,2})?$/.test(v.trim())) throw new PartnerError("Calculator price: enter an amount."); clean[key] = v.trim(); }
@@ -153,8 +163,12 @@ export async function saveSettings(db: Db, p: { organizationId: string; actorId:
     }
     else if (key === "terms_text") { if (v.trim().length < 20 || v.length > 20_000) throw new PartnerError("Terms: write between 20 and 20,000 characters."); clean[key] = v.trim(); }
   }
-  if (Number(clean.cert_final_reminder_days ?? 1) >= Number(clean.cert_first_reminder_days ?? 7) && clean.cert_final_reminder_days && clean.cert_first_reminder_days) {
-    throw new PartnerError("The final reminder must come fewer days before expiry than the first.");
+  // Reminders count down: first >= second >= final, first > final (days before expiry). Checked against what is saved for any not in this form.
+  if (clean.cert_first_reminder_days || clean.cert_second_reminder_days || clean.cert_final_reminder_days) {
+    const saved = await getSettings(db, p.organizationId);
+    const [f, s2, l] = (["cert_first_reminder_days", "cert_second_reminder_days", "cert_final_reminder_days"] as const).map((k) => Number(clean[k] ?? saved[k]));
+    // The second may equal the first or the final one (then it is simply not sent separately)
+    if (!(f > l && s2 <= f && s2 >= l)) throw new PartnerError("Reminders count down: the first comes most days before expiry, then the second, then the final one.");
   }
   for (const [key, value] of Object.entries(clean)) {
     if (value === "" && key.startsWith("cert_expiry_days:")) { await db.partnerSetting.deleteMany({ where: { organizationId: p.organizationId, key } }); continue; }
@@ -465,7 +479,8 @@ export async function issueCertificate(db: Db, p: { organizationId: string; earn
 }
 
 // Renewing keeps the certificate id (so printed QR codes stay valid) and starts a fresh validity period from today.
-export async function renewCertificate(db: Db, p: { organizationId: string; id: string; actorId: string; days?: string; now?: Date }) {
+// actorId is null when a passed Academy refresher test renews it.
+export async function renewCertificate(db: Db, p: { organizationId: string; id: string; actorId: string | null; days?: string; now?: Date }) {
   const now = p.now ?? new Date();
   const cert = await db.partnerCertificate.findFirst({ where: { id: p.id, organizationId: p.organizationId }, include: { earner: true, product: true } });
   if (!cert) throw new PartnerError("Certificate not found.", 404);
@@ -478,7 +493,7 @@ export async function renewCertificate(db: Db, p: { organizationId: string; id: 
   const days = custom ? Number(custom) : certificateValidityDays(settings, cert.product.code, cert.earner.certExpiryDays);
   const after = await db.partnerCertificate.update({
     where: { id: cert.id },
-    data: { issuedAt: now, expiresAt: new Date(now.getTime() + days * 86_400_000), renewals: { increment: 1 }, firstReminderAt: null, finalReminderAt: null },
+    data: { issuedAt: now, expiresAt: new Date(now.getTime() + days * 86_400_000), renewals: { increment: 1 }, firstReminderAt: null, secondReminderAt: null, finalReminderAt: null },
   });
   await emailCertificate(db, cert.id);
   return { before: cert, after };
@@ -604,29 +619,42 @@ export async function verifyCertificate(db: Db, publicId: string, now = new Date
   return { kind, publicId: c.publicId, partnerId: partnerId(c.earner.partnerNumber), partnerName: c.earner.name, solution: c.product.name, issuedAt: c.issuedAt, expiresAt: c.expiresAt, status, revokedAt: status === "REVOKED" ? (c.revokedAt ?? null) : null };
 }
 
-// Daily job: the first reminder (default 7 days before) and the final one (default 1 day). Each is sent once per validity period.
+// Which reminder a certificate is due, from the days left before expiry: 1 = first (default 30 days), 2 = second (7), 3 = final (1).
+export function reminderTier(msLeft: number, days: { first: number; second: number; final: number }): 0 | 1 | 2 | 3 {
+  const d = msLeft / 86_400_000;
+  if (d <= 0 || d > days.first) return 0;
+  return d <= days.final ? 3 : d <= days.second ? 2 : 1;
+}
+
+// Daily job: up to three reminders per validity period. Each is sent once; a later one also closes the earlier ones, so a short
+// certificate is not reminded twice at once. Partners who renew by the Academy refresher test are told to take it.
 export async function sendCertificateReminders(db: Db, organizationId: string, now = new Date()) {
   const settings = await getSettings(db, organizationId);
-  const first = positiveInt(settings.cert_first_reminder_days, 7, 365);
-  const last = positiveInt(settings.cert_final_reminder_days, 1, 365);
+  const days = { first: positiveInt(settings.cert_first_reminder_days, 30, 365), second: positiveInt(settings.cert_second_reminder_days, 7, 365), final: positiveInt(settings.cert_final_reminder_days, 1, 365) };
   const certs = await db.partnerCertificate.findMany({
-    where: { organizationId, kind: "AUTHORISATION", status: "ACTIVE", expiresAt: { gt: now, lte: new Date(now.getTime() + first * 86_400_000) }, earner: { status: "ACTIVE" } },
+    where: { organizationId, kind: "AUTHORISATION", status: "ACTIVE", expiresAt: { gt: now, lte: new Date(now.getTime() + days.first * 86_400_000) }, earner: { status: "ACTIVE" } },
     include: { earner: true, product: true },
   });
+  const courses = new Map((await db.academyCourse.findMany({ where: { organizationId, status: "PUBLISHED", productId: { not: null } }, select: { id: true, productId: true } })).map((c) => [c.productId!, c.id]));
+  const fmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
   let sent = 0;
   for (const c of certs) {
     if (!c.expiresAt) continue;
+    const tier = reminderTier(c.expiresAt.getTime() - now.getTime(), days);
+    if (tier === 0 || [c.firstReminderAt, c.secondReminderAt, c.finalReminderAt][tier - 1]) continue;
     const daysLeft = Math.max(1, Math.ceil((c.expiresAt.getTime() - now.getTime()) / 86_400_000));
-    const isFinal = c.expiresAt.getTime() - now.getTime() <= last * 86_400_000;
-    if (isFinal ? c.finalReminderAt : c.firstReminderAt) continue;
+    const courseId = courses.get(c.productId);
+    const link = courseId ? `${appUrl()}/partner/academy/test/${courseId}` : `${appUrl()}/partner`;
     await sendTemplateQuietly(db, {
-      organizationId, key: "partner_certificate_reminder", to: c.earner.email, relatedType: "PartnerCertificate", relatedId: c.id, buttonUrl: `${appUrl()}/partner`,
-      vars: { first_name: firstName(c.earner.name), solution: c.product.name, certificate_id: c.publicId, expires: c.expiresAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }), days_left: String(daysLeft), link: `${appUrl()}/partner` },
+      organizationId, key: "partner_certificate_reminder", to: c.earner.email, relatedType: "PartnerCertificate", relatedId: c.id, buttonUrl: link,
+      vars: {
+        first_name: firstName(c.earner.name), solution: c.product.name, certificate_id: c.publicId, expires: fmt(c.expiresAt), days_left: String(daysLeft), link,
+        how_to_renew: courseId ? "Take the short refresher test in your Partner Academy to renew it. It keeps the same certificate ID." : "Contact the partner team to renew it.",
+      },
     });
-    // The final reminder also closes the first, so a short-lived certificate is not reminded twice at once
-    await db.partnerCertificate.update({ where: { id: c.id }, data: isFinal ? { finalReminderAt: now, firstReminderAt: c.firstReminderAt ?? now } : { firstReminderAt: now } });
+    await db.partnerCertificate.update({ where: { id: c.id }, data: { firstReminderAt: c.firstReminderAt ?? now, ...(tier >= 2 ? { secondReminderAt: c.secondReminderAt ?? now } : {}), ...(tier === 3 ? { finalReminderAt: now } : {}) } });
     await notifyMany(db, await usersWithPermission(db, organizationId, "partners.manage"), {
-      kind: "partner.certificate_expiring", title: `${c.earner.name}'s ${c.product.name} certificate expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`, link: "/partner-stack/certificates", dedupeKey: `partner-cert-${isFinal ? "final" : "first"}:${c.id}:${c.expiresAt.toISOString().slice(0, 10)}`,
+      kind: "partner.certificate_expiring", title: `${c.earner.name}'s ${c.product.name} certificate expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`, link: "/partner-stack/certificates", dedupeKey: `partner-cert-${tier}:${c.id}:${c.expiresAt.toISOString().slice(0, 10)}`,
     });
     sent++;
   }

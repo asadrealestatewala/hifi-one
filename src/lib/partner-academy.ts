@@ -17,10 +17,15 @@
 //   with the answers saved so far. Pass mark, length, time, retake wait, tries and pause are settings. Passing issues the
 //   certificate of authorisation automatically. Each failed or timed-out try counts; after the last try the test pauses and the
 //   partner team is told.
+// - Step 3, the refresher test renews the certificate of authorisation (12 months by default). It opens a set number of days before
+//   the certificate expires (30 by default), stays open after it has expired (until it is revoked), or at once when the partner team
+//   asks every certified partner to take it early after a big Solution change. It draws fewer questions (15) from the same pool, with
+//   the same pass mark and retake rules (counted since the last renewal). Passing renews the same certificate, keeping its ID.
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { getKey } from "./integration-keys";
 import { notifyMany, usersWithPermission } from "./notifications";
-import { getSettings, issueCertificate } from "./partner-stack";
+import { appUrl, firstName, sendTemplateQuietly } from "./email-template-store";
+import { getSettings, issueCertificate, renewCertificate } from "./partner-stack";
 
 type Db = PrismaClient;
 export class AcademyError extends Error { constructor(message: string, readonly status = 400) { super(message); } }
@@ -531,17 +536,25 @@ export async function issueEarnedTraining(db: Db, earner: EarnerRef, now = new D
 }
 
 // Staff view: every active partner's progress per published course.
-export async function academyProgress(db: Db, organizationId: string, p: { q?: string; skip: number; take: number }) {
-  const where: Prisma.EarnerWhereInput = { organizationId, status: "ACTIVE", ...(p.q ? { OR: [{ name: { contains: p.q, mode: "insensitive" } }, { email: { contains: p.q, mode: "insensitive" } }] } : {}) };
+// show "renewal": only partners with a certificate of authorisation that expires within 30 days or has expired (not revoked).
+export async function academyProgress(db: Db, organizationId: string, p: { q?: string; show?: string; skip: number; take: number; now?: Date }) {
+  const now = p.now ?? new Date();
+  const where: Prisma.EarnerWhereInput = {
+    organizationId, status: "ACTIVE", ...(p.q ? { OR: [{ name: { contains: p.q, mode: "insensitive" } }, { email: { contains: p.q, mode: "insensitive" } }] } : {}),
+    ...(p.show === "renewal" ? { certificates: { some: { kind: "AUTHORISATION", status: "ACTIVE", expiresAt: { lte: new Date(now.getTime() + 30 * 86_400_000) } } } } : {}),
+  };
   const [earners, total, courses] = await Promise.all([
     db.earner.findMany({ where, orderBy: { partnerNumber: "asc" }, skip: p.skip, take: p.take, include: { solutions: { select: { productId: true } }, type: { select: { name: true } } } }),
     db.earner.count({ where }),
-    db.academyCourse.findMany({ where: { organizationId, status: "PUBLISHED" }, include: { product: { select: { name: true } }, lessons: { where: { status: "PUBLISHED", isUpdate: false }, select: { id: true } } } }),
+    db.academyCourse.findMany({ where: { organizationId, status: "PUBLISHED" }, include: { product: { select: { name: true, sortOrder: true } }, lessons: { where: { status: "PUBLISHED", isUpdate: false }, select: { id: true } } } }),
   ]);
+  // Foundations first, then the Solutions in their usual order
+  courses.sort((a, b) => (a.productId === null ? -1 : b.productId === null ? 1 : (a.product?.sortOrder ?? 0) - (b.product?.sortOrder ?? 0)));
   const ids = earners.map((e) => e.id);
-  const [done, tests] = await Promise.all([
+  const [done, tests, certs] = await Promise.all([
     db.academyLessonProgress.findMany({ where: { earnerId: { in: ids }, completedAt: { not: null } }, select: { earnerId: true, lessonId: true, completedAt: true } }),
-    db.academyTestAttempt.findMany({ where: { organizationId, earnerId: { in: ids }, status: { not: "IN_PROGRESS" } }, orderBy: { startedAt: "desc" }, select: { earnerId: true, productId: true, scorePct: true, passed: true } }),
+    db.academyTestAttempt.findMany({ where: { organizationId, earnerId: { in: ids }, status: { not: "IN_PROGRESS" } }, orderBy: { startedAt: "desc" }, select: { earnerId: true, productId: true, kind: true, scorePct: true, passed: true } }),
+    db.partnerCertificate.findMany({ where: { organizationId, earnerId: { in: ids }, kind: "AUTHORISATION", status: "ACTIVE" }, orderBy: { issuedAt: "desc" }, select: { earnerId: true, productId: true, expiresAt: true } }),
   ]);
   const rows = earners.map((e) => {
     const mine = done.filter((d) => d.earnerId === e.id);
@@ -549,7 +562,9 @@ export async function academyProgress(db: Db, organizationId: string, p: { q?: s
     const last = mine.reduce<Date | null>((m, d) => (d.completedAt && (!m || d.completedAt > m) ? d.completedAt : m), null);
     const per = courses.filter((c) => c.productId === null || e.solutions.some((s) => s.productId === c.productId)).map((c) => ({
       title: c.product?.name ?? "Foundations", done: c.lessons.filter((l) => lessonIds.has(l.id)).length, of: c.lessons.length,
-      test: c.productId ? (() => { const t = tests.filter((x) => x.earnerId === e.id && x.productId === c.productId); return t.length ? { tries: t.length, last: t[0].scorePct, passed: t.some((x) => x.passed) } : null; })() : null,
+      test: c.productId ? (() => { const t = tests.filter((x) => x.earnerId === e.id && x.productId === c.productId && x.kind === "FINAL"); return t.length ? { tries: t.length, last: t[0].scorePct, passed: t.some((x) => x.passed) } : null; })() : null,
+      // The certificate of authorisation they hold (valid or expired) and when it runs out
+      expiresAt: c.productId ? certs.find((x) => x.earnerId === e.id && x.productId === c.productId)?.expiresAt ?? null : null,
     }));
     return { earner: e, courses: per, lastActivity: last };
   });
@@ -559,6 +574,7 @@ export async function academyProgress(db: Db, organizationId: string, p: { q?: s
 // ---------------------------------------------------------------------------------------------------------------------------
 // Step 2: the final test
 // ---------------------------------------------------------------------------------------------------------------------------
+export type TestKind = "FINAL" | "REFRESHER";
 export type TestRules = { questions: number; passPct: number; minutes: number; retakeHours: number; maxTries: number; pauseDays: number };
 const num = (v: string | undefined, fallback: number) => { const n = Number.parseInt(v ?? "", 10); return Number.isFinite(n) ? n : fallback; };
 export function testRules(settings: Record<string, string>): TestRules {
@@ -566,6 +582,18 @@ export function testRules(settings: Record<string, string>): TestRules {
     questions: num(settings.academy_test_questions, 30), passPct: num(settings.academy_test_pass_pct, 75), minutes: num(settings.academy_test_minutes, 45),
     retakeHours: num(settings.academy_retake_hours, 24), maxTries: num(settings.academy_max_tries, 3), pauseDays: num(settings.academy_pause_days, 7),
   };
+}
+// The refresher: its own length and time; the pass mark and retake rules are the final test's.
+export function refresherRules(settings: Record<string, string>): TestRules & { windowDays: number } {
+  return { ...testRules(settings), questions: num(settings.academy_refresher_questions, 15), minutes: num(settings.academy_refresher_minutes, 20), windowDays: num(settings.academy_refresher_window_days, 30) };
+}
+// When the refresher opens for a certificate: the window before expiry, or earlier if the partner team asked for it after the
+// certificate was last issued or renewed.
+export function refresherOpensAt(cert: { issuedAt: Date; expiresAt: Date | null }, windowDays: number, askedAt: Date | null): Date | null {
+  const byExpiry = cert.expiresAt ? new Date(cert.expiresAt.getTime() - windowDays * 86_400_000) : null;
+  const asked = askedAt && askedAt > cert.issuedAt ? askedAt : null;
+  if (byExpiry && asked) return byExpiry < asked ? byExpiry : asked;
+  return byExpiry ?? asked;
 }
 const SUBMIT_GRACE_MS = 60_000; // a submit that left the browser just before the deadline still counts
 
@@ -627,39 +655,54 @@ async function grade(db: Db, a: { id: string; questionIds: string[]; total: numb
 
 export type TestState =
   | { state: "no_training" } // finish the course first
-  | { state: "certified"; publicId: string }
+  | { state: "certified"; publicId: string; expiresAt: Date | null; renewOpensAt: Date | null } // nothing to take yet
   | { state: "not_ready"; have: number; need: number } // the partner team has not published enough questions
   | { state: "wait"; nextAt: Date; paused: boolean; triesLeft: number }
   | { state: "ready"; triesLeft: number }
   | { state: "in_progress"; attemptId: string; deadlineAt: Date };
 
+// Which test the partner faces for a Solution: the final test (no certificate of authorisation yet, or the last one was revoked) or
+// the refresher (they hold one, valid or expired, that is not revoked).
 export async function testStatus(db: Db, earner: EarnerRef, courseId: string, now = new Date()) {
   const { course, product } = await solutionCourse(db, earner, courseId);
   await closeExpired(db, earner.id, now);
   const settings = await getSettings(db, earner.organizationId);
-  const rules = testRules(settings);
-  const [training, authorisation, open, attempts, pool] = await Promise.all([
+  const [training, cert, open, attempts, pool] = await Promise.all([
     db.partnerCertificate.findFirst({ where: { earnerId: earner.id, productId: product.id, ...liveTraining(now) } }),
-    db.partnerCertificate.findFirst({ where: { earnerId: earner.id, productId: product.id, kind: "AUTHORISATION", status: "ACTIVE", expiresAt: { gt: now } } }),
+    db.partnerCertificate.findFirst({ where: { earnerId: earner.id, productId: product.id, kind: "AUTHORISATION" }, orderBy: { issuedAt: "desc" } }),
     db.academyTestAttempt.findFirst({ where: { earnerId: earner.id, productId: product.id, status: "IN_PROGRESS" } }),
     db.academyTestAttempt.findMany({ where: { earnerId: earner.id, productId: product.id, status: { not: "IN_PROGRESS" } }, orderBy: { startedAt: "asc" } }),
     testPool(db, course.id),
   ]);
   const last = attempts.at(-1) ?? null;
+  const renewing = cert && cert.status === "ACTIVE" ? cert : null;
+  const kind: TestKind = open ? (open.kind as TestKind) : renewing ? "REFRESHER" : "FINAL";
+  const rules = kind === "REFRESHER" ? refresherRules(settings) : testRules(settings);
   let state: TestState;
-  if (authorisation) state = { state: "certified", publicId: authorisation.publicId };
+  if (open) state = { state: "in_progress", attemptId: open.id, deadlineAt: open.deadlineAt };
+  else if (renewing) {
+    const opensAt = refresherOpensAt(renewing, refresherRules(settings).windowDays, course.refresherAskedAt);
+    if (!opensAt || now < opensAt) state = { state: "certified", publicId: renewing.publicId, expiresAt: renewing.expiresAt, renewOpensAt: opensAt };
+    else if (pool.length < rules.questions) state = { state: "not_ready", have: pool.length, need: rules.questions };
+    else {
+      // Refresher tries count since the certificate was last issued or renewed
+      const fails = attempts.filter((a) => a.kind === "REFRESHER" && !a.passed && a.startedAt > renewing.issuedAt).map((a) => a.submittedAt ?? a.deadlineAt);
+      const g = testGate(fails, now, rules);
+      state = g.canStart ? { state: "ready", triesLeft: g.triesLeft } : { state: "wait", nextAt: g.nextAt!, paused: g.paused, triesLeft: g.triesLeft };
+    }
+  }
   else if (!training) state = { state: "no_training" };
-  else if (open) state = { state: "in_progress", attemptId: open.id, deadlineAt: open.deadlineAt };
   else if (pool.length < rules.questions) state = { state: "not_ready", have: pool.length, need: rules.questions };
   else {
-    // Tries count from the latest certificate of authorisation (an expired one starts a fresh count)
-    const lastCert = await db.partnerCertificate.findFirst({ where: { earnerId: earner.id, productId: product.id, kind: "AUTHORISATION" }, orderBy: { issuedAt: "desc" } });
-    const fails = attempts.filter((a) => !a.passed && (!lastCert || a.startedAt > lastCert.issuedAt)).map((a) => a.submittedAt ?? a.deadlineAt);
+    // Final-test tries count from the latest certificate of authorisation (a revoked one starts a fresh count)
+    const fails = attempts.filter((a) => a.kind === "FINAL" && !a.passed && (!cert || a.startedAt > cert.issuedAt)).map((a) => a.submittedAt ?? a.deadlineAt);
     const g = testGate(fails, now, rules);
     state = g.canStart ? { state: "ready", triesLeft: g.triesLeft } : { state: "wait", nextAt: g.nextAt!, paused: g.paused, triesLeft: g.triesLeft };
   }
-  return { course, product, rules, state, last };
+  return { course, product, kind, rules, state, last, certificate: renewing ? { id: renewing.id, publicId: renewing.publicId, expiresAt: renewing.expiresAt } : null };
 }
+
+export const testName = (kind: TestKind | string) => (kind === "REFRESHER" ? "refresher test" : "final test");
 
 export const HONESTY_DECLARATION = "I will take this test on my own, without help from anyone and without notes, and I will not share the questions.";
 
@@ -667,14 +710,16 @@ export async function startTest(db: Db, p: { earner: EarnerRef; courseId: string
   const now = p.now ?? new Date();
   const st = await testStatus(db, p.earner, p.courseId, now);
   if (st.state.state === "in_progress") return { attemptId: st.state.attemptId };
-  if (st.state.state === "certified") throw new AcademyError("You already hold a valid certificate of authorisation for this Solution.");
+  if (st.state.state === "certified") {
+    throw new AcademyError(st.state.renewOpensAt ? `Your certificate of authorisation is valid. The refresher test opens on ${st.state.renewOpensAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Karachi" })}.` : "You already hold a valid certificate of authorisation for this Solution.");
+  }
   if (st.state.state === "no_training") throw new AcademyError("Finish the course first. The final test opens with your training certificate.");
   if (st.state.state === "not_ready") {
     await notifyMany(db, await usersWithPermission(db, p.earner.organizationId, "partners.manage"), {
-      kind: "partner.academy_test_not_ready", title: `The ${st.product.name} final test needs more questions`, body: `It draws ${st.state.need} and the course has ${st.state.have} published.`,
+      kind: "partner.academy_test_not_ready", title: `The ${st.product.name} ${testName(st.kind)} needs more questions`, body: `It draws ${st.state.need} and the course has ${st.state.have} published.`,
       link: `/partner-stack/academy/${st.course.id}`, dedupeKey: `partner-academy-test-short:${st.course.id}:${st.state.have}`,
     });
-    throw new AcademyError("The final test is not ready yet. The partner team has been told.");
+    throw new AcademyError(`The ${testName(st.kind)} is not ready yet. The partner team has been told.`);
   }
   if (st.state.state === "wait") throw new AcademyError(st.state.paused ? "You have used all your tries. The test opens again on the date shown." : "You can retake the test after the wait shown.");
   if (!p.declared) throw new AcademyError("Tick the declaration to start.");
@@ -682,7 +727,8 @@ export async function startTest(db: Db, p: { earner: EarnerRef; courseId: string
   const ids = shuffle(pool.map((q) => q.id), p.rand ?? Math.random).slice(0, st.rules.questions);
   const a = await db.academyTestAttempt.create({
     data: {
-      organizationId: p.earner.organizationId, earnerId: p.earner.id, courseId: st.course.id, productId: st.product.id, questionIds: ids, total: ids.length,
+      organizationId: p.earner.organizationId, earnerId: p.earner.id, courseId: st.course.id, productId: st.product.id, kind: st.kind, questionIds: ids, total: ids.length,
+      certificateId: st.kind === "REFRESHER" ? st.certificate?.id ?? null : null, // the certificate this refresher renews
       passMark: st.rules.passPct, declaredAt: now, startedAt: now, deadlineAt: new Date(now.getTime() + st.rules.minutes * 60_000),
     },
   });
@@ -731,24 +777,36 @@ export async function submitTest(db: Db, p: { earner: EarnerRef; attemptId: stri
   if (!r.closed) throw new AcademyError("This test was already marked.");
   const product = a.course.product!;
   let certificateId: string | null = null;
-  if (r.passed) {
+  let renewError: string | null = null;
+  const managers = async () => usersWithPermission(db, p.earner.organizationId, "partners.manage");
+  if (r.passed && a.kind === "REFRESHER" && a.certificateId) {
+    // Renews the same certificate (same ID, fresh validity). If the partner team revoked it meanwhile, the pass is kept but nothing renews.
+    try {
+      await renewCertificate(db, { organizationId: p.earner.organizationId, id: a.certificateId, actorId: null, now });
+      certificateId = a.certificateId;
+    } catch (e) { renewError = e instanceof Error ? e.message : "The certificate could not be renewed."; }
+    await notifyMany(db, await managers(), {
+      kind: "partner.academy_refresher_passed", title: `${p.earner.name} passed the ${product.name} refresher test (${r.scorePct}%)`,
+      body: renewError ? `Not renewed: ${renewError}` : "The certificate of authorisation was renewed automatically.", link: "/partner-stack/academy", dedupeKey: `partner-academy-refresher-pass:${a.id}`,
+    });
+  } else if (r.passed) {
     const cert = await issueCertificate(db, { organizationId: p.earner.organizationId, earnerId: p.earner.id, solutionCode: product.code, kind: "AUTHORISATION", actorId: null, via: "ACADEMY", now });
     certificateId = cert.id;
     await db.academyTestAttempt.update({ where: { id: a.id }, data: { certificateId } });
-    await notifyMany(db, await usersWithPermission(db, p.earner.organizationId, "partners.manage"), {
+    await notifyMany(db, await managers(), {
       kind: "partner.academy_test_passed", title: `${p.earner.name} passed the ${product.name} final test (${r.scorePct}%)`, body: "The certificate of authorisation was issued automatically.",
       link: "/partner-stack/academy", dedupeKey: `partner-academy-test-pass:${a.id}`,
     });
   } else {
     const st = await testStatus(db, p.earner, a.courseId, now);
     if (st.state.state === "wait" && st.state.paused) {
-      await notifyMany(db, await usersWithPermission(db, p.earner.organizationId, "partners.manage"), {
-        kind: "partner.academy_test_paused", title: `${p.earner.name} failed the ${product.name} final test ${st.rules.maxTries} times`, body: `Last score ${r.scorePct}%. The test is paused for ${st.rules.pauseDays} days; they may need help.`,
+      await notifyMany(db, await managers(), {
+        kind: "partner.academy_test_paused", title: `${p.earner.name} failed the ${product.name} ${testName(a.kind)} ${st.rules.maxTries} times`, body: `Last score ${r.scorePct}%. The test is paused for ${st.rules.pauseDays} days; they may need help.`,
         link: "/partner-stack/academy", dedupeKey: `partner-academy-test-paused:${a.id}`,
       });
     }
   }
-  return { scorePct: r.scorePct, passMark: a.passMark, passed: r.passed, expired: late, certificateId };
+  return { kind: a.kind as TestKind, scorePct: r.scorePct, passMark: a.passMark, passed: r.passed, expired: late, certificateId, renewError };
 }
 
 // After marking: the score and, per lesson, how many were right, so the partner knows what to review. Never the answers.
@@ -768,5 +826,107 @@ export async function testResult(db: Db, earner: EarnerRef, attemptId: string) {
 
 // Staff: each partner's final-test history per Solution (latest first).
 export async function testHistory(db: Db, organizationId: string, earnerIds: string[]) {
-  return db.academyTestAttempt.findMany({ where: { organizationId, earnerId: { in: earnerIds } }, orderBy: { startedAt: "desc" }, select: { earnerId: true, productId: true, status: true, scorePct: true, passed: true, startedAt: true } });
+  return db.academyTestAttempt.findMany({ where: { organizationId, earnerId: { in: earnerIds } }, orderBy: { startedAt: "desc" }, select: { earnerId: true, productId: true, kind: true, status: true, scorePct: true, passed: true, startedAt: true } });
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// Step 3: renewal and reports
+// ---------------------------------------------------------------------------------------------------------------------------
+
+// After a big change to a Solution, the partner team asks everyone who holds its certificate of authorisation to take the refresher
+// now. It opens at once for them (passing renews for a fresh 12 months); their certificates keep their current expiry. Each holder
+// is emailed once per request.
+export async function askEarlyRefresher(db: Db, p: { organizationId: string; courseId: string; now?: Date }) {
+  const now = p.now ?? new Date();
+  const course = await db.academyCourse.findFirst({ where: { id: p.courseId, organizationId: p.organizationId }, include: { product: true } });
+  if (!course?.product || !course.productId) throw new AcademyError("Only a Solution's course has a refresher test.");
+  if (course.status !== "PUBLISHED") throw new AcademyError("Publish the course first.");
+  const pool = await testPool(db, course.id);
+  const need = refresherRules(await getSettings(db, p.organizationId)).questions;
+  if (pool.length < need) throw new AcademyError(`The refresher draws ${need} questions and this course has ${pool.length} published. Add questions first.`);
+  const before = course.refresherAskedAt;
+  await db.academyCourse.update({ where: { id: course.id }, data: { refresherAskedAt: now } });
+  const holders = await db.partnerCertificate.findMany({
+    where: { organizationId: p.organizationId, productId: course.productId, kind: "AUTHORISATION", status: "ACTIVE", earner: { status: "ACTIVE" } },
+    include: { earner: true },
+  });
+  const link = `${appUrl()}/partner/academy/test/${course.id}`;
+  for (const c of holders) {
+    await sendTemplateQuietly(db, {
+      organizationId: p.organizationId, key: "partner_refresher_requested", to: c.earner.email, relatedType: "PartnerCertificate", relatedId: c.id, buttonUrl: link,
+      vars: { first_name: firstName(c.earner.name), solution: course.product.name, certificate_id: c.publicId, link },
+    });
+  }
+  return { before, after: now, emailed: holders.length, course };
+}
+
+// Which questions partners miss most in the final and refresher tests of a course, so the lesson or the question can be fixed.
+export async function questionReport(db: Db, organizationId: string, courseId: string) {
+  const attempts = await db.academyTestAttempt.findMany({ where: { organizationId, courseId, status: { not: "IN_PROGRESS" } }, select: { questionIds: true, answers: true } });
+  const qs = await db.academyQuestion.findMany({ where: { lesson: { courseId, course: { organizationId } } }, select: { id: true, text: true, correct: true, status: true, lesson: { select: { id: true, title: true } } } });
+  const byId = new Map(qs.map((q) => [q.id, q]));
+  const tally = new Map<string, { served: number; right: number }>();
+  for (const a of attempts) {
+    const answers = (a.answers ?? {}) as Record<string, number[]>;
+    for (const id of a.questionIds) {
+      const t = tally.get(id) ?? { served: 0, right: 0 };
+      t.served++; if (isRight(byId.get(id), answers[id])) t.right++;
+      tally.set(id, t);
+    }
+  }
+  const rows = [...tally.entries()].flatMap(([id, t]) => {
+    const q = byId.get(id);
+    return q ? [{ id, text: q.text, status: q.status, lessonId: q.lesson.id, lessonTitle: q.lesson.title, served: t.served, right: t.right, pct: scorePct(t.right, t.served) }] : [];
+  });
+  rows.sort((x, y) => x.pct - y.pct || y.served - x.served);
+  return { attempts: attempts.length, rows };
+}
+
+// The week in the Academy, for the Partner Managers' Monday email: what happened in the last 7 days and what is coming up.
+export async function academyWeek(db: Db, organizationId: string, now = new Date()) {
+  const since = new Date(now.getTime() - 7 * 86_400_000);
+  const soon = new Date(now.getTime() + 30 * 86_400_000);
+  const [training, tests, expiring, expired, courses] = await Promise.all([
+    db.partnerCertificate.count({ where: { organizationId, kind: "TRAINING", issuedAt: { gte: since }, issuedById: null } }),
+    db.academyTestAttempt.findMany({ where: { organizationId, status: { not: "IN_PROGRESS" }, submittedAt: { gte: since } }, select: { kind: true, passed: true, scorePct: true } }),
+    db.partnerCertificate.count({ where: { organizationId, kind: "AUTHORISATION", status: "ACTIVE", expiresAt: { gt: now, lte: soon }, earner: { status: "ACTIVE" } } }),
+    db.partnerCertificate.count({ where: { organizationId, kind: "AUTHORISATION", status: "ACTIVE", expiresAt: { gt: since, lte: now }, earner: { status: "ACTIVE" } } }),
+    db.academyCourse.findMany({ where: { organizationId, status: "PUBLISHED", productId: { not: null } }, select: { id: true, product: { select: { name: true } } } }),
+  ]);
+  const settings = await getSettings(db, organizationId);
+  const need = Math.max(testRules(settings).questions, refresherRules(settings).questions);
+  const short: string[] = [];
+  for (const c of courses) if ((await testPool(db, c.id)).length < need) short.push(c.product?.name ?? "");
+  const finals = tests.filter((t) => t.kind === "FINAL");
+  const refreshers = tests.filter((t) => t.kind === "REFRESHER");
+  return {
+    trainingIssued: training,
+    finalTaken: finals.length, finalPassed: finals.filter((t) => t.passed).length,
+    refresherTaken: refreshers.length, refresherPassed: refreshers.filter((t) => t.passed).length,
+    expiringIn30: expiring, expiredThisWeek: expired, coursesShort: short.filter(Boolean),
+  };
+}
+
+// Monday's email to everyone who manages partners. Sent once a week: a second run in the same week (from the Jobs screen) is skipped.
+export async function sendAcademyWeekly(db: Db, organizationId: string, p: { now: Date; weekKey: string }) {
+  const w = await academyWeek(db, organizationId, p.now);
+  const managers = await usersWithPermission(db, organizationId, "partners.manage");
+  const people = await db.user.findMany({ where: { id: { in: managers }, active: true, email: { not: null } }, select: { id: true, name: true, email: true } });
+  const link = `${appUrl()}/partner-stack/academy`;
+  const vars = {
+    training: String(w.trainingIssued), final_tests: `${w.finalPassed} passed of ${w.finalTaken}`, refreshers: `${w.refresherPassed} passed of ${w.refresherTaken}`,
+    expiring: String(w.expiringIn30), expired: String(w.expiredThisWeek), short: w.coursesShort.length ? w.coursesShort.join(", ") : "None", link,
+  };
+  let sent = 0;
+  for (const u of people) {
+    const already = await db.notification.findFirst({ where: { userId: u.id, dedupeKey: `partner-academy-weekly:${p.weekKey}` }, select: { id: true } });
+    if (already) continue;
+    await sendTemplateQuietly(db, { organizationId, key: "partner_academy_weekly", to: u.email!, relatedType: "AcademyWeekly", relatedId: p.weekKey, buttonUrl: link, vars: { first_name: firstName(u.name), ...vars } });
+    sent++;
+  }
+  await notifyMany(db, people.map((u) => u.id), {
+    kind: "partner.academy_weekly", title: "Partner Academy: your week", body: `${w.finalPassed} final test${w.finalPassed === 1 ? "" : "s"} passed, ${w.refresherPassed} renewed, ${w.expiringIn30} certificate${w.expiringIn30 === 1 ? "" : "s"} expiring in 30 days`,
+    link: "/partner-stack/academy", dedupeKey: `partner-academy-weekly:${p.weekKey}`,
+  });
+  return { ...w, sent };
 }

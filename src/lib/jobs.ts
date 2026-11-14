@@ -11,6 +11,7 @@ import { formatMoney } from "./money";
 import { notifyMany, usersWithPermission } from "./notifications";
 import { purgeMonitoring } from "./monitoring";
 import { sendCertificateReminders } from "./partner-stack";
+import { sendAcademyWeekly } from "./partner-academy";
 import { expireContracts, expireQuotes, generateDueInvoices } from "./sales";
 import { defaultStorage } from "./storage";
 import { type Calendar, getWorkingContext } from "./working-calendar";
@@ -58,6 +59,14 @@ export const JOBS: JobDef[] = [
     async run({ db, organizationId, now }) {
       const n = await sendCertificateReminders(db, organizationId, now);
       return `${n} reminder${n === 1 ? "" : "s"} sent`;
+    },
+  },
+  {
+    key: "partner_academy_weekly", label: "Partner Academy weekly email", what: "Every Monday, emails everyone who manages partners a summary of the Partner Academy: training certificates, final and refresher tests, certificates expiring soon, and tests short of questions.",
+    async run({ db, organizationId, today, now }) {
+      if (new Date(`${today}T00:00:00Z`).getUTCDay() !== 1) return "Sent on Mondays only";
+      const r = await sendAcademyWeekly(db, organizationId, { now, weekKey: weekId(today) });
+      return `Weekly summary emailed to ${r.sent} ${r.sent === 1 ? "person" : "people"}`;
     },
   },
   {

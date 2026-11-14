@@ -3626,23 +3626,24 @@ model PartnerApplication {
 
 // One certificate per partner and Solution. The public id is what the QR code and /partners/verify/<id> use.
 model PartnerCertificate {
-  id              String    @id @default(cuid())
-  organizationId  String
-  publicId        String    @unique
-  earnerId        String
-  productId       String
-  kind            String    @default("AUTHORISATION") // TRAINING (Course design, never expires) | AUTHORISATION (official, Academy design)
-  issuedAt        DateTime
-  expiresAt       DateTime? // empty for training certificates
-  status          String    @default("ACTIVE") // ACTIVE | REVOKED (expired is worked out from expiresAt)
-  renewals        Int       @default(0)
-  revokedAt       DateTime?
-  revokeReason    String?
-  revokedById     String?
-  firstReminderAt DateTime?
-  finalReminderAt DateTime?
-  issuedById      String?
-  createdAt       DateTime  @default(now())
+  id               String    @id @default(cuid())
+  organizationId   String
+  publicId         String    @unique
+  earnerId         String
+  productId        String
+  kind             String    @default("AUTHORISATION") // TRAINING (Course design, never expires) | AUTHORISATION (official, Academy design)
+  issuedAt         DateTime
+  expiresAt        DateTime? // empty for training certificates
+  status           String    @default("ACTIVE") // ACTIVE | REVOKED (expired is worked out from expiresAt)
+  renewals         Int       @default(0)
+  revokedAt        DateTime?
+  revokeReason     String?
+  revokedById      String?
+  firstReminderAt  DateTime?
+  secondReminderAt DateTime?
+  finalReminderAt  DateTime?
+  issuedById       String?
+  createdAt        DateTime  @default(now())
 
   earner  Earner      @relation(fields: [earnerId], references: [id], onDelete: Cascade)
   product SaasProduct @relation(fields: [productId], references: [id])
@@ -3666,15 +3667,16 @@ model PartnerSetting {
 // Partner Academy: training courses partners watch in the portal. One foundations course (no Solution) and one course per Solution.
 // Finishing the foundations course and a Solution's course issues that Solution's training certificate automatically.
 model AcademyCourse {
-  id             String   @id @default(cuid())
-  organizationId String
-  productId      String? // empty = the foundations course every partner takes first
-  title          String
-  summary        String?
-  status         String   @default("DRAFT") // DRAFT | PUBLISHED
-  createdById    String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id               String    @id @default(cuid())
+  organizationId   String
+  productId        String? // empty = the foundations course every partner takes first
+  title            String
+  summary          String?
+  status           String    @default("DRAFT") // DRAFT | PUBLISHED
+  refresherAskedAt DateTime? // the partner team asked every certified partner to take the refresher early (a big Solution change)
+  createdById      String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   product SaasProduct?         @relation(fields: [productId], references: [id])
   lessons AcademyLesson[]
@@ -3783,6 +3785,7 @@ model AcademyTestAttempt {
   scorePct       Int?
   passMark       Int // the pass mark in force when the attempt started
   passed         Boolean?
+  kind           String    @default("FINAL") // FINAL (earns the certificate of authorisation) | REFRESHER (renews it)
   status         String    @default("IN_PROGRESS") // IN_PROGRESS | SUBMITTED | EXPIRED
   declaredAt     DateTime // the partner ticked "I will take this test on my own"
   startedAt      DateTime  @default(now())
