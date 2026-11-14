@@ -411,7 +411,8 @@ async function issueCertificateTx(tx: Tx | Db, p: { organizationId: string; earn
 const liveWhere = (now: Date) => ({ status: "ACTIVE", OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] });
 
 // Training first: the certificate of authorisation for a Solution needs a valid training certificate for the same Solution.
-export async function issueCertificate(db: Db, p: { organizationId: string; earnerId: string; solutionCode: string; kind: string; actorId: string; now?: Date }) {
+// actorId is null when the Partner Academy issues a training certificate automatically.
+export async function issueCertificate(db: Db, p: { organizationId: string; earnerId: string; solutionCode: string; kind: string; actorId: string | null; now?: Date }) {
   if (!isCertificateKind(p.kind)) throw new PartnerError("Choose a training or a certificate of authorisation.");
   const kind = p.kind;
   const now = p.now ?? new Date();

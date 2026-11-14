@@ -3112,6 +3112,7 @@ model SaasProduct {
   profiles            SalesAgentProfile[]
   earnerSolutions     EarnerSolution[]
   partnerCertificates PartnerCertificate[]
+  academyCourses      AcademyCourse[]
   visits              ProspectVisit[]
   demos               DemoBooking[]
   commissionRates     ProductCommissionRate[]
@@ -3542,9 +3543,11 @@ model Earner {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  type         EarnerType           @relation(fields: [typeId], references: [id])
-  solutions    EarnerSolution[]
-  certificates PartnerCertificate[]
+  type            EarnerType              @relation(fields: [typeId], references: [id])
+  solutions       EarnerSolution[]
+  certificates    PartnerCertificate[]
+  academyProgress AcademyLessonProgress[]
+  academyAttempts AcademyQuizAttempt[]
 
   @@unique([organizationId, partnerNumber])
   @@index([organizationId, status])
@@ -3651,4 +3654,107 @@ model PartnerSetting {
   updatedAt      DateTime @updatedAt
 
   @@id([organizationId, key])
+}
+
+// Partner Academy: training courses partners watch in the portal. One foundations course (no Solution) and one course per Solution.
+// Finishing the foundations course and a Solution's course issues that Solution's training certificate automatically.
+model AcademyCourse {
+  id             String   @id @default(cuid())
+  organizationId String
+  productId      String? // empty = the foundations course every partner takes first
+  title          String
+  summary        String?
+  status         String   @default("DRAFT") // DRAFT | PUBLISHED
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  product SaasProduct?    @relation(fields: [productId], references: [id])
+  lessons AcademyLesson[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, productId])
+}
+
+model AcademyLesson {
+  id              String   @id @default(cuid())
+  organizationId  String
+  courseId        String
+  title           String
+  videoUrl        String? // YouTube (unlisted is fine), Vimeo, or a direct .mp4 link
+  durationMinutes Int?
+  script          String? // what the video says; used to draft quick-check questions
+  notes           String? // shown under the video: key points, links, the handout
+  sortOrder       Int      @default(0)
+  quizSize        Int      @default(3) // questions drawn from the bank for each quick check (3 or 5)
+  isUpdate        Boolean  @default(false) // a "What's new" lesson: shown to everyone, not needed for the certificate
+  status          String   @default("DRAFT") // DRAFT | PUBLISHED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  course    AcademyCourse           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  questions AcademyQuestion[]
+  progress  AcademyLessonProgress[]
+  attempts  AcademyQuizAttempt[]
+
+  @@index([courseId, sortOrder])
+}
+
+// The question bank of a lesson. Drafts (typed, imported or drafted by Claude) are never shown to partners until published.
+model AcademyQuestion {
+  id             String   @id @default(cuid())
+  organizationId String
+  lessonId       String
+  text           String
+  options        String[] // 2 to 6 answers
+  correct        Int[] // indexes into options; one or more
+  explanation    String?
+  status         String   @default("DRAFT") // DRAFT | PUBLISHED | RETIRED (kept because past attempts point at it)
+  source         String   @default("MANUAL") // MANUAL | IMPORT | CLAUDE
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  lesson AcademyLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId, status])
+}
+
+// A partner's progress on one lesson.
+model AcademyLessonProgress {
+  id             String    @id @default(cuid())
+  organizationId String
+  earnerId       String
+  lessonId       String
+  watchedPct     Int       @default(0) // the furthest point reached, 0 to 100
+  watchedAt      DateTime? // when 90% was first reached
+  quizPassedAt   DateTime?
+  quizScore      String? // "3/3"
+  completedAt    DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  earner Earner        @relation(fields: [earnerId], references: [id], onDelete: Cascade)
+  lesson AcademyLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([earnerId, lessonId])
+  @@index([organizationId, lessonId])
+}
+
+// Every quick check a partner starts: the questions drawn are stored so grading uses exactly what was shown.
+model AcademyQuizAttempt {
+  id             String    @id @default(cuid())
+  organizationId String
+  earnerId       String
+  lessonId       String
+  questionIds    String[]
+  answers        Json? // { questionId: [chosen option indexes] }
+  correctCount   Int?
+  passed         Boolean?
+  startedAt      DateTime  @default(now())
+  submittedAt    DateTime?
+
+  earner Earner        @relation(fields: [earnerId], references: [id], onDelete: Cascade)
+  lesson AcademyLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([earnerId, lessonId, startedAt])
 }

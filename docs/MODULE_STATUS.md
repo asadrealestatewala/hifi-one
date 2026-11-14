@@ -239,3 +239,5 @@ Verified: `npx tsc --noEmit`, `npx eslint src` (3 pre-existing warnings), `npm r
 Not verified: real email delivery (Resend not configured here), the draft partner terms (need review), counts on a phone device.
 
 Not done: partner CRM, lead distribution, commission engine, targets (Phases 2 to 6).
+
+Partner Academy step 1 (2026-11-14): courses, lessons with YouTube/Vimeo/mp4 videos, question bank (typed, spreadsheet import, Claude drafts), quick checks, lesson order, automatic training certificate, staff progress view. Verified: tsc, eslint (3 old warnings), 146 test files / 1989 tests, `npm run build`, browser pass against a local production build (staff builds a course, partner fails then passes a quick check, Solution course unlocks, phone width). Not verified: real YouTube/Vimeo playback tracking (no video sites reachable here), Claude drafting with a real key. Not done: final test, automatic certificate of authorisation, Student type, direct access, renewal refresher (steps 2 and 3).

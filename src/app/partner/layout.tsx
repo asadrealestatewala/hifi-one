@@ -22,6 +22,7 @@ export default async function PartnerLayout({ children }: { children: React.Reac
           </div>
           <nav aria-label="Partner portal" className="flex items-center gap-4 text-sm">
             <Link href="/partner" className="hover:underline">Overview</Link>
+            <Link href="/partner/academy" className="hover:underline">Academy</Link>
             <span className="text-white/70">{earner.name}</span>
             <form action={signOut}><button className="underline">Sign out</button></form>
           </nav>
