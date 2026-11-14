@@ -79,7 +79,7 @@ export async function addQuestionAction(formData: FormData): Promise<void> {
   const lessonId = str(formData, "lessonId");
   const base = `/partner-stack/academy/lessons/${lessonId}`;
   try {
-    const q = await addQuestion(db, { organizationId: user.organizationId, lessonId, input: readQuestion(formData), actorId: user.id });
+    const q = await addQuestion(db, { organizationId: user.organizationId, lessonId, input: readQuestion(formData), finalOnly: formData.get("finalOnly") === "on", actorId: user.id });
     await audit(user, { action: "partner.academy.question.create", entity: "AcademyQuestion", entityId: q.id, after: { lessonId } });
   } catch (e) { fail(base, e); }
   revalidatePath(base);
@@ -122,7 +122,7 @@ export async function importQuestionsAction(formData: FormData): Promise<void> {
     const file = formData.get("file");
     if (file instanceof File && file.size > 1_000_000) throw new AcademyError("That file is over 1 MB. Split it into smaller files.");
     const fromFile = file instanceof File && file.size > 0 ? await file.text() : "";
-    const r = await importQuestions(db, { organizationId: user.organizationId, lessonId, sheet: fromFile || str(formData, "sheet"), actorId: user.id });
+    const r = await importQuestions(db, { organizationId: user.organizationId, lessonId, sheet: fromFile || str(formData, "sheet"), finalOnly: formData.get("finalOnly") === "on", actorId: user.id });
     count = r.count;
     await audit(user, { action: "partner.academy.question.import", entity: "AcademyLesson", entityId: lessonId, after: { count } });
   } catch (e) { fail(base, e); }
@@ -136,7 +136,7 @@ export async function draftQuestionsAction(formData: FormData): Promise<void> {
   const base = `/partner-stack/academy/lessons/${lessonId}`;
   let msg = "";
   try {
-    const r = await draftQuestionsWithClaude(db, { organizationId: user.organizationId, lessonId, actorId: user.id, count: Number(str(formData, "count")) || 10 });
+    const r = await draftQuestionsWithClaude(db, { organizationId: user.organizationId, lessonId, actorId: user.id, count: Number(str(formData, "count")) || 10, finalOnly: formData.get("finalOnly") === "on" });
     msg = `Claude drafted ${r.count} question${r.count === 1 ? "" : "s"}${r.skipped ? ` (${r.skipped} failed the checks and were left out)` : ""}. Read each one, fix or delete it, then publish.`;
     await audit(user, { action: "partner.academy.question.draft_ai", entity: "AcademyLesson", entityId: lessonId, after: { count: r.count } });
   } catch (e) { fail(base, e); }

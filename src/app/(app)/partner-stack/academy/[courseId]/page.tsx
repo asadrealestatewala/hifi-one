@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { testRules } from "@/lib/partner-academy";
+import { getSettings } from "@/lib/partner-stack";
 import { Badge, Empty, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import SubmitButton from "@/components/ui/SubmitButton";
 import { saveCourseAction, saveLessonAction } from "../actions";
@@ -19,12 +21,15 @@ export default async function CoursePage({ params, searchParams }: { params: Pro
     where: { id: courseId, organizationId: user.organizationId },
     include: {
       product: { select: { name: true, code: true } },
-      lessons: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }], include: { _count: { select: { questions: { where: { status: "PUBLISHED" } } } } } },
+      lessons: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }], include: { _count: { select: { questions: { where: { status: "PUBLISHED", finalOnly: false } } } } } },
     },
   });
   if (!course) notFound();
   const drafts = await db.academyQuestion.groupBy({ by: ["lessonId"], where: { lessonId: { in: course.lessons.map((l) => l.id) }, status: "DRAFT" }, _count: true });
   const draftCount = (id: string) => drafts.find((d) => d.lessonId === id)?._count ?? 0;
+  const [rules, pool] = course.productId
+    ? await Promise.all([getSettings(db, user.organizationId).then(testRules), db.academyQuestion.count({ where: { status: "PUBLISHED", lesson: { courseId: course.id, status: "PUBLISHED" } } })])
+    : [null, 0];
   return (
     <div className="space-y-5">
       <PageHeader back={{ href: "/partner-stack/academy", label: "Academy" }} title={course.title} subtitle={course.product ? `${course.product.name} course. Finishing it (after the foundations course) issues the ${course.product.name} training certificate.` : "Foundations course. Every partner takes it before any Solution course."} />
@@ -42,6 +47,17 @@ export default async function CoursePage({ params, searchParams }: { params: Pro
         <div><label className="label" htmlFor="c-sum">What partners learn (shown on their Academy page)</label><textarea id="c-sum" name="summary" rows={2} maxLength={1000} defaultValue={course.summary ?? ""} className="input" /></div>
         <SubmitButton>Save course</SubmitButton>
       </form>
+
+      {rules && (
+        <section className="card space-y-1">
+          <h2 className="font-semibold">Final test</h2>
+          <p className="text-sm">{rules.questions} questions drawn at random from this course&rsquo;s {pool} published question{pool === 1 ? "" : "s"}, {rules.minutes} minutes, pass mark {rules.passPct}%. Passing issues the {course.product?.name} certificate of authorisation automatically.</p>
+          {pool < rules.questions ? <p className="text-sm text-brand">Not ready: publish {rules.questions - pool} more question{rules.questions - pool === 1 ? "" : "s"} across the lessons. Twice the test length ({rules.questions * 2}) gives each retake a different paper.</p>
+            : pool < rules.questions * 2 ? <p className="text-sm text-muted">Ready. Aim for {rules.questions * 2} or more so retakes see different questions; &ldquo;final test only&rdquo; questions add to the pool without appearing in quick checks.</p>
+            : <p className="text-sm text-success">Ready.</p>}
+          <p className="text-xs text-muted">Change the test length, pass mark, time and retake rules in Settings.</p>
+        </section>
+      )}
 
       <section className="space-y-3">
         <h2 className="font-semibold">Lessons</h2>

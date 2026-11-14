@@ -3511,6 +3511,7 @@ model EarnerType {
   defaultDurationMonths Int? // null = lifetime: as long as the client keeps paying
   leadSharing           Boolean  @default(false)
   publicOffer           Boolean  @default(true) // shown on the public Hifi Partner Stack page
+  academyRequired       Boolean  @default(true) // earns the certificate of authorisation by passing the Academy final test (Exclusive: no)
   active                Boolean  @default(true)
   sortOrder             Int      @default(0)
   createdAt             DateTime @default(now())
@@ -3522,32 +3523,38 @@ model EarnerType {
 
 // A person who earns commission. userId is set once their login exists.
 model Earner {
-  id             String   @id @default(cuid())
-  organizationId String
-  userId         String?  @unique
-  typeId         String
-  name           String
-  email          String
-  phone          String?
-  city           String?
-  country        String?
-  ratePercent    Decimal  @db.Decimal(5, 2)
-  durationMonths Int? // null = lifetime
-  leadSharing    Boolean  @default(false)
-  territory      String? // plain text for now; structured territories arrive with lead distribution
-  certExpiryDays Int? // overrides the Solution and global certificate validity
-  status         String   @default("ACTIVE") // ACTIVE | SUSPENDED
-  partnerNumber  Int // sequential per organization, shown as the Partner ID HPS-0001; never reused
-  referralCode   String   @unique
-  applicationId  String?  @unique
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                  String    @id @default(cuid())
+  organizationId      String
+  userId              String?   @unique
+  typeId              String
+  name                String
+  email               String
+  phone               String?
+  city                String?
+  country             String?
+  ratePercent         Decimal   @db.Decimal(5, 2)
+  durationMonths      Int? // null = lifetime
+  leadSharing         Boolean   @default(false)
+  territory           String? // plain text for now; structured territories arrive with lead distribution
+  certExpiryDays      Int? // overrides the Solution and global certificate validity
+  // Direct access: the partner team issues the certificate of authorisation by hand, without the Academy final test
+  academyDirectAccess Boolean   @default(false)
+  directAccessReason  String?
+  directAccessById    String?
+  directAccessAt      DateTime?
+  status              String    @default("ACTIVE") // ACTIVE | SUSPENDED
+  partnerNumber       Int // sequential per organization, shown as the Partner ID HPS-0001; never reused
+  referralCode        String    @unique
+  applicationId       String?   @unique
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   type            EarnerType              @relation(fields: [typeId], references: [id])
   solutions       EarnerSolution[]
   certificates    PartnerCertificate[]
   academyProgress AcademyLessonProgress[]
   academyAttempts AcademyQuizAttempt[]
+  academyTests    AcademyTestAttempt[]
 
   @@unique([organizationId, partnerNumber])
   @@index([organizationId, status])
@@ -3669,8 +3676,9 @@ model AcademyCourse {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  product SaasProduct?    @relation(fields: [productId], references: [id])
+  product SaasProduct?         @relation(fields: [productId], references: [id])
   lessons AcademyLesson[]
+  tests   AcademyTestAttempt[]
 
   @@index([organizationId, status])
   @@index([organizationId, productId])
@@ -3710,6 +3718,7 @@ model AcademyQuestion {
   correct        Int[] // indexes into options; one or more
   explanation    String?
   status         String   @default("DRAFT") // DRAFT | PUBLISHED | RETIRED (kept because past attempts point at it)
+  finalOnly      Boolean  @default(false) // used only in the final test, never in the lesson's quick check
   source         String   @default("MANUAL") // MANUAL | IMPORT | CLAUDE
   createdById    String?
   createdAt      DateTime @default(now())
@@ -3757,4 +3766,33 @@ model AcademyQuizAttempt {
   lesson AcademyLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   @@index([earnerId, lessonId, startedAt])
+}
+
+// The final test of a Solution's course. Questions are drawn from the course's published questions and stored, so grading uses
+// exactly what was shown. An attempt not submitted by its deadline is closed as failed with the answers saved so far.
+model AcademyTestAttempt {
+  id             String    @id @default(cuid())
+  organizationId String
+  earnerId       String
+  courseId       String
+  productId      String
+  questionIds    String[]
+  answers        Json? // { questionId: [chosen option indexes] }, saved as the partner goes
+  correctCount   Int?
+  total          Int
+  scorePct       Int?
+  passMark       Int // the pass mark in force when the attempt started
+  passed         Boolean?
+  status         String    @default("IN_PROGRESS") // IN_PROGRESS | SUBMITTED | EXPIRED
+  declaredAt     DateTime // the partner ticked "I will take this test on my own"
+  startedAt      DateTime  @default(now())
+  deadlineAt     DateTime
+  submittedAt    DateTime?
+  certificateId  String?
+
+  earner Earner        @relation(fields: [earnerId], references: [id], onDelete: Cascade)
+  course AcademyCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([earnerId, productId, startedAt])
+  @@index([organizationId, startedAt])
 }

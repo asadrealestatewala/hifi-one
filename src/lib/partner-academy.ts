@@ -10,12 +10,17 @@
 //   uses exactly what was shown. One wrong answer is allowed. Retakes draw a fresh set.
 // - A lesson can be published only when its bank holds at least as many published questions as its quick check draws.
 // - Questions start as drafts (typed, imported or drafted by Claude); partners never see a draft. Used questions are retired, not deleted.
-// - Watching is reported by the partner's browser, so it is a guide, not proof: the quick checks (and the final test in step 2) are
-//   the real check.
+// - Watching is reported by the partner's browser, so it is a guide, not proof: the quick checks and the final test are the real check.
+// - Step 2, the final test of a Solution's course: open to a partner holding that Solution's training certificate and no valid
+//   certificate of authorisation. Questions are drawn from every published question of the course's published lessons (including
+//   "final test only" ones), shuffled and stored. A timer runs on the server; an attempt not submitted in time is closed as failed
+//   with the answers saved so far. Pass mark, length, time, retake wait, tries and pause are settings. Passing issues the
+//   certificate of authorisation automatically. Each failed or timed-out try counts; after the last try the test pauses and the
+//   partner team is told.
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { getKey } from "./integration-keys";
 import { notifyMany, usersWithPermission } from "./notifications";
-import { issueCertificate } from "./partner-stack";
+import { getSettings, issueCertificate } from "./partner-stack";
 
 type Db = PrismaClient;
 export class AcademyError extends Error { constructor(message: string, readonly status = 400) { super(message); } }
@@ -206,8 +211,8 @@ export async function saveLesson(db: Db, p: {
 
 async function assertLessonPublishable(db: Db, lessonId: string, quizSize: number, isUpdate: boolean) {
   if (isUpdate) return; // What's new lessons have no quick check
-  const n = await db.academyQuestion.count({ where: { lessonId, status: "PUBLISHED" } });
-  if (n < quizSize) throw new AcademyError(`Publish at least ${quizSize} questions for this lesson first (it has ${n}). About 10 gives partners a fresh set on a retake.`);
+  const n = await db.academyQuestion.count({ where: { lessonId, status: "PUBLISHED", finalOnly: false } });
+  if (n < quizSize) throw new AcademyError(`Publish at least ${quizSize} quick-check questions for this lesson first (it has ${n}; "final test only" questions do not count). About 10 gives partners a fresh set on a retake.`);
 }
 
 async function assertNotLastLesson(db: Db, courseId: string, courseStatus: string, lessonId: string) {
@@ -232,10 +237,10 @@ async function lessonOf(db: Db, organizationId: string, lessonId: string) {
   return lesson;
 }
 
-export async function addQuestion(db: Db, p: { organizationId: string; lessonId: string; input: Parameters<typeof cleanQuestion>[0]; actorId: string }) {
+export async function addQuestion(db: Db, p: { organizationId: string; lessonId: string; input: Parameters<typeof cleanQuestion>[0]; finalOnly?: boolean; actorId: string }) {
   const lesson = await lessonOf(db, p.organizationId, p.lessonId);
   const q = cleanQuestion(p.input);
-  return db.academyQuestion.create({ data: { ...q, organizationId: p.organizationId, lessonId: lesson.id, status: "DRAFT", source: "MANUAL", createdById: p.actorId } });
+  return db.academyQuestion.create({ data: { ...q, finalOnly: Boolean(p.finalOnly), organizationId: p.organizationId, lessonId: lesson.id, status: "DRAFT", source: "MANUAL", createdById: p.actorId } });
 }
 
 // Drafts can be corrected; a published question is retired and replaced, so past attempts keep the wording they were graded on.
@@ -262,7 +267,7 @@ export async function setQuestionStatus(db: Db, p: { organizationId: string; id:
   if (p.action === "retire") {
     if (q.status !== "PUBLISHED") throw new AcademyError("Only a published question can be retired.");
     if (q.lesson.status === "PUBLISHED" && !q.lesson.isUpdate) {
-      const left = await db.academyQuestion.count({ where: { lessonId: q.lessonId, status: "PUBLISHED", id: { not: q.id } } });
+      const left = q.finalOnly ? Infinity : await db.academyQuestion.count({ where: { lessonId: q.lessonId, status: "PUBLISHED", finalOnly: false, id: { not: q.id } } });
       if (left < q.lesson.quizSize) throw new AcademyError(`This lesson's quick check needs ${q.lesson.quizSize} published questions. Publish another one first.`);
     }
     return db.academyQuestion.update({ where: { id: q.id }, data: { status: "RETIRED" } });
@@ -271,11 +276,11 @@ export async function setQuestionStatus(db: Db, p: { organizationId: string; id:
 }
 
 // All or nothing: if any row has a problem, nothing is imported and every problem is listed.
-export async function importQuestions(db: Db, p: { organizationId: string; lessonId: string; sheet: string; actorId: string }) {
+export async function importQuestions(db: Db, p: { organizationId: string; lessonId: string; sheet: string; finalOnly?: boolean; actorId: string }) {
   const lesson = await lessonOf(db, p.organizationId, p.lessonId);
   const { questions, errors } = parseQuestionSheet(p.sheet);
   if (errors.length) throw new AcademyError(`Nothing was imported. ${errors.slice(0, 5).join(" ")}${errors.length > 5 ? ` And ${errors.length - 5} more.` : ""}`);
-  await db.academyQuestion.createMany({ data: questions.map((q) => ({ ...q, organizationId: p.organizationId, lessonId: lesson.id, status: "DRAFT", source: "IMPORT", createdById: p.actorId })) });
+  await db.academyQuestion.createMany({ data: questions.map((q) => ({ ...q, finalOnly: Boolean(p.finalOnly), organizationId: p.organizationId, lessonId: lesson.id, status: "DRAFT", source: "IMPORT", createdById: p.actorId })) });
   return { count: questions.length };
 }
 
@@ -321,7 +326,7 @@ export function draftPrompt(lesson: { title: string; script: string }, solution:
 
 type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
-export async function draftQuestionsWithClaude(db: Db, p: { organizationId: string; lessonId: string; actorId: string; count?: number; fetchImpl?: FetchLike; apiKey?: string }) {
+export async function draftQuestionsWithClaude(db: Db, p: { organizationId: string; lessonId: string; actorId: string; count?: number; finalOnly?: boolean; fetchImpl?: FetchLike; apiKey?: string }) {
   const lesson = await db.academyLesson.findFirst({ where: { id: p.lessonId, organizationId: p.organizationId }, include: { course: { include: { product: { select: { name: true } } } } } });
   if (!lesson) throw new AcademyError("Lesson not found.", 404);
   if (!lesson.script || lesson.script.length < 200) throw new AcademyError("Paste the lesson script (what the video says, at least a paragraph) and save the lesson first. The questions are drafted from it.");
@@ -356,7 +361,7 @@ export async function draftQuestionsWithClaude(db: Db, p: { organizationId: stri
     try { good.push(cleanQuestion({ text: q.question, options: q.answers, correct: q.correct, explanation: q.explanation })); } catch (e) { if (!(e instanceof AcademyError)) throw e; }
   }
   if (good.length === 0) throw new AcademyError("Claude's questions did not pass the checks. Try again or write them by hand.");
-  await db.academyQuestion.createMany({ data: good.map((q) => ({ ...q, organizationId: p.organizationId, lessonId: lesson.id, status: "DRAFT", source: "CLAUDE", createdById: p.actorId })) });
+  await db.academyQuestion.createMany({ data: good.map((q) => ({ ...q, finalOnly: Boolean(p.finalOnly), organizationId: p.organizationId, lessonId: lesson.id, status: "DRAFT", source: "CLAUDE", createdById: p.actorId })) });
   return { count: good.length, skipped: (parsed.questions?.length ?? 0) - good.length };
 }
 
@@ -460,7 +465,7 @@ export async function startQuiz(db: Db, p: { earner: EarnerRef; lessonId: string
   const open = await db.academyQuizAttempt.findFirst({ where: { earnerId: p.earner.id, lessonId: lesson.id, submittedAt: null, startedAt: { gt: new Date(now.getTime() - 30 * 60_000) } }, orderBy: { startedAt: "desc" } });
   let attempt = open;
   if (!attempt) {
-    const bank = await db.academyQuestion.findMany({ where: { lessonId: lesson.id, status: "PUBLISHED" }, select: { id: true } });
+    const bank = await db.academyQuestion.findMany({ where: { lessonId: lesson.id, status: "PUBLISHED", finalOnly: false }, select: { id: true } });
     if (bank.length === 0) throw new AcademyError("This lesson's quick check is not ready yet. The partner team has been told.");
     const ids = shuffle(bank.map((b) => b.id), p.rand ?? Math.random).slice(0, lesson.quizSize);
     attempt = await db.academyQuizAttempt.create({ data: { organizationId: p.earner.organizationId, earnerId: p.earner.id, lessonId: lesson.id, questionIds: ids, startedAt: now } });
@@ -533,15 +538,235 @@ export async function academyProgress(db: Db, organizationId: string, p: { q?: s
     db.earner.count({ where }),
     db.academyCourse.findMany({ where: { organizationId, status: "PUBLISHED" }, include: { product: { select: { name: true } }, lessons: { where: { status: "PUBLISHED", isUpdate: false }, select: { id: true } } } }),
   ]);
-  const done = await db.academyLessonProgress.findMany({ where: { earnerId: { in: earners.map((e) => e.id) }, completedAt: { not: null } }, select: { earnerId: true, lessonId: true, completedAt: true } });
+  const ids = earners.map((e) => e.id);
+  const [done, tests] = await Promise.all([
+    db.academyLessonProgress.findMany({ where: { earnerId: { in: ids }, completedAt: { not: null } }, select: { earnerId: true, lessonId: true, completedAt: true } }),
+    db.academyTestAttempt.findMany({ where: { organizationId, earnerId: { in: ids }, status: { not: "IN_PROGRESS" } }, orderBy: { startedAt: "desc" }, select: { earnerId: true, productId: true, scorePct: true, passed: true } }),
+  ]);
   const rows = earners.map((e) => {
     const mine = done.filter((d) => d.earnerId === e.id);
-    const ids = new Set(mine.map((d) => d.lessonId));
+    const lessonIds = new Set(mine.map((d) => d.lessonId));
     const last = mine.reduce<Date | null>((m, d) => (d.completedAt && (!m || d.completedAt > m) ? d.completedAt : m), null);
     const per = courses.filter((c) => c.productId === null || e.solutions.some((s) => s.productId === c.productId)).map((c) => ({
-      title: c.product?.name ?? "Foundations", done: c.lessons.filter((l) => ids.has(l.id)).length, of: c.lessons.length,
+      title: c.product?.name ?? "Foundations", done: c.lessons.filter((l) => lessonIds.has(l.id)).length, of: c.lessons.length,
+      test: c.productId ? (() => { const t = tests.filter((x) => x.earnerId === e.id && x.productId === c.productId); return t.length ? { tries: t.length, last: t[0].scorePct, passed: t.some((x) => x.passed) } : null; })() : null,
     }));
     return { earner: e, courses: per, lastActivity: last };
   });
   return { rows, total };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// Step 2: the final test
+// ---------------------------------------------------------------------------------------------------------------------------
+export type TestRules = { questions: number; passPct: number; minutes: number; retakeHours: number; maxTries: number; pauseDays: number };
+const num = (v: string | undefined, fallback: number) => { const n = Number.parseInt(v ?? "", 10); return Number.isFinite(n) ? n : fallback; };
+export function testRules(settings: Record<string, string>): TestRules {
+  return {
+    questions: num(settings.academy_test_questions, 30), passPct: num(settings.academy_test_pass_pct, 75), minutes: num(settings.academy_test_minutes, 45),
+    retakeHours: num(settings.academy_retake_hours, 24), maxTries: num(settings.academy_max_tries, 3), pauseDays: num(settings.academy_pause_days, 7),
+  };
+}
+const SUBMIT_GRACE_MS = 60_000; // a submit that left the browser just before the deadline still counts
+
+// Whether a partner may start the test now, from the times of their failed tries (oldest first). After maxTries failures the test
+// pauses for pauseDays from the last one, then the count starts again.
+export function testGate(failedAt: Date[], now: Date, r: Pick<TestRules, "retakeHours" | "maxTries" | "pauseDays">) {
+  let tries = 0;
+  let pausedUntil: Date | null = null;
+  for (const f of failedAt) {
+    if (pausedUntil && f >= pausedUntil) pausedUntil = null;
+    tries++;
+    if (tries >= r.maxTries) { pausedUntil = new Date(f.getTime() + r.pauseDays * 86_400_000); tries = 0; }
+  }
+  if (pausedUntil && now < pausedUntil) return { canStart: false, paused: true, nextAt: pausedUntil, triesLeft: r.maxTries };
+  const last = failedAt.at(-1);
+  const retakeAt = last ? new Date(last.getTime() + r.retakeHours * 3_600_000) : null;
+  const triesLeft = r.maxTries - (pausedUntil ? 0 : tries);
+  if (retakeAt && now < retakeAt) return { canStart: false, paused: false, nextAt: retakeAt, triesLeft };
+  return { canStart: true, paused: false, nextAt: null as Date | null, triesLeft };
+}
+
+export const scorePct = (correct: number, total: number) => (total > 0 ? Math.floor((correct * 100) / total) : 0);
+
+const isRight = (q: { correct: number[] } | undefined, chosen: number[] | undefined) => {
+  if (!q) return false;
+  const c = [...new Set((chosen ?? []).map(Number))].sort((a, b) => a - b);
+  return c.length === q.correct.length && c.every((n, i) => n === q.correct[i]);
+};
+
+async function solutionCourse(db: Db, earner: EarnerRef, courseId: string) {
+  const course = await db.academyCourse.findFirst({ where: { id: courseId, organizationId: earner.organizationId, status: "PUBLISHED", productId: { not: null } }, include: { product: true } });
+  if (!course?.product || !course.productId) throw new AcademyError("Test not found.", 404);
+  const approved = await db.earnerSolution.findFirst({ where: { earnerId: earner.id, productId: course.productId } });
+  if (!approved) throw new AcademyError("Test not found.", 404);
+  return { course, product: course.product };
+}
+
+// The course's final-test pool: every published question of its published lessons (quick-check and final-only).
+async function testPool(db: Db, courseId: string) {
+  return db.academyQuestion.findMany({ where: { status: "PUBLISHED", lesson: { courseId, status: "PUBLISHED" } }, select: { id: true } });
+}
+
+// Closes the partner's attempts whose time ran out, grading the answers saved so far.
+async function closeExpired(db: Db, earnerId: string, now: Date) {
+  const late = await db.academyTestAttempt.findMany({ where: { earnerId, status: "IN_PROGRESS", deadlineAt: { lt: new Date(now.getTime() - SUBMIT_GRACE_MS) } } });
+  for (const a of late) await grade(db, a, (a.answers ?? {}) as Record<string, number[]>, "EXPIRED", a.deadlineAt);
+}
+
+async function grade(db: Db, a: { id: string; questionIds: string[]; total: number; passMark: number }, answers: Record<string, number[]>, status: "SUBMITTED" | "EXPIRED", at: Date) {
+  const qs = await db.academyQuestion.findMany({ where: { id: { in: a.questionIds } }, select: { id: true, correct: true, lessonId: true } });
+  const byId = new Map(qs.map((q) => [q.id, q]));
+  const correctCount = a.questionIds.filter((id) => isRight(byId.get(id), answers[id])).length;
+  const pct = scorePct(correctCount, a.total);
+  const passed = status === "SUBMITTED" && pct >= a.passMark;
+  // Only the first close counts if two arrive together
+  const done = await db.academyTestAttempt.updateMany({ where: { id: a.id, status: "IN_PROGRESS" }, data: { status, answers, correctCount, scorePct: pct, passed, submittedAt: at } });
+  return { closed: done.count === 1, correctCount, scorePct: pct, passed, byId };
+}
+
+export type TestState =
+  | { state: "no_training" } // finish the course first
+  | { state: "certified"; publicId: string }
+  | { state: "not_ready"; have: number; need: number } // the partner team has not published enough questions
+  | { state: "wait"; nextAt: Date; paused: boolean; triesLeft: number }
+  | { state: "ready"; triesLeft: number }
+  | { state: "in_progress"; attemptId: string; deadlineAt: Date };
+
+export async function testStatus(db: Db, earner: EarnerRef, courseId: string, now = new Date()) {
+  const { course, product } = await solutionCourse(db, earner, courseId);
+  await closeExpired(db, earner.id, now);
+  const settings = await getSettings(db, earner.organizationId);
+  const rules = testRules(settings);
+  const [training, authorisation, open, attempts, pool] = await Promise.all([
+    db.partnerCertificate.findFirst({ where: { earnerId: earner.id, productId: product.id, ...liveTraining(now) } }),
+    db.partnerCertificate.findFirst({ where: { earnerId: earner.id, productId: product.id, kind: "AUTHORISATION", status: "ACTIVE", expiresAt: { gt: now } } }),
+    db.academyTestAttempt.findFirst({ where: { earnerId: earner.id, productId: product.id, status: "IN_PROGRESS" } }),
+    db.academyTestAttempt.findMany({ where: { earnerId: earner.id, productId: product.id, status: { not: "IN_PROGRESS" } }, orderBy: { startedAt: "asc" } }),
+    testPool(db, course.id),
+  ]);
+  const last = attempts.at(-1) ?? null;
+  let state: TestState;
+  if (authorisation) state = { state: "certified", publicId: authorisation.publicId };
+  else if (!training) state = { state: "no_training" };
+  else if (open) state = { state: "in_progress", attemptId: open.id, deadlineAt: open.deadlineAt };
+  else if (pool.length < rules.questions) state = { state: "not_ready", have: pool.length, need: rules.questions };
+  else {
+    // Tries count from the latest certificate of authorisation (an expired one starts a fresh count)
+    const lastCert = await db.partnerCertificate.findFirst({ where: { earnerId: earner.id, productId: product.id, kind: "AUTHORISATION" }, orderBy: { issuedAt: "desc" } });
+    const fails = attempts.filter((a) => !a.passed && (!lastCert || a.startedAt > lastCert.issuedAt)).map((a) => a.submittedAt ?? a.deadlineAt);
+    const g = testGate(fails, now, rules);
+    state = g.canStart ? { state: "ready", triesLeft: g.triesLeft } : { state: "wait", nextAt: g.nextAt!, paused: g.paused, triesLeft: g.triesLeft };
+  }
+  return { course, product, rules, state, last };
+}
+
+export const HONESTY_DECLARATION = "I will take this test on my own, without help from anyone and without notes, and I will not share the questions.";
+
+export async function startTest(db: Db, p: { earner: EarnerRef; courseId: string; declared: boolean; now?: Date; rand?: () => number }) {
+  const now = p.now ?? new Date();
+  const st = await testStatus(db, p.earner, p.courseId, now);
+  if (st.state.state === "in_progress") return { attemptId: st.state.attemptId };
+  if (st.state.state === "certified") throw new AcademyError("You already hold a valid certificate of authorisation for this Solution.");
+  if (st.state.state === "no_training") throw new AcademyError("Finish the course first. The final test opens with your training certificate.");
+  if (st.state.state === "not_ready") {
+    await notifyMany(db, await usersWithPermission(db, p.earner.organizationId, "partners.manage"), {
+      kind: "partner.academy_test_not_ready", title: `The ${st.product.name} final test needs more questions`, body: `It draws ${st.state.need} and the course has ${st.state.have} published.`,
+      link: `/partner-stack/academy/${st.course.id}`, dedupeKey: `partner-academy-test-short:${st.course.id}:${st.state.have}`,
+    });
+    throw new AcademyError("The final test is not ready yet. The partner team has been told.");
+  }
+  if (st.state.state === "wait") throw new AcademyError(st.state.paused ? "You have used all your tries. The test opens again on the date shown." : "You can retake the test after the wait shown.");
+  if (!p.declared) throw new AcademyError("Tick the declaration to start.");
+  const pool = await testPool(db, st.course.id);
+  const ids = shuffle(pool.map((q) => q.id), p.rand ?? Math.random).slice(0, st.rules.questions);
+  const a = await db.academyTestAttempt.create({
+    data: {
+      organizationId: p.earner.organizationId, earnerId: p.earner.id, courseId: st.course.id, productId: st.product.id, questionIds: ids, total: ids.length,
+      passMark: st.rules.passPct, declaredAt: now, startedAt: now, deadlineAt: new Date(now.getTime() + st.rules.minutes * 60_000),
+    },
+  });
+  return { attemptId: a.id };
+}
+
+// The questions of an attempt in progress, without the answers, plus what the partner has saved so far.
+export async function testPaper(db: Db, earner: EarnerRef, attemptId: string, now = new Date()) {
+  await closeExpired(db, earner.id, now);
+  const a = await db.academyTestAttempt.findFirst({ where: { id: attemptId, earnerId: earner.id } });
+  if (!a) throw new AcademyError("Test not found.", 404);
+  if (a.status !== "IN_PROGRESS") return { attempt: a, questions: [] as QuizQuestion[], saved: {} as Record<string, number[]> };
+  const qs = await db.academyQuestion.findMany({ where: { id: { in: a.questionIds } } });
+  const byId = new Map(qs.map((q) => [q.id, q]));
+  const questions = a.questionIds.map((id) => byId.get(id)).filter((q) => q !== undefined).map((q) => ({ id: q.id, text: q.text, options: q.options, multiple: q.correct.length > 1 }));
+  return { attempt: a, questions, saved: (a.answers ?? {}) as Record<string, number[]> };
+}
+
+const cleanAnswers = (ids: string[], answers: Record<string, unknown>) => {
+  const out: Record<string, number[]> = {};
+  for (const id of ids) {
+    const v = answers[id];
+    if (Array.isArray(v)) out[id] = [...new Set(v.map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n < 6))].slice(0, 6);
+  }
+  return out;
+};
+
+// Saving as the partner goes, so a lost connection or closed tab still grades what was answered when the time runs out.
+export async function saveTestAnswers(db: Db, p: { earner: EarnerRef; attemptId: string; answers: Record<string, unknown>; now?: Date }) {
+  const now = p.now ?? new Date();
+  const a = await db.academyTestAttempt.findFirst({ where: { id: p.attemptId, earnerId: p.earner.id } });
+  if (!a) throw new AcademyError("Test not found.", 404);
+  if (a.status !== "IN_PROGRESS" || now.getTime() > a.deadlineAt.getTime() + SUBMIT_GRACE_MS) throw new AcademyError("Time is up. Your saved answers were marked.");
+  await db.academyTestAttempt.updateMany({ where: { id: a.id, status: "IN_PROGRESS" }, data: { answers: cleanAnswers(a.questionIds, p.answers) } });
+  return { ok: true as const };
+}
+
+export async function submitTest(db: Db, p: { earner: EarnerRef; attemptId: string; answers: Record<string, unknown>; now?: Date }) {
+  const now = p.now ?? new Date();
+  const a = await db.academyTestAttempt.findFirst({ where: { id: p.attemptId, earnerId: p.earner.id }, include: { course: { include: { product: true } } } });
+  if (!a) throw new AcademyError("Test not found.", 404);
+  if (a.status !== "IN_PROGRESS") throw new AcademyError("This test was already marked.");
+  const late = now.getTime() > a.deadlineAt.getTime() + SUBMIT_GRACE_MS;
+  const answers = late ? ((a.answers ?? {}) as Record<string, number[]>) : cleanAnswers(a.questionIds, p.answers);
+  const r = await grade(db, a, answers, late ? "EXPIRED" : "SUBMITTED", late ? a.deadlineAt : now);
+  if (!r.closed) throw new AcademyError("This test was already marked.");
+  const product = a.course.product!;
+  let certificateId: string | null = null;
+  if (r.passed) {
+    const cert = await issueCertificate(db, { organizationId: p.earner.organizationId, earnerId: p.earner.id, solutionCode: product.code, kind: "AUTHORISATION", actorId: null, via: "ACADEMY", now });
+    certificateId = cert.id;
+    await db.academyTestAttempt.update({ where: { id: a.id }, data: { certificateId } });
+    await notifyMany(db, await usersWithPermission(db, p.earner.organizationId, "partners.manage"), {
+      kind: "partner.academy_test_passed", title: `${p.earner.name} passed the ${product.name} final test (${r.scorePct}%)`, body: "The certificate of authorisation was issued automatically.",
+      link: "/partner-stack/academy", dedupeKey: `partner-academy-test-pass:${a.id}`,
+    });
+  } else {
+    const st = await testStatus(db, p.earner, a.courseId, now);
+    if (st.state.state === "wait" && st.state.paused) {
+      await notifyMany(db, await usersWithPermission(db, p.earner.organizationId, "partners.manage"), {
+        kind: "partner.academy_test_paused", title: `${p.earner.name} failed the ${product.name} final test ${st.rules.maxTries} times`, body: `Last score ${r.scorePct}%. The test is paused for ${st.rules.pauseDays} days; they may need help.`,
+        link: "/partner-stack/academy", dedupeKey: `partner-academy-test-paused:${a.id}`,
+      });
+    }
+  }
+  return { scorePct: r.scorePct, passMark: a.passMark, passed: r.passed, expired: late, certificateId };
+}
+
+// After marking: the score and, per lesson, how many were right, so the partner knows what to review. Never the answers.
+export async function testResult(db: Db, earner: EarnerRef, attemptId: string) {
+  const a = await db.academyTestAttempt.findFirst({ where: { id: attemptId, earnerId: earner.id } });
+  if (!a || a.status === "IN_PROGRESS") throw new AcademyError("Result not found.", 404);
+  const qs = await db.academyQuestion.findMany({ where: { id: { in: a.questionIds } }, select: { id: true, correct: true, lessonId: true, lesson: { select: { title: true, sortOrder: true } } } });
+  const answers = (a.answers ?? {}) as Record<string, number[]>;
+  const per = new Map<string, { title: string; order: number; right: number; of: number }>();
+  for (const q of qs) {
+    const row = per.get(q.lessonId) ?? { title: q.lesson.title, order: q.lesson.sortOrder, right: 0, of: 0 };
+    row.of++; if (isRight(q, answers[q.id])) row.right++;
+    per.set(q.lessonId, row);
+  }
+  return { attempt: a, byLesson: [...per.values()].sort((x, y) => x.order - y.order) };
+}
+
+// Staff: each partner's final-test history per Solution (latest first).
+export async function testHistory(db: Db, organizationId: string, earnerIds: string[]) {
+  return db.academyTestAttempt.findMany({ where: { organizationId, earnerId: { in: earnerIds } }, orderBy: { startedAt: "desc" }, select: { earnerId: true, productId: true, status: true, scorePct: true, passed: true, startedAt: true } });
 }
