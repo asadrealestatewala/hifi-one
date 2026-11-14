@@ -118,7 +118,7 @@ export async function saveSettingsAction(formData: FormData): Promise<void> {
   const base = "/partner-stack/settings";
   try {
     const values: Record<string, string> = {};
-    for (const [k, v] of formData.entries()) if (typeof v === "string" && (k.startsWith("cert_") || k.startsWith("calculator_") || k === "terms_text")) values[k] = v;
+    for (const [k, v] of formData.entries()) if (typeof v === "string" && (k.startsWith("cert_") || k.startsWith("calculator_") || k === "terms_text" || k === "linkedin_company_id")) values[k] = v;
     const clean = await saveSettings(db, { organizationId: user.organizationId, actorId: user.id, values });
     await audit(user, { action: "partner.settings", entity: "PartnerSetting", after: { ...clean, terms_text: clean.terms_text ? "(changed)" : undefined } });
     for (const key of ["REFERRAL", "RESELLER", "EXCLUSIVE", "SALES_AGENT"]) {

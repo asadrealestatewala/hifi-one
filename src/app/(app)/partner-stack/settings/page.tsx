@@ -5,6 +5,7 @@ import { Notice, PageHeader } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import SubmitButton from "@/components/ui/SubmitButton";
 import { saveSettingsAction } from "../actions";
+import { CERTIFICATE_DESIGNS } from "@/lib/partner-certificate-pdf";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,33 @@ export default async function PartnerSettings({ searchParams }: { searchParams: 
           <fieldset><legend className="label">Validity per Solution (days, empty = use the default above)</legend>
             <div className="grid gap-3 sm:grid-cols-3">{solutions.map((p) => <div key={p.code}><label className="label" htmlFor={`s-${p.code}`}>{p.name}</label><input id={`s-${p.code}`} name={SOLUTION_EXPIRY_KEY(p.code)} type="number" min={1} defaultValue={s[SOLUTION_EXPIRY_KEY(p.code)] ?? ""} className="input" /></div>)}</div></fieldset>
           <p className="text-xs text-muted">A single partner can have their own validity on their page. Order of use: the partner, then the Solution, then this default.</p>
+        </section>
+        <section className="card space-y-3">
+          <h2 className="font-semibold">Certificate design</h2>
+          <p className="text-xs text-muted">Every certificate, new or already issued, downloads in the design picked here. The facts on it never change.</p>
+          <fieldset>
+            <legend className="sr-only">Design</legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {CERTIFICATE_DESIGNS.map((d) => (
+                <label key={d.key} className="block cursor-pointer rounded-lg border border-border p-2 has-[:checked]:border-primary has-[:checked]:ring-2 has-[:checked]:ring-primary/30">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`/partner-stack/designs/${d.key}.png`} alt={`${d.label} certificate design`} width={600} height={424} className="w-full rounded border border-border" loading="lazy" />
+                  <span className="mt-2 flex items-start gap-2">
+                    <input type="radio" name="cert_design" value={d.key} defaultChecked={s.cert_design === d.key} className="mt-1" />
+                    <span><span className="font-medium">{d.label}</span><span className="block text-xs text-muted">{d.hint}</span></span>
+                  </span>
+                  <a href={`/partner-stack/settings/preview/${d.key}`} target="_blank" rel="noopener" className="mt-1 inline-block text-xs text-primary underline">Open sample PDF</a>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div><label className="label" htmlFor="s-sn">Signed by (optional)</label><input id="s-sn" name="cert_signatory_name" defaultValue={s.cert_signatory_name} maxLength={80} className="input" placeholder="Full name" /></div>
+            <div><label className="label" htmlFor="s-st">Their title (optional)</label><input id="s-st" name="cert_signatory_title" defaultValue={s.cert_signatory_title} maxLength={80} className="input" placeholder="e.g. Head of Partnerships" /></div>
+          </div>
+          <p className="text-xs text-muted">Leave the name empty to print the company name instead of a signature line.</p>
+          <div className="max-w-sm"><label className="label" htmlFor="s-li">LinkedIn company page ID (optional)</label><input id="s-li" name="linkedin_company_id" defaultValue={s.linkedin_company_id} inputMode="numeric" maxLength={15} className="input" /></div>
+          <p className="text-xs text-muted">The number in your LinkedIn company admin link (linkedin.com/company/<b>12345678</b>/admin). With it, LinkedIn shows your logo when partners add the certificate to their profile; without it, only the company name.</p>
         </section>
         <section className="card space-y-3">
           <h2 className="font-semibold">Earnings calculator on the public page</h2>

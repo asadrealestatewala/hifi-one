@@ -16,7 +16,7 @@ import { createResetLink } from "./accounts";
 import { SAAS_PRODUCTS } from "./bootstrap";
 import { normalizeEmail, normalizePhone } from "./contacts";
 import { appUrl, firstName, sendTemplateQuietly } from "./email-template-store";
-import { certificatePdf } from "./partner-certificate-pdf";
+import { certificatePdf, isCertificateDesign } from "./partner-certificate-pdf";
 import { notifyMany, usersWithPermission } from "./notifications";
 
 type Db = PrismaClient;
@@ -62,6 +62,10 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   calculator_price: "50",
   calculator_currency: "USD",
   terms_text: DEFAULT_TERMS,
+  cert_design: "modern",
+  cert_signatory_name: "",
+  cert_signatory_title: "",
+  linkedin_company_id: "",
 };
 
 export const SOLUTION_EXPIRY_KEY = (code: string) => `cert_expiry_days:${code}`;
@@ -113,6 +117,13 @@ export async function saveSettings(db: Db, p: { organizationId: string; actorId:
     else if (key.startsWith("cert_expiry_days:")) clean[key] = days(`Validity for ${key.split(":")[1]}`, v, true);
     else if (key === "calculator_price") { if (!/^\d{1,6}(\.\d{1,2})?$/.test(v.trim())) throw new PartnerError("Calculator price: enter an amount."); clean[key] = v.trim(); }
     else if (key === "calculator_currency") { if (!/^[A-Z]{3}$/.test(v.trim().toUpperCase())) throw new PartnerError("Currency: use a three-letter code such as USD."); clean[key] = v.trim().toUpperCase(); }
+    else if (key === "cert_design") { if (!isCertificateDesign(v.trim())) throw new PartnerError("Certificate design: pick one of the designs shown."); clean[key] = v.trim(); }
+    else if (key === "cert_signatory_name" || key === "cert_signatory_title") {
+      const t = v.trim().replace(/\s+/g, " ");
+      if (t.length > 80) throw new PartnerError("Signatory name and title: keep each under 80 characters.");
+      clean[key] = t;
+    }
+    else if (key === "linkedin_company_id") { const t = v.trim(); if (t && !/^\d{1,15}$/.test(t)) throw new PartnerError("LinkedIn company page ID: use the number only, or leave it empty."); clean[key] = t; }
     else if (key === "terms_text") { if (v.trim().length < 20 || v.length > 20_000) throw new PartnerError("Terms: write between 20 and 20,000 characters."); clean[key] = v.trim(); }
   }
   if (Number(clean.cert_final_reminder_days ?? 1) >= Number(clean.cert_first_reminder_days ?? 7) && clean.cert_final_reminder_days && clean.cert_first_reminder_days) {
@@ -448,12 +459,61 @@ export async function certificatePdfFor(db: Db, id: string, scope: { organizatio
   const c = await db.partnerCertificate.findFirst({ where: { id, organizationId: scope.organizationId, ...(scope.earnerId ? { earnerId: scope.earnerId } : {}) }, include: { earner: { include: { type: true } }, product: true } });
   if (!c) return null;
   const org = await db.organization.findUnique({ where: { id: scope.organizationId }, select: { name: true } });
+  const settings = await getSettings(db, scope.organizationId);
   const bytes = await certificatePdf({
+    design: isCertificateDesign(settings.cert_design) ? settings.cert_design : "modern",
+    signatoryName: settings.cert_signatory_name, signatoryTitle: settings.cert_signatory_title,
     publicId: c.publicId, partnerId: partnerId(c.earner.partnerNumber), partnerName: c.earner.name, solutionName: c.product.name, partnerType: c.earner.type.name, issuedAt: c.issuedAt, expiresAt: c.expiresAt,
     verifyUrl: verifyUrl(c.publicId), company: org?.name ?? "Hifi Marketing and Technologies",
   });
   return { bytes, filename: `Hifi-Partner-Stack-${c.product.code}-${c.publicId}.pdf`, cert: c };
 }
+
+// A sample in the given design with example details (marked SAMPLE), for the design picker in settings. Null for an unknown design.
+export async function samplePartnerCertificate(db: Db, organizationId: string, design: string) {
+  if (!isCertificateDesign(design)) return null;
+  const [org, settings] = await Promise.all([db.organization.findUnique({ where: { id: organizationId }, select: { name: true } }), getSettings(db, organizationId)]);
+  const issuedAt = new Date();
+  return certificatePdf({
+    design, signatoryName: settings.cert_signatory_name, signatoryTitle: settings.cert_signatory_title,
+    publicId: "HPS-SAMP-LE00-00", partnerId: partnerId(1), partnerName: "Sample Partner Name", solutionName: "Agentify ERP", partnerType: "Reseller Partner",
+    issuedAt, expiresAt: new Date(issuedAt.getTime() + certificateValidityDays(settings, "") * 86_400_000),
+    verifyUrl: verifyUrl("HPS-SAMP-LE00-00"), company: org?.name ?? "Hifi Marketing and Technologies",
+  });
+}
+
+const longDay = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+
+/** Public-safe facts for the social image of a certificate (the same facts the verify page shows). Null when unknown. */
+export async function socialCardFor(db: Db, publicId: string, now = new Date()) {
+  const v = await verifyCertificate(db, publicId, now);
+  if (!v) return null;
+  const c = await db.partnerCertificate.findUnique({ where: { publicId }, select: { organizationId: true, earner: { select: { type: { select: { name: true } } } } } });
+  const org = c ? await db.organization.findUnique({ where: { id: c.organizationId }, select: { name: true } }) : null;
+  return {
+    partnerName: v.partnerName, partnerId: v.partnerId, solutionName: v.solution, partnerType: c?.earner.type.name ?? "Partner", publicId: v.publicId,
+    validUntil: longDay(v.expiresAt), status: v.status, company: org?.name ?? "Hifi Marketing and Technologies",
+  };
+}
+
+/**
+ * LinkedIn's "Add licence or certification" form, filled in. The expiry is left out on purpose: certificates are renewed
+ * under the same ID, and the linked verify page always shows the current state. organizationId (the company page's
+ * number) makes LinkedIn show the company logo; without it LinkedIn shows the name only.
+ */
+export function linkedInAddUrl(p: { solutionName: string; company: string; issuedAt: Date; publicId: string; linkedInCompanyId?: string }) {
+  const q = new URLSearchParams({ startTask: "CERTIFICATION_NAME", name: `Hifi Partner Stack: Authorised Partner, ${p.solutionName}` });
+  const companyId = (p.linkedInCompanyId ?? "").trim();
+  if (/^\d{1,15}$/.test(companyId)) q.set("organizationId", companyId);
+  else q.set("organizationName", p.company);
+  q.set("issueYear", String(p.issuedAt.getUTCFullYear()));
+  q.set("issueMonth", String(p.issuedAt.getUTCMonth() + 1));
+  q.set("certUrl", verifyUrl(p.publicId));
+  q.set("certId", p.publicId);
+  return `https://www.linkedin.com/profile/add?${q.toString()}`;
+}
+
+export const linkedInShareUrl = (publicId: string) => `https://www.linkedin.com/sharing/share-offsite/?${new URLSearchParams({ url: verifyUrl(publicId) }).toString()}`;
 
 async function emailCertificate(db: Db, id: string) {
   try {

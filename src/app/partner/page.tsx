@@ -1,6 +1,6 @@
 import { requirePartnerUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { certificateStatus, durationLabel, partnerId } from "@/lib/partner-stack";
+import { certificateStatus, durationLabel, getSettings, linkedInAddUrl, linkedInShareUrl, partnerId } from "@/lib/partner-stack";
 import { Badge, Empty, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -8,12 +8,15 @@ const day = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: 
 
 // Phase 1 home: the partner's own terms, Solutions and certificates. Leads, clients and commissions arrive in later phases.
 export default async function PartnerHome() {
-  const { earner } = await requirePartnerUser();
-  const [type, solutions, certs] = await Promise.all([
+  const { user, earner } = await requirePartnerUser();
+  const [type, solutions, certs, settings, org] = await Promise.all([
     db.earnerType.findUniqueOrThrow({ where: { id: earner.typeId } }),
     db.earnerSolution.findMany({ where: { earnerId: earner.id }, include: { product: { select: { name: true } } } }),
     db.partnerCertificate.findMany({ where: { earnerId: earner.id }, include: { product: { select: { name: true } } }, orderBy: { expiresAt: "asc" } }),
+    getSettings(db, user.organizationId),
+    db.organization.findUnique({ where: { id: user.organizationId }, select: { name: true } }),
   ]);
+  const company = org?.name ?? "Hifi Marketing and Technologies";
   const now = new Date();
   return (
     <>
@@ -37,7 +40,7 @@ export default async function PartnerHome() {
           <div className="p-4"><Empty title="No certificates yet">The partner team issues a certificate for each Solution you may sell.</Empty></div>
         ) : (
           <div className="overflow-x-auto"><table className="mt-2 w-full text-sm">
-            <thead><tr className="text-left"><th className="px-4 py-2.5">Solution</th><th className="pr-4">Certificate ID</th><th className="pr-4">Valid until</th><th className="pr-4">Status</th><th className="pr-4"><span className="sr-only">Download</span></th></tr></thead>
+            <thead><tr className="text-left"><th className="px-4 py-2.5">Solution</th><th className="pr-4">Certificate ID</th><th className="pr-4">Valid until</th><th className="pr-4">Status</th><th className="pr-4"><span className="sr-only">Download and share</span></th></tr></thead>
             <tbody className="divide-y divide-border">
               {certs.map((c) => {
                 const st = certificateStatus(c, now);
@@ -47,13 +50,23 @@ export default async function PartnerHome() {
                     <td className="pr-4"><a className="underline" href={`/partners/verify/${c.publicId}`} target="_blank" rel="noopener">{c.publicId}</a></td>
                     <td className="pr-4 whitespace-nowrap">{day(c.expiresAt)}</td>
                     <td className="pr-4"><Badge tone={st === "VALID" ? "success" : "danger"}>{st.toLowerCase()}</Badge></td>
-                    <td className="pr-4">{st === "VALID" && <a className="underline" href={`/partner/certificates/${c.id}/pdf`}>Download PDF</a>}</td>
+                    <td className="pr-4 py-2.5">
+                      {st === "VALID" && (
+                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs sm:text-sm">
+                          <a className="underline" href={`/partner/certificates/${c.id}/pdf`}>Download PDF</a>
+                          <a className="underline" href={`/partner/certificates/${c.id}/image`}>Download image</a>
+                          <a className="underline" href={linkedInAddUrl({ solutionName: c.product.name, company, issuedAt: c.issuedAt, publicId: c.publicId, linkedInCompanyId: settings.linkedin_company_id })} target="_blank" rel="noopener noreferrer">Add to LinkedIn profile</a>
+                          <a className="underline" href={linkedInShareUrl(c.publicId)} target="_blank" rel="noopener noreferrer">Share on LinkedIn</a>
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
             </tbody>
           </table></div>
         )}
+        <p className="px-4 pt-4 text-xs text-muted">Adding to your LinkedIn profile fills in the certificate name, issuer, ID and verify link for you. Sharing posts your verify link, which shows the certificate as a picture; the image download is for Facebook, Instagram, WhatsApp or anywhere else.</p>
         <p className="p-4 text-xs text-muted">A certificate that is about to expire is renewed by the partner team. We email you 7 days and 1 day before.</p>
       </section>
     </>

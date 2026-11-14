@@ -232,7 +232,7 @@ Not done: deciding from the Approvals screen itself (by design, for now); quotat
 
 ## Partner Stack, Phase 1 (2026-11-14)
 
-Done: public `/partners` and `/partners/verify/<id>`, inquiry and application forms (rate limited, honeypot, same-site), admin Applications / Partners / Certificates / Inquiries / Settings, approval with certificates, PDF with QR, renew and revoke, daily expiry reminders, partner login and `/partner` home, "Partner Manager" role, Campusly Solution. See `docs/PARTNER_STACK.md`.
+Done: public `/partners` and `/partners/verify/<id>`, inquiry and application forms (rate limited, honeypot, same-site), admin Applications / Partners / Certificates / Inquiries / Settings, approval with certificates, PDF with QR, renew and revoke, daily expiry reminders, partner login and `/partner` home, "Partner Manager" role, Campusly Solution, sequential Partner ID, four certificate designs with an optional signatory, image download and LinkedIn add/share buttons, link-preview image on the verify page. See `docs/PARTNER_STACK.md`.
 
 Verified: `npx tsc --noEmit`, `npx eslint src` (3 pre-existing warnings), `npm run build`, 146 test files, including `partner-stack.test.ts` and `partner-stack.integration.test.ts`; browser pass at desktop and phone width against a local production build (forms, approval, certificate PDF, verify page, partner sign-in).
 

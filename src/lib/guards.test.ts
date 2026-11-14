@@ -142,10 +142,10 @@ describe("the public website", () => {
   });
   for (const f of siteFiles) {
     if (rel(f) === "(site)/page.tsx") continue;
-    // Hifi Partner Stack (/partners): the page shows the programme as configured in Partner Stack, and the certificate check reads one
-    // certificate by its secret id, so these two may read the database. They never touch a session, never write, and keep the same
+    // Hifi Partner Stack (/partners): the page shows the programme as configured in Partner Stack, and the certificate check (and its link preview
+    // image) reads one certificate by its secret id, so these two may read the database. They never touch a session, never write, and keep the same
     // ban on cookies, headers and server actions (the forms post to /api/partners/*, which is rate limited and same-site only).
-    const readsProgramme = /^\(site\)\/partners\/(page|verify\/\[id\]\/page)\.tsx$/.test(rel(f));
+    const readsProgramme = /^\(site\)\/partners\/(page|verify\/\[id\]\/(page|opengraph-image))\.tsx$/.test(rel(f));
     it(`${rel(f)} is ${readsProgramme ? "read-only public content, without a session" : "static content, without the database or a session"}`, () => {
       const src = read(f);
       if (readsProgramme) {

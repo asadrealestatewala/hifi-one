@@ -4,7 +4,7 @@ import { setTransportForTests, type Outgoing } from "./mailer";
 import { usersWithPermission } from "./notifications";
 import {
   PartnerError, approveApplication, certificatePdfFor, ensurePartnerDefaults, issueCertificate, publicProgramme, rejectApplication, renewCertificate, revokeCertificate,
-  saveSettings, sendCertificateReminders, submitApplication, submitInquiry, updateEarner, verifyCertificate,
+  getSettings, samplePartnerCertificate, saveSettings, sendCertificateReminders, socialCardFor, submitApplication, submitInquiry, updateEarner, verifyCertificate,
 } from "./partner-stack";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
@@ -49,6 +49,15 @@ describe("programme defaults", () => {
     await expect(saveSettings(db, { organizationId: org, actorId: manager, values: { cert_expiry_days: "0" } })).rejects.toThrow(PartnerError);
     await expect(saveSettings(db, { organizationId: org, actorId: manager, values: { cert_first_reminder_days: "2", cert_final_reminder_days: "3" } })).rejects.toThrow(/final reminder/i);
     await saveSettings(db, { organizationId: org, actorId: manager, values: { cert_expiry_days: "30", "cert_expiry_days:AGENTIFY": "" } });
+    // Certificate design, signatory and LinkedIn page number.
+    await saveSettings(db, { organizationId: org, actorId: manager, values: { cert_design: "academy", cert_signatory_name: "  Asad   B Zaman ", cert_signatory_title: "", linkedin_company_id: "12345" } });
+    expect(await getSettings(db, org)).toMatchObject({ cert_design: "academy", cert_signatory_name: "Asad B Zaman", linkedin_company_id: "12345" });
+    await expect(saveSettings(db, { organizationId: org, actorId: manager, values: { cert_design: "shopify" } })).rejects.toThrow(/design/i);
+    await expect(saveSettings(db, { organizationId: org, actorId: manager, values: { linkedin_company_id: "acme" } })).rejects.toThrow(/LinkedIn/);
+    await expect(saveSettings(db, { organizationId: org, actorId: manager, values: { cert_signatory_name: "x".repeat(81) } })).rejects.toThrow(/80/);
+    expect(await samplePartnerCertificate(db, org, "academy")).toBeInstanceOf(Buffer);
+    expect(await samplePartnerCertificate(db, org, "shopify")).toBeNull();
+    await saveSettings(db, { organizationId: org, actorId: manager, values: { cert_design: "modern", cert_signatory_name: "", linkedin_company_id: "" } });
     expect((await publicProgramme(db, org)).settings["cert_expiry_days:AGENTIFY"]).toBeUndefined();
   });
 });
@@ -216,6 +225,13 @@ describe("certificates", () => {
     expect(await verifyCertificate(db, "HPS-AAAA-BBBB-CC")).toBeNull();
     expect(await verifyCertificate(db, "' OR 1=1 --")).toBeNull();
     expect((await verifyCertificate(db, publicId, new Date(Date.now() + 400 * DAY)))!.status).toBe("EXPIRED");
+  });
+  it("gives the social image only the public facts", async () => {
+    const card = await socialCardFor(db, publicId);
+    expect(card).toMatchObject({ partnerName: "Cert Holder", solutionName: "Agentify ERP", publicId, status: "VALID" });
+    expect(Object.keys(card!).sort()).toEqual(["company", "partnerId", "partnerName", "partnerType", "publicId", "solutionName", "status", "validUntil"]);
+    expect(JSON.stringify(card)).not.toMatch(/cert@mail|1234567|Lahore|referral/i);
+    expect(await socialCardFor(db, "HPS-AAAA-BBBB-CC")).toBeNull();
   });
   it("renews with the same ID and a fresh period, and resets the reminders", async () => {
     await db.partnerCertificate.update({ where: { id: certId }, data: { firstReminderAt: new Date(), finalReminderAt: new Date() } });

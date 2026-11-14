@@ -5,7 +5,14 @@ import { verifyCertificate } from "@/lib/partner-stack";
 import { Icon } from "../../../_components/Icon";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: { absolute: "Verify a certificate | Hifi Partner Stack" }, robots: { index: false, follow: false } };
+// The page title and link-preview text name the partner only for a valid certificate; the preview image is opengraph-image.tsx.
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const c = await verifyCertificate(db, decodeURIComponent(id).toUpperCase());
+  const title = c && c.status === "VALID" ? `${c.partnerName}: authorised partner for ${c.solution}` : "Verify a certificate";
+  const description = c && c.status === "VALID" ? `Hifi Partner Stack certificate ${c.publicId}. Check that it is genuine and still valid.` : "Check whether a Hifi Partner Stack certificate is genuine and still valid.";
+  return { title: { absolute: `${title} | Hifi Partner Stack` }, description, robots: { index: false, follow: false }, openGraph: { title, description, siteName: "Hifi Partner Stack", type: "website" }, twitter: { card: "summary_large_image", title, description } };
+}
 
 const day = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 

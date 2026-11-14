@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ALL_PERMISSIONS, ROLE_DEFS } from "./permissions";
-import { cleanDuration, cleanRate, certificateStatus, certificateValidityDays, durationLabel, newPublicId, newReferralCode, parsePartnerId, partnerId } from "./partner-stack";
-import { certificatePdf } from "./partner-certificate-pdf";
+import { cleanDuration, cleanRate, certificateStatus, certificateValidityDays, durationLabel, linkedInAddUrl, linkedInShareUrl, newPublicId, newReferralCode, parsePartnerId, partnerId } from "./partner-stack";
+import { CERTIFICATE_DESIGNS, certificatePdf, isCertificateDesign } from "./partner-certificate-pdf";
 import { sameSite } from "./same-site";
 
 describe("certificate validity", () => {
@@ -67,6 +67,50 @@ describe("the certificate PDF", () => {
     expect(bytes.length).toBeGreaterThan(3000);
     const urdu = await certificatePdf({ publicId: "HPS-ABCD-EFGH-JK", partnerId: "HPS-0001", partnerName: "عائشہ", solutionName: "Pharmivo", partnerType: "Referral Partner", issuedAt: new Date(), expiresAt: new Date(), verifyUrl: "https://x.test/v", company: "Hifi" });
     expect(urdu.subarray(0, 5).toString()).toBe("%PDF-");
+  });
+});
+
+describe("certificate designs", () => {
+  const base = { publicId: "HPS-ABCD-EFGH-JK", partnerId: "HPS-0012", partnerName: "A Very Long Partner Company Name (Private) Limited of Lahore", solutionName: "Agentify ERP", partnerType: "Exclusive Sales Partner", issuedAt: new Date(), expiresAt: new Date(Date.now() + 86_400_000 * 30), verifyUrl: "https://hifimarketing.co/partners/verify/HPS-ABCD-EFGH-JK", company: "Hifi Marketing and Technologies" };
+  it("renders every design as a one-page PDF, with and without a signatory", async () => {
+    for (const d of CERTIFICATE_DESIGNS) {
+      for (const signatoryName of ["", "Asad B Zaman"]) {
+        const bytes = await certificatePdf({ ...base, design: d.key, signatoryName, signatoryTitle: "Head of Partnerships" });
+        expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
+        expect(bytes.toString("latin1").match(/\/Type \/Page\b/g)?.length, `${d.key} stays on one page`).toBe(1);
+      }
+    }
+  });
+  it("knows its design keys and falls back to Classic for an unknown one", async () => {
+    expect(isCertificateDesign("modern")).toBe(true);
+    expect(isCertificateDesign("shopify")).toBe(false);
+    const bytes = await certificatePdf({ ...base, design: "nope" as never });
+    expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
+  });
+});
+
+describe("LinkedIn links", () => {
+  const p = { solutionName: "Pharmivo", company: "Hifi Marketing and Technologies", issuedAt: new Date("2026-11-14T00:00:00Z"), publicId: "HPS-ABCD-EFGH-JK" };
+  it("fills LinkedIn's add-certification form with the name, issuer, issue month, ID and verify link, and no expiry", () => {
+    const u = new URL(linkedInAddUrl(p));
+    expect(u.origin + u.pathname).toBe("https://www.linkedin.com/profile/add");
+    expect(u.searchParams.get("startTask")).toBe("CERTIFICATION_NAME");
+    expect(u.searchParams.get("name")).toBe("Hifi Partner Stack: Authorised Partner, Pharmivo");
+    expect(u.searchParams.get("organizationName")).toBe("Hifi Marketing and Technologies");
+    expect(u.searchParams.get("issueYear")).toBe("2026");
+    expect(u.searchParams.get("issueMonth")).toBe("11");
+    expect(u.searchParams.get("certId")).toBe("HPS-ABCD-EFGH-JK");
+    expect(u.searchParams.get("certUrl")).toMatch(/\/partners\/verify\/HPS-ABCD-EFGH-JK$/);
+    expect(u.searchParams.has("expirationYear")).toBe(false);
+  });
+  it("uses the company page number when it is a number, and ignores anything else", () => {
+    expect(new URL(linkedInAddUrl({ ...p, linkedInCompanyId: "12345678" })).searchParams.get("organizationId")).toBe("12345678");
+    const bad = new URL(linkedInAddUrl({ ...p, linkedInCompanyId: "javascript:alert(1)" }));
+    expect(bad.searchParams.has("organizationId")).toBe(false);
+    expect(bad.searchParams.get("organizationName")).toBe("Hifi Marketing and Technologies");
+  });
+  it("shares the public verify link", () => {
+    expect(new URL(linkedInShareUrl("HPS-ABCD-EFGH-JK")).searchParams.get("url")).toMatch(/\/partners\/verify\/HPS-ABCD-EFGH-JK$/);
   });
 });
 

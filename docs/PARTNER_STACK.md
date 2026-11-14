@@ -21,3 +21,12 @@ Phase 2 partner CRM and dashboard, Phase 3 lead distribution and territories, Ph
 
 ## Partner ID (added 2026-11-14, Asad's request)
 Every partner gets a sequential, system-generated Partner ID at approval (`Earner.partnerNumber`, shown as `HPS-0001`), unique per organization and never reused. Approvals take an advisory lock while the next number is picked, so simultaneous approvals cannot collide. It appears on the certificate PDF, the public verify page, the approval email, the partner portal, and the admin Partners and Certificates lists (searchable as `HPS-0012`, `hps-12` or `12`). The referral code (`HP-XXXXXXXX`) stays separate: it is for links and client attribution in Phase 4.
+
+## Certificate designs and LinkedIn (added 2026-11-14, Asad's request)
+
+- Four PDF designs in `src/lib/partner-certificate-pdf.ts`: Classic (the first one), Modern (navy side panel, the default), Academy (round seal and signature line) and Course (paper colour, serif name, ribbon). Same facts on each. Partner Stack → Settings → "Certificate design" picks one for every download, new or already issued; "Open sample PDF" (`/partner-stack/settings/preview/<design>`, `partners.settings`) shows each with example details. Thumbnails are static files in `public/partner-stack/designs/`; regenerate them if a design changes.
+- Optional signatory name and title (settings `cert_signatory_name`, `cert_signatory_title`). Empty name prints the company name instead of a signature line; nobody's name is printed unless an admin types it.
+- Partner portal, per valid certificate: Download PDF, Download image (PNG 1200 x 627, `/partner/certificates/[id]/image`, own certificates only), "Add to LinkedIn profile" (LinkedIn's add-certification form filled with name, issuer, issue month, certificate ID and verify link; expiry left empty because renewals keep the ID) and "Share on LinkedIn" (shares the verify link).
+- The verify page has link-preview tags and an image (`opengraph-image.tsx`), so a shared link shows the certificate as a picture on LinkedIn, WhatsApp and X. Only a valid certificate shows the partner's name; unknown, expired or revoked ones show a plain "Check a certificate" card.
+- Optional setting `linkedin_company_id` (the number in the LinkedIn company admin link) makes LinkedIn show the company logo on the partner's profile entry.
+- The image uses the Inter font (SIL Open Font License) from `public/partner-stack/fonts/`.
