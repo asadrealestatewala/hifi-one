@@ -49,20 +49,21 @@ export default async function PartnerSettings({ searchParams }: { searchParams: 
           <p className="p-4 text-xs text-muted">The Exclusive Sales Partner rate is set per person when you approve them; this is only the starting value. The Sales Agent type is used from Phase 5. &ldquo;Final test for authorisation&rdquo;: partners of that type get the certificate of authorisation by passing the Partner Academy final test; untick it (as for Exclusive partners) to issue it by hand. One partner can also be given direct access on their page.</p>
         </section>
         <section className="card space-y-3">
-          <h2 className="font-semibold">Partner Academy final test</h2>
+          <h2 className="font-semibold">Partner Academy final and refresher tests</h2>
           <div className="grid gap-3 sm:grid-cols-3">
             {Object.entries(ACADEMY_TEST_SETTINGS).map(([key, [label, min, max]]) => (
               <div key={key}><label className="label" htmlFor={`s-${key}`}>{label}</label><input id={`s-${key}`} name={key} type="number" min={min} max={max} required defaultValue={s[key]} className="input" /></div>
             ))}
           </div>
-          <p className="text-xs text-muted">Questions are drawn at random from every published question of the Solution&rsquo;s course. A test not submitted in time counts as a try. After the last try the test pauses and the partner team is told. Passing issues the certificate of authorisation automatically.</p>
+          <p className="text-xs text-muted">Questions are drawn at random from every published question of the Solution&rsquo;s course. A test not submitted in time counts as a try. After the last try the test pauses and the partner team is told. Passing issues the certificate of authorisation automatically. The refresher test renews it: it uses the same pass mark and retake rules, opens the set number of days before the certificate expires, and keeps the certificate ID.</p>
         </section>
         <section className="card space-y-3">
           <h2 className="font-semibold">Certificates</h2>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div><label className="label" htmlFor="s-exp">Certificate of authorisation validity (days), all Solutions</label><input id="s-exp" name="cert_expiry_days" type="number" min={1} defaultValue={s.cert_expiry_days} className="input" /></div>
             <div><label className="label" htmlFor="s-r1">First reminder (days before)</label><input id="s-r1" name="cert_first_reminder_days" type="number" min={1} defaultValue={s.cert_first_reminder_days} className="input" /></div>
-            <div><label className="label" htmlFor="s-r2">Final reminder (days before)</label><input id="s-r2" name="cert_final_reminder_days" type="number" min={1} defaultValue={s.cert_final_reminder_days} className="input" /></div>
+            <div><label className="label" htmlFor="s-r2">Second reminder (days before)</label><input id="s-r2" name="cert_second_reminder_days" type="number" min={1} defaultValue={s.cert_second_reminder_days} className="input" /></div>
+            <div><label className="label" htmlFor="s-r3">Final reminder (days before)</label><input id="s-r3" name="cert_final_reminder_days" type="number" min={1} defaultValue={s.cert_final_reminder_days} className="input" /></div>
           </div>
           <fieldset><legend className="label">Validity per Solution (days, empty = use the default above)</legend>
             <div className="grid gap-3 sm:grid-cols-3">{solutions.map((p) => <div key={p.code}><label className="label" htmlFor={`s-${p.code}`}>{p.name}</label><input id={`s-${p.code}`} name={SOLUTION_EXPIRY_KEY(p.code)} type="number" min={1} defaultValue={s[SOLUTION_EXPIRY_KEY(p.code)] ?? ""} className="input" /></div>)}</div></fieldset>

@@ -11,6 +11,8 @@ would send a message says "not configured" or hands the person a link to copy.
 | `subscription_billing` | Draft invoices for retainers that are due, then tells finance to review and issue them |
 | `commission_accrual` | Commissions for payments received (once per payment), then tells the approvers |
 | `expiry_sweep` | Sent quotations past valid-until and active contracts past their end date become expired |
+| `partner_certificates` | Emails partners 30, 7 and 1 day before a certificate of authorisation expires (with the refresher test link) and tells the Partner Managers |
+| `partner_academy_weekly` | Mondays only: emails everyone with `partners.manage` the Partner Academy summary of the last 7 days (once per week) |
 | `invoice_reminders` | Weekly overdue reminder to finance and the client; heads-up to the client three days before the due date |
 | `task_reminders` | Tasks due tomorrow and tasks that became overdue today |
 | `monitoring_purge` | Workfolio screenshots and activity past the policy's retention |

@@ -2,11 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { testRules } from "@/lib/partner-academy";
+import { questionReport, refresherRules, testRules } from "@/lib/partner-academy";
 import { getSettings } from "@/lib/partner-stack";
 import { Badge, Empty, Notice, PageHeader, StatusBadge } from "@/components/ui";
+import ConfirmButton from "@/components/ui/ConfirmButton";
 import SubmitButton from "@/components/ui/SubmitButton";
-import { saveCourseAction, saveLessonAction } from "../actions";
+import { askEarlyRefresherAction, saveCourseAction, saveLessonAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +28,16 @@ export default async function CoursePage({ params, searchParams }: { params: Pro
   if (!course) notFound();
   const drafts = await db.academyQuestion.groupBy({ by: ["lessonId"], where: { lessonId: { in: course.lessons.map((l) => l.id) }, status: "DRAFT" }, _count: true });
   const draftCount = (id: string) => drafts.find((d) => d.lessonId === id)?._count ?? 0;
-  const [rules, pool] = course.productId
-    ? await Promise.all([getSettings(db, user.organizationId).then(testRules), db.academyQuestion.count({ where: { status: "PUBLISHED", lesson: { courseId: course.id, status: "PUBLISHED" } } })])
-    : [null, 0];
+  const [settings, pool, report, holders] = course.productId
+    ? await Promise.all([
+      getSettings(db, user.organizationId), db.academyQuestion.count({ where: { status: "PUBLISHED", lesson: { courseId: course.id, status: "PUBLISHED" } } }), questionReport(db, user.organizationId, course.id),
+      db.partnerCertificate.count({ where: { organizationId: user.organizationId, productId: course.productId, kind: "AUTHORISATION", status: "ACTIVE", earner: { status: "ACTIVE" } } }),
+    ])
+    : [null, 0, null, 0];
+  const rules = settings ? testRules(settings) : null;
+  const refresher = settings ? refresherRules(settings) : null;
+  const missed = report ? report.rows.filter((r) => r.served >= 3).slice(0, 15) : [];
+  const day = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Karachi" });
   return (
     <div className="space-y-5">
       <PageHeader back={{ href: "/partner-stack/academy", label: "Academy" }} title={course.title} subtitle={course.product ? `${course.product.name} course. Finishing it (after the foundations course) issues the ${course.product.name} training certificate.` : "Foundations course. Every partner takes it before any Solution course."} />
@@ -56,6 +64,51 @@ export default async function CoursePage({ params, searchParams }: { params: Pro
             : pool < rules.questions * 2 ? <p className="text-sm text-muted">Ready. Aim for {rules.questions * 2} or more so retakes see different questions; &ldquo;final test only&rdquo; questions add to the pool without appearing in quick checks.</p>
             : <p className="text-sm text-success">Ready.</p>}
           <p className="text-xs text-muted">Change the test length, pass mark, time and retake rules in Settings.</p>
+        </section>
+      )}
+
+      {refresher && (
+        <section className="card space-y-2">
+          <h2 className="font-semibold">Refresher test (renewal)</h2>
+          <p className="text-sm">The certificate of authorisation is renewed by a {refresher.questions}-question refresher test ({refresher.minutes} minutes, pass mark {refresher.passPct}%) from the same questions. It opens {refresher.windowDays} days before a certificate expires and stays open after it has expired. Passing renews the same certificate for a new period, keeping its ID. {holders} partner{holders === 1 ? " holds" : "s hold"} this certificate now.</p>
+          {pool < refresher.questions && <p className="text-sm text-brand">Not ready: the refresher needs {refresher.questions} published questions.</p>}
+          <p className="text-sm text-muted">{course.refresherAskedAt ? `Last asked to take it early on ${day(course.refresherAskedAt)}.` : "After a big change to this Solution, add a what's new lesson, then ask everyone certified to take the refresher now."}</p>
+          {course.status === "PUBLISHED" && pool >= refresher.questions && (
+            <form action={askEarlyRefresherAction}>
+              <input type="hidden" name="courseId" value={course.id} />
+              <ConfirmButton reason title="Ask for an early refresher?" confirmLabel="Open it and email partners"
+                message={<>The refresher opens now for the {holders} partner{holders === 1 ? "" : "s"} certified for {course.product?.name}, and each is emailed. Their certificates keep their current expiry; passing renews for a full new period.</>}>
+                Ask everyone to take the refresher now
+              </ConfirmButton>
+            </form>
+          )}
+        </section>
+      )}
+
+      {report && (
+        <section className="card space-y-2" aria-labelledby="missed">
+          <h2 id="missed" className="font-semibold">Questions partners miss most</h2>
+          {missed.length === 0 ? (
+            <p className="text-sm text-muted">{report.attempts === 0 ? "No final or refresher tests taken yet." : "Not enough answers yet. A question shows here once it has been answered 3 times."}</p>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="text-left"><th className="py-2 pr-4">Question</th><th className="pr-4">Lesson</th><th className="pr-4 text-right">Right</th></tr></thead>
+                  <tbody className="divide-y divide-border">
+                    {missed.map((r) => (
+                      <tr key={r.id}>
+                        <td className="py-2 pr-4">{r.text}{r.status !== "PUBLISHED" && <> <StatusBadge status={r.status} /></>}</td>
+                        <td className="pr-4"><Link className="underline" href={`/partner-stack/academy/lessons/${r.lessonId}`}>{r.lessonTitle}</Link></td>
+                        <td className={`pr-4 text-right tabular-nums whitespace-nowrap ${r.pct < 50 ? "text-brand" : ""}`}>{r.pct}% <span className="text-muted">of {r.served}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-muted">From {report.attempts} final and refresher test{report.attempts === 1 ? "" : "s"}. A question most people miss usually means the lesson needs a clearer explanation, or the question is unclear.</p>
+            </>
+          )}
         </section>
       )}
 

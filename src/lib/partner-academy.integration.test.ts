@@ -2,10 +2,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { setTransportForTests, type Outgoing } from "./mailer";
 import {
-  AcademyError, saveTestAnswers, startTest, submitTest, testPaper, testResult, testStatus, academyFor, academyProgress, addQuestion, deleteLesson, draftQuestionsWithClaude, importQuestions, lessonForPartner, recordWatch, saveCourse, saveLesson,
+  AcademyError, academyWeek, askEarlyRefresher, questionReport, sendAcademyWeekly, saveTestAnswers, startTest, submitTest, testPaper, testResult, testStatus, academyFor, academyProgress, addQuestion, deleteLesson, draftQuestionsWithClaude, importQuestions, lessonForPartner, recordWatch, saveCourse, saveLesson,
   setQuestionStatus, startQuiz, submitQuiz, updateQuestion,
 } from "./partner-academy";
-import { approveApplication, ensurePartnerDefaults, issueCertificate, saveSettings, setDirectAccess, submitApplication } from "./partner-stack";
+import { approveApplication, ensurePartnerDefaults, issueCertificate, revokeCertificate, saveSettings, setDirectAccess, submitApplication } from "./partner-stack";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
 const db = new PrismaClient({ datasourceUrl: url });
@@ -179,7 +179,7 @@ describe("taking the Academy (partners)", () => {
     await expect(deleteLesson(db, { organizationId: org, id: agentify.lessonIds[0] })).rejects.toThrow(/started this lesson/);
     const progress = await academyProgress(db, org, { skip: 0, take: 20 });
     const row = progress.rows.find((r) => r.earner.id === ayesha.id)!;
-    expect(row.courses).toEqual([{ title: "Foundations", done: 1, of: 1, test: null }, { title: "Agentify ERP", done: 2, of: 2, test: null }]);
+    expect(row.courses).toEqual([{ title: "Foundations", done: 1, of: 1, test: null, expiresAt: null }, { title: "Agentify ERP", done: 2, of: 2, test: null, expiresAt: null }]);
     expect(progress.rows.find((r) => r.earner.id === bilal.id)!.courses.map((c) => c.done)).toEqual([0, 0]);
   });
 });
@@ -299,8 +299,8 @@ describe("the final test", () => {
     expect(cert.expiresAt!.getTime()).toBeGreaterThan(at(10 * D).getTime());
     expect(sent.some((m) => m.to === "ayesha@mail.test" && /certificate of authorisation/i.test(m.subject))).toBe(true);
     expect(await db.notification.count({ where: { userId: manager, kind: "partner.academy_test_passed" } })).toBe(1);
-    expect((await testStatus(db, ayesha, course, at(10 * D + H))).state).toEqual({ state: "certified", publicId: cert.publicId });
-    await expect(startTest(db, { earner: ayesha, courseId: course, declared: true, now: at(10 * D + H) })).rejects.toThrow(/already hold/);
+    expect((await testStatus(db, ayesha, course, at(10 * D + H))).state).toEqual({ state: "certified", publicId: cert.publicId, expiresAt: cert.expiresAt, renewOpensAt: new Date(cert.expiresAt!.getTime() - 30 * D) });
+    await expect(startTest(db, { earner: ayesha, courseId: course, declared: true, now: at(10 * D + H) })).rejects.toThrow(/refresher test opens on/);
     const row = (await academyProgress(db, org, { skip: 0, take: 20 })).rows.find((x) => x.earner.id === ayesha.id)!;
     expect(row.courses[1].test).toEqual({ tries: 4, last: 100, passed: true });
   });
@@ -336,5 +336,113 @@ describe("the Student partner type", () => {
     const r = await approveApplication(db, { organizationId: org, applicationId: app.id, actorId: manager, typeKey: "STUDENT", ratePercent: "20", durationMonths: "lifetime", leadSharing: false, territory: "", solutionCodes: ["AGENTIFY"], certifyCodes: [] });
     const e = await db.earner.findUniqueOrThrow({ where: { id: r.earnerId }, include: { type: true } });
     expect(e.type).toMatchObject({ key: "STUDENT", academyRequired: true, publicOffer: true });
+  });
+});
+
+describe("renewal by the refresher test", () => {
+  const H = 3_600_000, D = 24 * H;
+  let course: string, certId: string, expires: Date;
+  const answersFor = async (attemptId: string, right: boolean) => {
+    const a = await db.academyTestAttempt.findUniqueOrThrow({ where: { id: attemptId } });
+    if (!right) return Object.fromEntries(a.questionIds.map((id) => [id, [3]]));
+    const qs = await db.academyQuestion.findMany({ where: { id: { in: a.questionIds } } });
+    return Object.fromEntries(qs.map((q) => [q.id, q.correct]));
+  };
+  const take = async (now: Date, right: boolean) => {
+    const { attemptId } = await startTest(db, { earner: ayesha, courseId: course, declared: true, now });
+    return { attemptId, ...(await submitTest(db, { earner: ayesha, attemptId, answers: await answersFor(attemptId, right), now: new Date(now.getTime() + 5 * 60_000) })) };
+  };
+  beforeAll(async () => {
+    course = (await db.academyCourse.findFirstOrThrow({ where: { organizationId: org, product: { code: "AGENTIFY" } } })).id;
+    await saveSettings(db, { organizationId: org, actorId: manager, values: { academy_refresher_questions: "5", academy_refresher_minutes: "20", academy_refresher_window_days: "30" } });
+    const cert = await db.partnerCertificate.findFirstOrThrow({ where: { earnerId: ayesha.id, kind: "AUTHORISATION" } });
+    certId = cert.id; expires = cert.expiresAt!;
+  });
+
+  it("gives the certificate of authorisation 12 months by default", async () => {
+    const cert = await db.partnerCertificate.findUniqueOrThrow({ where: { id: certId } });
+    expect(Math.round((cert.expiresAt!.getTime() - cert.issuedAt.getTime()) / D)).toBe(365);
+  });
+
+  it("opens 30 days before expiry with its own length and time, and counts only refresher tries", async () => {
+    const before = new Date(expires.getTime() - 31 * D);
+    expect((await testStatus(db, ayesha, course, before)).state).toMatchObject({ state: "certified" });
+    const open = new Date(expires.getTime() - 29 * D);
+    const st = await testStatus(db, ayesha, course, open);
+    expect(st).toMatchObject({ kind: "REFRESHER", state: { state: "ready", triesLeft: 3 }, certificate: { id: certId } });
+    expect(st.rules).toMatchObject({ questions: 5, minutes: 20 });
+    const { attemptId } = await startTest(db, { earner: ayesha, courseId: course, declared: true, now: open });
+    const a = await db.academyTestAttempt.findUniqueOrThrow({ where: { id: attemptId } });
+    expect(a).toMatchObject({ kind: "REFRESHER", certificateId: certId, total: 5 });
+    expect(a.deadlineAt.getTime() - open.getTime()).toBe(20 * 60_000);
+    const r = await submitTest(db, { earner: ayesha, attemptId, answers: await answersFor(attemptId, false), now: new Date(open.getTime() + 60_000) });
+    expect(r).toMatchObject({ kind: "REFRESHER", passed: false, certificateId: null });
+    expect((await testStatus(db, ayesha, course, new Date(open.getTime() + H))).state).toMatchObject({ state: "wait", paused: false, triesLeft: 2 });
+    expect((await db.partnerCertificate.findUniqueOrThrow({ where: { id: certId } })).renewals).toBe(0);
+  });
+
+  it("renews the same certificate on a pass, emails it and tells the partner team", async () => {
+    const now = new Date(expires.getTime() - 27 * D);
+    const r = await take(now, true);
+    expect(r).toMatchObject({ kind: "REFRESHER", passed: true, certificateId: certId, renewError: null });
+    const cert = await db.partnerCertificate.findUniqueOrThrow({ where: { id: certId } });
+    expect(cert).toMatchObject({ renewals: 1, status: "ACTIVE" });
+    expect(Math.round((cert.expiresAt!.getTime() - cert.issuedAt.getTime()) / D)).toBe(365);
+    expect(cert.expiresAt!.getTime()).toBeGreaterThan(expires.getTime());
+    expect(await db.partnerCertificate.count({ where: { earnerId: ayesha.id, kind: "AUTHORISATION" } })).toBe(1); // same ID, no new certificate
+    expect(sent.some((m) => m.to === "ayesha@mail.test" && /certificate of authorisation/i.test(m.subject))).toBe(true);
+    expect(await db.notification.count({ where: { userId: manager, kind: "partner.academy_refresher_passed" } })).toBe(1);
+    expect((await testStatus(db, ayesha, course, new Date(now.getTime() + H))).state).toMatchObject({ state: "certified", renewOpensAt: new Date(cert.expiresAt!.getTime() - 30 * D) });
+    expect(((await testResult(db, ayesha, r.attemptId)).attempt.kind)).toBe("REFRESHER");
+    expires = cert.expiresAt!;
+  });
+
+  it("offers the refresher, not the final test, after the certificate has expired", async () => {
+    const late = new Date(expires.getTime() + 10 * D);
+    expect(await testStatus(db, ayesha, course, late)).toMatchObject({ kind: "REFRESHER", state: { state: "ready", triesLeft: 3 } });
+  });
+
+  it("opens at once for everyone certified when the partner team asks after a big change", async () => {
+    const now = new Date(expires.getTime() - 200 * D);
+    expect((await testStatus(db, ayesha, course, now)).state.state).toBe("certified");
+    await expect(askEarlyRefresher(db, { organizationId: other, courseId: course, now })).rejects.toThrow(AcademyError);
+    const r = await askEarlyRefresher(db, { organizationId: org, courseId: course, now });
+    expect(r.emailed).toBe(1);
+    expect(sent.filter((m) => m.to === "ayesha@mail.test" && /refresher test/i.test(m.subject))).toHaveLength(1);
+    expect((await testStatus(db, ayesha, course, new Date(now.getTime() + H))).state).toMatchObject({ state: "ready" });
+    const cert = await db.partnerCertificate.findUniqueOrThrow({ where: { id: certId } });
+    expect(cert.expiresAt).toEqual(expires); // the expiry does not move
+  });
+
+  it("does not renew a certificate the partner team revoked during the test", async () => {
+    const now = new Date(expires.getTime() - 10 * D);
+    const { attemptId } = await startTest(db, { earner: ayesha, courseId: course, declared: true, now });
+    await revokeCertificate(db, { organizationId: org, id: certId, actorId: manager, reason: "Broke the brand rules" });
+    const r = await submitTest(db, { earner: ayesha, attemptId, answers: await answersFor(attemptId, true), now: new Date(now.getTime() + 60_000) });
+    expect(r).toMatchObject({ passed: true, certificateId: null, renewError: expect.stringMatching(/revoked/) });
+    expect((await db.partnerCertificate.findUniqueOrThrow({ where: { id: certId } })).status).toBe("REVOKED");
+    // With the certificate revoked, the partner is back to the final test
+    expect((await testStatus(db, ayesha, course, new Date(now.getTime() + 2 * D))).kind).toBe("FINAL");
+  });
+
+  it("reports the questions partners miss most, for this organization only", async () => {
+    const r = await questionReport(db, org, course);
+    expect(r.attempts).toBeGreaterThanOrEqual(6);
+    expect(r.rows.length).toBeGreaterThan(0);
+    expect(r.rows.every((x) => x.served >= 1 && x.right <= x.served)).toBe(true);
+    expect(r.rows.map((x) => x.pct)).toEqual([...r.rows.map((x) => x.pct)].sort((a, b) => a - b));
+    expect((await questionReport(db, other, course)).attempts).toBe(0);
+  });
+
+  it("sends the weekly summary to the partner team once a week", async () => {
+    const now = new Date(expires.getTime() - 9 * D);
+    const w = await academyWeek(db, org, now);
+    expect(w).toMatchObject({ refresherTaken: 1, refresherPassed: 1 });
+    const first = await sendAcademyWeekly(db, org, { now, weekKey: "2027-W50" });
+    expect(first.sent).toBe(1);
+    expect(sent.filter((m) => m.to === "pat@hifi.test" && /Partner Academy: your week/.test(m.subject))).toHaveLength(1);
+    expect(sent.some((m) => m.to === "olly@hifi.test")).toBe(false);
+    expect((await sendAcademyWeekly(db, org, { now, weekKey: "2027-W50" })).sent).toBe(0);
+    expect(await db.notification.count({ where: { userId: manager, kind: "partner.academy_weekly" } })).toBe(1);
   });
 });

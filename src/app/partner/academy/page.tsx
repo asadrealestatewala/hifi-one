@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requirePartnerUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { academyFor, testStatus } from "@/lib/partner-academy";
+import { academyFor, testName, testStatus } from "@/lib/partner-academy";
 import { Badge, Empty, Notice, PageHeader, Progress } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,8 @@ export default async function PartnerAcademy({ searchParams }: { searchParams: P
   const sp = await searchParams;
   const courses = await academyFor(db, earner);
   // The final test of each Solution course whose training certificate the partner holds
-  const tests = new Map(await Promise.all(courses.filter((c) => c.certificate).map(async (c) => [c.course.id, (await testStatus(db, earner, c.course.id)).state] as const)));
+  const tests = new Map(await Promise.all(courses.filter((c) => c.certificate).map(async (c) => { const st = await testStatus(db, earner, c.course.id); return [c.course.id, { ...st.state, kind: st.kind, cert: st.certificate }] as const; })));
+  const day = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Karachi" });
   const byHand = !earner.academyDirectAccess && !(await db.earnerType.findUnique({ where: { id: earner.typeId }, select: { academyRequired: true } }))?.academyRequired;
   return (
     <>
@@ -44,14 +45,18 @@ export default async function PartnerAcademy({ searchParams }: { searchParams: P
           </ol>
           {c.certificate && (() => {
             const t = tests.get(c.course.id);
+            const name = t ? testName(t.kind) : "final test";
+            const exp = t?.cert?.expiresAt ?? null;
+            const href = `/partner/academy/test/${c.course.id}`;
             return (
               <div className="rounded-lg border border-border p-3 text-sm">
-                <p className="font-medium">Final test: certificate of authorisation</p>
-                {t?.state === "certified" ? <p>Passed. Your certificate of authorisation <a className="underline" href={`/partners/verify/${t.publicId}`} target="_blank" rel="noopener">{t.publicId}</a> is on your <Link className="underline" href="/partner">overview</Link>.</p>
-                  : t?.state === "not_ready" ? <p className="text-muted">Opens soon: the partner team is adding the questions.</p>
-                  : t?.state === "wait" ? <p className="text-muted">{t.paused ? "All tries used." : "Retake opens soon."} <Link className="underline" href={`/partner/academy/test/${c.course.id}`}>See when</Link></p>
-                  : t?.state === "in_progress" ? <p><Link className="underline font-medium" href={`/partner/academy/test/${c.course.id}`}>Continue your test</Link> (the timer is running)</p>
-                  : <p>{byHand ? "The partner team issues your certificate of authorisation; you can still take the test to check yourself. " : ""}<Link className="btn mt-2 inline-block" href={`/partner/academy/test/${c.course.id}`}>Take the final test</Link></p>}
+                <p className="font-medium">{t?.kind === "REFRESHER" ? "Certificate of authorisation" : "Final test: certificate of authorisation"}</p>
+                {t?.state === "certified" ? <p>Valid until {t.expiresAt ? day(t.expiresAt) : "further notice"} (<a className="underline" href={`/partners/verify/${t.publicId}`} target="_blank" rel="noopener">{t.publicId}</a>).{t.renewOpensAt && <span className="text-muted"> The refresher test to renew it opens on {day(t.renewOpensAt)}.</span>}</p>
+                  : t?.state === "not_ready" ? <p className="text-muted">The {name} opens soon: the partner team is adding the questions.</p>
+                  : t?.state === "wait" ? <p className="text-muted">{t.paused ? "All tries used." : "Retake opens soon."} <Link className="underline" href={href}>See when</Link></p>
+                  : t?.state === "in_progress" ? <p><Link className="underline font-medium" href={href}>Continue your {name}</Link> (the timer is running)</p>
+                  : t?.kind === "REFRESHER" ? <p>{exp && exp <= new Date() ? `Your certificate expired on ${day(exp)}.` : exp ? `Your certificate expires on ${day(exp)}.` : "The partner team asked you to take the refresher test."} Pass the short refresher test to renew it with the same ID. <Link className="btn mt-2 inline-block" href={href}>Take the refresher test</Link></p>
+                  : <p>{byHand ? "The partner team issues your certificate of authorisation; you can still take the test to check yourself. " : ""}<Link className="btn mt-2 inline-block" href={href}>Take the final test</Link></p>}
                 <p className="mt-1 text-xs text-muted">Your training certificate <a className="underline" href={`/partners/verify/${c.certificate.publicId}`} target="_blank" rel="noopener">{c.certificate.publicId}</a> is on your <Link className="underline" href="/partner">overview</Link>.</p>
               </div>
             );

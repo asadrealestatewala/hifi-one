@@ -40,7 +40,7 @@ describe("programme defaults", () => {
     expect((await db.saasProduct.findMany({ where: { organizationId: org }, orderBy: { sortOrder: "asc" } })).map((p) => p.code)).toEqual(["AGENTIFY", "VELOCITY", "PHARMIVO", "CAMPUSLY"]);
     const pub = await publicProgramme(db, org);
     expect(pub.types.map((t) => t.key)).toEqual(["STUDENT", "REFERRAL", "RESELLER", "EXCLUSIVE"]); // Sales Agent is internal
-    expect(pub.settings.cert_expiry_days).toBe("30");
+    expect(pub.settings.cert_expiry_days).toBe("365");
   });
   it("reads edited settings back and refuses nonsense", async () => {
     await saveSettings(db, { organizationId: org, actorId: manager, values: { cert_expiry_days: "45", "cert_expiry_days:AGENTIFY": "90" } });
@@ -48,7 +48,10 @@ describe("programme defaults", () => {
     expect(s.cert_expiry_days).toBe("45");
     expect(s["cert_expiry_days:AGENTIFY"]).toBe("90");
     await expect(saveSettings(db, { organizationId: org, actorId: manager, values: { cert_expiry_days: "0" } })).rejects.toThrow(PartnerError);
-    await expect(saveSettings(db, { organizationId: org, actorId: manager, values: { cert_first_reminder_days: "2", cert_final_reminder_days: "3" } })).rejects.toThrow(/final reminder/i);
+    await expect(saveSettings(db, { organizationId: org, actorId: manager, values: { cert_first_reminder_days: "2", cert_final_reminder_days: "3" } })).rejects.toThrow(/count down/i);
+    await expect(saveSettings(db, { organizationId: org, actorId: manager, values: { cert_second_reminder_days: "40" } })).rejects.toThrow(/count down/i); // above the first (30)
+    await saveSettings(db, { organizationId: org, actorId: manager, values: { cert_first_reminder_days: "7", cert_second_reminder_days: "7", cert_final_reminder_days: "1" } }); // an old 7/1 setup stays valid
+    await saveSettings(db, { organizationId: org, actorId: manager, values: { cert_first_reminder_days: "30", cert_second_reminder_days: "7", cert_final_reminder_days: "1" } });
     await saveSettings(db, { organizationId: org, actorId: manager, values: { cert_expiry_days: "30", "cert_expiry_days:AGENTIFY": "" } });
     // Signatory and LinkedIn page number.
     await saveSettings(db, { organizationId: org, actorId: manager, values: { cert_signatory_name: "  Asad   B Zaman ", cert_signatory_title: "", linkedin_company_id: "12345" } });
@@ -263,7 +266,7 @@ describe("certificates", () => {
     expect(sent.some((m) => /Pharmivo training certificate/.test(m.subject))).toBe(true);
     expect(sent.some((m) => /Pharmivo certificate of authorisation/.test(m.subject))).toBe(true);
   });
-  it("sends the 7-day reminder once, then the 1-day reminder once", async () => {
+  it("sends the 7-day reminder once, then the 1-day reminder once (a late certificate skips the 30-day one)", async () => {
     const now = new Date("2027-06-01T00:00:00Z");
     await db.partnerCertificate.update({ where: { id: certId }, data: { expiresAt: new Date(now.getTime() + 5 * DAY), firstReminderAt: null, finalReminderAt: null, status: "ACTIVE" } });
     sent.length = 0;
@@ -278,6 +281,24 @@ describe("certificates", () => {
     await sendCertificateReminders(db, org, new Date(later.getTime() + 3600_000));
     expect(mine()).toHaveLength(2);
     expect(await db.notification.count({ where: { userId: manager, kind: "partner.certificate_expiring" } })).toBeGreaterThanOrEqual(2);
+  });
+  it("counts down 30, 7 and 1 day, one email each, with the refresher link when the Solution has a course", async () => {
+    const now = new Date("2027-07-01T00:00:00Z");
+    await db.partnerCertificate.update({ where: { id: certId }, data: { expiresAt: new Date(now.getTime() + 29 * DAY), firstReminderAt: null, secondReminderAt: null, finalReminderAt: null, status: "ACTIVE" } });
+    sent.length = 0;
+    const mine = () => sent.filter((m) => m.to === "cert@mail.test" && /expires in/.test(m.subject));
+    await sendCertificateReminders(db, org, now);
+    expect(mine()).toHaveLength(1);
+    expect(mine()[0].text).toMatch(/Contact the partner team/); // no published Academy course for this Solution here
+    await sendCertificateReminders(db, org, new Date(now.getTime() + 10 * DAY)); // 19 days left: still the first window
+    expect(mine()).toHaveLength(1);
+    await sendCertificateReminders(db, org, new Date(now.getTime() + 23 * DAY)); // 6 days left
+    expect(mine()).toHaveLength(2);
+    await sendCertificateReminders(db, org, new Date(now.getTime() + 28.5 * DAY)); // half a day left
+    expect(mine()).toHaveLength(3);
+    await sendCertificateReminders(db, org, new Date(now.getTime() + 28.7 * DAY));
+    expect(mine()).toHaveLength(3);
+    expect(await db.partnerCertificate.findUniqueOrThrow({ where: { id: certId } })).toMatchObject({ firstReminderAt: expect.any(Date), secondReminderAt: expect.any(Date), finalReminderAt: expect.any(Date) });
   });
   it("sends no reminder for revoked or already expired certificates", async () => {
     const now = new Date("2027-06-01T00:00:00Z");

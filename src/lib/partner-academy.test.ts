@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { AcademyError, cleanQuestion, draftPrompt, lessonStates, parseCorrect, parseQuestionSheet, parseVideoUrl, quizPassed, scorePct, testGate, testRules } from "./partner-academy";
+import { AcademyError, cleanQuestion, draftPrompt, lessonStates, parseCorrect, parseQuestionSheet, parseVideoUrl, quizPassed, refresherOpensAt, refresherRules, scorePct, testGate, testName, testRules } from "./partner-academy";
+import { reminderTier } from "./partner-stack";
 
 describe("video links", () => {
   it("reads YouTube links in every common form, including unlisted ones", () => {
@@ -102,5 +103,27 @@ describe("final test rules", () => {
     expect([scorePct(22, 30), scorePct(23, 30), scorePct(0, 0)]).toEqual([73, 76, 0]);
     expect(testRules({})).toEqual({ questions: 30, passPct: 75, minutes: 45, retakeHours: 24, maxTries: 3, pauseDays: 7 });
     expect(testRules({ academy_test_questions: "40", academy_test_pass_pct: "80" })).toMatchObject({ questions: 40, passPct: 80 });
+  });
+});
+
+describe("renewal", () => {
+  const D = 86_400_000;
+  const issued = new Date(Date.UTC(2027, 0, 1));
+  const cert = { issuedAt: issued, expiresAt: new Date(issued.getTime() + 365 * D) };
+  it("opens the refresher 30 days before expiry, or earlier when the partner team asks after the last renewal", () => {
+    expect(refresherOpensAt(cert, 30, null)).toEqual(new Date(issued.getTime() + 335 * D));
+    const asked = new Date(issued.getTime() + 100 * D);
+    expect(refresherOpensAt(cert, 30, asked)).toEqual(asked);
+    expect(refresherOpensAt(cert, 30, new Date(issued.getTime() - D))).toEqual(new Date(issued.getTime() + 335 * D)); // asked before this renewal: ignored
+    expect(refresherOpensAt({ issuedAt: issued, expiresAt: null }, 30, null)).toBeNull();
+  });
+  it("reads the refresher settings and keeps the final test's pass mark and retake rules", () => {
+    expect(refresherRules({})).toEqual({ questions: 15, passPct: 75, minutes: 20, retakeHours: 24, maxTries: 3, pauseDays: 7, windowDays: 30 });
+    expect(refresherRules({ academy_refresher_questions: "10", academy_test_pass_pct: "80" })).toMatchObject({ questions: 10, passPct: 80 });
+    expect([testName("FINAL"), testName("REFRESHER")]).toEqual(["final test", "refresher test"]);
+  });
+  it("picks the reminder due: 30, 7 or 1 day before expiry", () => {
+    const days = { first: 30, second: 7, final: 1 };
+    expect([31, 30, 8, 7, 2, 1, 0.2, 0, -1].map((d) => reminderTier(d * D, days))).toEqual([0, 1, 1, 2, 2, 3, 3, 0, 0]);
   });
 });

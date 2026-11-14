@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
-  AcademyError, addQuestion, deleteLesson, draftQuestionsWithClaude, importQuestions, saveCourse, saveLesson, setQuestionStatus, updateQuestion,
+  AcademyError, addQuestion, askEarlyRefresher, deleteLesson, draftQuestionsWithClaude, importQuestions, saveCourse, saveLesson, setQuestionStatus, updateQuestion,
 } from "@/lib/partner-academy";
 
 const str = (f: FormData, k: string) => String(f.get(k) ?? "");
@@ -142,4 +142,19 @@ export async function draftQuestionsAction(formData: FormData): Promise<void> {
   } catch (e) { fail(base, e); }
   revalidatePath(base);
   go(base, `saved=${encodeURIComponent(msg)}#questions`);
+}
+
+// After a big change to a Solution: every partner certified for it is asked (by email) to take the refresher test now.
+export async function askEarlyRefresherAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("partners.manage");
+  const courseId = str(formData, "courseId");
+  const base = `/partner-stack/academy/${courseId}`;
+  let emailed = 0;
+  try {
+    const r = await askEarlyRefresher(db, { organizationId: user.organizationId, courseId });
+    emailed = r.emailed;
+    await audit(user, { action: "partner.academy.refresher_asked", entity: "AcademyCourse", entityId: r.course.id, before: { refresherAskedAt: r.before }, after: { refresherAskedAt: r.after, partnersEmailed: r.emailed, reason: str(formData, "reason").trim().slice(0, 300) } });
+  } catch (e) { fail(base, e); }
+  revalidatePath(base);
+  go(base, `saved=${encodeURIComponent(emailed ? `Refresher test opened. ${emailed} certified partner${emailed === 1 ? " was" : "s were"} emailed.` : "Refresher test opened. Nobody holds this certificate yet, so no one was emailed.")}`);
 }
