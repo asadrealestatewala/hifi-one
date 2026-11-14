@@ -47,7 +47,8 @@ export default async function LessonPage({ params, searchParams }: { params: Pro
   const claude = await isConfigured(db, user.organizationId, "ANTHROPIC");
   const video = parseVideoUrl(lesson.videoUrl);
   const groups = (["DRAFT", "PUBLISHED", "RETIRED"] as const).map((s) => ({ status: s, rows: lesson.questions.filter((q) => q.status === s) }));
-  const published = groups[1].rows.length;
+  const published = groups[1].rows.filter((q) => !q.finalOnly).length;
+  const finalOnlyCheckbox = <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="finalOnly" /> Final test only (never in this lesson&rsquo;s quick check)</label>;
   const started = lesson._count.progress + lesson._count.attempts > 0;
   return (
     <div className="space-y-5">
@@ -81,7 +82,7 @@ export default async function LessonPage({ params, searchParams }: { params: Pro
         </div>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="isUpdate" defaultChecked={lesson.isUpdate} /> What&rsquo;s new lesson (no quick check, not needed for the certificate)</label>
         <SubmitButton>Save lesson</SubmitButton>
-        {!lesson.isUpdate && <p className="text-xs text-muted">Publishing needs at least {lesson.quizSize} published questions (this lesson has {published}). About 10 is best: each quick check draws {lesson.quizSize} at random, so a retake shows different ones. Partners pass with at most one wrong answer.</p>}
+        {!lesson.isUpdate && <p className="text-xs text-muted">Publishing needs at least {lesson.quizSize} published quick-check questions (this lesson has {published}). About 10 is best: each quick check draws {lesson.quizSize} at random, so a retake shows different ones. Partners pass with at most one wrong answer. Every published question, including &ldquo;final test only&rdquo; ones, can also appear in the Solution&rsquo;s final test.</p>}
       </form>
 
       {!lesson.isUpdate && (
@@ -94,7 +95,7 @@ export default async function LessonPage({ params, searchParams }: { params: Pro
               <ol className="space-y-3">
                 {g.rows.map((q, n) => (
                   <li key={q.id} className="rounded-lg border border-border p-3 text-sm">
-                    <p className="font-medium">{n + 1}. {q.text} <span className="text-xs font-normal text-muted">({SOURCE[q.source] ?? q.source})</span></p>
+                    <p className="font-medium">{n + 1}. {q.text} <span className="text-xs font-normal text-muted">({SOURCE[q.source] ?? q.source})</span>{q.finalOnly && <> <Badge tone="primary">final test only</Badge></>}</p>
                     <ul className="mt-1 space-y-0.5">
                       {q.options.map((o, i) => <li key={i} className={q.correct.includes(i) ? "font-medium text-success" : ""}>{LETTERS[i]}. {o}{q.correct.includes(i) && <> <Badge tone="success">correct</Badge></>}</li>)}
                     </ul>
@@ -136,6 +137,7 @@ export default async function LessonPage({ params, searchParams }: { params: Pro
                     <div><label className="label" htmlFor="d-count">How many</label><select id="d-count" name="count" defaultValue="10" className="input"><option>5</option><option>10</option><option>15</option></select></div>
                     <SubmitButton pendingText="Drafting…">Draft questions</SubmitButton>
                   </div>
+                  {finalOnlyCheckbox}
                   {(!lesson.script || lesson.script.length < 200) && <p className="text-xs text-brand">Paste the script above and save the lesson first.</p>}
                 </>
               ) : (
@@ -148,6 +150,7 @@ export default async function LessonPage({ params, searchParams }: { params: Pro
               <p className="text-sm text-muted">Columns: Question, Answer A, Answer B, Answer C, Answer D, Correct (a letter, or &ldquo;A,C&rdquo;), Why. Copy the rows from Google Sheets or Excel and paste them, or choose a .csv file. A header row is fine. Everything comes in as drafts.</p>
               <div><label className="label" htmlFor="i-sheet">Paste rows</label><textarea id="i-sheet" name="sheet" rows={4} className="input font-mono text-xs" /></div>
               <div><label className="label" htmlFor="i-file">Or a .csv file</label><input id="i-file" name="file" type="file" accept=".csv,.tsv,.txt,text/csv" className="input" /></div>
+              {finalOnlyCheckbox}
               <SubmitButton pendingText="Importing…">Import</SubmitButton>
             </form>
           </div>
@@ -156,6 +159,7 @@ export default async function LessonPage({ params, searchParams }: { params: Pro
             <h3 className="font-medium">Type a question</h3>
             <input type="hidden" name="lessonId" value={lesson.id} />
             <QuestionFields prefix="new" />
+            {finalOnlyCheckbox}
             <SubmitButton>Add as draft</SubmitButton>
           </form>
         </section>

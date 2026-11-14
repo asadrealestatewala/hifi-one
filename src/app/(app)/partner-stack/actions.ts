@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
-  PartnerError, approveApplication, issueCertificate, rejectApplication, renewCertificate, revokeCertificate, saveEarnerType, saveSettings, updateEarner, updateInquiry,
+  ACADEMY_TEST_SETTINGS, PartnerError, TYPE_KEYS, approveApplication, issueCertificate, rejectApplication, renewCertificate, revokeCertificate, saveEarnerType, setDirectAccess, saveSettings, updateEarner, updateInquiry,
 } from "@/lib/partner-stack";
 import { readDuration } from "./_components/Fields";
 
@@ -89,6 +89,19 @@ export async function issueCertificateAction(formData: FormData): Promise<void> 
   go(base, "saved=Certificate issued and emailed.");
 }
 
+export async function directAccessAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("partners.manage");
+  const id = str(formData, "id");
+  const on = str(formData, "on") === "1";
+  const base = `/partner-stack/partners?open=${encodeURIComponent(id)}`;
+  try {
+    const { before, after } = await setDirectAccess(db, { organizationId: user.organizationId, earnerId: id, on, reason: str(formData, "reason"), actorId: user.id });
+    await audit(user, { action: on ? "partner.direct_access.grant" : "partner.direct_access.remove", entity: "Earner", entityId: id, before: { directAccess: before.academyDirectAccess }, after: { directAccess: after.academyDirectAccess, reason: after.directAccessReason } });
+  } catch (e) { fail(base, e); }
+  revalidatePath("/partner-stack/partners");
+  go(base, on ? "saved=Direct access granted. You can now issue the certificate of authorisation by hand." : "saved=Direct access removed. The partner earns the certificate of authorisation through the final test.");
+}
+
 export async function renewCertificateAction(formData: FormData): Promise<void> {
   const user = await requirePermission("partners.manage");
   const id = str(formData, "id");
@@ -118,16 +131,16 @@ export async function saveSettingsAction(formData: FormData): Promise<void> {
   const base = "/partner-stack/settings";
   try {
     const values: Record<string, string> = {};
-    for (const [k, v] of formData.entries()) if (typeof v === "string" && (k.startsWith("cert_") || k.startsWith("calculator_") || k === "terms_text" || k === "linkedin_company_id")) values[k] = v;
+    for (const [k, v] of formData.entries()) if (typeof v === "string" && (k.startsWith("cert_") || k.startsWith("calculator_") || k === "terms_text" || k === "linkedin_company_id" || k in ACADEMY_TEST_SETTINGS)) values[k] = v;
     const clean = await saveSettings(db, { organizationId: user.organizationId, actorId: user.id, values });
     await audit(user, { action: "partner.settings", entity: "PartnerSetting", after: { ...clean, terms_text: clean.terms_text ? "(changed)" : undefined } });
-    for (const key of ["REFERRAL", "RESELLER", "EXCLUSIVE", "SALES_AGENT"]) {
+    for (const key of TYPE_KEYS) {
       if (!formData.has(`rate_${key}`)) continue;
       const { before, after } = await saveEarnerType(db, {
         organizationId: user.organizationId, key, rate: str(formData, `rate_${key}`), durationMonths: str(formData, `months_${key}`), leadSharing: formData.get(`lead_${key}`) === "on",
-        publicOffer: formData.get(`public_${key}`) === "on", active: formData.get(`active_${key}`) === "on",
+        publicOffer: formData.get(`public_${key}`) === "on", active: formData.get(`active_${key}`) === "on", academyRequired: formData.get(`academyreq_${key}`) === "on",
       });
-      await audit(user, { action: "partner.type.update", entity: "EarnerType", entityId: after.id, before: { rate: String(before.defaultRate), months: before.defaultDurationMonths }, after: { rate: String(after.defaultRate), months: after.defaultDurationMonths } });
+      await audit(user, { action: "partner.type.update", entity: "EarnerType", entityId: after.id, before: { rate: String(before.defaultRate), months: before.defaultDurationMonths }, after: { rate: String(after.defaultRate), months: after.defaultDurationMonths, academyRequired: after.academyRequired } });
     }
   } catch (e) { fail(base, e); }
   revalidatePath(base);

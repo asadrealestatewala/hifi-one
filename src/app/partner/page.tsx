@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requirePartnerUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { certificateKindLabel, certificateStatus, durationLabel, getSettings, linkedInAddUrl, linkedInShareUrl, partnerId } from "@/lib/partner-stack";
@@ -68,7 +69,7 @@ export default async function PartnerHome() {
           </table></div>
         )}
         <p className="px-4 pt-4 text-xs text-muted">Adding to your LinkedIn profile fills in the certificate name, issuer, ID and verify link for you. Sharing posts your verify link, which shows the certificate as a picture; the image download is for Facebook, Instagram, WhatsApp or anywhere else.</p>
-        <p className="p-4 text-xs text-muted">You get a training certificate when you finish training on a Solution, then the certificate of authorisation that lets you sell it. A certificate of authorisation that is about to expire is renewed by the partner team. We email you 7 days and 1 day before.</p>
+        <p className="p-4 text-xs text-muted">You get a training certificate when you finish a Solution&rsquo;s course in the <Link className="underline" href="/partner/academy">Partner Academy</Link>, then the certificate of authorisation that lets you sell it when you pass its final test. A certificate of authorisation that is about to expire is renewed by the partner team. We email you 7 days and 1 day before.</p>
       </section>
     </>
   );

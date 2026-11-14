@@ -1,6 +1,6 @@
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { SOLUTION_EXPIRY_KEY, ensurePartnerDefaults, getSettings } from "@/lib/partner-stack";
+import { ACADEMY_TEST_SETTINGS, SOLUTION_EXPIRY_KEY, ensurePartnerDefaults, getSettings } from "@/lib/partner-stack";
 import { Notice, PageHeader } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import SubmitButton from "@/components/ui/SubmitButton";
@@ -31,7 +31,7 @@ export default async function PartnerSettings({ searchParams }: { searchParams: 
         <section className="card !p-0 overflow-x-auto">
           <h2 className="px-4 pt-4 font-semibold">Partner types</h2>
           <table className="mt-2 w-full text-sm">
-            <thead><tr className="text-left"><th className="px-4 py-2">Type</th><th className="pr-3">Commission %</th><th className="pr-3">Months (empty = lifetime)</th><th className="pr-3">Hifi leads</th><th className="pr-3">On public page</th><th className="pr-3">Active</th></tr></thead>
+            <thead><tr className="text-left"><th className="px-4 py-2">Type</th><th className="pr-3">Commission %</th><th className="pr-3">Months (empty = lifetime)</th><th className="pr-3">Hifi leads</th><th className="pr-3">On public page</th><th className="pr-3">Final test for authorisation</th><th className="pr-3">Active</th></tr></thead>
             <tbody className="divide-y divide-border">
               {types.map((t) => (
                 <tr key={t.key}>
@@ -40,12 +40,22 @@ export default async function PartnerSettings({ searchParams }: { searchParams: 
                   <td className="pr-3"><input name={`months_${t.key}`} defaultValue={t.defaultDurationMonths ?? ""} type="number" min={1} max={600} className="input !w-24" aria-label={`${t.name} months`} /></td>
                   <td className="pr-3"><input type="checkbox" name={`lead_${t.key}`} defaultChecked={t.leadSharing} aria-label={`${t.name} receives Hifi leads`} /></td>
                   <td className="pr-3"><input type="checkbox" name={`public_${t.key}`} defaultChecked={t.publicOffer} aria-label={`${t.name} shown on the public page`} /></td>
+                  <td className="pr-3"><input type="checkbox" name={`academyreq_${t.key}`} defaultChecked={t.academyRequired} aria-label={`${t.name} earns the certificate of authorisation through the Academy final test`} /></td>
                   <td className="pr-3"><input type="checkbox" name={`active_${t.key}`} defaultChecked={t.active} aria-label={`${t.name} active`} /></td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="p-4 text-xs text-muted">The Exclusive Sales Partner rate is set per person when you approve them; this is only the starting value. The Sales Agent type is used from Phase 5.</p>
+          <p className="p-4 text-xs text-muted">The Exclusive Sales Partner rate is set per person when you approve them; this is only the starting value. The Sales Agent type is used from Phase 5. &ldquo;Final test for authorisation&rdquo;: partners of that type get the certificate of authorisation by passing the Partner Academy final test; untick it (as for Exclusive partners) to issue it by hand. One partner can also be given direct access on their page.</p>
+        </section>
+        <section className="card space-y-3">
+          <h2 className="font-semibold">Partner Academy final test</h2>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {Object.entries(ACADEMY_TEST_SETTINGS).map(([key, [label, min, max]]) => (
+              <div key={key}><label className="label" htmlFor={`s-${key}`}>{label}</label><input id={`s-${key}`} name={key} type="number" min={min} max={max} required defaultValue={s[key]} className="input" /></div>
+            ))}
+          </div>
+          <p className="text-xs text-muted">Questions are drawn at random from every published question of the Solution&rsquo;s course. A test not submitted in time counts as a try. After the last try the test pauses and the partner team is told. Passing issues the certificate of authorisation automatically.</p>
         </section>
         <section className="card space-y-3">
           <h2 className="font-semibold">Certificates</h2>

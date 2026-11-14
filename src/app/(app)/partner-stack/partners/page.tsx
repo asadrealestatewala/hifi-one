@@ -8,7 +8,8 @@ import { Chips, Empty, Notice, PageHeader, Pager, SearchBox, StatusBadge } from 
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import Drawer from "@/components/ui/Drawer";
 import SubmitButton from "@/components/ui/SubmitButton";
-import { issueCertificateAction, updatePartnerAction } from "../actions";
+import ConfirmButton from "@/components/ui/ConfirmButton";
+import { directAccessAction, issueCertificateAction, updatePartnerAction } from "../actions";
 import { DurationFields } from "../_components/Fields";
 
 export const dynamic = "force-dynamic";
@@ -113,9 +114,25 @@ export default async function Partners({ searchParams }: { searchParams: Promise
                 </form>
               )}
               {open.status === "ACTIVE" && open.solutions.length > 0 && (
-                <p className="text-xs text-muted">Training comes first: issue the training certificate when the partner finishes training on a Solution, then the certificate of authorisation for that Solution.</p>
+                <p className="text-xs text-muted">Training comes first. The Partner Academy issues both certificates automatically: the training certificate when the partner finishes a Solution&rsquo;s course, the certificate of authorisation when they pass its final test. {open.type.academyRequired && !open.academyDirectAccess ? `As a ${open.type.name}, this partner earns the certificate of authorisation through the final test; grant direct access below to issue it by hand.` : "You can issue both by hand here."}</p>
               )}
             </section>
+            {open.type.academyRequired && (
+              <section className="card space-y-2">
+                <h3 className="font-semibold">Direct access</h3>
+                {open.academyDirectAccess ? (
+                  <>
+                    <p className="text-sm">Granted {open.directAccessAt ? when(open.directAccessAt) : ""}: {open.directAccessReason}. You can issue the certificate of authorisation by hand, without the final test.</p>
+                    <form action={directAccessAction}><input type="hidden" name="id" value={open.id} /><input type="hidden" name="on" value="0" /><ConfirmButton title="Remove direct access?" message="The partner will earn the certificate of authorisation through the Academy final test again. Certificates already issued stay valid." confirmLabel="Remove">Remove direct access</ConfirmButton></form>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted">For a partner who should skip the final test, for example one bringing an enterprise client. You give the reason; it is recorded in the audit log.</p>
+                    <form action={directAccessAction}><input type="hidden" name="id" value={open.id} /><input type="hidden" name="on" value="1" /><ConfirmButton reason className="btn-ghost" title="Grant direct access?" message={<>You will be able to issue {open.name}&rsquo;s certificate of authorisation by hand, without the Partner Academy final test.</>} confirmLabel="Grant">Grant direct access</ConfirmButton></form>
+                  </>
+                )}
+              </section>
+            )}
           </div>
         </Drawer>
       )}

@@ -24,8 +24,8 @@ import { notifyMany, usersWithPermission } from "./notifications";
 type Db = PrismaClient;
 export class PartnerError extends Error { constructor(message: string, readonly status = 400, readonly field?: string) { super(message); } }
 
-export const TYPE_KEYS = ["REFERRAL", "RESELLER", "EXCLUSIVE", "SALES_AGENT"] as const;
-export const INTEREST_KEYS = ["REFERRAL", "RESELLER", "EXCLUSIVE", "NOT_SURE"] as const;
+export const TYPE_KEYS = ["STUDENT", "REFERRAL", "RESELLER", "EXCLUSIVE", "SALES_AGENT"] as const;
+export const INTEREST_KEYS = ["STUDENT", "REFERRAL", "RESELLER", "EXCLUSIVE", "NOT_SURE"] as const;
 export const PROFESSIONS = [
   ["STUDENT", "University student"], ["EMPLOYED", "Employed"], ["BUSINESS_OWNER", "Business owner"],
   ["FREELANCER", "Freelancer"], ["INDUSTRY_PROFESSIONAL", "Industry professional"], ["OTHER", "Other"],
@@ -36,14 +36,18 @@ export const INQUIRY_STATUSES = ["NEW", "REPLIED", "CLOSED"] as const;
 
 // ----- Defaults, written once and then edited in Partner Stack settings -----
 
+// academyRequired: the type earns the certificate of authorisation by passing the Academy final test. Exclusive partners (who may
+// bring enterprise clients) and Hifi's own sales agents get it from the partner team instead.
 export const DEFAULT_TYPES = [
-  { key: "REFERRAL", name: "Referral Partner", defaultRate: "20", defaultDurationMonths: null as number | null, leadSharing: false, publicOffer: true, sortOrder: 1,
+  { key: "STUDENT", name: "Student Partner", defaultRate: "20", defaultDurationMonths: null as number | null, leadSharing: false, publicOffer: true, sortOrder: 0, academyRequired: true,
+    description: "For university students. Learn each Solution in the Partner Academy, pass the test, then introduce businesses. Hifi demos and closes. You earn recurring commission." },
+  { key: "REFERRAL", name: "Referral Partner", defaultRate: "20", defaultDurationMonths: null as number | null, leadSharing: false, publicOffer: true, sortOrder: 1, academyRequired: true,
     description: "You introduce a business. Hifi demos, closes and supports the client. You earn recurring commission." },
-  { key: "RESELLER", name: "Reseller Partner", defaultRate: "30", defaultDurationMonths: null as number | null, leadSharing: false, publicOffer: true, sortOrder: 2,
+  { key: "RESELLER", name: "Reseller Partner", defaultRate: "30", defaultDurationMonths: null as number | null, leadSharing: false, publicOffer: true, sortOrder: 2, academyRequired: true,
     description: "You run the demo, close the sale and support your client. You earn the highest recurring commission." },
-  { key: "EXCLUSIVE", name: "Exclusive Sales Partner", defaultRate: "30", defaultDurationMonths: null as number | null, leadSharing: true, publicOffer: true, sortOrder: 3,
+  { key: "EXCLUSIVE", name: "Exclusive Sales Partner", defaultRate: "30", defaultDurationMonths: null as number | null, leadSharing: true, publicOffer: true, sortOrder: 3, academyRequired: false,
     description: "Your rate is agreed with you. You receive Hifi leads in your territory." },
-  { key: "SALES_AGENT", name: "Sales Agent", defaultRate: "20", defaultDurationMonths: null as number | null, leadSharing: false, publicOffer: false, sortOrder: 4,
+  { key: "SALES_AGENT", name: "Sales Agent", defaultRate: "20", defaultDurationMonths: null as number | null, leadSharing: false, publicOffer: false, sortOrder: 4, academyRequired: false,
     description: "A Hifi employee earning commission on the clients they close." },
 ];
 
@@ -67,6 +71,23 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   cert_signatory_name: "",
   cert_signatory_title: "",
   linkedin_company_id: "",
+  // Partner Academy final test
+  academy_test_questions: "30",
+  academy_test_pass_pct: "75",
+  academy_test_minutes: "45",
+  academy_retake_hours: "24",
+  academy_max_tries: "3",
+  academy_pause_days: "7",
+};
+
+// Bounds for the final test settings: [label, min, max]
+export const ACADEMY_TEST_SETTINGS: Record<string, [string, number, number]> = {
+  academy_test_questions: ["Questions in the final test", 5, 100],
+  academy_test_pass_pct: ["Pass mark (%)", 50, 100],
+  academy_test_minutes: ["Time allowed (minutes)", 5, 240],
+  academy_retake_hours: ["Wait before a retake (hours)", 0, 720],
+  academy_max_tries: ["Tries before a pause", 1, 10],
+  academy_pause_days: ["Pause after the last try (days)", 1, 90],
 };
 
 export const SOLUTION_EXPIRY_KEY = (code: string) => `cert_expiry_days:${code}`;
@@ -124,6 +145,12 @@ export async function saveSettings(db: Db, p: { organizationId: string; actorId:
       clean[key] = t;
     }
     else if (key === "linkedin_company_id") { const t = v.trim(); if (t && !/^\d{1,15}$/.test(t)) throw new PartnerError("LinkedIn company page ID: use the number only, or leave it empty."); clean[key] = t; }
+    else if (key in ACADEMY_TEST_SETTINGS) {
+      const [label, min, max] = ACADEMY_TEST_SETTINGS[key];
+      const t = v.trim();
+      if (!/^\d{1,4}$/.test(t) || Number(t) < min || Number(t) > max) throw new PartnerError(`${label}: enter a whole number from ${min} to ${max}.`);
+      clean[key] = String(Number(t));
+    }
     else if (key === "terms_text") { if (v.trim().length < 20 || v.length > 20_000) throw new PartnerError("Terms: write between 20 and 20,000 characters."); clean[key] = v.trim(); }
   }
   if (Number(clean.cert_final_reminder_days ?? 1) >= Number(clean.cert_first_reminder_days ?? 7) && clean.cert_final_reminder_days && clean.cert_first_reminder_days) {
@@ -136,12 +163,12 @@ export async function saveSettings(db: Db, p: { organizationId: string; actorId:
   return clean;
 }
 
-export async function saveEarnerType(db: Db, p: { organizationId: string; key: string; rate: string; durationMonths: string; leadSharing: boolean; publicOffer: boolean; active: boolean }) {
+export async function saveEarnerType(db: Db, p: { organizationId: string; key: string; rate: string; durationMonths: string; leadSharing: boolean; publicOffer: boolean; active: boolean; academyRequired: boolean }) {
   const t = await db.earnerType.findUnique({ where: { organizationId_key: { organizationId: p.organizationId, key: p.key } } });
   if (!t) throw new PartnerError("Unknown partner type.", 404);
   const rate = cleanRate(p.rate);
   const months = cleanDuration(p.durationMonths);
-  return { before: t, after: await db.earnerType.update({ where: { id: t.id }, data: { defaultRate: rate, defaultDurationMonths: months, leadSharing: p.leadSharing, publicOffer: p.publicOffer, active: p.active } }) };
+  return { before: t, after: await db.earnerType.update({ where: { id: t.id }, data: { defaultRate: rate, defaultDurationMonths: months, leadSharing: p.leadSharing, publicOffer: p.publicOffer, active: p.active, academyRequired: p.academyRequired } }) };
 }
 
 export function cleanRate(v: string): string {
@@ -259,7 +286,7 @@ export async function submitApplication(db: Db, p: { organizationId: string; inp
   return { ok: true as const, stored: true, duplicate: false };
 }
 
-export const typeLabel = (key: string) => ({ REFERRAL: "Referral Partner", RESELLER: "Reseller Partner", EXCLUSIVE: "Exclusive Sales Partner", NOT_SURE: "Not sure yet", SALES_AGENT: "Sales Agent" } as Record<string, string>)[key] ?? key;
+export const typeLabel = (key: string) => ({ REFERRAL: "Referral Partner", RESELLER: "Reseller Partner", EXCLUSIVE: "Exclusive Sales Partner", NOT_SURE: "Not sure yet", SALES_AGENT: "Sales Agent", STUDENT: "Student Partner" } as Record<string, string>)[key] ?? key;
 
 // ----- Review, approval -----
 
@@ -287,7 +314,7 @@ export async function approveApplication(db: Db, p: ApprovalInput) {
   if (!app) throw new PartnerError("Application not found.", 404);
   if (app.status !== "NEW") throw new PartnerError(`This application was already ${app.status.toLowerCase()}.`);
   const type = await db.earnerType.findUnique({ where: { organizationId_key: { organizationId: p.organizationId, key: p.typeKey } } });
-  if (!type || !type.active || p.typeKey === "SALES_AGENT") throw new PartnerError("Choose Referral, Reseller or Exclusive.", 400, "typeKey");
+  if (!type || !type.active || p.typeKey === "SALES_AGENT") throw new PartnerError("Choose Student, Referral, Reseller or Exclusive.", 400, "typeKey");
   const rate = cleanRate(p.ratePercent);
   const months = cleanDuration(p.durationMonths);
   const territory = (p.territory ?? "").trim().slice(0, 200) || null;
@@ -411,13 +438,18 @@ async function issueCertificateTx(tx: Tx | Db, p: { organizationId: string; earn
 const liveWhere = (now: Date) => ({ status: "ACTIVE", OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] });
 
 // Training first: the certificate of authorisation for a Solution needs a valid training certificate for the same Solution.
-// actorId is null when the Partner Academy issues a training certificate automatically.
-export async function issueCertificate(db: Db, p: { organizationId: string; earnerId: string; solutionCode: string; kind: string; actorId: string | null; now?: Date }) {
+// actorId is null when the Partner Academy issues a certificate automatically (via "ACADEMY").
+// A partner whose type takes the Academy earns the certificate of authorisation by passing the final test; the partner team can
+// issue it by hand only after granting them direct access.
+export async function issueCertificate(db: Db, p: { organizationId: string; earnerId: string; solutionCode: string; kind: string; actorId: string | null; via?: "STAFF" | "ACADEMY"; now?: Date }) {
   if (!isCertificateKind(p.kind)) throw new PartnerError("Choose a training or a certificate of authorisation.");
   const kind = p.kind;
   const now = p.now ?? new Date();
-  const earner = await db.earner.findFirst({ where: { id: p.earnerId, organizationId: p.organizationId, status: "ACTIVE" }, include: { solutions: { include: { product: true } } } });
+  const earner = await db.earner.findFirst({ where: { id: p.earnerId, organizationId: p.organizationId, status: "ACTIVE" }, include: { solutions: { include: { product: true } }, type: true } });
   if (!earner) throw new PartnerError("Partner not found or not active.", 404);
+  if (kind === "AUTHORISATION" && (p.via ?? "STAFF") === "STAFF" && earner.type.academyRequired && !earner.academyDirectAccess) {
+    throw new PartnerError(`${earner.type.name}s earn the certificate of authorisation by passing the final test in the Partner Academy. To issue it by hand, grant this partner direct access first.`);
+  }
   const sol = earner.solutions.find((s) => s.product.code === p.solutionCode)?.product;
   if (!sol) throw new PartnerError("This partner is not approved for that Solution. Add it to their Solutions first.");
   const live = await db.partnerCertificate.findFirst({ where: { earnerId: earner.id, productId: sol.id, kind, ...liveWhere(now) } });
@@ -450,6 +482,21 @@ export async function renewCertificate(db: Db, p: { organizationId: string; id: 
   });
   await emailCertificate(db, cert.id);
   return { before: cert, after };
+}
+
+// Direct access lets the partner team issue the certificate of authorisation by hand, without the final test (for example a
+// partner bringing an enterprise client). Turning it on needs a reason; both changes are audited by the caller.
+export async function setDirectAccess(db: Db, p: { organizationId: string; earnerId: string; on: boolean; reason: string; actorId: string; now?: Date }) {
+  const before = await db.earner.findFirst({ where: { id: p.earnerId, organizationId: p.organizationId }, include: { type: true } });
+  if (!before) throw new PartnerError("Partner not found.", 404);
+  const reason = p.reason.trim().replace(/\s+/g, " ").slice(0, 300);
+  if (p.on && reason.length < 5) throw new PartnerError("Give the reason for direct access (at least 5 characters).");
+  if (p.on && !before.type.academyRequired) throw new PartnerError(`${before.type.name}s already get the certificate of authorisation from the partner team.`);
+  const after = await db.earner.update({
+    where: { id: before.id },
+    data: p.on ? { academyDirectAccess: true, directAccessReason: reason, directAccessById: p.actorId, directAccessAt: p.now ?? new Date() } : { academyDirectAccess: false, directAccessReason: null, directAccessById: null, directAccessAt: null },
+  });
+  return { before, after };
 }
 
 export async function revokeCertificate(db: Db, p: { organizationId: string; id: string; actorId: string; reason: string; now?: Date }) {

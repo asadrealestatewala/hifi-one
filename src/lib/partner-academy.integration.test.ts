@@ -2,10 +2,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { setTransportForTests, type Outgoing } from "./mailer";
 import {
-  AcademyError, academyFor, academyProgress, addQuestion, deleteLesson, draftQuestionsWithClaude, importQuestions, lessonForPartner, recordWatch, saveCourse, saveLesson,
+  AcademyError, saveTestAnswers, startTest, submitTest, testPaper, testResult, testStatus, academyFor, academyProgress, addQuestion, deleteLesson, draftQuestionsWithClaude, importQuestions, lessonForPartner, recordWatch, saveCourse, saveLesson,
   setQuestionStatus, startQuiz, submitQuiz, updateQuestion,
 } from "./partner-academy";
-import { approveApplication, ensurePartnerDefaults, submitApplication } from "./partner-stack";
+import { approveApplication, ensurePartnerDefaults, issueCertificate, saveSettings, setDirectAccess, submitApplication } from "./partner-stack";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
 const db = new PrismaClient({ datasourceUrl: url });
@@ -86,7 +86,7 @@ describe("building courses (staff)", () => {
     const { after: l } = await saveLesson(db, lessonInput(course.id, { title: "Dealers", notes: "Key points" }));
     expect(l.sortOrder).toBe(1);
     await addQuestion(db, { organizationId: org, lessonId: l.id, input: { text: "Who buys Velocity?", options: ["Car dealers", "Pharmacies"], correct: [0] }, actorId: manager });
-    await expect(saveLesson(db, lessonInput(course.id, { id: l.id, status: "PUBLISHED" }))).rejects.toThrow(/at least 3 questions .* has 0/);
+    await expect(saveLesson(db, lessonInput(course.id, { id: l.id, status: "PUBLISHED" }))).rejects.toThrow(/at least 3 quick-check questions .* has 0/);
     // A what's new lesson needs no questions
     const { after: news } = await saveLesson(db, lessonInput(course.id, { title: "New in March", isUpdate: true }));
     await saveLesson(db, lessonInput(course.id, { id: news.id, title: "New in March", isUpdate: true, status: "PUBLISHED" }));
@@ -179,7 +179,7 @@ describe("taking the Academy (partners)", () => {
     await expect(deleteLesson(db, { organizationId: org, id: agentify.lessonIds[0] })).rejects.toThrow(/started this lesson/);
     const progress = await academyProgress(db, org, { skip: 0, take: 20 });
     const row = progress.rows.find((r) => r.earner.id === ayesha.id)!;
-    expect(row.courses).toEqual([{ title: "Foundations", done: 1, of: 1 }, { title: "Agentify ERP", done: 2, of: 2 }]);
+    expect(row.courses).toEqual([{ title: "Foundations", done: 1, of: 1, test: null }, { title: "Agentify ERP", done: 2, of: 2, test: null }]);
     expect(progress.rows.find((r) => r.earner.id === bilal.id)!.courses.map((c) => c.done)).toEqual([0, 0]);
   });
 });
@@ -218,5 +218,123 @@ describe("drafting questions with Claude", () => {
     await expect(draftQuestionsWithClaude(db, { organizationId: org, lessonId, actorId: manager, apiKey: "k", fetchImpl: ok({}, 200, "max_tokens") })).rejects.toThrow(/cut off/);
     await expect(draftQuestionsWithClaude(db, { organizationId: org, lessonId, actorId: manager, apiKey: "k", fetchImpl: ok({}, 401) })).rejects.toThrow(/refused/);
     await expect(draftQuestionsWithClaude(db, { organizationId: org, lessonId, actorId: manager, apiKey: "k", fetchImpl: ok({ questions: [] }) })).rejects.toBeInstanceOf(AcademyError);
+  });
+});
+
+describe("the final test", () => {
+  const H = 3_600_000, D = 24 * H;
+  const t0 = new Date("2027-01-10T09:00:00Z");
+  const at = (ms: number) => new Date(t0.getTime() + ms);
+  let course: string;
+  const rightAnswers = async (attemptId: string) => {
+    const paper = await testPaper(db, ayesha, attemptId, t0);
+    const qs = await db.academyQuestion.findMany({ where: { id: { in: paper.attempt.questionIds } } });
+    return Object.fromEntries(qs.map((q) => [q.id, q.correct]));
+  };
+  const take = async (now: Date, right: boolean) => {
+    const { attemptId } = await startTest(db, { earner: ayesha, courseId: course, declared: true, now });
+    const answers = right ? await rightAnswers(attemptId) : Object.fromEntries((await db.academyTestAttempt.findUniqueOrThrow({ where: { id: attemptId } })).questionIds.map((id) => [id, [3]]));
+    return { attemptId, ...(await submitTest(db, { earner: ayesha, attemptId, answers, now: new Date(now.getTime() + 10 * 60_000) })) };
+  };
+  beforeAll(async () => {
+    course = (await db.academyCourse.findFirstOrThrow({ where: { organizationId: org, product: { code: "AGENTIFY" } } })).id;
+    await saveSettings(db, { organizationId: org, actorId: manager, values: { academy_test_questions: "5", academy_test_pass_pct: "80", academy_test_minutes: "30", academy_retake_hours: "24", academy_max_tries: "3", academy_pause_days: "7" } });
+  });
+
+  it("validates its settings", async () => {
+    await expect(saveSettings(db, { organizationId: org, actorId: manager, values: { academy_test_pass_pct: "40" } })).rejects.toThrow(/Pass mark .* 50 to 100/);
+    await expect(saveSettings(db, { organizationId: org, actorId: manager, values: { academy_test_questions: "abc" } })).rejects.toThrow(/Questions in the final test/);
+  });
+
+  it("opens only with the training certificate, and only for the partner's own Solutions", async () => {
+    expect((await testStatus(db, ayesha, course, t0)).state).toEqual({ state: "ready", triesLeft: 3 });
+    await expect(testStatus(db, bilal, course, t0)).rejects.toMatchObject({ status: 404 });
+    const pharmivo = (await db.academyCourse.findFirstOrThrow({ where: { organizationId: org, product: { code: "PHARMIVO" } } })).id;
+    expect((await testStatus(db, bilal, pharmivo, t0)).state.state).toBe("no_training");
+    await expect(startTest(db, { earner: bilal, courseId: pharmivo, declared: true, now: t0 })).rejects.toThrow(/Finish the course first/);
+  });
+
+  it("needs the declaration, stores the drawn paper without answers, and resumes the same paper", async () => {
+    await expect(startTest(db, { earner: ayesha, courseId: course, declared: false, now: t0 })).rejects.toThrow(/declaration/);
+    const { attemptId } = await startTest(db, { earner: ayesha, courseId: course, declared: true, now: t0 });
+    const a = await db.academyTestAttempt.findUniqueOrThrow({ where: { id: attemptId } });
+    expect(a).toMatchObject({ total: 5, passMark: 80, status: "IN_PROGRESS" });
+    expect(a.deadlineAt.getTime() - t0.getTime()).toBe(30 * 60_000);
+    expect(new Set(a.questionIds).size).toBe(5);
+    expect((await startTest(db, { earner: ayesha, courseId: course, declared: true, now: at(60_000) })).attemptId).toBe(attemptId);
+    const paper = await testPaper(db, ayesha, attemptId, at(60_000));
+    expect(paper.questions).toHaveLength(5);
+    expect(paper.questions[0]).not.toHaveProperty("correct");
+    await expect(testPaper(db, bilal, attemptId, t0)).rejects.toThrow(/not found/);
+    // Answers saved as the partner goes; when time runs out they are marked, and a timed-out test never passes
+    await saveTestAnswers(db, { earner: ayesha, attemptId, answers: await rightAnswers(attemptId), now: at(5 * 60_000) });
+    const st = await testStatus(db, ayesha, course, at(40 * 60_000));
+    expect(await db.academyTestAttempt.findUniqueOrThrow({ where: { id: attemptId } })).toMatchObject({ status: "EXPIRED", scorePct: 100, passed: false });
+    expect(st.state).toMatchObject({ state: "wait", paused: false, triesLeft: 2 });
+    await expect(saveTestAnswers(db, { earner: ayesha, attemptId, answers: {}, now: at(41 * 60_000) })).rejects.toThrow(/Time is up/);
+    await expect(submitTest(db, { earner: ayesha, attemptId, answers: {}, now: at(41 * 60_000) })).rejects.toThrow(/already marked/);
+  });
+
+  it("makes the partner wait between tries, pauses after the last one and tells the partner team", async () => {
+    await expect(startTest(db, { earner: ayesha, courseId: course, declared: true, now: at(2 * H) })).rejects.toThrow(/retake/);
+    const second = await take(at(D + H), false);
+    expect(second).toMatchObject({ passed: false, scorePct: 0, certificateId: null });
+    expect((await testResult(db, ayesha, second.attemptId)).byLesson.reduce((n, l) => n + l.of, 0)).toBe(5);
+    const third = await take(at(2 * D + 2 * H), false);
+    expect(third.passed).toBe(false);
+    const st = await testStatus(db, ayesha, course, at(3 * D));
+    expect(st.state).toMatchObject({ state: "wait", paused: true });
+    expect((st.state as { nextAt: Date }).nextAt.getTime()).toBe(at(2 * D + 2 * H + 10 * 60_000).getTime() + 7 * D);
+    expect(await db.notification.count({ where: { userId: manager, kind: "partner.academy_test_paused" } })).toBe(1);
+    expect(await db.notification.count({ where: { userId: outsider } })).toBe(0);
+    expect((await testStatus(db, ayesha, course, at(10 * D)).then((s) => s.state))).toEqual({ state: "ready", triesLeft: 3 });
+  });
+
+  it("issues the certificate of authorisation automatically on a pass", async () => {
+    sent.length = 0;
+    const r = await take(at(10 * D), true);
+    expect(r).toMatchObject({ passed: true, scorePct: 100, expired: false });
+    const cert = await db.partnerCertificate.findUniqueOrThrow({ where: { id: r.certificateId! } });
+    expect(cert).toMatchObject({ kind: "AUTHORISATION", issuedById: null, status: "ACTIVE" });
+    expect(cert.expiresAt!.getTime()).toBeGreaterThan(at(10 * D).getTime());
+    expect(sent.some((m) => m.to === "ayesha@mail.test" && /certificate of authorisation/i.test(m.subject))).toBe(true);
+    expect(await db.notification.count({ where: { userId: manager, kind: "partner.academy_test_passed" } })).toBe(1);
+    expect((await testStatus(db, ayesha, course, at(10 * D + H))).state).toEqual({ state: "certified", publicId: cert.publicId });
+    await expect(startTest(db, { earner: ayesha, courseId: course, declared: true, now: at(10 * D + H) })).rejects.toThrow(/already hold/);
+    const row = (await academyProgress(db, org, { skip: 0, take: 20 })).rows.find((x) => x.earner.id === ayesha.id)!;
+    expect(row.courses[1].test).toEqual({ tries: 4, last: 100, passed: true });
+  });
+
+  it("keeps the certificate of authorisation for Academy partners behind the test unless the team grants direct access", async () => {
+    await expect(issueCertificate(db, { organizationId: org, earnerId: bilal.id, solutionCode: "PHARMIVO", kind: "AUTHORISATION", actorId: manager })).rejects.toThrow(/final test in the Partner Academy/);
+    await expect(setDirectAccess(db, { organizationId: org, earnerId: bilal.id, on: true, reason: "", actorId: manager })).rejects.toThrow(/reason/);
+    await expect(setDirectAccess(db, { organizationId: other, earnerId: bilal.id, on: true, reason: "Enterprise client", actorId: manager })).rejects.toThrow(/not found/);
+    await setDirectAccess(db, { organizationId: org, earnerId: bilal.id, on: true, reason: "Brings an enterprise pharmacy chain", actorId: manager });
+    // Now only the normal training-first rule applies
+    await expect(issueCertificate(db, { organizationId: org, earnerId: bilal.id, solutionCode: "PHARMIVO", kind: "AUTHORISATION", actorId: manager })).rejects.toThrow(/training certificate first/);
+    await issueCertificate(db, { organizationId: org, earnerId: bilal.id, solutionCode: "PHARMIVO", kind: "TRAINING", actorId: manager });
+    expect((await issueCertificate(db, { organizationId: org, earnerId: bilal.id, solutionCode: "PHARMIVO", kind: "AUTHORISATION", actorId: manager })).kind).toBe("AUTHORISATION");
+    const { after } = await setDirectAccess(db, { organizationId: org, earnerId: bilal.id, on: false, reason: "", actorId: manager });
+    expect(after).toMatchObject({ academyDirectAccess: false, directAccessReason: null });
+  });
+
+  it("keeps final-test-only questions out of quick checks", async () => {
+    const velocity = await db.academyCourse.findFirstOrThrow({ where: { organizationId: org, product: { code: "VELOCITY" } } });
+    const { after: l } = await saveLesson(db, lessonInput(velocity.id, { title: "Finance options" }));
+    await importQuestions(db, { organizationId: org, lessonId: l.id, sheet: sheet(2, "quick"), actorId: manager });
+    await importQuestions(db, { organizationId: org, lessonId: l.id, sheet: sheet(4, "final"), finalOnly: true, actorId: manager });
+    for (const q of await db.academyQuestion.findMany({ where: { lessonId: l.id } })) await setQuestionStatus(db, { organizationId: org, id: q.id, action: "publish" });
+    await expect(saveLesson(db, lessonInput(velocity.id, { id: l.id, title: l.title, status: "PUBLISHED" }))).rejects.toThrow(/has 2/);
+    expect(await db.academyQuestion.count({ where: { lessonId: l.id, finalOnly: true } })).toBe(4);
+  });
+});
+
+describe("the Student partner type", () => {
+  it("can apply and be approved as a Student, and takes the Academy", async () => {
+    await submitApplication(db, { organizationId: org, input: { name: "Sana Student", email: "sana@uni.test", phone: "+92 300 7654321", city: "Lahore", country: "Pakistan", professionKind: "STUDENT", solutionCodes: ["AGENTIFY"], typeKey: "STUDENT", terms: true } });
+    const app = await db.partnerApplication.findFirstOrThrow({ where: { organizationId: org, email: "sana@uni.test" } });
+    const r = await approveApplication(db, { organizationId: org, applicationId: app.id, actorId: manager, typeKey: "STUDENT", ratePercent: "20", durationMonths: "lifetime", leadSharing: false, territory: "", solutionCodes: ["AGENTIFY"], certifyCodes: [] });
+    const e = await db.earner.findUniqueOrThrow({ where: { id: r.earnerId }, include: { type: true } });
+    expect(e.type).toMatchObject({ key: "STUDENT", academyRequired: true, publicOffer: true });
   });
 });

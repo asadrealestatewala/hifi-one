@@ -87,14 +87,14 @@ export default async function Academy({ searchParams }: { searchParams: Promise<
         ) : (
           <div className="card !p-0 overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="text-left"><th className="px-4 py-2.5">Partner</th><th className="pr-4">Courses (lessons done)</th><th className="pr-4">Last lesson finished</th></tr></thead>
+              <thead><tr className="text-left"><th className="px-4 py-2.5">Partner</th><th className="pr-4">Courses (lessons done, final test)</th><th className="pr-4">Last lesson finished</th></tr></thead>
               <tbody className="divide-y divide-border align-top">
                 {progress.rows.map((r) => (
                   <tr key={r.earner.id}>
                     <td className="px-4 py-2.5"><span className="font-medium">{r.earner.name}</span><br /><span className="text-muted">{partnerId(r.earner.partnerNumber)} · {r.earner.type.name}</span></td>
                     <td className="pr-4 py-2.5">
                       {r.courses.length === 0 ? <span className="text-muted">No published course yet</span> : (
-                        <ul className="space-y-0.5">{r.courses.map((c) => <li key={c.title}>{c.title}: {c.done} of {c.of}{c.of > 0 && c.done === c.of && <> <Badge tone="success">done</Badge></>}</li>)}</ul>
+                        <ul className="space-y-0.5">{r.courses.map((c) => <li key={c.title}>{c.title}: {c.done} of {c.of}{c.of > 0 && c.done === c.of && <> <Badge tone="success">done</Badge></>}{c.test && <span className="text-muted"> · final test {c.test.passed ? <Badge tone="success">passed</Badge> : `${c.test.tries} tr${c.test.tries === 1 ? "y" : "ies"}, last ${c.test.last ?? 0}%`}</span>}</li>)}</ul>
                       )}
                     </td>
                     <td className="pr-4 py-2.5 whitespace-nowrap">{r.lastActivity ? when(r.lastActivity) : <span className="text-muted">Not started</span>}</td>

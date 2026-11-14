@@ -35,10 +35,11 @@ describe("programme defaults", () => {
     await ensurePartnerDefaults(db, org);
     await ensurePartnerDefaults(db, org);
     const types = await db.earnerType.findMany({ where: { organizationId: org }, orderBy: { sortOrder: "asc" } });
-    expect(types.map((t) => [t.key, Number(t.defaultRate)])).toEqual([["REFERRAL", 20], ["RESELLER", 30], ["EXCLUSIVE", 30], ["SALES_AGENT", 20]]);
+    expect(types.map((t) => [t.key, Number(t.defaultRate)])).toEqual([["STUDENT", 20], ["REFERRAL", 20], ["RESELLER", 30], ["EXCLUSIVE", 30], ["SALES_AGENT", 20]]);
+    expect(types.filter((t) => t.academyRequired).map((t) => t.key)).toEqual(["STUDENT", "REFERRAL", "RESELLER"]);
     expect((await db.saasProduct.findMany({ where: { organizationId: org }, orderBy: { sortOrder: "asc" } })).map((p) => p.code)).toEqual(["AGENTIFY", "VELOCITY", "PHARMIVO", "CAMPUSLY"]);
     const pub = await publicProgramme(db, org);
-    expect(pub.types.map((t) => t.key)).toEqual(["REFERRAL", "RESELLER", "EXCLUSIVE"]); // Sales Agent is internal
+    expect(pub.types.map((t) => t.key)).toEqual(["STUDENT", "REFERRAL", "RESELLER", "EXCLUSIVE"]); // Sales Agent is internal
     expect(pub.settings.cert_expiry_days).toBe("30");
   });
   it("reads edited settings back and refuses nonsense", async () => {
@@ -148,7 +149,7 @@ describe("approval", () => {
     await saveSettings(db, { organizationId: org, actorId: manager, values: { cert_expiry_days: "30", "cert_expiry_days:PHARMIVO": "50" } });
     const a = await apply({ email: "valid@mail.test" });
     const now = new Date("2026-11-14T00:00:00Z");
-    const r = await approveApplication(db, approval(a.id, { certifyCodes: ["AGENTIFY", "PHARMIVO"], now }));
+    const r = await approveApplication(db, approval(a.id, { typeKey: "EXCLUSIVE", certifyCodes: ["AGENTIFY", "PHARMIVO"], now }));
     for (const solutionCode of ["AGENTIFY", "PHARMIVO"]) await issueCertificate(db, { organizationId: org, earnerId: r.earnerId, solutionCode, kind: "AUTHORISATION", actorId: manager, now });
     const certs = await db.partnerCertificate.findMany({ where: { earnerId: r.earnerId, kind: "AUTHORISATION" }, include: { product: true } });
     const days = Object.fromEntries(certs.map((c) => [c.product.code, Math.round((c.expiresAt!.getTime() - c.issuedAt.getTime()) / DAY)]));
@@ -214,7 +215,7 @@ describe("certificates", () => {
   let earnerId: string, certId: string, publicId: string;
   beforeAll(async () => {
     const a = await apply({ email: "cert@mail.test", name: "Cert Holder" });
-    earnerId = (await approveApplication(db, approval(a.id))).earnerId;
+    earnerId = (await approveApplication(db, approval(a.id, { typeKey: "EXCLUSIVE" }))).earnerId;
     const c = await issueCertificate(db, { organizationId: org, earnerId, solutionCode: "AGENTIFY", kind: "AUTHORISATION", actorId: manager });
     certId = c.id; publicId = c.publicId;
   });
@@ -294,7 +295,7 @@ describe("certificates", () => {
   });
   it("a suspended partner's certificates stop verifying, and the portal PDF lookup is scoped to the earner", async () => {
     const a = await apply({ email: "susp@mail.test" });
-    const r = await approveApplication(db, approval(a.id));
+    const r = await approveApplication(db, approval(a.id, { typeKey: "EXCLUSIVE" }));
     const c = await issueCertificate(db, { organizationId: org, earnerId: r.earnerId, solutionCode: "AGENTIFY", kind: "AUTHORISATION", actorId: manager });
     expect((await verifyCertificate(db, c.publicId))!.status).toBe("VALID");
     expect(await certificatePdfFor(db, c.id, { organizationId: org, earnerId: earnerId })).toBeNull(); // someone else's earner id

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requirePartnerUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { academyFor } from "@/lib/partner-academy";
+import { academyFor, testStatus } from "@/lib/partner-academy";
 import { Badge, Empty, Notice, PageHeader, Progress } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -11,9 +11,12 @@ export default async function PartnerAcademy({ searchParams }: { searchParams: P
   const { earner } = await requirePartnerUser();
   const sp = await searchParams;
   const courses = await academyFor(db, earner);
+  // The final test of each Solution course whose training certificate the partner holds
+  const tests = new Map(await Promise.all(courses.filter((c) => c.certificate).map(async (c) => [c.course.id, (await testStatus(db, earner, c.course.id)).state] as const)));
+  const byHand = !earner.academyDirectAccess && !(await db.earnerType.findUnique({ where: { id: earner.typeId }, select: { academyRequired: true } }))?.academyRequired;
   return (
     <>
-      <PageHeader title="Partner Academy" subtitle="Watch each lesson, then answer a short quick check. Finish the foundations course and a Solution's course to get that Solution's training certificate." />
+      <PageHeader title="Partner Academy" subtitle="Watch each lesson and answer its quick check. Finishing a Solution's course gives you its training certificate; passing its final test gives you the certificate of authorisation that lets you sell it." />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {courses.length === 0 ? (
         <Empty title="No courses yet">The partner team is preparing the training for your Solutions. We will email you when it opens.</Empty>
@@ -39,7 +42,20 @@ export default async function PartnerAcademy({ searchParams }: { searchParams: P
               </li>
             ))}
           </ol>
-          {c.certificate && <p className="text-sm">Your certificate <a className="underline" href={`/partners/verify/${c.certificate.publicId}`} target="_blank" rel="noopener">{c.certificate.publicId}</a> is on your <Link className="underline" href="/partner">overview</Link>, ready to download or add to LinkedIn.</p>}
+          {c.certificate && (() => {
+            const t = tests.get(c.course.id);
+            return (
+              <div className="rounded-lg border border-border p-3 text-sm">
+                <p className="font-medium">Final test: certificate of authorisation</p>
+                {t?.state === "certified" ? <p>Passed. Your certificate of authorisation <a className="underline" href={`/partners/verify/${t.publicId}`} target="_blank" rel="noopener">{t.publicId}</a> is on your <Link className="underline" href="/partner">overview</Link>.</p>
+                  : t?.state === "not_ready" ? <p className="text-muted">Opens soon: the partner team is adding the questions.</p>
+                  : t?.state === "wait" ? <p className="text-muted">{t.paused ? "All tries used." : "Retake opens soon."} <Link className="underline" href={`/partner/academy/test/${c.course.id}`}>See when</Link></p>
+                  : t?.state === "in_progress" ? <p><Link className="underline font-medium" href={`/partner/academy/test/${c.course.id}`}>Continue your test</Link> (the timer is running)</p>
+                  : <p>{byHand ? "The partner team issues your certificate of authorisation; you can still take the test to check yourself. " : ""}<Link className="btn mt-2 inline-block" href={`/partner/academy/test/${c.course.id}`}>Take the final test</Link></p>}
+                <p className="mt-1 text-xs text-muted">Your training certificate <a className="underline" href={`/partners/verify/${c.certificate.publicId}`} target="_blank" rel="noopener">{c.certificate.publicId}</a> is on your <Link className="underline" href="/partner">overview</Link>.</p>
+              </div>
+            );
+          })()}
         </section>
       ))}
     </>

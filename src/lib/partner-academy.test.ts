@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AcademyError, cleanQuestion, draftPrompt, lessonStates, parseCorrect, parseQuestionSheet, parseVideoUrl, quizPassed } from "./partner-academy";
+import { AcademyError, cleanQuestion, draftPrompt, lessonStates, parseCorrect, parseQuestionSheet, parseVideoUrl, quizPassed, scorePct, testGate, testRules } from "./partner-academy";
 
 describe("video links", () => {
   it("reads YouTube links in every common form, including unlisted ones", () => {
@@ -78,5 +78,29 @@ describe("lesson order and passing", () => {
     expect(p).toContain("never invent features, prices or policies");
     expect(p).toContain("<script>\nAgentify costs 5,000 a month.\n</script>");
     expect(new AcademyError("x").status).toBe(400);
+  });
+});
+
+describe("final test rules", () => {
+  const r = { retakeHours: 24, maxTries: 3, pauseDays: 7 };
+  const H = 3_600_000, D = 24 * H;
+  const t = (h: number) => new Date(Date.UTC(2027, 0, 1) + h * H);
+  it("opens straight away with no failed tries", () => {
+    expect(testGate([], t(0), r)).toEqual({ canStart: true, paused: false, nextAt: null, triesLeft: 3 });
+  });
+  it("waits between tries", () => {
+    expect(testGate([t(0)], t(10), r)).toMatchObject({ canStart: false, paused: false, nextAt: t(24), triesLeft: 2 });
+    expect(testGate([t(0)], t(24), r)).toMatchObject({ canStart: true, triesLeft: 2 });
+  });
+  it("pauses after the last try, then starts the count again", () => {
+    const fails = [t(0), t(30), t(60)];
+    expect(testGate(fails, t(100), r)).toMatchObject({ canStart: false, paused: true, nextAt: new Date(t(60).getTime() + 7 * D) });
+    expect(testGate(fails, new Date(t(60).getTime() + 7 * D), r)).toMatchObject({ canStart: true, triesLeft: 3 });
+    expect(testGate([...fails, new Date(t(60).getTime() + 8 * D)], new Date(t(60).getTime() + 8 * D + H), r)).toMatchObject({ canStart: false, paused: false, triesLeft: 2 });
+  });
+  it("scores down, never up, and reads the settings", () => {
+    expect([scorePct(22, 30), scorePct(23, 30), scorePct(0, 0)]).toEqual([73, 76, 0]);
+    expect(testRules({})).toEqual({ questions: 30, passPct: 75, minutes: 45, retakeHours: 24, maxTries: 3, pauseDays: 7 });
+    expect(testRules({ academy_test_questions: "40", academy_test_pass_pct: "80" })).toMatchObject({ questions: 40, passPct: 80 });
   });
 });
