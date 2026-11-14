@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { certificateStatus, parsePartnerId, partnerId } from "@/lib/partner-stack";
+import { certificateKindLabel, certificateStatus, parsePartnerId, partnerId } from "@/lib/partner-stack";
 import { paging } from "@/lib/paging";
 import { Badge, Chips, Empty, Notice, PageHeader, Pager, SearchBox } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
@@ -26,14 +26,14 @@ export default async function Certificates({ searchParams }: { searchParams: Pro
   const now = new Date();
   const soon = new Date(now.getTime() + 7 * 86_400_000);
   const stateWhere: Prisma.PartnerCertificateWhereInput =
-    status === "VALID" ? { status: "ACTIVE", expiresAt: { gt: now } } : status === "EXPIRING" ? { status: "ACTIVE", expiresAt: { gt: now, lte: soon } } : status === "EXPIRED" ? { status: "ACTIVE", expiresAt: { lte: now } } : status === "REVOKED" ? { status: "REVOKED" } : {};
+    status === "VALID" ? { status: "ACTIVE", OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] } : status === "EXPIRING" ? { status: "ACTIVE", expiresAt: { gt: now, lte: soon } } : status === "EXPIRED" ? { status: "ACTIVE", expiresAt: { lte: now } } : status === "REVOKED" ? { status: "REVOKED" } : {};
   const where: Prisma.PartnerCertificateWhereInput = {
     organizationId: org, ...stateWhere,
     ...(q ? { OR: [...(parsePartnerId(q) ? [{ earner: { partnerNumber: parsePartnerId(q)! } }] : []), { publicId: { contains: q, mode: "insensitive" } }, { earner: { name: { contains: q, mode: "insensitive" } } }, { product: { name: { contains: q, mode: "insensitive" } } }] } : {}),
   };
   const pg = paging(sp.page);
   const [rows, total] = await Promise.all([
-    db.partnerCertificate.findMany({ where, include: { earner: { select: { name: true, email: true, partnerNumber: true } }, product: { select: { name: true } } }, orderBy: [{ expiresAt: "asc" }, { id: "asc" }], skip: pg.skip, take: pg.take }),
+    db.partnerCertificate.findMany({ where, include: { earner: { select: { name: true, email: true, partnerNumber: true } }, product: { select: { name: true } } }, orderBy: [{ expiresAt: { sort: "asc", nulls: "last" } }, { id: "asc" }], skip: pg.skip, take: pg.take }),
     db.partnerCertificate.count({ where }),
   ]);
   const all = await db.partnerCertificate.count({ where: { organizationId: org } });
@@ -53,7 +53,7 @@ export default async function Certificates({ searchParams }: { searchParams: Pro
       ) : (
         <div className="card !p-0 overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="text-left"><th className="px-4 py-2.5">Partner</th><th className="pr-4">Solution</th><th className="pr-4">Certificate ID</th><th className="pr-4">Expires</th><th className="pr-4">Status</th><th className="pr-4">Actions</th></tr></thead>
+            <thead><tr className="text-left"><th className="px-4 py-2.5">Partner</th><th className="pr-4">Solution</th><th className="pr-4">Type</th><th className="pr-4">Certificate ID</th><th className="pr-4">Expires</th><th className="pr-4">Status</th><th className="pr-4">Actions</th></tr></thead>
             <tbody className="divide-y divide-border align-top">
               {rows.map((c) => {
                 const st = certificateStatus(c, now);
@@ -61,15 +61,16 @@ export default async function Certificates({ searchParams }: { searchParams: Pro
                   <tr key={c.id}>
                     <td className="px-4 py-2.5"><span className="font-medium">{c.earner.name}</span><br /><span className="text-muted">{partnerId(c.earner.partnerNumber)} · {c.earner.email}</span></td>
                     <td className="pr-4">{c.product.name}{c.renewals > 0 && <span className="block text-xs text-muted">renewed {c.renewals}×</span>}</td>
+                    <td className="pr-4 whitespace-nowrap">{certificateKindLabel(c.kind)}</td>
                     <td className="pr-4"><a className="underline" href={`/partners/verify/${c.publicId}`} target="_blank" rel="noopener">{c.publicId}</a></td>
-                    <td className="pr-4 whitespace-nowrap">{when(c.expiresAt)}</td>
+                    <td className="pr-4 whitespace-nowrap">{c.expiresAt ? when(c.expiresAt) : <span className="text-muted">Does not expire</span>}</td>
                     <td className="pr-4"><Badge tone={st === "VALID" ? "success" : "danger"}>{st.toLowerCase()}</Badge>{st === "REVOKED" && c.revokeReason && <span className="block text-xs text-muted">{c.revokeReason}</span>}</td>
                     <td className="pr-4 py-2">
                       <div className="flex flex-wrap items-center gap-2">
                         <a className="underline" href={`/partner-stack/certificates/${c.id}/pdf`}>PDF</a>
                         {st !== "REVOKED" && (
                           <>
-                            <form action={renewCertificateAction} className="flex items-center gap-1"><input type="hidden" name="id" value={c.id} /><input name="days" type="number" min={1} className="input !w-20 !py-1" placeholder="days" aria-label="Days of validity, empty for the default" /><SubmitButton>Renew</SubmitButton></form>
+                            {c.kind !== "TRAINING" && <form action={renewCertificateAction} className="flex items-center gap-1"><input type="hidden" name="id" value={c.id} /><input name="days" type="number" min={1} className="input !w-20 !py-1" placeholder="days" aria-label="Days of validity, empty for the default" /><SubmitButton>Renew</SubmitButton></form>}
                             <form action={revokeCertificateAction}><input type="hidden" name="id" value={c.id} /><ConfirmButton reason title="Revoke this certificate?" message={<>{c.earner.name} will no longer be shown as authorised for {c.product.name}. This cannot be undone: issue a new certificate if needed.</>} confirmLabel="Revoke">Revoke</ConfirmButton></form>
                           </>
                         )}

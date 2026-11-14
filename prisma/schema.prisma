@@ -3621,8 +3621,9 @@ model PartnerCertificate {
   publicId        String    @unique
   earnerId        String
   productId       String
+  kind            String    @default("AUTHORISATION") // TRAINING (Course design, never expires) | AUTHORISATION (official, Academy design)
   issuedAt        DateTime
-  expiresAt       DateTime
+  expiresAt       DateTime? // empty for training certificates
   status          String    @default("ACTIVE") // ACTIVE | REVOKED (expired is worked out from expiresAt)
   renewals        Int       @default(0)
   revokedAt       DateTime?
@@ -3638,6 +3639,7 @@ model PartnerCertificate {
 
   @@index([organizationId, status, expiresAt])
   @@index([earnerId])
+  @@index([earnerId, productId, kind])
 }
 
 // Every default of the programme: rates live on EarnerType, the rest are key/value rows here.

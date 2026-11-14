@@ -101,7 +101,7 @@ export default async function PartnerApplications({ searchParams }: { searchPara
               <>
                 <form action={approveApplicationAction} className="card space-y-3">
                   <h3 className="font-semibold">Approve</h3>
-                  <p className="text-xs text-muted">Creates the partner, emails a link to set their password, and issues a certificate for each Solution you tick. Everything below can be changed later.</p>
+                  <p className="text-xs text-muted">Creates the partner, emails a link to set their password, and issues a training certificate for each Solution ticked &ldquo;Training done&rdquo;. Issue the official certificate from the partner&rsquo;s page after training. Everything below can be changed later.</p>
                   <input type="hidden" name="id" value={open.id} />
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div><label className="label" htmlFor="ap-type">Partner type</label>
@@ -114,19 +114,19 @@ export default async function PartnerApplications({ searchParams }: { searchPara
                     <label className="flex items-center gap-2 self-end pb-2 text-sm"><input type="checkbox" name="leadSharing" defaultChecked={wanted.leadSharing} /> Share Hifi leads in their territory</label>
                   </div>
                   <fieldset className="space-y-1">
-                    <legend className="label">Solutions and certificates</legend>
+                    <legend className="label">Solutions and training</legend>
                     <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 gap-y-1 text-sm">
-                      <span className="text-xs text-muted">Solution</span><span className="text-xs text-muted">May sell</span><span className="text-xs text-muted">Certify now</span>
+                      <span className="text-xs text-muted">Solution</span><span className="text-xs text-muted">May sell</span><span className="text-xs text-muted">Training done</span>
                       {solutions.map((s) => (
                         <div key={s.code} className="contents">
                           <span>{s.name}{open.solutionCodes.includes(s.code) && <span className="ml-2 text-xs text-muted">asked for</span>}</span>
                           <input type="checkbox" name={`sell_${s.code}`} defaultChecked={open.solutionCodes.includes(s.code)} aria-label={`May sell ${s.name}`} />
-                          <input type="checkbox" name={`cert_${s.code}`} defaultChecked={open.solutionCodes.includes(s.code)} aria-label={`Certify for ${s.name}`} />
+                          <input type="checkbox" name={`cert_${s.code}`} aria-label={`Training done for ${s.name}`} />
                         </div>
                       ))}
                     </div>
                   </fieldset>
-                  <SubmitButton>Approve and certify</SubmitButton>
+                  <SubmitButton>Approve</SubmitButton>
                 </form>
                 <form action={rejectApplicationAction} className="card space-y-3">
                   <h3 className="font-semibold">Reject</h3>

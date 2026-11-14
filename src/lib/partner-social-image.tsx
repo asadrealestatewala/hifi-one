@@ -1,11 +1,12 @@
 // The image version of a Hifi Partner Stack certificate, sized for social posts and link previews (1200 x 627, the
-// LinkedIn share size). Same facts and the same look as the "Modern" PDF design. Used for the partner's PNG download
+// LinkedIn share size), for both training and official certificates. Used for the partner's PNG download
 // and as the preview card when a verify link is shared on LinkedIn, WhatsApp or X.
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { ImageResponse } from "next/og";
 
 export type SocialCard = {
+  kind: "TRAINING" | "AUTHORISATION";
   partnerName: string;
   partnerId: string;
   solutionName: string;
@@ -56,7 +57,7 @@ export function socialCertificateImage(c: SocialCard | null, init?: { headers?: 
           </div>
           {shown ? (
             <div style={{ display: "flex", flexDirection: "column" }}>
-              <div style={{ fontSize: 15, color: "#aab3d6", letterSpacing: 2 }}>AUTHORISED SOLUTION</div>
+              <div style={{ fontSize: 15, color: "#aab3d6", letterSpacing: 2 }}>{shown.kind === "TRAINING" ? "PARTNER TRAINING" : "AUTHORISED SOLUTION"}</div>
               <div style={{ fontSize: 44, fontWeight: 700, marginTop: 8, lineHeight: 1.1 }}>{shown.solutionName}</div>
               <div style={{ display: "flex", marginTop: 20 }}>
                 <div style={{ background: RED, borderRadius: 999, padding: "8px 18px", fontSize: 15, fontWeight: 700, letterSpacing: 1 }}>{shown.partnerType.toUpperCase()}</div>
@@ -69,12 +70,12 @@ export function socialCertificateImage(c: SocialCard | null, init?: { headers?: 
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", flex: 1, padding: "56px 64px" }}>
           {shown ? (
             <div style={{ display: "flex", flexDirection: "column" }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: RED, letterSpacing: 4 }}>CERTIFICATE OF AUTHORISATION</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: RED, letterSpacing: 4 }}>{shown.kind === "TRAINING" ? "CERTIFICATE OF TRAINING" : "OFFICIAL CERTIFICATE OF AUTHORISATION"}</div>
               <div style={{ fontSize: 22, color: "#6b7080", marginTop: 40 }}>This certifies that</div>
               <div style={{ fontSize: shown.partnerName.length > 26 ? 48 : 60, fontWeight: 700, color: NAVY, marginTop: 6, lineHeight: 1.1 }}>{shown.partnerName}</div>
               <div style={{ fontSize: 18, color: "#6b7080", marginTop: 14, letterSpacing: 1 }}>{`Partner ID ${shown.partnerId}`}</div>
               <div style={{ fontSize: 24, color: "#1f2433", marginTop: 30, lineHeight: 1.4 }}>
-                {`is an authorised ${shown.partnerType} for ${shown.solutionName}.`}
+                {shown.kind === "TRAINING" ? `has completed partner training on ${shown.solutionName}.` : `is an authorised ${shown.partnerType} for ${shown.solutionName}.`}
               </div>
               <div style={{ width: 56, height: 5, background: RED, marginTop: 36 }} />
               <div style={{ display: "flex", marginTop: 28, fontSize: 17, color: "#6b7080" }}>

@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const c = await verifyCertificate(db, decodeURIComponent(id).toUpperCase());
-  const title = c && c.status === "VALID" ? `${c.partnerName}: authorised partner for ${c.solution}` : "Verify a certificate";
+  const title = c && c.status === "VALID" ? (c.kind === "TRAINING" ? `${c.partnerName}: ${c.solution} partner training` : `${c.partnerName}: authorised partner for ${c.solution}`) : "Verify a certificate";
   const description = c && c.status === "VALID" ? `Hifi Partner Stack certificate ${c.publicId}. Check that it is genuine and still valid.` : "Check whether a Hifi Partner Stack certificate is genuine and still valid.";
   return { title: { absolute: `${title} | Hifi Partner Stack` }, description, robots: { index: false, follow: false }, openGraph: { title, description, siteName: "Hifi Partner Stack", type: "website" }, twitter: { card: "summary_large_image", title, description } };
 }
@@ -33,11 +33,12 @@ export default async function VerifyPage({ params }: { params: Promise<{ id: str
               <Icon name={c.status === "VALID" ? "check" : "close"} size={18} /> {c.status === "VALID" ? "Valid certificate" : c.status === "EXPIRED" ? "This certificate has expired" : "This certificate has been revoked"}
             </p>
             <dl className="hs-dl">
+              <dt>Certificate</dt><dd>{c.kind === "TRAINING" ? "Partner training completed" : "Official partner authorisation"}</dd>
               <dt>Partner</dt><dd>{c.partnerName}</dd>
               <dt>Partner ID</dt><dd>{c.partnerId}</dd>
-              <dt>Authorised for</dt><dd>{c.solution}</dd>
-              <dt>Issued</dt><dd>{day(c.issuedAt)}</dd>
-              <dt>{c.status === "EXPIRED" ? "Expired" : "Valid until"}</dt><dd>{day(c.expiresAt)}</dd>
+              <dt>{c.kind === "TRAINING" ? "Trained on" : "Authorised for"}</dt><dd>{c.solution}</dd>
+              <dt>{c.kind === "TRAINING" ? "Completed" : "Issued"}</dt><dd>{day(c.issuedAt)}</dd>
+              {c.expiresAt && <><dt>{c.status === "EXPIRED" ? "Expired" : "Valid until"}</dt><dd>{day(c.expiresAt)}</dd></>}
               <dt>Certificate ID</dt><dd>{c.publicId}</dd>
             </dl>
           </div>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ALL_PERMISSIONS, ROLE_DEFS } from "./permissions";
 import { cleanDuration, cleanRate, certificateStatus, certificateValidityDays, durationLabel, linkedInAddUrl, linkedInShareUrl, newPublicId, newReferralCode, parsePartnerId, partnerId } from "./partner-stack";
-import { CERTIFICATE_DESIGNS, certificatePdf, isCertificateDesign } from "./partner-certificate-pdf";
+import { CERTIFICATE_KINDS, certificatePdf, isCertificateKind } from "./partner-certificate-pdf";
 import { sameSite } from "./same-site";
 
 describe("certificate validity", () => {
@@ -62,35 +62,40 @@ describe("certificate ids and status", () => {
 
 describe("the certificate PDF", () => {
   it("renders a PDF with a QR code for any name", async () => {
-    const bytes = await certificatePdf({ publicId: "HPS-ABCD-EFGH-JK", partnerId: "HPS-0001", partnerName: "Ayesha Khan", solutionName: "Agentify ERP", partnerType: "Reseller Partner", issuedAt: new Date(), expiresAt: new Date(Date.now() + 86_400_000 * 30), verifyUrl: "https://hifimarketing.co/partners/verify/HPS-ABCD-EFGH-JK", company: "Hifi" });
+    const bytes = await certificatePdf({ publicId: "HPS-ABCD-EFGH-JK", partnerId: "HPS-0001", partnerName: "Ayesha Khan", solutionName: "Agentify ERP", partnerType: "Reseller Partner", issuedAt: new Date(), expiresAt: new Date(Date.now() + 86_400_000 * 30), verifyUrl: "https://hifimarketing.co/partners/verify/HPS-ABCD-EFGH-JK", company: "Hifi", kind: "AUTHORISATION" });
     expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
     expect(bytes.length).toBeGreaterThan(3000);
-    const urdu = await certificatePdf({ publicId: "HPS-ABCD-EFGH-JK", partnerId: "HPS-0001", partnerName: "عائشہ", solutionName: "Pharmivo", partnerType: "Referral Partner", issuedAt: new Date(), expiresAt: new Date(), verifyUrl: "https://x.test/v", company: "Hifi" });
+    const urdu = await certificatePdf({ publicId: "HPS-ABCD-EFGH-JK", partnerId: "HPS-0001", partnerName: "عائشہ", solutionName: "Pharmivo", partnerType: "Referral Partner", issuedAt: new Date(), expiresAt: new Date(), verifyUrl: "https://x.test/v", company: "Hifi", kind: "TRAINING" });
     expect(urdu.subarray(0, 5).toString()).toBe("%PDF-");
   });
 });
 
-describe("certificate designs", () => {
+describe("training and official certificates", () => {
   const base = { publicId: "HPS-ABCD-EFGH-JK", partnerId: "HPS-0012", partnerName: "A Very Long Partner Company Name (Private) Limited of Lahore", solutionName: "Agentify ERP", partnerType: "Exclusive Sales Partner", issuedAt: new Date(), expiresAt: new Date(Date.now() + 86_400_000 * 30), verifyUrl: "https://hifimarketing.co/partners/verify/HPS-ABCD-EFGH-JK", company: "Hifi Marketing and Technologies" };
-  it("renders every design as a one-page PDF, with and without a signatory", async () => {
-    for (const d of CERTIFICATE_DESIGNS) {
+  it("renders both kinds as a one-page PDF, with and without a signatory, and training without an expiry", async () => {
+    for (const d of CERTIFICATE_KINDS) {
       for (const signatoryName of ["", "Asad B Zaman"]) {
-        const bytes = await certificatePdf({ ...base, design: d.key, signatoryName, signatoryTitle: "Head of Partnerships" });
+        const bytes = await certificatePdf({ ...base, kind: d.key, expiresAt: d.key === "TRAINING" ? null : base.expiresAt, signatoryName, signatoryTitle: "Head of Partnerships" });
         expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
         expect(bytes.toString("latin1").match(/\/Type \/Page\b/g)?.length, `${d.key} stays on one page`).toBe(1);
       }
     }
   });
-  it("knows its design keys and falls back to Classic for an unknown one", async () => {
-    expect(isCertificateDesign("modern")).toBe(true);
-    expect(isCertificateDesign("shopify")).toBe(false);
-    const bytes = await certificatePdf({ ...base, design: "nope" as never });
-    expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
+  it("knows only the two kinds", () => {
+    expect(isCertificateKind("TRAINING")).toBe(true);
+    expect(isCertificateKind("AUTHORISATION")).toBe(true);
+    expect(isCertificateKind("modern")).toBe(false);
+  });
+  it("a training certificate never expires; an official one does", () => {
+    const now = new Date();
+    expect(certificateStatus({ status: "ACTIVE", expiresAt: null }, now)).toBe("VALID");
+    expect(certificateStatus({ status: "REVOKED", expiresAt: null }, now)).toBe("REVOKED");
+    expect(certificateStatus({ status: "ACTIVE", expiresAt: new Date(now.getTime() - 1) }, now)).toBe("EXPIRED");
   });
 });
 
 describe("LinkedIn links", () => {
-  const p = { solutionName: "Pharmivo", company: "Hifi Marketing and Technologies", issuedAt: new Date("2026-11-14T00:00:00Z"), publicId: "HPS-ABCD-EFGH-JK" };
+  const p = { kind: "AUTHORISATION", solutionName: "Pharmivo", company: "Hifi Marketing and Technologies", issuedAt: new Date("2026-11-14T00:00:00Z"), publicId: "HPS-ABCD-EFGH-JK" };
   it("fills LinkedIn's add-certification form with the name, issuer, issue month, ID and verify link, and no expiry", () => {
     const u = new URL(linkedInAddUrl(p));
     expect(u.origin + u.pathname).toBe("https://www.linkedin.com/profile/add");
@@ -108,6 +113,9 @@ describe("LinkedIn links", () => {
     const bad = new URL(linkedInAddUrl({ ...p, linkedInCompanyId: "javascript:alert(1)" }));
     expect(bad.searchParams.has("organizationId")).toBe(false);
     expect(bad.searchParams.get("organizationName")).toBe("Hifi Marketing and Technologies");
+  });
+  it("names a training certificate as training", () => {
+    expect(new URL(linkedInAddUrl({ ...p, kind: "TRAINING" })).searchParams.get("name")).toBe("Hifi Partner Stack: Pharmivo Partner Training");
   });
   it("shares the public verify link", () => {
     expect(new URL(linkedInShareUrl("HPS-ABCD-EFGH-JK")).searchParams.get("url")).toMatch(/\/partners\/verify\/HPS-ABCD-EFGH-JK$/);

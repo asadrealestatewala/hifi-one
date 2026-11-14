@@ -82,8 +82,8 @@ export async function issueCertificateAction(formData: FormData): Promise<void> 
   const id = str(formData, "id");
   const base = `/partner-stack/partners?open=${encodeURIComponent(id)}`;
   try {
-    const cert = await issueCertificate(db, { organizationId: user.organizationId, earnerId: id, solutionCode: str(formData, "solutionCode"), actorId: user.id });
-    await audit(user, { action: "partner.certificate.issue", entity: "PartnerCertificate", entityId: cert.id, after: { publicId: cert.publicId, earnerId: id } });
+    const cert = await issueCertificate(db, { organizationId: user.organizationId, earnerId: id, solutionCode: str(formData, "solutionCode"), kind: str(formData, "kind"), actorId: user.id });
+    await audit(user, { action: "partner.certificate.issue", entity: "PartnerCertificate", entityId: cert.id, after: { publicId: cert.publicId, kind: cert.kind, earnerId: id } });
   } catch (e) { fail(base, e); }
   revalidatePath("/partner-stack/partners");
   go(base, "saved=Certificate issued and emailed.");

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { certificateStatus, durationLabel, parsePartnerId, partnerId } from "@/lib/partner-stack";
+import { certificateKindLabel, certificateStatus, durationLabel, parsePartnerId, partnerId } from "@/lib/partner-stack";
 import { paging } from "@/lib/paging";
 import { Chips, Empty, Notice, PageHeader, Pager, SearchBox, StatusBadge } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
@@ -33,7 +33,7 @@ export default async function Partners({ searchParams }: { searchParams: Promise
     db.earner.findMany({ where, include: { type: true, solutions: { include: { product: { select: { name: true } } } } }, orderBy: [{ createdAt: "desc" }, { id: "asc" }], skip: pg.skip, take: pg.take }),
     db.earner.count({ where }),
     db.earner.groupBy({ by: ["status"], where: { organizationId: org }, _count: true }),
-    sp.open ? db.earner.findFirst({ where: { id: sp.open, organizationId: org }, include: { type: true, solutions: { include: { product: true } }, certificates: { include: { product: { select: { name: true } } }, orderBy: { expiresAt: "desc" } } } }) : null,
+    sp.open ? db.earner.findFirst({ where: { id: sp.open, organizationId: org }, include: { type: true, solutions: { include: { product: true } }, certificates: { include: { product: { select: { name: true } } }, orderBy: [{ productId: "asc" }, { issuedAt: "desc" }] } } }) : null,
     db.earnerType.findMany({ where: { organizationId: org }, orderBy: { sortOrder: "asc" } }),
     db.saasProduct.findMany({ where: { organizationId: org, active: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
   ]);
@@ -100,16 +100,20 @@ export default async function Partners({ searchParams }: { searchParams: Promise
               {open.certificates.length === 0 ? <p className="text-sm text-muted">None yet.</p> : (
                 <ul className="divide-y divide-border text-sm">
                   {open.certificates.map((c) => { const st = certificateStatus(c, now); return (
-                    <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-2"><span>{c.product.name} · <code>{c.publicId}</code></span><span className="text-muted">{st === "REVOKED" ? "revoked" : `${st === "EXPIRED" ? "expired" : "valid until"} ${when(c.expiresAt)}`}</span></li>
+                    <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-2"><span>{c.product.name} · {certificateKindLabel(c.kind)} · <code>{c.publicId}</code></span><span className="text-muted">{st === "REVOKED" ? "revoked" : !c.expiresAt ? `completed ${when(c.issuedAt)}` : `${st === "EXPIRED" ? "expired" : "valid until"} ${when(c.expiresAt)}`}</span></li>
                   ); })}
                 </ul>
               )}
               {open.status === "ACTIVE" && open.solutions.length > 0 && (
                 <form action={issueCertificateAction} className="flex flex-wrap items-end gap-2">
                   <input type="hidden" name="id" value={open.id} />
-                  <div><label className="label" htmlFor="ic-sol">Issue a certificate for</label><select id="ic-sol" name="solutionCode" className="input">{open.solutions.map((s) => <option key={s.productId} value={s.product.code}>{s.product.name}</option>)}</select></div>
+                  <div><label className="label" htmlFor="ic-kind">Certificate</label><select id="ic-kind" name="kind" className="input"><option value="TRAINING">Training certificate (training done)</option><option value="AUTHORISATION">Official certificate</option></select></div>
+                  <div><label className="label" htmlFor="ic-sol">For</label><select id="ic-sol" name="solutionCode" className="input">{open.solutions.map((s) => <option key={s.productId} value={s.product.code}>{s.product.name}</option>)}</select></div>
                   <SubmitButton>Issue and email</SubmitButton>
                 </form>
+              )}
+              {open.status === "ACTIVE" && open.solutions.length > 0 && (
+                <p className="text-xs text-muted">Training comes first: issue the training certificate when the partner finishes training on a Solution, then the official certificate for that Solution.</p>
               )}
             </section>
           </div>

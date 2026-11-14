@@ -5,8 +5,10 @@
 // - Every default (rates, durations, certificate validity, reminder days, terms) is stored and editable; the constants below are only
 //   the starting values written the first time the programme is opened.
 // - A partner's login is a User with userType PARTNER, bound to exactly one Earner; partner pages read only that earner's rows.
-// - Approving creates the earner, the login, and certificates for the chosen Solutions in one transaction; emails go out afterwards and
-//   never undo an approval when they fail.
+// - Approving creates the earner, the login, and training certificates for the Solutions ticked "Training done" in one transaction;
+//   emails go out afterwards and never undo an approval when they fail.
+// - Two kinds of certificate: TRAINING (never expires) and AUTHORISATION (official, expires and is renewed). The official
+//   certificate for a Solution needs a valid training certificate for it first.
 // - Certificate validity: the partner's own setting, else the Solution's, else the global default.
 // - The public verification answer reveals only the name, Solution, dates and status.
 import crypto from "node:crypto";
@@ -16,7 +18,7 @@ import { createResetLink } from "./accounts";
 import { SAAS_PRODUCTS } from "./bootstrap";
 import { normalizeEmail, normalizePhone } from "./contacts";
 import { appUrl, firstName, sendTemplateQuietly } from "./email-template-store";
-import { certificatePdf, isCertificateDesign } from "./partner-certificate-pdf";
+import { type CertificateKind, certificatePdf, isCertificateKind } from "./partner-certificate-pdf";
 import { notifyMany, usersWithPermission } from "./notifications";
 
 type Db = PrismaClient;
@@ -62,7 +64,6 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   calculator_price: "50",
   calculator_currency: "USD",
   terms_text: DEFAULT_TERMS,
-  cert_design: "modern",
   cert_signatory_name: "",
   cert_signatory_title: "",
   linkedin_company_id: "",
@@ -117,7 +118,6 @@ export async function saveSettings(db: Db, p: { organizationId: string; actorId:
     else if (key.startsWith("cert_expiry_days:")) clean[key] = days(`Validity for ${key.split(":")[1]}`, v, true);
     else if (key === "calculator_price") { if (!/^\d{1,6}(\.\d{1,2})?$/.test(v.trim())) throw new PartnerError("Calculator price: enter an amount."); clean[key] = v.trim(); }
     else if (key === "calculator_currency") { if (!/^[A-Z]{3}$/.test(v.trim().toUpperCase())) throw new PartnerError("Currency: use a three-letter code such as USD."); clean[key] = v.trim().toUpperCase(); }
-    else if (key === "cert_design") { if (!isCertificateDesign(v.trim())) throw new PartnerError("Certificate design: pick one of the designs shown."); clean[key] = v.trim(); }
     else if (key === "cert_signatory_name" || key === "cert_signatory_title") {
       const t = v.trim().replace(/\s+/g, " ");
       if (t.length > 80) throw new PartnerError("Signatory name and title: keep each under 80 characters.");
@@ -296,7 +296,6 @@ export async function approveApplication(db: Db, p: ApprovalInput) {
   const certify = solutions.filter((s) => p.certifyCodes.includes(s.code));
   if (await db.user.findFirst({ where: { email: app.email } })) throw new PartnerError("Someone already has an account with this email address.");
   if (await db.earner.findFirst({ where: { organizationId: p.organizationId, email: app.email } })) throw new PartnerError("This email is already a partner.");
-  const settings = await getSettings(db, p.organizationId);
 
   const result = await db.$transaction(async (tx) => {
     // Lock the application row so two approvers cannot both approve it
@@ -327,7 +326,8 @@ export async function approveApplication(db: Db, p: ApprovalInput) {
       }
     }
     const certs = [];
-    for (const s of certify) certs.push(await issueCertificateTx(tx, { organizationId: p.organizationId, earnerId: earner.id, productId: s.id, days: certificateValidityDays(settings, s.code, earner.certExpiryDays), actorId: p.actorId, now }));
+    // A Solution ticked "Training done" gets its training certificate now; the official certificate is issued later from the partner's page.
+    for (const s of certify) certs.push(await issueCertificateTx(tx, { organizationId: p.organizationId, earnerId: earner.id, productId: s.id, kind: "TRAINING", days: null, actorId: p.actorId, now }));
     await tx.partnerApplication.update({ where: { id: app.id }, data: { status: "APPROVED", decidedById: p.actorId, decidedAt: now, earnerId: earner.id } });
     return { user, earner, certs };
   });
@@ -395,11 +395,11 @@ export async function updateEarner(db: Db, p: { organizationId: string; earnerId
 
 type Tx = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
 
-async function issueCertificateTx(tx: Tx | Db, p: { organizationId: string; earnerId: string; productId: string; days: number; actorId: string | null; now: Date }) {
-  const expiresAt = new Date(p.now.getTime() + p.days * 86_400_000);
+async function issueCertificateTx(tx: Tx | Db, p: { organizationId: string; earnerId: string; productId: string; kind: CertificateKind; days: number | null; actorId: string | null; now: Date }) {
+  const expiresAt = p.days == null ? null : new Date(p.now.getTime() + p.days * 86_400_000);
   for (let attempt = 0; ; attempt++) {
     try {
-      return await tx.partnerCertificate.create({ data: { organizationId: p.organizationId, publicId: newPublicId(), earnerId: p.earnerId, productId: p.productId, issuedAt: p.now, expiresAt, issuedById: p.actorId } });
+      return await tx.partnerCertificate.create({ data: { organizationId: p.organizationId, publicId: newPublicId(), earnerId: p.earnerId, productId: p.productId, kind: p.kind, issuedAt: p.now, expiresAt, issuedById: p.actorId } });
     } catch (e) {
       if (attempt < 5 && e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") continue;
       throw e;
@@ -407,16 +407,26 @@ async function issueCertificateTx(tx: Tx | Db, p: { organizationId: string; earn
   }
 }
 
-export async function issueCertificate(db: Db, p: { organizationId: string; earnerId: string; solutionCode: string; actorId: string; now?: Date }) {
+/** A certificate that is not revoked and not past its expiry (training certificates have none). */
+const liveWhere = (now: Date) => ({ status: "ACTIVE", OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] });
+
+// Training first: the official certificate for a Solution needs a valid training certificate for the same Solution.
+export async function issueCertificate(db: Db, p: { organizationId: string; earnerId: string; solutionCode: string; kind: string; actorId: string; now?: Date }) {
+  if (!isCertificateKind(p.kind)) throw new PartnerError("Choose a training or an official certificate.");
+  const kind = p.kind;
   const now = p.now ?? new Date();
   const earner = await db.earner.findFirst({ where: { id: p.earnerId, organizationId: p.organizationId, status: "ACTIVE" }, include: { solutions: { include: { product: true } } } });
   if (!earner) throw new PartnerError("Partner not found or not active.", 404);
   const sol = earner.solutions.find((s) => s.product.code === p.solutionCode)?.product;
   if (!sol) throw new PartnerError("This partner is not approved for that Solution. Add it to their Solutions first.");
-  const live = await db.partnerCertificate.findFirst({ where: { earnerId: earner.id, productId: sol.id, status: "ACTIVE", expiresAt: { gt: now } } });
-  if (live) throw new PartnerError("This partner already holds a valid certificate for that Solution. Renew it instead.");
+  const live = await db.partnerCertificate.findFirst({ where: { earnerId: earner.id, productId: sol.id, kind, ...liveWhere(now) } });
+  if (live) throw new PartnerError(kind === "TRAINING" ? "This partner already holds a training certificate for that Solution." : "This partner already holds a valid official certificate for that Solution. Renew it instead.");
+  if (kind === "AUTHORISATION" && !(await db.partnerCertificate.findFirst({ where: { earnerId: earner.id, productId: sol.id, kind: "TRAINING", ...liveWhere(now) } }))) {
+    throw new PartnerError(`Issue the ${sol.name} training certificate first. The official certificate follows training.`);
+  }
   const settings = await getSettings(db, p.organizationId);
-  const cert = await issueCertificateTx(db, { organizationId: p.organizationId, earnerId: earner.id, productId: sol.id, days: certificateValidityDays(settings, sol.code, earner.certExpiryDays), actorId: p.actorId, now });
+  const days = kind === "TRAINING" ? null : certificateValidityDays(settings, sol.code, earner.certExpiryDays);
+  const cert = await issueCertificateTx(db, { organizationId: p.organizationId, earnerId: earner.id, productId: sol.id, kind, days, actorId: p.actorId, now });
   await emailCertificate(db, cert.id);
   return cert;
 }
@@ -427,6 +437,7 @@ export async function renewCertificate(db: Db, p: { organizationId: string; id: 
   const cert = await db.partnerCertificate.findFirst({ where: { id: p.id, organizationId: p.organizationId }, include: { earner: true, product: true } });
   if (!cert) throw new PartnerError("Certificate not found.", 404);
   if (cert.status === "REVOKED") throw new PartnerError("A revoked certificate cannot be renewed. Issue a new one instead.");
+  if (cert.kind === "TRAINING") throw new PartnerError("Training certificates do not expire, so there is nothing to renew.");
   if (cert.earner.status !== "ACTIVE") throw new PartnerError("This partner is suspended.");
   const settings = await getSettings(db, p.organizationId);
   const custom = (p.days ?? "").trim();
@@ -450,8 +461,10 @@ export async function revokeCertificate(db: Db, p: { organizationId: string; id:
   return { before: cert, after };
 }
 
-export const certificateStatus = (c: { status: string; expiresAt: Date }, now = new Date()): "VALID" | "EXPIRED" | "REVOKED" =>
-  c.status === "REVOKED" ? "REVOKED" : c.expiresAt.getTime() <= now.getTime() ? "EXPIRED" : "VALID";
+export const certificateStatus = (c: { status: string; expiresAt: Date | null }, now = new Date()): "VALID" | "EXPIRED" | "REVOKED" =>
+  c.status === "REVOKED" ? "REVOKED" : c.expiresAt && c.expiresAt.getTime() <= now.getTime() ? "EXPIRED" : "VALID";
+
+export const certificateKindLabel = (kind: string) => (kind === "TRAINING" ? "Training certificate" : "Official certificate");
 
 export const verifyUrl = (publicId: string) => `${appUrl()}/partners/verify/${publicId}`;
 
@@ -461,23 +474,23 @@ export async function certificatePdfFor(db: Db, id: string, scope: { organizatio
   const org = await db.organization.findUnique({ where: { id: scope.organizationId }, select: { name: true } });
   const settings = await getSettings(db, scope.organizationId);
   const bytes = await certificatePdf({
-    design: isCertificateDesign(settings.cert_design) ? settings.cert_design : "modern",
+    kind: isCertificateKind(c.kind) ? c.kind : "AUTHORISATION",
     signatoryName: settings.cert_signatory_name, signatoryTitle: settings.cert_signatory_title,
     publicId: c.publicId, partnerId: partnerId(c.earner.partnerNumber), partnerName: c.earner.name, solutionName: c.product.name, partnerType: c.earner.type.name, issuedAt: c.issuedAt, expiresAt: c.expiresAt,
     verifyUrl: verifyUrl(c.publicId), company: org?.name ?? "Hifi Marketing and Technologies",
   });
-  return { bytes, filename: `Hifi-Partner-Stack-${c.product.code}-${c.publicId}.pdf`, cert: c };
+  return { bytes, filename: `Hifi-Partner-Stack-${c.kind === "TRAINING" ? "Training-" : ""}${c.product.code}-${c.publicId}.pdf`, cert: c };
 }
 
-// A sample in the given design with example details (marked SAMPLE), for the design picker in settings. Null for an unknown design.
-export async function samplePartnerCertificate(db: Db, organizationId: string, design: string) {
-  if (!isCertificateDesign(design)) return null;
+// A sample of one kind of certificate with example details, linked from settings. Null for an unknown kind.
+export async function samplePartnerCertificate(db: Db, organizationId: string, kind: string) {
+  if (!isCertificateKind(kind)) return null;
   const [org, settings] = await Promise.all([db.organization.findUnique({ where: { id: organizationId }, select: { name: true } }), getSettings(db, organizationId)]);
   const issuedAt = new Date();
   return certificatePdf({
-    design, signatoryName: settings.cert_signatory_name, signatoryTitle: settings.cert_signatory_title,
+    kind, signatoryName: settings.cert_signatory_name, signatoryTitle: settings.cert_signatory_title,
     publicId: "HPS-SAMP-LE00-00", partnerId: partnerId(1), partnerName: "Sample Partner Name", solutionName: "Agentify ERP", partnerType: "Reseller Partner",
-    issuedAt, expiresAt: new Date(issuedAt.getTime() + certificateValidityDays(settings, "") * 86_400_000),
+    issuedAt, expiresAt: kind === "TRAINING" ? null : new Date(issuedAt.getTime() + certificateValidityDays(settings, "") * 86_400_000),
     verifyUrl: verifyUrl("HPS-SAMP-LE00-00"), company: org?.name ?? "Hifi Marketing and Technologies",
   });
 }
@@ -488,11 +501,11 @@ const longDay = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", mon
 export async function socialCardFor(db: Db, publicId: string, now = new Date()) {
   const v = await verifyCertificate(db, publicId, now);
   if (!v) return null;
-  const c = await db.partnerCertificate.findUnique({ where: { publicId }, select: { organizationId: true, earner: { select: { type: { select: { name: true } } } } } });
+  const c = await db.partnerCertificate.findUnique({ where: { publicId }, select: { organizationId: true, kind: true, earner: { select: { type: { select: { name: true } } } } } });
   const org = c ? await db.organization.findUnique({ where: { id: c.organizationId }, select: { name: true } }) : null;
   return {
-    partnerName: v.partnerName, partnerId: v.partnerId, solutionName: v.solution, partnerType: c?.earner.type.name ?? "Partner", publicId: v.publicId,
-    validUntil: longDay(v.expiresAt), status: v.status, company: org?.name ?? "Hifi Marketing and Technologies",
+    kind: v.kind, partnerName: v.partnerName, partnerId: v.partnerId, solutionName: v.solution, partnerType: c?.earner.type.name ?? "Partner", publicId: v.publicId,
+    validUntil: v.expiresAt ? longDay(v.expiresAt) : "Does not expire", status: v.status, company: org?.name ?? "Hifi Marketing and Technologies",
   };
 }
 
@@ -501,8 +514,9 @@ export async function socialCardFor(db: Db, publicId: string, now = new Date()) 
  * under the same ID, and the linked verify page always shows the current state. organizationId (the company page's
  * number) makes LinkedIn show the company logo; without it LinkedIn shows the name only.
  */
-export function linkedInAddUrl(p: { solutionName: string; company: string; issuedAt: Date; publicId: string; linkedInCompanyId?: string }) {
-  const q = new URLSearchParams({ startTask: "CERTIFICATION_NAME", name: `Hifi Partner Stack: Authorised Partner, ${p.solutionName}` });
+export function linkedInAddUrl(p: { kind: string; solutionName: string; company: string; issuedAt: Date; publicId: string; linkedInCompanyId?: string }) {
+  const name = p.kind === "TRAINING" ? `Hifi Partner Stack: ${p.solutionName} Partner Training` : `Hifi Partner Stack: Authorised Partner, ${p.solutionName}`;
+  const q = new URLSearchParams({ startTask: "CERTIFICATION_NAME", name });
   const companyId = (p.linkedInCompanyId ?? "").trim();
   if (/^\d{1,15}$/.test(companyId)) q.set("organizationId", companyId);
   else q.set("organizationName", p.company);
@@ -525,7 +539,7 @@ async function emailCertificate(db: Db, id: string) {
     await sendTemplateQuietly(db, {
       organizationId: c.organizationId, key: "partner_certificate", to: c.earner.email, relatedType: "PartnerCertificate", relatedId: c.id, buttonUrl: link,
       attachment: { filename: pdf.filename, content: Buffer.from(pdf.bytes), contentType: "application/pdf" },
-      vars: { first_name: firstName(c.earner.name), solution: c.product.name, certificate_id: c.publicId, issued: day(c.issuedAt), expires: day(c.expiresAt), link },
+      vars: { first_name: firstName(c.earner.name), solution: c.product.name, certificate: c.kind === "TRAINING" ? "training certificate" : "official partner certificate", certificate_id: c.publicId, issued: day(c.issuedAt), expires: c.expiresAt ? day(c.expiresAt) : "Does not expire", link },
     });
   } catch (e) {
     console.error("Certificate email was not sent:", e instanceof Error ? e.message : e);
@@ -537,8 +551,9 @@ export async function verifyCertificate(db: Db, publicId: string, now = new Date
   if (!/^HPS-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{2}$/.test(publicId)) return null;
   const c = await db.partnerCertificate.findUnique({ where: { publicId }, include: { earner: { select: { name: true, status: true, partnerNumber: true } }, product: { select: { name: true } } } });
   if (!c) return null;
+  const kind: CertificateKind = c.kind === "TRAINING" ? "TRAINING" : "AUTHORISATION";
   const status = c.earner.status !== "ACTIVE" && c.status !== "REVOKED" ? "REVOKED" : certificateStatus(c, now);
-  return { publicId: c.publicId, partnerId: partnerId(c.earner.partnerNumber), partnerName: c.earner.name, solution: c.product.name, issuedAt: c.issuedAt, expiresAt: c.expiresAt, status, revokedAt: status === "REVOKED" ? (c.revokedAt ?? null) : null };
+  return { kind, publicId: c.publicId, partnerId: partnerId(c.earner.partnerNumber), partnerName: c.earner.name, solution: c.product.name, issuedAt: c.issuedAt, expiresAt: c.expiresAt, status, revokedAt: status === "REVOKED" ? (c.revokedAt ?? null) : null };
 }
 
 // Daily job: the first reminder (default 7 days before) and the final one (default 1 day). Each is sent once per validity period.
@@ -547,11 +562,12 @@ export async function sendCertificateReminders(db: Db, organizationId: string, n
   const first = positiveInt(settings.cert_first_reminder_days, 7, 365);
   const last = positiveInt(settings.cert_final_reminder_days, 1, 365);
   const certs = await db.partnerCertificate.findMany({
-    where: { organizationId, status: "ACTIVE", expiresAt: { gt: now, lte: new Date(now.getTime() + first * 86_400_000) }, earner: { status: "ACTIVE" } },
+    where: { organizationId, kind: "AUTHORISATION", status: "ACTIVE", expiresAt: { gt: now, lte: new Date(now.getTime() + first * 86_400_000) }, earner: { status: "ACTIVE" } },
     include: { earner: true, product: true },
   });
   let sent = 0;
   for (const c of certs) {
+    if (!c.expiresAt) continue;
     const daysLeft = Math.max(1, Math.ceil((c.expiresAt.getTime() - now.getTime()) / 86_400_000));
     const isFinal = c.expiresAt.getTime() - now.getTime() <= last * 86_400_000;
     if (isFinal ? c.finalReminderAt : c.firstReminderAt) continue;

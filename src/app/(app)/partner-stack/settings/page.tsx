@@ -5,7 +5,7 @@ import { Notice, PageHeader } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import SubmitButton from "@/components/ui/SubmitButton";
 import { saveSettingsAction } from "../actions";
-import { CERTIFICATE_DESIGNS } from "@/lib/partner-certificate-pdf";
+import { CERTIFICATE_KINDS } from "@/lib/partner-certificate-pdf";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +50,7 @@ export default async function PartnerSettings({ searchParams }: { searchParams: 
         <section className="card space-y-3">
           <h2 className="font-semibold">Certificates</h2>
           <div className="grid gap-3 sm:grid-cols-3">
-            <div><label className="label" htmlFor="s-exp">Validity (days), all Solutions</label><input id="s-exp" name="cert_expiry_days" type="number" min={1} defaultValue={s.cert_expiry_days} className="input" /></div>
+            <div><label className="label" htmlFor="s-exp">Official certificate validity (days), all Solutions</label><input id="s-exp" name="cert_expiry_days" type="number" min={1} defaultValue={s.cert_expiry_days} className="input" /></div>
             <div><label className="label" htmlFor="s-r1">First reminder (days before)</label><input id="s-r1" name="cert_first_reminder_days" type="number" min={1} defaultValue={s.cert_first_reminder_days} className="input" /></div>
             <div><label className="label" htmlFor="s-r2">Final reminder (days before)</label><input id="s-r2" name="cert_final_reminder_days" type="number" min={1} defaultValue={s.cert_final_reminder_days} className="input" /></div>
           </div>
@@ -59,24 +59,16 @@ export default async function PartnerSettings({ searchParams }: { searchParams: 
           <p className="text-xs text-muted">A single partner can have their own validity on their page. Order of use: the partner, then the Solution, then this default.</p>
         </section>
         <section className="card space-y-3">
-          <h2 className="font-semibold">Certificate design</h2>
-          <p className="text-xs text-muted">Every certificate, new or already issued, downloads in the design picked here. The facts on it never change.</p>
-          <fieldset>
-            <legend className="sr-only">Design</legend>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {CERTIFICATE_DESIGNS.map((d) => (
-                <label key={d.key} className="block cursor-pointer rounded-lg border border-border p-2 has-[:checked]:border-primary has-[:checked]:ring-2 has-[:checked]:ring-primary/30">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`/partner-stack/designs/${d.key}.png`} alt={`${d.label} certificate design`} width={600} height={424} className="w-full rounded border border-border" loading="lazy" />
-                  <span className="mt-2 flex items-start gap-2">
-                    <input type="radio" name="cert_design" value={d.key} defaultChecked={s.cert_design === d.key} className="mt-1" />
-                    <span><span className="font-medium">{d.label}</span><span className="block text-xs text-muted">{d.hint}</span></span>
-                  </span>
-                  <a href={`/partner-stack/settings/preview/${d.key}`} target="_blank" rel="noopener" className="mt-1 inline-block text-xs text-primary underline">Open sample PDF</a>
-                </label>
-              ))}
-            </div>
-          </fieldset>
+          <h2 className="font-semibold">Certificate types</h2>
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {CERTIFICATE_KINDS.map((k) => (
+              <li key={k.key} className="rounded-lg border border-border p-3 text-sm">
+                <p className="font-medium">{k.label} <span className="text-xs font-normal text-muted">({k.design})</span></p>
+                <p className="mt-1 text-xs text-muted">{k.hint}</p>
+                <a href={`/partner-stack/settings/preview/${k.key.toLowerCase()}`} target="_blank" rel="noopener" className="mt-2 inline-block text-xs text-primary underline">Open sample PDF</a>
+              </li>
+            ))}
+          </ul>
           <div className="grid gap-3 sm:grid-cols-2">
             <div><label className="label" htmlFor="s-sn">Signed by (optional)</label><input id="s-sn" name="cert_signatory_name" defaultValue={s.cert_signatory_name} maxLength={80} className="input" placeholder="Full name" /></div>
             <div><label className="label" htmlFor="s-st">Their title (optional)</label><input id="s-st" name="cert_signatory_title" defaultValue={s.cert_signatory_title} maxLength={80} className="input" placeholder="e.g. Head of Partnerships" /></div>
