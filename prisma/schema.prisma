@@ -3536,6 +3536,7 @@ model Earner {
   territory      String? // plain text for now; structured territories arrive with lead distribution
   certExpiryDays Int? // overrides the Solution and global certificate validity
   status         String   @default("ACTIVE") // ACTIVE | SUSPENDED
+  partnerNumber  Int // sequential per organization, shown as the Partner ID HPS-0001; never reused
   referralCode   String   @unique
   applicationId  String?  @unique
   createdAt      DateTime @default(now())
@@ -3545,6 +3546,7 @@ model Earner {
   solutions    EarnerSolution[]
   certificates PartnerCertificate[]
 
+  @@unique([organizationId, partnerNumber])
   @@index([organizationId, status])
 }
 

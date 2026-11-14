@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { certificateStatus } from "@/lib/partner-stack";
+import { certificateStatus, parsePartnerId, partnerId } from "@/lib/partner-stack";
 import { paging } from "@/lib/paging";
 import { Badge, Chips, Empty, Notice, PageHeader, Pager, SearchBox } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
@@ -29,11 +29,11 @@ export default async function Certificates({ searchParams }: { searchParams: Pro
     status === "VALID" ? { status: "ACTIVE", expiresAt: { gt: now } } : status === "EXPIRING" ? { status: "ACTIVE", expiresAt: { gt: now, lte: soon } } : status === "EXPIRED" ? { status: "ACTIVE", expiresAt: { lte: now } } : status === "REVOKED" ? { status: "REVOKED" } : {};
   const where: Prisma.PartnerCertificateWhereInput = {
     organizationId: org, ...stateWhere,
-    ...(q ? { OR: [{ publicId: { contains: q, mode: "insensitive" } }, { earner: { name: { contains: q, mode: "insensitive" } } }, { product: { name: { contains: q, mode: "insensitive" } } }] } : {}),
+    ...(q ? { OR: [...(parsePartnerId(q) ? [{ earner: { partnerNumber: parsePartnerId(q)! } }] : []), { publicId: { contains: q, mode: "insensitive" } }, { earner: { name: { contains: q, mode: "insensitive" } } }, { product: { name: { contains: q, mode: "insensitive" } } }] } : {}),
   };
   const pg = paging(sp.page);
   const [rows, total] = await Promise.all([
-    db.partnerCertificate.findMany({ where, include: { earner: { select: { name: true, email: true } }, product: { select: { name: true } } }, orderBy: [{ expiresAt: "asc" }, { id: "asc" }], skip: pg.skip, take: pg.take }),
+    db.partnerCertificate.findMany({ where, include: { earner: { select: { name: true, email: true, partnerNumber: true } }, product: { select: { name: true } } }, orderBy: [{ expiresAt: "asc" }, { id: "asc" }], skip: pg.skip, take: pg.take }),
     db.partnerCertificate.count({ where }),
   ]);
   const all = await db.partnerCertificate.count({ where: { organizationId: org } });
@@ -45,7 +45,7 @@ export default async function Certificates({ searchParams }: { searchParams: Pro
       {sp.saved && <Notice kind="ok">{sp.saved}</Notice>}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       <div className="flex flex-wrap items-center gap-3">
-        <SearchBox q={q} placeholder="Search partner, Solution or certificate ID" hidden={{ ...current, q: undefined }} />
+        <SearchBox q={q} placeholder="Search Partner ID, partner, Solution or certificate ID" hidden={{ ...current, q: undefined }} />
         <Chips current={status ?? "all"} items={[{ key: "all", label: "All", href: href({ status: undefined, page: undefined }) }, ...STATES.map((s) => ({ key: s, label: s.charAt(0) + s.slice(1).toLowerCase(), href: href({ status: s, page: undefined }) }))]} />
       </div>
       {rows.length === 0 ? (
@@ -59,7 +59,7 @@ export default async function Certificates({ searchParams }: { searchParams: Pro
                 const st = certificateStatus(c, now);
                 return (
                   <tr key={c.id}>
-                    <td className="px-4 py-2.5"><span className="font-medium">{c.earner.name}</span><br /><span className="text-muted">{c.earner.email}</span></td>
+                    <td className="px-4 py-2.5"><span className="font-medium">{c.earner.name}</span><br /><span className="text-muted">{partnerId(c.earner.partnerNumber)} · {c.earner.email}</span></td>
                     <td className="pr-4">{c.product.name}{c.renewals > 0 && <span className="block text-xs text-muted">renewed {c.renewals}×</span>}</td>
                     <td className="pr-4"><a className="underline" href={`/partners/verify/${c.publicId}`} target="_blank" rel="noopener">{c.publicId}</a></td>
                     <td className="pr-4 whitespace-nowrap">{when(c.expiresAt)}</td>

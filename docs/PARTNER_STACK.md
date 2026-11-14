@@ -18,3 +18,6 @@ Reseller and sales-partner programme. Inside Hifi One it is "Partner Stack" (`/p
 
 ## Not built yet
 Phase 2 partner CRM and dashboard, Phase 3 lead distribution and territories, Phase 4 webhooks and commission engine (the existing first-invoice-only staff commission, PR #81, is untouched), Phase 5 in-house agents on the new engine, Phase 6 targets and competitions.
+
+## Partner ID (added 2026-11-14, Asad's request)
+Every partner gets a sequential, system-generated Partner ID at approval (`Earner.partnerNumber`, shown as `HPS-0001`), unique per organization and never reused. Approvals take an advisory lock while the next number is picked, so simultaneous approvals cannot collide. It appears on the certificate PDF, the public verify page, the approval email, the partner portal, and the admin Partners and Certificates lists (searchable as `HPS-0012`, `hps-12` or `12`). The referral code (`HP-XXXXXXXX`) stays separate: it is for links and client attribution in Phase 4.

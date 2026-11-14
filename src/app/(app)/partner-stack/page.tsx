@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { APPLICATION_STATUSES, PROFESSION_LABEL, durationLabel, ensurePartnerDefaults, typeLabel } from "@/lib/partner-stack";
+import { APPLICATION_STATUSES, PROFESSION_LABEL, durationLabel, ensurePartnerDefaults, partnerId, typeLabel } from "@/lib/partner-stack";
 import { paging } from "@/lib/paging";
 import { Chips, Empty, Notice, PageHeader, Pager, SearchBox, StatusBadge } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
@@ -39,6 +39,7 @@ export default async function PartnerApplications({ searchParams }: { searchPara
     db.earnerType.findMany({ where: { organizationId: org, active: true, key: { not: "SALES_AGENT" } }, orderBy: { sortOrder: "asc" } }),
     db.saasProduct.findMany({ where: { organizationId: org, active: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
   ]);
+  const approvedAs = open?.earnerId ? await db.earner.findFirst({ where: { id: open.earnerId, organizationId: org }, select: { partnerNumber: true } }) : null;
   const decider = open?.decidedById ? await db.user.findFirst({ where: { id: open.decidedById, organizationId: org }, select: { name: true } }) : null;
   const count = new Map(byStatus.map((s) => [s.status, s._count]));
   const all = byStatus.reduce((n, s) => n + s._count, 0);
@@ -94,6 +95,7 @@ export default async function PartnerApplications({ searchParams }: { searchPara
               <dt className="text-muted">Terms accepted</dt><dd>{when(open.termsAcceptedAt)}</dd>
               <dt className="text-muted">Received</dt><dd>{when(open.createdAt)}{open.submissions > 1 && ` · sent ${open.submissions} times, details are from the latest`}</dd>
               {open.status !== "NEW" && <><dt className="text-muted">Decision</dt><dd><StatusBadge status={open.status} /> {decider?.name} {open.decidedAt && when(open.decidedAt)}{open.decisionNote && <><br />{open.decisionNote}</>}</dd></>}
+              {approvedAs && <><dt className="text-muted">Partner ID</dt><dd><Link className="font-medium underline" href={`/partner-stack/partners?open=${open.earnerId}`}>{partnerId(approvedAs.partnerNumber)}</Link></dd></>}
             </dl>
             {open.status === "NEW" && (
               <>

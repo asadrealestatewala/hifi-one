@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ALL_PERMISSIONS, ROLE_DEFS } from "./permissions";
-import { cleanDuration, cleanRate, certificateStatus, certificateValidityDays, durationLabel, newPublicId, newReferralCode } from "./partner-stack";
+import { cleanDuration, cleanRate, certificateStatus, certificateValidityDays, durationLabel, newPublicId, newReferralCode, parsePartnerId, partnerId } from "./partner-stack";
 import { certificatePdf } from "./partner-certificate-pdf";
 import { sameSite } from "./same-site";
 
@@ -36,6 +36,15 @@ describe("terms validation", () => {
   });
 });
 
+describe("the Partner ID", () => {
+  it("is shown as HPS- and four or more digits, and search understands every way of typing it", () => {
+    expect(partnerId(1)).toBe("HPS-0001");
+    expect(partnerId(12345)).toBe("HPS-12345");
+    for (const q of ["HPS-0012", "hps-12", "HPS12", "12", " 0012 "]) expect(parsePartnerId(q), q).toBe(12);
+    for (const q of ["", "Ayesha", "HPS-AB12-CD34-EF", "HP-29SX9DV4"]) expect(parsePartnerId(q), q).toBeNull();
+  });
+});
+
 describe("certificate ids and status", () => {
   it("makes unguessable-looking, well-formed ids", () => {
     const ids = new Set(Array.from({ length: 200 }, newPublicId));
@@ -53,10 +62,10 @@ describe("certificate ids and status", () => {
 
 describe("the certificate PDF", () => {
   it("renders a PDF with a QR code for any name", async () => {
-    const bytes = await certificatePdf({ publicId: "HPS-ABCD-EFGH-JK", partnerName: "Ayesha Khan", solutionName: "Agentify ERP", partnerType: "Reseller Partner", issuedAt: new Date(), expiresAt: new Date(Date.now() + 86_400_000 * 30), verifyUrl: "https://hifimarketing.co/partners/verify/HPS-ABCD-EFGH-JK", company: "Hifi" });
+    const bytes = await certificatePdf({ publicId: "HPS-ABCD-EFGH-JK", partnerId: "HPS-0001", partnerName: "Ayesha Khan", solutionName: "Agentify ERP", partnerType: "Reseller Partner", issuedAt: new Date(), expiresAt: new Date(Date.now() + 86_400_000 * 30), verifyUrl: "https://hifimarketing.co/partners/verify/HPS-ABCD-EFGH-JK", company: "Hifi" });
     expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
     expect(bytes.length).toBeGreaterThan(3000);
-    const urdu = await certificatePdf({ publicId: "HPS-ABCD-EFGH-JK", partnerName: "عائشہ", solutionName: "Pharmivo", partnerType: "Referral Partner", issuedAt: new Date(), expiresAt: new Date(), verifyUrl: "https://x.test/v", company: "Hifi" });
+    const urdu = await certificatePdf({ publicId: "HPS-ABCD-EFGH-JK", partnerId: "HPS-0001", partnerName: "عائشہ", solutionName: "Pharmivo", partnerType: "Referral Partner", issuedAt: new Date(), expiresAt: new Date(), verifyUrl: "https://x.test/v", company: "Hifi" });
     expect(urdu.subarray(0, 5).toString()).toBe("%PDF-");
   });
 });

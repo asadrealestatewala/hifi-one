@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { certificateStatus, durationLabel } from "@/lib/partner-stack";
+import { certificateStatus, durationLabel, parsePartnerId, partnerId } from "@/lib/partner-stack";
 import { paging } from "@/lib/paging";
 import { Chips, Empty, Notice, PageHeader, Pager, SearchBox, StatusBadge } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
@@ -23,9 +23,10 @@ export default async function Partners({ searchParams }: { searchParams: Promise
   const org = user.organizationId;
   const q = sp.q?.trim();
   const status = ["ACTIVE", "SUSPENDED"].includes(sp.status ?? "") ? sp.status : undefined;
+  const byNumber = q ? parsePartnerId(q) : null;
   const where: Prisma.EarnerWhereInput = {
     organizationId: org, ...(status ? { status } : {}),
-    ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { email: { contains: q, mode: "insensitive" } }, { referralCode: { contains: q, mode: "insensitive" } }, { territory: { contains: q, mode: "insensitive" } }] } : {}),
+    ...(q ? { OR: [...(byNumber ? [{ partnerNumber: byNumber }] : []), { name: { contains: q, mode: "insensitive" } }, { email: { contains: q, mode: "insensitive" } }, { referralCode: { contains: q, mode: "insensitive" } }, { territory: { contains: q, mode: "insensitive" } }] } : {}),
   };
   const pg = paging(sp.page);
   const [rows, total, byStatus, open, types, solutions] = await Promise.all([
@@ -45,7 +46,7 @@ export default async function Partners({ searchParams }: { searchParams: Promise
     <div className="space-y-5">
       <PageHeader tabs={<ScreenTabs group="partner-stack" current="/partner-stack/partners" />} title="Partner Stack" subtitle="Approved partners and the terms each one earns on." />
       <div className="flex flex-wrap items-center gap-3">
-        <SearchBox q={q} placeholder="Search name, email, territory or referral code" hidden={{ ...current, q: undefined }} />
+        <SearchBox q={q} placeholder="Search Partner ID, name, email, territory or referral code" hidden={{ ...current, q: undefined }} />
         <Chips current={status ?? "all"} items={[{ key: "all", label: "All", count: all, href: href({ status: undefined, page: undefined }) }, { key: "ACTIVE", label: "Active", count: count.get("ACTIVE") ?? 0, href: href({ status: "ACTIVE", page: undefined }) }, { key: "SUSPENDED", label: "Suspended", count: count.get("SUSPENDED") ?? 0, href: href({ status: "SUSPENDED", page: undefined }) }]} />
       </div>
       {rows.length === 0 ? (
@@ -53,11 +54,12 @@ export default async function Partners({ searchParams }: { searchParams: Promise
       ) : (
         <div className="card !p-0 overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="text-left"><th className="px-4 py-2.5">Partner</th><th className="pr-4">Type</th><th className="pr-4">Commission</th><th className="pr-4">Solutions</th><th className="pr-4">Status</th></tr></thead>
+            <thead><tr className="text-left"><th className="px-4 py-2.5">Partner ID</th><th className="pr-4">Partner</th><th className="pr-4">Type</th><th className="pr-4">Commission</th><th className="pr-4">Solutions</th><th className="pr-4">Status</th></tr></thead>
             <tbody className="divide-y divide-border">
               {rows.map((e) => (
                 <tr key={e.id}>
-                  <td className="px-4 py-2.5"><Link className="font-medium hover:underline" href={href({ open: e.id })}>{e.name}</Link><br /><span className="text-muted">{e.email}</span></td>
+                  <td className="px-4 py-2.5 whitespace-nowrap font-mono text-xs">{partnerId(e.partnerNumber)}</td>
+                  <td className="pr-4 py-2.5"><Link className="font-medium hover:underline" href={href({ open: e.id })}>{e.name}</Link><br /><span className="text-muted">{e.email}</span></td>
                   <td className="pr-4">{e.type.name}</td>
                   <td className="pr-4 whitespace-nowrap">{Number(e.ratePercent)}% · {durationLabel(e.durationMonths).split(" (")[0]}</td>
                   <td className="pr-4">{e.solutions.map((s) => s.product.name).join(", ")}</td>
@@ -70,7 +72,7 @@ export default async function Partners({ searchParams }: { searchParams: Promise
         </div>
       )}
       {open && (
-        <Drawer title={open.name} closeTo={href({})}>
+        <Drawer title={`${open.name} · ${partnerId(open.partnerNumber)}`} closeTo={href({})}>
           <div className="h-full space-y-5 overflow-y-auto p-5">
             {sp.saved && <Notice kind="ok">{sp.saved === "1" ? "Saved." : sp.saved}</Notice>}
             {sp.error && <Notice kind="error">{sp.error}</Notice>}

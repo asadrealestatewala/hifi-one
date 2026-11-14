@@ -170,6 +170,23 @@ describe("approval", () => {
   });
 });
 
+describe("the Partner ID", () => {
+  it("is given in order at approval, per organization, and never repeats, even for approvals at the same moment", async () => {
+    const numbers = (await db.earner.findMany({ where: { organizationId: org }, orderBy: { createdAt: "asc" }, select: { partnerNumber: true } })).map((e) => e.partnerNumber);
+    expect(numbers).toEqual(numbers.map((_, i) => i + 1));
+    const apps = [await apply({ email: "seq1@mail.test" }), await apply({ email: "seq2@mail.test" }), await apply({ email: "seq3@mail.test" })];
+    await Promise.all(apps.map((a) => approveApplication(db, approval(a.id))));
+    const all = (await db.earner.findMany({ where: { organizationId: org }, select: { partnerNumber: true } })).map((e) => e.partnerNumber).sort((a, b) => a - b);
+    expect(all).toEqual(all.map((_, i) => i + 1));
+    sent.length = 0;
+    const last = await apply({ email: "seq4@mail.test" });
+    const r = await approveApplication(db, approval(last.id));
+    const e = await db.earner.findUniqueOrThrow({ where: { id: r.earnerId } });
+    expect(e.partnerNumber).toBe(all.length + 1);
+    expect(sent.find((m) => /Welcome to Hifi Partner Stack/.test(m.subject))!.text).toContain(`HPS-${String(all.length + 1).padStart(4, "0")}`);
+  });
+});
+
 describe("rejection", () => {
   it("needs a reason, emails it, and keeps the history", async () => {
     const a = await apply({ email: "no@mail.test" });
@@ -193,7 +210,8 @@ describe("certificates", () => {
   it("can be checked publicly and reveals only name, Solution, dates and status", async () => {
     const v = await verifyCertificate(db, publicId);
     expect(v).toMatchObject({ partnerName: "Cert Holder", solution: "Agentify ERP", status: "VALID" });
-    expect(Object.keys(v!).sort()).toEqual(["expiresAt", "issuedAt", "partnerName", "publicId", "revokedAt", "solution", "status"]);
+    expect(Object.keys(v!).sort()).toEqual(["expiresAt", "issuedAt", "partnerId", "partnerName", "publicId", "revokedAt", "solution", "status"]);
+    expect(v!.partnerId).toMatch(/^HPS-\d{4}$/);
     expect(JSON.stringify(v)).not.toMatch(/cert@mail|1234567|Lahore|referral/i);
     expect(await verifyCertificate(db, "HPS-AAAA-BBBB-CC")).toBeNull();
     expect(await verifyCertificate(db, "' OR 1=1 --")).toBeNull();

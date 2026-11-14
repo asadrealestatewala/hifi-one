@@ -257,6 +257,14 @@ const randomChars = (n: number) => Array.from(crypto.randomBytes(n), (b) => ID_A
 export const newPublicId = () => `HPS-${randomChars(4)}-${randomChars(4)}-${randomChars(2)}`;
 export const newReferralCode = () => `HP-${randomChars(8)}`;
 
+// The Partner ID: sequential per organization, given by the system at approval and never reused. Shown as HPS-0001.
+export const partnerId = (n: number) => `HPS-${String(n).padStart(4, "0")}`;
+// "HPS-0012", "hps-12" or "12" -> 12; anything else -> null. Used by search.
+export function parsePartnerId(q: string): number | null {
+  const m = /^(?:hps-?)?0*(\d{1,7})$/i.exec(q.trim());
+  return m ? Number(m[1]) : null;
+}
+
 export type ApprovalInput = {
   organizationId: string; applicationId: string; actorId: string; typeKey: string; ratePercent: string; durationMonths: string; leadSharing: boolean;
   territory?: string; solutionCodes: string[]; certifyCodes: string[]; now?: Date;
@@ -284,6 +292,10 @@ export async function approveApplication(db: Db, p: ApprovalInput) {
     await tx.$queryRaw`SELECT id FROM "PartnerApplication" WHERE id = ${app.id} FOR UPDATE`;
     const fresh = await tx.partnerApplication.findUniqueOrThrow({ where: { id: app.id } });
     if (fresh.status !== "NEW") throw new PartnerError(`This application was already ${fresh.status.toLowerCase()}.`);
+    // One approval at a time per organization while the next Partner ID is taken, so two approvals never get the same number
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"partner-number:" + p.organizationId}))`;
+    const last = await tx.earner.aggregate({ where: { organizationId: p.organizationId }, _max: { partnerNumber: true } });
+    const partnerNumber = (last._max.partnerNumber ?? 0) + 1;
     const user = await tx.user.create({
       data: { organizationId: p.organizationId, email: app.email, phone: null, name: app.name, passwordHash: await bcrypt.hash(crypto.randomBytes(24).toString("base64url"), 10), userType: "PARTNER" },
     });
@@ -292,7 +304,7 @@ export async function approveApplication(db: Db, p: ApprovalInput) {
       try {
         earner = await tx.earner.create({
           data: {
-            organizationId: p.organizationId, userId: user.id, typeId: type.id, name: app.name, email: app.email, phone: app.phone, city: app.city, country: app.country,
+            organizationId: p.organizationId, userId: user.id, typeId: type.id, partnerNumber, name: app.name, email: app.email, phone: app.phone, city: app.city, country: app.country,
             ratePercent: rate, durationMonths: months, leadSharing: p.leadSharing, territory, referralCode: newReferralCode(), applicationId: app.id,
             solutions: { create: solutions.map((s) => ({ productId: s.id })) },
           },
@@ -313,7 +325,7 @@ export async function approveApplication(db: Db, p: ApprovalInput) {
   const link = `${appUrl()}/reset/${await createResetLink(db, { organizationId: p.organizationId, userId: result.user.id, createdById: p.actorId, hours: 72 })}`;
   await sendTemplateQuietly(db, {
     organizationId: p.organizationId, key: "partner_approved", to: app.email, relatedType: "Earner", relatedId: result.earner.id, secret: true, buttonUrl: link,
-    vars: { first_name: firstName(app.name), type: type.name, rate: `${rate}%`, duration: durationLabel(months), solutions: solutions.map((s) => s.name).join(", "), link, referral_code: result.earner.referralCode },
+    vars: { first_name: firstName(app.name), partner_id: partnerId(result.earner.partnerNumber), type: type.name, rate: `${rate}%`, duration: durationLabel(months), solutions: solutions.map((s) => s.name).join(", "), link, referral_code: result.earner.referralCode },
   });
   for (const c of result.certs) await emailCertificate(db, c.id);
   return { earnerId: result.earner.id, certificates: result.certs.length };
@@ -437,7 +449,7 @@ export async function certificatePdfFor(db: Db, id: string, scope: { organizatio
   if (!c) return null;
   const org = await db.organization.findUnique({ where: { id: scope.organizationId }, select: { name: true } });
   const bytes = await certificatePdf({
-    publicId: c.publicId, partnerName: c.earner.name, solutionName: c.product.name, partnerType: c.earner.type.name, issuedAt: c.issuedAt, expiresAt: c.expiresAt,
+    publicId: c.publicId, partnerId: partnerId(c.earner.partnerNumber), partnerName: c.earner.name, solutionName: c.product.name, partnerType: c.earner.type.name, issuedAt: c.issuedAt, expiresAt: c.expiresAt,
     verifyUrl: verifyUrl(c.publicId), company: org?.name ?? "Hifi Marketing and Technologies",
   });
   return { bytes, filename: `Hifi-Partner-Stack-${c.product.code}-${c.publicId}.pdf`, cert: c };
@@ -463,10 +475,10 @@ async function emailCertificate(db: Db, id: string) {
 // Public: what anyone may learn from a certificate id. Nothing about earnings, contact details or other partners.
 export async function verifyCertificate(db: Db, publicId: string, now = new Date()) {
   if (!/^HPS-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{2}$/.test(publicId)) return null;
-  const c = await db.partnerCertificate.findUnique({ where: { publicId }, include: { earner: { select: { name: true, status: true } }, product: { select: { name: true } } } });
+  const c = await db.partnerCertificate.findUnique({ where: { publicId }, include: { earner: { select: { name: true, status: true, partnerNumber: true } }, product: { select: { name: true } } } });
   if (!c) return null;
   const status = c.earner.status !== "ACTIVE" && c.status !== "REVOKED" ? "REVOKED" : certificateStatus(c, now);
-  return { publicId: c.publicId, partnerName: c.earner.name, solution: c.product.name, issuedAt: c.issuedAt, expiresAt: c.expiresAt, status, revokedAt: status === "REVOKED" ? (c.revokedAt ?? null) : null };
+  return { publicId: c.publicId, partnerId: partnerId(c.earner.partnerNumber), partnerName: c.earner.name, solution: c.product.name, issuedAt: c.issuedAt, expiresAt: c.expiresAt, status, revokedAt: status === "REVOKED" ? (c.revokedAt ?? null) : null };
 }
 
 // Daily job: the first reminder (default 7 days before) and the final one (default 1 day). Each is sent once per validity period.

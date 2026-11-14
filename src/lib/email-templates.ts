@@ -310,8 +310,8 @@ export const SYSTEM_TEMPLATES: TemplateDef[] = [
   {
     key: "partner_approved", name: "Partner Stack: approved", audience: "Partners",
     description: "Sent when a partner application is approved. The button lets them choose a password and sign in.",
-    variables: { first_name: "Sara", company_name: "Hifi Marketing and Technologies", type: "Reseller Partner", rate: "30%", duration: "Lifetime (as long as the client keeps paying)", solutions: "Agentify ERP, Pharmivo", link: "https://hifimarketing.co/reset/sample", referral_code: "HP-7K3MQ9XD" },
-    blocks: { label: "Hifi Partner Stack", progress: { percent: 100, caption: "Approved" }, details: [["Partner type", "{{type}}"], ["Commission", "{{rate}}"], ["Duration", "{{duration}}"], ["Solutions", "{{solutions}}"], ["Your referral code", "{{referral_code}}"]] },
+    variables: { first_name: "Sara", company_name: "Hifi Marketing and Technologies", partner_id: "HPS-0001", type: "Reseller Partner", rate: "30%", duration: "Lifetime (as long as the client keeps paying)", solutions: "Agentify ERP, Pharmivo", link: "https://hifimarketing.co/reset/sample", referral_code: "HP-7K3MQ9XD" },
+    blocks: { label: "Hifi Partner Stack", progress: { percent: 100, caption: "Approved" }, details: [["Partner ID", "{{partner_id}}"], ["Partner type", "{{type}}"], ["Commission", "{{rate}}"], ["Duration", "{{duration}}"], ["Solutions", "{{solutions}}"], ["Your referral code", "{{referral_code}}"]] },
     buttonUrlVar: "link",
     defaults: {
       subject: "Welcome to Hifi Partner Stack, {{first_name}}",

@@ -27,6 +27,7 @@ export default async function VerifyPage({ params }: { params: Promise<{ id: str
             </p>
             <dl className="hs-dl">
               <dt>Partner</dt><dd>{c.partnerName}</dd>
+              <dt>Partner ID</dt><dd>{c.partnerId}</dd>
               <dt>Authorised for</dt><dd>{c.solution}</dd>
               <dt>Issued</dt><dd>{day(c.issuedAt)}</dd>
               <dt>{c.status === "EXPIRED" ? "Expired" : "Valid until"}</dt><dd>{day(c.expiresAt)}</dd>

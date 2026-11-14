@@ -1,6 +1,6 @@
 import { requirePartnerUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { certificateStatus, durationLabel } from "@/lib/partner-stack";
+import { certificateStatus, durationLabel, partnerId } from "@/lib/partner-stack";
 import { Badge, Empty, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +21,7 @@ export default async function PartnerHome() {
       <section className="card space-y-3">
         <h2 className="font-semibold">Your terms</h2>
         <dl className="grid grid-cols-[10rem_1fr] gap-x-3 gap-y-2 text-sm">
+          <dt className="text-muted">Partner ID</dt><dd className="font-semibold">{partnerId(earner.partnerNumber)}</dd>
           <dt className="text-muted">Partner type</dt><dd>{type.name}</dd>
           <dt className="text-muted">Commission</dt><dd>{Number(earner.ratePercent)}% recurring</dd>
           <dt className="text-muted">Duration</dt><dd>{durationLabel(earner.durationMonths)}</dd>

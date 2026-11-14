@@ -6,6 +6,7 @@ import QRCode from "qrcode";
 
 export type CertificateData = {
   publicId: string;
+  partnerId: string;
   partnerName: string;
   solutionName: string;
   partnerType: string;
@@ -37,9 +38,10 @@ export async function certificatePdf(c: CertificateData): Promise<Buffer> {
   doc.fillColor(navy).font("Helvetica-Bold").fontSize(34).text("Certificate of Authorisation", 0, 92, { width: W, align: "center" });
   doc.fillColor("#555555").font("Helvetica").fontSize(13).text("This certifies that", 0, 158, { width: W, align: "center" });
   doc.fillColor(navy).font("Helvetica-Bold").fontSize(32).text(latin(c.partnerName), 60, 184, { width: W - 120, align: "center" });
-  doc.strokeColor("#cccccc").lineWidth(0.8).moveTo(W / 2 - 160, 230).lineTo(W / 2 + 160, 230).stroke();
-  doc.fillColor("#555555").font("Helvetica").fontSize(13).text(`is an authorised ${latin(c.partnerType)} for`, 0, 244, { width: W, align: "center" });
-  doc.fillColor(red).font("Helvetica-Bold").fontSize(26).text(latin(c.solutionName), 0, 268, { width: W, align: "center" });
+  doc.fillColor("#666666").font("Helvetica").fontSize(10).text(`Partner ID ${c.partnerId}`, 0, 222, { width: W, align: "center", characterSpacing: 1 });
+  doc.strokeColor("#cccccc").lineWidth(0.8).moveTo(W / 2 - 160, 238).lineTo(W / 2 + 160, 238).stroke();
+  doc.fillColor("#555555").font("Helvetica").fontSize(13).text(`is an authorised ${latin(c.partnerType)} for`, 0, 250, { width: W, align: "center" });
+  doc.fillColor(red).font("Helvetica-Bold").fontSize(26).text(latin(c.solutionName), 0, 272, { width: W, align: "center" });
 
   doc.fillColor("#333333").font("Helvetica").fontSize(11);
   doc.text("Issued", 70, 380); doc.font("Helvetica-Bold").text(fmt(c.issuedAt), 70, 396);
