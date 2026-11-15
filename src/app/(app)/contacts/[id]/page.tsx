@@ -43,6 +43,8 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
     db.contactActivity.findMany({ where: { contactId: c.id }, orderBy: { createdAt: "desc" }, take: 150 }),
     db.user.findMany({ where: { organizationId: org, userType: "EMPLOYEE", active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
+  // The client's contracts (and their signed files) also show on the Documents tab, so the agreement is found from the person too
+  const contracts = tab === "documents" && client && user.permissions.has("contracts.view") ? await db.contract.findMany({ where: { organizationId: org, clientId: client.id }, orderBy: { createdAt: "desc" }, take: 20 }) : [];
   const parentFull = c.parentId ? await db.contact.findUnique({ where: { id: c.parentId }, select: { primaryEmail: true, primaryPhone: true } }) : null;
   const leads = await db.lead.findMany({ where: { organizationId: org, contactId: { in: [c.id, ...people.map((p) => p.id)] } }, include: { stage: true }, orderBy: { createdAt: "desc" } });
   const name = new Map(staff.map((s) => [s.id, s.name]));
@@ -164,7 +166,17 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
           <tbody>{projects.flatMap((pr) => pr.tasks.map((t) => ({ ...t, project: pr }))).sort((a, b) => (a.dueDate?.getTime() ?? Infinity) - (b.dueDate?.getTime() ?? Infinity)).map((t) => <tr key={t.id} className="border-t border-border transition hover:bg-hover/50"><td className="px-4 py-2.5 font-medium">{t.title}</td><td className="pr-4"><Link className="hover:underline" href={`/projects/${t.project.id}`}>{t.project.name}</Link></td><td className="pr-4"><StatusBadge status={t.status} /></td><td className={`pr-4 ${t.status !== "DONE" && t.dueDate && t.dueDate < new Date() ? "text-brand" : "text-muted"}`}>{t.dueDate?.toLocaleDateString() ?? ""}</td><td className="pr-4 text-muted">{t.assigneeId ? name.get(t.assigneeId) ?? "" : ""}</td></tr>)}</tbody></table></div>
       ))}
 
-      {tab === "documents" && <FilesPanel user={user} ownerType="CONTACT" ownerId={c.id} returnTo={`/contacts/${c.id}?tab=documents`} title="Documents and attachments" withCategory flash={{ fileError: sp.fileError, fileOk: sp.fileOk }} />}
+      {tab === "documents" && (
+        <div className="space-y-4">
+          {contracts.map((k) => (
+            <div key={k.id} className="space-y-1">
+              <p className="flex flex-wrap items-center gap-2 text-sm"><span className="text-muted">Contract</span><Link className="font-medium hover:underline" href={`/contracts/${k.id}`}>{k.title}</Link><StatusBadge status={k.status} />{k.sharedWithClient && <span className="text-xs text-muted">in client portal</span>}</p>
+              <FilesPanel user={user} ownerType="CONTRACT" ownerId={k.id} returnTo={`/contacts/${c.id}?tab=documents`} title="Signed contract and attachments" withCategory flash={{ fileError: sp.fileError, fileOk: sp.fileOk }} />
+            </div>
+          ))}
+          <FilesPanel user={user} ownerType="CONTACT" ownerId={c.id} returnTo={`/contacts/${c.id}?tab=documents`} title={contracts.length > 0 ? "Other documents for this contact" : "Documents and attachments"} withCategory flash={{ fileError: sp.fileError, fileOk: sp.fileOk }} />
+        </div>
+      )}
 
       {tab === "events" && (events.length === 0 ? <Empty title="No meetings or events">Meetings you schedule with this contact, or their client, appear here.</Empty> : (
         <ul className="card divide-y divide-border text-sm">{events.map((m) => <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 first:pt-0 last:pb-0"><span><Link className="font-medium hover:underline" href={`/meetings/${m.id}`}>{m.title}</Link><span className="block text-xs text-muted">{m.kind.toLowerCase()} · {m.scheduledAt ? m.scheduledAt.toLocaleString() : "unscheduled"}</span></span><StatusBadge status={m.status} /></li>)}</ul>
