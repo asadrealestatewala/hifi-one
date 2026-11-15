@@ -228,3 +228,7 @@ The owner found the screens plain. Decision: neutrals move from cool grey-white 
 ## 2026-11-15: Visual refresh, final standards pass
 
 After comparing with Atlassian, Salesforce Lightning, Shopify Polaris, HubSpot (2025) and WCAG 2.2 AA, the owner approved ("go final"): icon tints deepened to pass non-text contrast on cream; semantic roles `--danger`, `--info`, `--discovery` separate from module accents; the `brand` Tailwind utility now uses `--danger` (#b81414) because it is used for error text, while the logo red stays `--brand`; one type scale (7 sizes, 3 weights); radius 8/12; hairline elevation at rest. Next: one icon and colour per record type, a shared list action bar, WCAG 2.2 target size and focus fixes.
+
+## 2026-11-15: Background colour is a personal choice
+
+Asad asked for the background to be selectable "just like modes". Each person picks cream (default), cool grey, soft lavender, slate blue or soft sage from the Appearance menu in the top bar, next to light/dark and compact rows. Stored per browser in localStorage (`hifi.bg`), like the theme, so no migration and no server write; applied before first paint. Light theme only; dark keeps its palette. Each set redefines only `--background`, `--surface`, `--hover`, `--border`, `--muted` and `--shadow`, and keeps text and icon tints at WCAG AA. The public website keeps its own cream and does not follow this choice.
