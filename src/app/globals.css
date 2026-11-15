@@ -177,3 +177,10 @@ main tbody tr:has(a[href]) { cursor: pointer; }
   main a:hover > .card { transform: none; }
   main [style*="animation"], main .\[animation\:fade_\.25s_ease-out\] { animation: none !important; }
 }
+
+/* Compact view (per person, per browser: "hifi.density" in localStorage, set on <html data-density>; toggled from the top bar).
+   Tighter table rows and card padding for people who scan long lists. Targets stay at least 24px (WCAG 2.5.8). */
+[data-density="compact"] main .card { padding: 0.875rem; }
+[data-density="compact"] main .card tbody td, [data-density="compact"] main .card thead th { padding-top: 0.3rem !important; padding-bottom: 0.3rem !important; }
+[data-density="compact"] main .card tbody td { font-size: 0.8125rem; }
+[data-density="compact"] main .card tbody td [data-avatar] { width: 1.5rem !important; height: 1.5rem !important; font-size: 0.625rem !important; }
