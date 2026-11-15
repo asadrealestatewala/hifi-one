@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { postExcerpt, type Post } from "../_content/blog";
 import { type Plan, SERVICES, STATS } from "../_content/site";
-import { Icon } from "./Icon";
+import { Icon, type IconName } from "./Icon";
 
 // Building blocks shared by several website pages.
 
@@ -36,6 +36,10 @@ export function SectionHead({ eyebrow, title, intro, left, as: H = "h2" }: { eye
   );
 }
 
+// One icon and colour per service, the same on every page (websites blue, social pink, CRM/ERP violet, ads orange).
+export const SERVICE_LOOK: Record<string, [IconName, string]> = { websites: ["globe", "t-blue"], social: ["share", "t-pink"], "crm-erp": ["layers", "t-violet"], ads: ["megaphone", "t-orange"] };
+const STAT_LOOK: [IconName, string][] = [["award", "t-amber"], ["briefcase", "t-blue"], ["smile", "t-green"], ["star", "t-violet"]];
+
 export function ServiceCards() {
   return (
     <div className="hs-grid hs-grid-4">
@@ -45,6 +49,7 @@ export function ServiceCards() {
             <Image src={s.image.src} alt="" width={s.image.width} height={s.image.height} sizes="(max-width: 640px) 100vw, (max-width: 1000px) 50vw, 300px" />
           </div>
           <div className="hs-body">
+            <span className={`hs-ico ${SERVICE_LOOK[s.id]?.[1] ?? "t-blue"}`}><Icon name={SERVICE_LOOK[s.id]?.[0] ?? "briefcase"} size={22} /></span>
             <span className="hs-num">{String(i + 1).padStart(2, "0")}</span>
             <h3>{s.title}</h3>
             <p>{s.summary}</p>
@@ -59,8 +64,8 @@ export function ServiceCards() {
 export function Stats() {
   return (
     <ul className="hs-stats" style={{ listStyle: "none", padding: 0, margin: 0 }}>
-      {STATS.map((s) => (
-        <li key={s.label} className="hs-stat"><strong>{s.value}</strong><span>{s.label}</span></li>
+      {STATS.map((s, i) => (
+        <li key={s.label} className="hs-stat"><span className={`hs-ico ${STAT_LOOK[i][1]}`}><Icon name={STAT_LOOK[i][0]} size={22} /></span><strong>{s.value}</strong><span>{s.label}</span></li>
       ))}
     </ul>
   );

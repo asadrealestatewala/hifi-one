@@ -115,3 +115,7 @@ One rule, so nobody has to learn two names for one screen:
 - **Short.** Three words at most where the name allows it; the `PageHeader` subtitle carries the detail, not the title.
 - **"My" means the signed-in person; "Staff" or "Team" means everyone or your reports.** So My attendance / Staff attendance, My daily report / Staff daily reports, Time tracking / Team time tracking. Never "(all)".
 - A screen's own name never repeats its menu group: inside Finance & accounting it is "Invoices", not "Finance invoices".
+
+## Public website and partner pages (`src/app/(site)`)
+
+The public site keeps its own scoped stylesheet (`site.css`, everything under `.hs`) and its HIFI blue primary. Since 2026-11-15 it shares the ERP's warm neutrals (cream `--hs-bg-soft`, warm borders) and the same eight icon tints (`--hs-t-*`, same values as `--tint-*`). Icons sit in tinted tiles: `<span className="hs-ico t-blue">`. Each service has one fixed icon and colour (`SERVICE_LOOK` in `_components/Blocks.tsx`: websites blue globe, social pink share, CRM/ERP violet layers, ads orange megaphone). Ticks are green. Partner page steps use `.hs-psteps` and its Solution checkboxes `.hs-checkgrid`; `.hs-steps` (careers) and `.hs-checks` (tick lists) are separate classes and must not be redefined.
