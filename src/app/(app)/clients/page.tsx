@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { Avatar, Chips, Empty, NewButton, PageHeader, Pager, PanelForm, SearchBox, SortTh, Stat, StatusBadge } from "@/components/ui";
+import { Avatar, Chips, ListToolbar, Empty, NewButton, PageHeader, Pager, PanelForm, SearchBox, SortTh, Stat, StatusBadge } from "@/components/ui";
 import { paging } from "@/lib/paging";
 import { orderFor, parseSort } from "@/lib/sort";
 import Drawer from "@/components/ui/Drawer";
@@ -77,10 +77,10 @@ export default async function Clients({ searchParams }: { searchParams: Promise<
         <Stat label="Inactive" value={inactive} />
         <Stat label="Billing currencies" value={currencies.map((c) => c.currency).join(" · ") || "None"} />
       </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <SearchBox q={q} placeholder="Search name, email or code" hidden={{ show: show === "active" ? undefined : show }} />
-        <Chips current={show} items={[{ key: "active", label: "Active", count: active, href: href({ show: undefined }) }, { key: "inactive", label: "Inactive", count: inactive, href: href({ show: "inactive" }) }, { key: "all", label: "All", count: active + inactive, href: href({ show: "all" }) }]} />
-      </div>
+      <ListToolbar
+        search={<SearchBox q={q} placeholder="Search name, email or code" hidden={{ show: show === "active" ? undefined : show }} />}
+        filters={<Chips current={show} items={[{ key: "active", label: "Active", count: active, href: href({ show: undefined }) }, { key: "inactive", label: "Inactive", count: inactive, href: href({ show: "inactive" }) }, { key: "all", label: "All", count: active + inactive, href: href({ show: "all" }) }]} />}
+      />
       <SavedViews list="clients" views={views} current={{ q, show: show === "active" ? undefined : show, sort: sp.sort && sort.key === sp.sort ? sort.key : undefined, dir: sp.sort && sort.key === sp.sort ? sort.dir : undefined }} error={sp.viewError} />
       {clients.length === 0 ? <Empty title={q ? "No clients match" : "No clients yet"}>{canEdit ? "Add your first client, or convert a won lead." : "Clients will appear here."}</Empty> : (
         <div className="card overflow-x-auto !p-0">

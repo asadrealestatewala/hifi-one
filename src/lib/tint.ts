@@ -4,6 +4,11 @@ import type { IconName } from "@/components/shell/Icon";
 export type Tone = "blue" | "violet" | "orange" | "green" | "pink" | "teal" | "amber" | "slate";
 
 const GUESS: [RegExp, IconName, Tone][] = [
+  [/overdue|late|due|pending|waiting|expir/i, "clock", "amber"],
+  [/draft/i, "edit", "slate"],
+  [/outstanding|owed|receivable|revenue|income|paid|collected|amount|value|mrr|arr/i, "wallet", "green"],
+  [/inactive|archived|ended|cancel|lost/i, "close", "slate"],
+  [/active|open|live|current/i, "activity", "teal"],
   [/overview|summary|home|dashboard/i, "home", "violet"],
   [/service|solution|catalog/i, "layers", "blue"],
   [/deliver|work|task/i, "truck", "teal"],
