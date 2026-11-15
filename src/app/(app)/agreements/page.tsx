@@ -1,3 +1,4 @@
+import Tabs from "@/components/ui/Tabs";
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -39,7 +40,7 @@ export default async function Agreements({ searchParams }: { searchParams: Promi
   return (
     <div className="space-y-5">
       <PageHeader tabs={<ScreenTabs group="client-contracts" current="/agreements" />} title="Contracts" subtitle="Write an agreement from a template, send a one-time link, and keep the signed copy." actions={canManage ? <NewButton href={href({ new: "1" })}>{tab === "templates" ? "New template" : "New agreement"}</NewButton> : undefined} />
-      <Chips current={tab} items={[{ key: "agreements", label: "Agreements", count: total, href: "/agreements" }, { key: "templates", label: "Templates", count: templates.length, href: "/agreements?tab=templates" }]} />
+      <Tabs current={tab} items={[{ key: "agreements", label: "Agreements", count: total, href: "/agreements" }, { key: "templates", label: "Templates", count: templates.length, href: "/agreements?tab=templates" }]} />
 
       {tab === "agreements" && (
         <>

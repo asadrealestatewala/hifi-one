@@ -1,3 +1,4 @@
+import Tabs from "@/components/ui/Tabs";
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -18,7 +19,7 @@ export default async function Projects({ searchParams }: { searchParams: Promise
   const user = await requirePermission("projects.view");
   const sp = await searchParams;
   const canManage = user.permissions.has("projects.manage");
-  const tabs = <Chips current={sp.view === "tasks" ? "tasks" : "projects"} items={[{ key: "projects", label: "Projects", href: "/projects" }, { key: "tasks", label: "Tasks", href: "/projects?view=tasks" }]} />;
+  const tabs = <Tabs current={sp.view === "tasks" ? "tasks" : "projects"} items={[{ key: "projects", label: "Projects", href: "/projects" }, { key: "tasks", label: "Tasks", href: "/projects?view=tasks" }]} />;
   if (sp.view === "tasks") return <TasksView user={user} sp={sp} tabs={tabs} />;
   const status = STATUSES.includes(sp.status ?? "") ? sp.status! : "all";
   const q = sp.q?.trim();

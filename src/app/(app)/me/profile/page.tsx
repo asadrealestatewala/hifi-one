@@ -1,8 +1,9 @@
+import Tabs from "@/components/ui/Tabs";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
-import { Avatar, Badge, Chips, Empty, Notice, PageHeader, PanelForm, StatusBadge } from "@/components/ui";
+import { Avatar, Badge, Empty, Notice, PageHeader, PanelForm, StatusBadge } from "@/components/ui";
 import { leaveBalances } from "@/lib/hr";
 import { summarize } from "@/lib/monitoring";
 import Drawer from "@/components/ui/Drawer";
@@ -73,7 +74,7 @@ export default async function MyProfile({ searchParams }: { searchParams: Promis
         </section>
 
         <div className="min-w-0 space-y-6">
-          <Chips current={tab} items={TABS.map(([k, l]) => ({ key: k, label: l, href: tabHref(k) }))} />
+          <Tabs current={tab} items={TABS.map(([k, l]) => ({ key: k, label: l, href: tabHref(k) }))} />
           {tab === "overview" && (<>
           <section className="card">
             <h2 className="mb-1 font-semibold">Personal and employment details</h2>

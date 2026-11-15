@@ -2,6 +2,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import Icon from "@/components/shell/Icon";
+import type { IconName } from "@/components/shell/Icon";
+import { guess, type Tone } from "@/lib/tint";
 import SubmitButton from "./ui/SubmitButton";
 import { rangePresets } from "@/lib/date-range";
 import { listHref } from "@/lib/list-params";
@@ -50,13 +52,20 @@ export function Progress({ value, max, label }: { value: number; max: number | n
 
 // A KPI card. With `href` the whole card is a link to the filtered list behind the number (keyboard reachable,
 // with a visible arrow so it reads as clickable).
-export function Stat({ label, value, hint, href }: { label: string; value: ReactNode; hint?: ReactNode; href?: string }) {
+export function Stat({ label, value, hint, href, icon, tone }: { label: string; value: ReactNode; hint?: ReactNode; href?: string; icon?: IconName; tone?: Tone }) {
+  const [gi, gt] = guess(label);
+  const t = tone ?? gt;
   const body = (
-    <>
-      <p className="flex items-center justify-between text-xs font-medium text-muted">{label}{href && <Icon name="chevron" className="h-3.5 w-3.5 opacity-60 transition group-hover:translate-x-0.5 group-hover:opacity-100" />}</p>
-      <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>
-      {hint && <p className="mt-0.5 text-xs text-muted">{hint}</p>}
-    </>
+    <div className="flex items-start gap-3">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ background: `color-mix(in srgb, var(--tint-${t}) 14%, transparent)`, color: `var(--tint-${t})` }}>
+        <Icon name={icon ?? gi} className="h-[18px] w-[18px]" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="flex items-center justify-between text-xs font-medium text-muted">{label}{href && <Icon name="chevron" className="h-3.5 w-3.5 opacity-60 transition group-hover:translate-x-0.5 group-hover:opacity-100" />}</p>
+        <p className="mt-0.5 text-2xl font-semibold tracking-tight">{value}</p>
+        {hint && <p className="mt-0.5 text-xs text-muted">{hint}</p>}
+      </div>
+    </div>
   );
   return href
     ? <Link href={href} className="group card block !p-4 transition hover:border-primary/40 hover:shadow-md" aria-label={`${label}: open the list`}>{body}</Link>

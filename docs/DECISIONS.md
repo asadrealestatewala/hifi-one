@@ -219,3 +219,8 @@ Asked for while onboarding HB Elan: "4% to the sales agent right away and 4% to 
 ## 2026-11-15: A project's manager can be chosen and changed
 
 Projects used to be managed by whoever created them, with no way to hand over. Now the create form has a "Project manager" field (defaults to the creator) and the Team card has "Change manager" (`projects.manage`, open projects only). The new manager joins as "Project manager"; the previous one stays a member so their tasks and access remain, and only the "Project manager" label is removed. Only active staff qualify. The client's own project manager (used for the monthly bonus) is a separate field on the client and is not changed by this.
+
+
+## 2026-11-15: Visual refresh, step 1 (cream ground, tinted icons, icon tabs)
+
+The owner found the screens plain. Decision: neutrals move from cool grey-white to warm cream (`--background` #f8f4ec, `--surface` #fffdf9, borders #ebe4d6); eight module/status tints are added as tokens (`--tint-*`, lighter in dark mode); `Tabs` replaces `Chips` where chips acted as screen tabs; `Stat` gets an icon chip. Brand colours (red logo, indigo primary, navy sidebar) are unchanged. Icons and colours for tabs and stats are chosen from the label by `src/lib/tint.ts` so every screen gets them without per-page edits. Proposal and mockups: https://claude.ai/artifact/LcJZwTyVPush8N3pT5VPLt. Later steps: sidebar entry icons and Quick add, record header with quick actions, portals, public site.
