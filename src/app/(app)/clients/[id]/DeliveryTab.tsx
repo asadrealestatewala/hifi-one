@@ -69,7 +69,7 @@ export default async function DeliveryTab({ organizationId, client, canEdit, can
       </section>
 
       <section className="card space-y-3">
-        <h2 className="font-semibold">Weekly customer success reviews</h2>
+        <h2 className="font-semibold">Weekly client reviews</h2>
         <p className="text-xs text-muted">Every Monday the client is emailed a short form to rate the week before{client.email ? "" : " (this client has no email on file, so create the link below and send it yourself)"}. Their answers appear here and in their portal, and the project manager, the project team and the commission approvers are notified.</p>
         {requests.some((r) => !r.answeredAt) && <p className="text-xs text-muted">Waiting for the client: {requests.filter((r) => !r.answeredAt).map((r) => `${weekLabel(r.weekStart)}${r.sentTo ? (r.emailStatus === "SENT" ? " (emailed)" : " (email not sent)") : " (not emailed)"}`).join(", ")}.</p>}
         {tiers.length === 0

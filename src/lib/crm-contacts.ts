@@ -273,7 +273,7 @@ export async function onLeadConverted(db: Db | Tx, p: { leadId: string; clientId
   await db.client.update({ where: { id: p.clientId }, data: { contactId } });
   await db.contact.update({ where: { id: contactId }, data: { category: "CUSTOMER", lastActivityAt: new Date() } });
   if (c.parentId) await db.contact.update({ where: { id: c.parentId }, data: { category: "CUSTOMER" } });
-  await db.contactActivity.create({ data: { contactId, kind: "SYSTEM", body: `Became a customer${p.clientCode ? ` (client ${p.clientCode})` : ""}` } });
+  await db.contactActivity.create({ data: { contactId, kind: "SYSTEM", body: `Became a client${p.clientCode ? ` (client ${p.clientCode})` : ""}` } });
 }
 
 // One-time catch-up for records that existed before contacts did. Safe to repeat.

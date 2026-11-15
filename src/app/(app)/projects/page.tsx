@@ -13,7 +13,7 @@ import TasksView from "./TasksView";
 export const dynamic = "force-dynamic";
 
 const STATUSES = ["ACTIVE", "ON_HOLD", "COMPLETED", "CANCELLED"];
-type SP = { error?: string; status?: string; q?: string; new?: string; campaign?: string; from?: string; view?: string; who?: string; tstatus?: string; priority?: string; project?: string; due?: string; page?: string };
+type SP = { error?: string; status?: string; q?: string; new?: string; client?: string; campaign?: string; from?: string; view?: string; who?: string; tstatus?: string; priority?: string; project?: string; due?: string; page?: string };
 
 export default async function Projects({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requirePermission("projects.view");
@@ -79,7 +79,7 @@ export default async function Projects({ searchParams }: { searchParams: Promise
               <div className="sm:col-span-2"><label className="label" htmlFor="name">Project name</label><input id="name" name="name" required className="input" /></div>
               <div>
                 <label className="label" htmlFor="clientId">Client</label>
-                <select id="clientId" name="clientId" className="input"><option value="">Internal project</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                <select id="clientId" name="clientId" className="input" defaultValue={sp.client ?? ""}><option value="">Internal project</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
               </div>
               <div>
                 <label className="label" htmlFor="managerId">Project manager</label>

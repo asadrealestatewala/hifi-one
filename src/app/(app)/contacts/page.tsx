@@ -1,3 +1,4 @@
+import { categoryLabel } from "@/lib/contact-category";
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { Empty, Notice } from "@/components/ui";
@@ -65,7 +66,7 @@ export default async function Contacts({ searchParams }: { searchParams: Promise
           <summary className={`btn-ghost cursor-pointer list-none ${filtersOn ? "!border-primary !text-primary" : ""}`}><Icon name="chart" className="h-4 w-4" />Filters{filtersOn > 0 && <span className="ml-1 rounded-full bg-primary px-1.5 text-[10px] text-white">{filtersOn}</span>}</summary>
           <form action="/contacts" className="absolute left-0 z-20 mt-2 grid w-80 gap-3 rounded-2xl border border-border bg-surface p-4 shadow-xl">
             {tab !== "all" && <input type="hidden" name="tab" value={tab} />}{sp.q && <input type="hidden" name="q" value={sp.q} />}
-            <div><label className="label" htmlFor="fc">Category</label><select id="fc" name="category" defaultValue={sp.category ?? ""} className="input"><option value="">Any</option>{CATS.map((c) => <option key={c} value={c}>{c.charAt(0) + c.slice(1).toLowerCase()}</option>)}</select></div>
+            <div><label className="label" htmlFor="fc">Category</label><select id="fc" name="category" defaultValue={sp.category ?? ""} className="input"><option value="">Any</option>{CATS.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}</select></div>
             <div><label className="label" htmlFor="fo">Owner</label><select id="fo" name="owner" defaultValue={sp.owner ?? ""} className="input"><option value="">Anyone</option><option value="none">Unassigned</option>{staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
             <div><label className="label" htmlFor="ft">Tag</label><input id="ft" name="tag" defaultValue={sp.tag ?? ""} className="input" /></div>
             <div><label className="label" htmlFor="fs">Source</label><input id="fs" name="source" defaultValue={sp.source ?? ""} className="input" placeholder="e.g. LinkedIn" /></div>

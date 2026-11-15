@@ -1,4 +1,6 @@
 import Tabs from "@/components/ui/Tabs";
+import Icon from "@/components/shell/Icon";
+import { whatsappLink } from "@/lib/whatsapp";
 import Link from "next/link";
 import { Avatar, Badge, Empty, Notice, StatusBadge } from "@/components/ui";
 import { projectProgress } from "@/lib/project-rules";
@@ -35,6 +37,12 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   const TABS: [string, string][] = [["overview", "Overview"], ["services", "Services"], ["delivery", "Delivery"], ...(canSeeFinance ? [["billing", "Billing"] as [string, string]] : []), ...(has("projects.view") ? [["projects", "Projects"] as [string, string]] : []), ...(has("campaigns.view") ? [["campaigns", "Campaigns"] as [string, string]] : []), ...(has("clients.edit") ? [["portal", "Portal access"] as [string, string]] : [])];
   const tab = TABS.some(([k]) => k === sp.tab) ? sp.tab! : "overview";
   const tabHref = (k: string) => (k === "overview" ? `/clients/${client.id}` : `/clients/${client.id}?tab=${k}`);
+  // The person we deal with at this client. If the linked contact is a business, use the first person under it.
+  const primaryContact = client.contactId && has("crm.view")
+    ? (await db.contact.findFirst({ where: { organizationId: user.organizationId, parentId: client.contactId, kind: "PERSON" }, orderBy: { createdAt: "asc" }, select: { id: true, name: true, jobTitle: true } }))
+      ?? (await db.contact.findFirst({ where: { id: client.contactId, organizationId: user.organizationId, kind: "PERSON" }, select: { id: true, name: true, jobTitle: true } }))
+    : null;
+  const waHref = whatsappLink(client.phone, `Hello from Hifi Marketing`);
   const [projects, campaigns, portalUsers, quotes, contracts] = await Promise.all([
     tab === "projects" ? db.project.findMany({ where: { organizationId: user.organizationId, clientId: client.id }, orderBy: { createdAt: "desc" }, include: { tasks: { select: { status: true, dueDate: true, parentId: true } } } }) : [],
     tab === "campaigns" ? db.campaignClient.findMany({ where: { clientId: client.id, campaign: { organizationId: user.organizationId } }, include: { campaign: { select: { id: true, name: true, code: true, status: true, archivedAt: true } } } }) : [],
@@ -45,13 +53,24 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   return (
     <div className="space-y-6">
       <Link href="/clients" className="text-sm text-muted hover:underline">← All clients</Link>
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-4"><Avatar name={client.name} size={56} /><div><h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">{client.name}<StatusBadge status={client.active ? "ACTIVE" : "ENDED"} /></h1><p className="text-sm text-muted">{client.code} · {CLIENT_TYPE_LABEL[client.clientType]} · bills in {client.currency}, {client.paymentTermsDays}-day terms</p></div></div>
+      <header className="card flex flex-wrap items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-4">
+          <Avatar name={client.name} size={56} />
+          <div className="min-w-0">
+            <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">{client.name}<StatusBadge status={client.active ? "ACTIVE" : "ENDED"} /></h1>
+            <p className="text-sm text-muted">{client.code} · {CLIENT_TYPE_LABEL[client.clientType]} · bills in {client.currency}, {client.paymentTermsDays}-day terms</p>
+            {primaryContact && <p className="mt-0.5 text-sm"><span className="text-muted">Primary contact: </span>{user.permissions.has("crm.view") ? <Link href={`/contacts/${primaryContact.id}`} className="font-medium hover:underline">{primaryContact.name}</Link> : <span className="font-medium">{primaryContact.name}</span>}{primaryContact.jobTitle ? <span className="text-muted">, {primaryContact.jobTitle}</span> : null}</p>}
+          </div>
+        </div>
         <div className="flex flex-wrap gap-2">
-          {client.email && <Link href={`/mail/compose?client=${client.id}`} className="btn-ghost">Write an email</Link>}
-          {client.contactId && user.permissions.has("crm.view") && <Link href={`/contacts/${client.contactId}`} className="btn-ghost">Open contact</Link>}
+          {client.phone && <a href={`tel:${client.phone}`} className="btn-ghost"><span className="text-tint-teal"><Icon name="phone" className="h-4 w-4" /></span>Call</a>}
+          {waHref && <a href={waHref} target="_blank" rel="noopener noreferrer" className="btn-ghost"><span className="text-tint-green"><Icon name="chat" className="h-4 w-4" /></span>WhatsApp</a>}
+          {client.email && <Link href={`/mail/compose?client=${client.id}`} className="btn-ghost"><span className="text-tint-violet"><Icon name="mail" className="h-4 w-4" /></span>Email</Link>}
+          {has("projects.manage") && <Link href={`/projects?new=1&client=${client.id}`} className="btn-ghost"><span className="text-tint-orange"><Icon name="briefcase" className="h-4 w-4" /></span>New project</Link>}
+          {has("finance.post") && <Link href={`/finance/invoices?new=1&client=${client.id}`} className="btn"><Icon name="plus" className="h-4 w-4" />New invoice</Link>}
         </div>
       </header>
+      <Tabs current={tab} items={TABS.map(([k, l]) => ({ key: k, label: l, href: tabHref(k) }))} />
       {tab === "overview" && <section className="card text-sm grid grid-cols-3 gap-y-2 max-w-2xl">
         {([["Email", client.email], ["Phone", client.phone], ["Country", client.country], ["Tax ID", client.taxId],
           ["Billing currency", client.currency], ["Payment terms", `${client.paymentTermsDays} days`], ["Address", client.billingAddress]] as [string, string | null][]).map(([k, v]) => (
@@ -60,7 +79,6 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       </section>}
       {error && <Notice kind="error">{error}</Notice>}
       {sp.saved && <Notice kind="ok">{sp.shared ? `Review saved. ${sp.pool && sp.pool !== "0" ? `${formatMoney(sp.pool, client.currency)} set aside for ${sp.shared} team member${sp.shared === "1" ? "" : "s"}, waiting for approval under Commissions.` : "No rebate was set aside: either the rating is below every tier or the client has no project manager or project team yet."}` : "Saved."}</Notice>}
-      <Tabs current={tab} items={TABS.map(([k, l]) => ({ key: k, label: l, href: tabHref(k) }))} />
       {tab === "delivery" && <DeliveryTab organizationId={user.organizationId} client={client} canEdit={has("clients.edit")} canMeet={has("meetings.use")} canWatch={has("meetings.recordings")} pmName={client.projectManagerId ? (await db.user.findFirst({ where: { id: client.projectManagerId, organizationId: user.organizationId }, select: { name: true } }))?.name ?? null : null} supportName={supportHandler(client) ? (await db.user.findFirst({ where: { id: supportHandler(client)!, organizationId: user.organizationId }, select: { name: true } }))?.name ?? null : null} />}
       {tab === "services" && <ServicesTab organizationId={user.organizationId} client={client} canEdit={has("clients.edit")} />}
       {tab === "portal" && (

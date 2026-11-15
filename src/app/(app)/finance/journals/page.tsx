@@ -70,7 +70,7 @@ export default async function Journals({ searchParams }: { searchParams: Promise
   return (
     <div className="space-y-6">
       <PageHeader tabs={<ScreenTabs group="fin-books" current="/finance/journals" />} title="Books" />
-      <p className="text-sm text-muted">Prepared by one person and posted by another. Control accounts (receivables, payables, customer advances) are closed to manual entries: use invoices, payments, credit notes and refunds. {lock && <>Books are closed through <strong>{lock.lockedThrough}</strong>.</>}</p>
+      <p className="text-sm text-muted">Prepared by one person and posted by another. Control accounts (receivables, payables, client advances) are closed to manual entries: use invoices, payments, credit notes and refunds. {lock && <>Books are closed through <strong>{lock.lockedThrough}</strong>.</>}</p>
       {error && <Notice kind="error">{error}</Notice>}
 
       <section className="card space-y-2">
