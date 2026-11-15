@@ -131,8 +131,21 @@ export function SearchBox({ q, placeholder, hidden }: { q?: string; placeholder:
     <form role="search" className="relative min-w-60 flex-1 sm:max-w-sm">
       {Object.entries(hidden ?? {}).map(([k, v]) => v ? <input key={k} type="hidden" name={k} value={v} /> : null)}
       <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-      <input name="q" defaultValue={q} placeholder={placeholder} aria-label={placeholder} className="input !pl-9" />
+      <input name="q" defaultValue={q} placeholder={placeholder} aria-label={placeholder} aria-keyshortcuts="/" data-list-search className="input !pl-9 sm:!pr-9" />
+      <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 rounded border border-border px-1.5 text-[11px] text-muted sm:block" title="Press / to search">/</kbd>
     </form>
+  );
+}
+
+// The bar above every list: search on the left, then filters, then the list's actions pushed to the right.
+// Same order on every list so people find search, filters and the main button in the same place each time.
+export function ListToolbar({ search, filters, actions }: { search?: ReactNode; filters?: ReactNode; actions?: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      {search}
+      {filters}
+      {actions && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>}
+    </div>
   );
 }
 

@@ -73,7 +73,10 @@
   --font-mono: var(--font-geist-mono);
 }
 
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; scroll-padding-top: 6rem; } /* WCAG 2.4.11: the sticky top bar and table headers never cover the focused item */
+/* WCAG 2.5.8: every pointer target is at least 24 x 24 px */
+button, a.btn, a.btn-ghost, [role="button"], summary { min-height: 24px; min-width: 24px; }
+main tbody tr:focus-within { background: var(--hover); }
 body {
   background: var(--background);
   color: var(--foreground);

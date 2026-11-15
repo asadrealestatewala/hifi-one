@@ -33,6 +33,10 @@ The dashboard hero uses the primary colour with a soft gradient (owner asked for
 
 Client record header (2026-11-15): a card with avatar, status, primary contact (first person under the linked contact, or the contact itself) and quick actions that exist today: Call (tel link), WhatsApp (opens the person's own WhatsApp), Email, New project and New invoice (the last two open the existing form with the client pre-selected via `?client=`). Contact categories show "Client" where the stored value is CUSTOMER (`src/lib/contact-category.ts`).
 
+Record icons (2026-11-15): `RECORD` in `src/lib/tint.ts` fixes one icon and accent per record type; `RecordIcon` draws the tile. Used in search results, notifications and the command palette; use it wherever a mixed list shows several record types.
+
+Lists and keyboard (2026-11-15): `ListToolbar` (search, filters, actions on the right) goes above every list; `SearchBox` carries `data-list-search` and a "/" hint. `KeyboardShortcuts` in the shell: "/" focuses the list search, J and K move between rows that open a record, Enter opens. WCAG 2.2: `scroll-padding-top` keeps focused items clear of the sticky bars, and buttons and button links are at least 24 x 24 px.
+
 ## Shared components (use these, do not copy markup)
 
 `src/components/ui.tsx`: `PageHeader`, `Stat` (KPI card), `Badge`, `StatusBadge`, `Progress`, `Empty`, `Notice`, `Chips` (filter links with counts), `SearchBox`, `NewButton`, `ExportLink` ("Export CSV" link to a list's export route), `Pager`, `SortTh`, `Avatar`, `PanelForm` (body of a slide-over form; its Save button is a `SubmitButton`), `likeEscape`.
