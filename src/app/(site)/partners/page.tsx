@@ -4,7 +4,9 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { durationLabel, publicProgramme } from "@/lib/partner-stack";
 import { websiteOrganizationId } from "@/lib/site-forms";
-import { Icon } from "../_components/Icon";
+import { Icon, type IconName } from "../_components/Icon";
+
+const TONES = ["t-blue", "t-violet", "t-orange", "t-green", "t-pink", "t-teal", "t-amber"];
 import { SectionHead } from "../_components/Blocks";
 import { Calculator } from "./_components/Calculator";
 import { ApplicationForm, InquiryForm } from "./_components/PartnerForms";
@@ -63,8 +65,9 @@ export default async function PartnersPage() {
         <div className="hs-container">
           <SectionHead eyebrow="What you sell" title="Our AI-powered ERP Solutions" intro="One partner programme, every Solution." />
           <div className="hs-grid hs-grid-4">
-            {solutions.map((s) => (
+            {solutions.map((s, i) => (
               <div key={s.id} className="hs-card">
+                <span className={`hs-ico ${TONES[i % TONES.length]}`}><Icon name="building" size={22} /></span>
                 <h3>{s.name}</h3>
                 <p className="hs-hint" style={{ marginBottom: 8 }}>For {s.businessLabel.toLowerCase()}s</p>
                 <p>{s.tagline ?? s.description ?? `Run your ${s.businessLabel.toLowerCase()} on one connected system.`}</p>
@@ -79,8 +82,9 @@ export default async function PartnersPage() {
         <div className="hs-container">
           <SectionHead eyebrow="Partner types" title="Pick how you want to work" intro="Your exact terms are confirmed when you are approved." />
           <div className="hs-grid hs-grid-3">
-            {types.map((t) => (
+            {types.map((t, i) => (
               <div key={t.id} className="hs-card hs-type">
+                <span className={`hs-ico ${TONES[i % TONES.length]}`}><Icon name={t.key === "EXCLUSIVE" ? "shield" : t.key === "STUDENT" ? "award" : t.key === "RESELLER" ? "briefcase" : "users"} size={22} /></span>
                 <h3>{t.name}</h3>
                 <p className="hs-rate">{t.key === "EXCLUSIVE" ? <>Rate set for you<small>up to {Number(t.defaultRate)}%</small></> : <>{Number(t.defaultRate)}%<small>recurring</small></>}</p>
                 <p>{t.description}</p>
@@ -94,9 +98,9 @@ export default async function PartnersPage() {
       <section className="hs-section" id="how">
         <div className="hs-container">
           <SectionHead eyebrow="How it works" title="From application to first commission" />
-          <ol className="hs-steps">
+          <ol className="hs-psteps">
             {STEPS.map(([t, d], i) => (
-              <li key={t}><span className="hs-step-n">{i + 1}</span><h3>{t}</h3><p>{d}</p></li>
+              <li key={t}><span className={`hs-step-n ${TONES[i % TONES.length]}`}>{i + 1}</span><h3>{t}</h3><p>{d}</p></li>
             ))}
           </ol>
         </div>
@@ -120,14 +124,14 @@ export default async function PartnersPage() {
         <div className="hs-container">
           <SectionHead eyebrow="Benefits" title="Why partners choose Hifi" />
           <div className="hs-grid hs-grid-3">
-            {[
-              ["Recurring income", "You earn again every time your client pays, not once."],
-              ["Certified to sell", "A verifiable certificate for every Solution you are approved for."],
-              ["Your own portal", "See your clients, commissions and certificates in one place."],
-              ["Real products", "Working ERP Solutions with demos you can show today."],
-              ["Support from Hifi", "Brand assets, pitch notes and a team to help you close."],
-              ["Fair and recorded", "Every commission change is logged and visible to you."],
-            ].map(([t, d]) => <div key={t} className="hs-card"><h3>{t}</h3><p>{d}</p></div>)}
+            {([
+              ["Recurring income", "You earn again every time your client pays, not once.", "repeat", "t-green"],
+              ["Certified to sell", "A verifiable certificate for every Solution you are approved for.", "award", "t-amber"],
+              ["Your own portal", "See your clients, commissions and certificates in one place.", "laptop", "t-blue"],
+              ["Working Solutions", "Live ERP demos you can show a client today.", "layers", "t-violet"],
+              ["Support from Hifi", "Brand assets, pitch notes and a team to help you close.", "headset", "t-teal"],
+              ["Fair and recorded", "Every commission change is logged and visible to you.", "shield", "t-pink"],
+            ] as [string, string, IconName, string][]).map(([t, d, ic, tone]) => <div key={t} className="hs-card"><span className={`hs-ico ${tone}`}><Icon name={ic} size={22} /></span><h3>{t}</h3><p>{d}</p></div>)}
           </div>
         </div>
       </section>

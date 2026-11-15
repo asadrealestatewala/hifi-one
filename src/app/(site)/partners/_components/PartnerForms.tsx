@@ -144,7 +144,7 @@ export function ApplicationForm({ types, solutions, terms }: { types: TypeOption
       {kind === "OTHER" && <div className="hs-field"><label htmlFor="pa-other">What do you do?</label><input id="pa-other" name="professionOther" className="hs-input" required maxLength={160} aria-invalid={bad("professionOther")} /></div>}
       <fieldset className="hs-field hs-fieldset" aria-invalid={bad("solutionCodes")}>
         <legend className="hs-label">Solutions you want to sell</legend>
-        <div className="hs-checks">
+        <div className="hs-checkgrid">
           {solutions.map((s) => (
             <label key={s.code} className="hs-check">
               <input type="checkbox" checked={picked.includes(s.code)} onChange={(e) => setPicked((p) => (e.target.checked ? [...p, s.code] : p.filter((c) => c !== s.code)))} />

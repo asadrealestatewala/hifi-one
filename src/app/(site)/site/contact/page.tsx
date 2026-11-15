@@ -20,8 +20,8 @@ export default function ContactPage() {
           <div>
             <h2 style={{ fontSize: 24, margin: "0 0 18px" }}>Talk to us</h2>
             <ul className="hs-contact-list">
-              <li><a href={`mailto:${EMAIL}`}><span className="hs-ic"><Icon name="mail" size={20} /></span><span><span className="hs-sr">Email: </span>{EMAIL}</span></a></li>
-              <li><a href={PHONE_HREF}><span className="hs-ic"><Icon name="phone" size={20} /></span><span><span className="hs-sr">Phone: </span>{PHONE}</span></a></li>
+              <li><a href={`mailto:${EMAIL}`}><span className="hs-ic t-blue"><Icon name="mail" size={20} /></span><span><span className="hs-sr">Email: </span>{EMAIL}</span></a></li>
+              <li><a href={PHONE_HREF}><span className="hs-ic t-green"><Icon name="phone" size={20} /></span><span><span className="hs-sr">Phone: </span>{PHONE}</span></a></li>
             </ul>
             <h2 style={{ fontSize: 24, margin: "40px 0 0" }}>Our offices</h2>
             <div className="hs-offices">

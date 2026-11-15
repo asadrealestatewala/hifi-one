@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { CtaBand, PageHero } from "../../_components/Blocks";
+import { CtaBand, PageHero, SERVICE_LOOK } from "../../_components/Blocks";
 import { Icon } from "../../_components/Icon";
 import { SERVICES } from "../../_content/site";
 
@@ -29,6 +29,7 @@ export default function ServicesPage() {
                 <Image src={s.image.src} alt="" width={s.image.width} height={s.image.height} sizes="(max-width: 860px) 100vw, 580px" priority={i === 0} />
               </div>
               <div>
+                <span className={`hs-ico ${SERVICE_LOOK[s.id]?.[1] ?? "t-blue"}`} style={{ marginBottom: 14 }}><Icon name={SERVICE_LOOK[s.id]?.[0] ?? "briefcase"} size={22} /></span>
                 <span className="hs-eyebrow">{String(i + 1).padStart(2, "0")}</span>
                 <h2 id={`${s.id}-title`}>{s.title}</h2>
                 <p style={{ fontSize: 18 }}>{s.summary}</p>
