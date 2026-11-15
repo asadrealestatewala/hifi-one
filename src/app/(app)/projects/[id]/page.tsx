@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { projectScope } from "@/lib/projects";
 import { projectProgress } from "@/lib/project-rules";
-import { addMember, createTask, setProjectStatus } from "../actions";
+import { addMember, changeProjectManager, createTask, setProjectStatus } from "../actions";
 import ProjectDepth from "./ProjectDepth";
 import ProjectMeetings from "./ProjectMeetings";
 import Deliverables from "./Deliverables";
@@ -125,6 +125,19 @@ export default async function ProjectPage({
               </select>
               <input name="role" placeholder="Role (e.g. Designer)" aria-label="Role" className="input w-44" />
               <button className="btn-ghost">Add</button>
+            </form>
+          )}
+          {canManage && !closed && (
+            <form action={changeProjectManager} className="flex gap-2 flex-wrap items-end border-t border-border pt-3">
+              <input type="hidden" name="projectId" value={project.id} />
+              <div>
+                <label className="label" htmlFor="managerId">Project manager</label>
+                <select id="managerId" name="managerId" required defaultValue={project.managerId} className="input w-48">
+                  {orgUsers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </div>
+              <button className="btn-ghost">Change manager</button>
+              <p className="w-full text-xs text-muted">The previous manager stays on the team.</p>
             </form>
           )}
         </section>
