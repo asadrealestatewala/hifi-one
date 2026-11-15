@@ -39,7 +39,7 @@ export default async function Invite({ params, searchParams }: { params: Promise
           <p className="text-sm text-muted">This invitation link is invalid, already used, or expired. Please ask your account manager for a new one.</p>
         ) : (
           <form action={accept} className="space-y-4">
-            <p className="text-sm">Create your login for <strong>{info.clientName}</strong> ({info.email}).</p>
+            <p className="text-sm">Create your login for <strong>{info.clientName}</strong> ({info.contact}). You will sign in with {info.email ? "this email" : "this contact number"} and the password you choose.</p>
             {error && <Notice kind="error">{error}</Notice>}
             <input type="hidden" name="token" value={token} />
             <div><label className="label" htmlFor="name">Your name</label><input id="name" name="name" required className="input" /></div>

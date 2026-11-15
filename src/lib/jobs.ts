@@ -5,6 +5,7 @@
 // existing once-per-allocation rule. Free of Next.js imports so it can be tested against the database.
 import type { PrismaClient } from "@prisma/client";
 import { accrueCommissions } from "./commissions";
+import { sendWeeklyReviewRequests, settlePmBonuses } from "./client-reviews";
 import { missingReports } from "./daily-reports";
 import { generateEndOfDay } from "./scorecards";
 import { formatMoney } from "./money";
@@ -45,6 +46,22 @@ export const JOBS: JobDef[] = [
       const r = await accrueCommissions(db, { organizationId, actorId });
       if (r.created > 0) await notifyMany(db, await usersWithPermission(db, organizationId, "commissions.approve"), { kind: "commission.ready", title: `${r.created} commission${r.created === 1 ? "" : "s"} waiting for approval`, link: "/finance/commissions", dedupeKey: `commission-ready:${organizationId}:${today}` });
       return `${r.created} commission${r.created === 1 ? "" : "s"} worked out`;
+    },
+  },
+  {
+    key: "client_weekly_reviews", label: "Weekly client review forms", what: "Every Monday, emails each active service client (an active project or retainer) a form to rate the week before. Clients without an email get the form in their portal, and staff can copy the link from the client's Delivery tab.",
+    async run({ db, organizationId, today, now }) {
+      if (new Date(`${today}T00:00:00Z`).getUTCDay() !== 1) return "Sent on Mondays only";
+      const r = await sendWeeklyReviewRequests(db, { organizationId, today, now });
+      return `${r.created} review form${r.created === 1 ? "" : "s"} for the week of ${r.weekStart}, ${r.emailed} emailed`;
+    },
+  },
+  {
+    key: "pm_monthly_bonus", label: "Project manager monthly bonus", what: "From the 8th of each month, works out last month's project manager bonus for every client from the reviews the client gave, and tells the project manager and the approvers.",
+    async run({ db, organizationId, today, actorId }) {
+      const r = await settlePmBonuses(db, { organizationId, today, actorId });
+      if (!r.month) return "Waits for the 8th of the month";
+      return `${r.month}: ${r.earned} earned, ${r.notEarned} not earned`;
     },
   },
   {

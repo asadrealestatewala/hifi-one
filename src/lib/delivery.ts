@@ -51,11 +51,18 @@ export async function weeklyRetainer(db: Db, organizationId: string, clientId: s
   return round2(perYear.div(52));
 }
 
-export async function recordReview(db: Db, p: { organizationId: string; clientId: string; weekOf: string; rating: number; review: string; meetingId?: string | null; reviewerId: string }) {
+export const REVIEW_SOURCES = ["STAFF", "CLIENT_LINK", "PORTAL"] as const;
+export const REVIEW_SOURCE_LABEL: Record<string, string> = { STAFF: "recorded by staff", CLIENT_LINK: "from the client (emailed form)", PORTAL: "from the client (portal)" };
+// Reviews the client gave themselves; only these count towards the project manager's monthly bonus.
+export const CLIENT_SOURCES = ["CLIENT_LINK", "PORTAL"];
+
+// reviewerId: the staff member recording it, or the client's portal user; null when the client answered the emailed form.
+export async function recordReview(db: Db, p: { organizationId: string; clientId: string; weekOf: string; rating: number; review: string; meetingId?: string | null; reviewerId: string | null; source?: (typeof REVIEW_SOURCES)[number] }) {
   if (!DATE.test(p.weekOf)) throw new DeliveryError("Choose the week reviewed.");
   if (!Number.isInteger(p.rating) || p.rating < 1 || p.rating > 5) throw new DeliveryError("Choose a rating from 1 to 5.");
   const review = p.review.trim();
-  if (review.length < 3) throw new DeliveryError("Write what the client said.");
+  const source = p.source ?? "STAFF";
+  if (review.length < 3) throw new DeliveryError(source === "STAFF" ? "Write what the client said." : "Please add a short comment.");
   if (review.length > 2000) throw new DeliveryError("The review is limited to 2000 characters.");
   const client = await db.client.findFirst({ where: { id: p.clientId, organizationId: p.organizationId } });
   if (!client) throw new DeliveryError("Client not found.");
@@ -69,7 +76,7 @@ export async function recordReview(db: Db, p: { organizationId: string; clientId
   return db.$transaction(async (tx) => {
     const dup = await tx.clientReview.findUnique({ where: { clientId_weekStart: { clientId: client.id, weekStart } } });
     if (dup) throw new DeliveryError("This week already has a review for this client.");
-    const r = await tx.clientReview.create({ data: { organizationId: p.organizationId, clientId: client.id, meetingId: p.meetingId || null, weekStart, rating: p.rating, review, reviewerId: p.reviewerId, rebatePercent: percent, rebatePool: pool.toString(), currency: client.currency } });
+    const r = await tx.clientReview.create({ data: { organizationId: p.organizationId, clientId: client.id, meetingId: p.meetingId || null, weekStart, rating: p.rating, review, reviewerId: p.reviewerId, source, rebatePercent: percent, rebatePool: pool.toString(), currency: client.currency } });
     if (team.length > 0) {
       const cents = pool.mul(100).toNumber();
       const base = Math.floor(cents / team.length);

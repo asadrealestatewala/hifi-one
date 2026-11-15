@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import type { PrismaClient } from "@prisma/client";
 import { LedgerError } from "./ledger-math";
+import { StaffError, normalizeStaffPhone } from "./staff";
 
 // Only issued documents are visible to clients (no drafts, no cancelled).
 const VISIBLE_STATUSES = ["ISSUED", "PARTIALLY_PAID", "PAID", "CREDITED"];
@@ -104,14 +105,20 @@ export async function portalAddComment(db: PrismaClient, p: { clientId: string; 
 
 const hash = (token: string) => crypto.createHash("sha256").update(token).digest("hex");
 
-export async function createInvite(db: PrismaClient, p: { organizationId: string; clientId: string; email: string; createdById: string }) {
+// A client can be invited by email, by contact number (sign-in accepts either), or both. The number is stored in E.164 form.
+export async function createInvite(db: PrismaClient, p: { organizationId: string; clientId: string; email?: string | null; phone?: string | null; createdById: string }) {
   const client = await db.client.findFirst({ where: { id: p.clientId, organizationId: p.organizationId } });
   if (!client) throw new LedgerError("Unknown client.");
-  const email = p.email.trim().toLowerCase();
-  if (await db.user.findUnique({ where: { email } })) throw new LedgerError("A user with this email already exists.");
+  const email = p.email?.trim().toLowerCase() || null;
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new LedgerError("Enter a valid email address.");
+  let phone: string | null = null;
+  try { phone = normalizeStaffPhone(p.phone); } catch (e) { if (e instanceof StaffError) throw new LedgerError(e.message); throw e; }
+  if (!email && !phone) throw new LedgerError("Enter the client's email or contact number.");
+  if (email && (await db.user.findUnique({ where: { email } }))) throw new LedgerError("A user with this email already exists.");
+  if (phone && (await db.user.findUnique({ where: { phone } }))) throw new LedgerError("A user with this contact number already exists.");
   const token = crypto.randomBytes(32).toString("base64url");
   await db.clientInvite.create({
-    data: { clientId: client.id, email, tokenHash: hash(token), expiresAt: new Date(Date.now() + 7 * 86400000), createdById: p.createdById },
+    data: { clientId: client.id, email, phone, tokenHash: hash(token), expiresAt: new Date(Date.now() + 7 * 86400000), createdById: p.createdById },
   });
   return token; // returned once; only its hash is stored
 }
@@ -132,7 +139,7 @@ export async function createVendorInvite(db: PrismaClient, p: { organizationId: 
 export async function inviteInfo(db: PrismaClient, token: string) {
   const inv = await db.clientInvite.findUnique({ where: { tokenHash: hash(token) }, include: { client: true, vendor: true } });
   if (!inv || inv.usedAt || inv.expiresAt < new Date()) return null;
-  return { email: inv.email, clientName: inv.client?.name ?? inv.vendor?.name ?? "" };
+  return { email: inv.email, phone: inv.phone, contact: inv.email ?? inv.phone ?? "", clientName: inv.client?.name ?? inv.vendor?.name ?? "" };
 }
 
 export async function acceptInvite(db: PrismaClient, p: { token: string; name: string; password: string }) {
@@ -147,10 +154,12 @@ export async function acceptInvite(db: PrismaClient, p: { token: string; name: s
     const owner = found.client ?? found.vendor;
     if (!owner) throw new LedgerError("This invitation link is not valid.");
     const isVendor = Boolean(found.vendor);
+    if (inv.email && (await tx.user.findUnique({ where: { email: inv.email } }))) throw new LedgerError("An account with this email already exists. Sign in instead.");
+    if (!isVendor && inv.phone && (await tx.user.findUnique({ where: { phone: inv.phone } }))) throw new LedgerError("An account with this contact number already exists. Sign in instead.");
     const role = await tx.role.findFirst({ where: { organizationId: owner.organizationId, key: isVendor ? "VENDOR" : "CLIENT" } });
     const user = await tx.user.create({
       data: {
-        organizationId: owner.organizationId, email: inv.email, name: p.name.trim(), passwordHash,
+        organizationId: owner.organizationId, email: inv.email, phone: isVendor ? null : inv.phone, name: p.name.trim(), passwordHash,
         userType: isVendor ? "VENDOR" : "CLIENT", clientId: isVendor ? null : inv.clientId, vendorId: isVendor ? inv.vendorId : null,
         roles: role ? { create: { roleId: role.id } } : undefined,
       },

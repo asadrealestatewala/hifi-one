@@ -37,7 +37,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   const [projects, campaigns, portalUsers, quotes, contracts] = await Promise.all([
     tab === "projects" ? db.project.findMany({ where: { organizationId: user.organizationId, clientId: client.id }, orderBy: { createdAt: "desc" }, include: { tasks: { select: { status: true, dueDate: true, parentId: true } } } }) : [],
     tab === "campaigns" ? db.campaignClient.findMany({ where: { clientId: client.id, campaign: { organizationId: user.organizationId } }, include: { campaign: { select: { id: true, name: true, code: true, status: true, archivedAt: true } } } }) : [],
-    tab === "portal" ? db.user.findMany({ where: { clientId: client.id, organizationId: user.organizationId }, select: { id: true, name: true, email: true, active: true, lastLoginAt: true, createdAt: true }, orderBy: { createdAt: "asc" } }) : [],
+    tab === "portal" ? db.user.findMany({ where: { clientId: client.id, organizationId: user.organizationId }, select: { id: true, name: true, email: true, phone: true, active: true, lastLoginAt: true, createdAt: true }, orderBy: { createdAt: "asc" } }) : [],
     tab === "billing" && has("quotes.view") ? db.quote.findMany({ where: { clientId: client.id, organizationId: user.organizationId }, orderBy: { createdAt: "desc" }, take: 8 }) : [],
     tab === "billing" && has("contracts.view") ? db.contract.findMany({ where: { clientId: client.id, organizationId: user.organizationId }, orderBy: { createdAt: "desc" }, take: 8 }) : [],
   ]);
@@ -64,10 +64,10 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       {tab === "services" && <ServicesTab organizationId={user.organizationId} client={client} canEdit={has("clients.edit")} />}
       {tab === "portal" && (
         <>
-          <InviteForm clientId={client.id} />
+          <InviteForm clientId={client.id} defaultEmail={client.email ?? ""} defaultPhone={client.phone ?? ""} />
           <section className="card space-y-2"><h2 className="font-semibold">People with portal access ({portalUsers.length})</h2>
             {portalUsers.length === 0 ? <p className="text-sm text-muted">Nobody has accepted an invitation yet. Invite someone above; the link is shown once and valid for a limited time.</p> : (
-              <ul className="text-sm">{portalUsers.map((u) => <li key={u.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-border py-2 first:border-0"><span>{u.name} <span className="text-xs text-muted">{u.email}</span></span><span className="flex items-center gap-2 text-xs text-muted">{u.lastLoginAt ? `last sign-in ${u.lastLoginAt.toLocaleDateString()}` : "never signed in"}{u.active ? <Badge tone="success">active</Badge> : <Badge tone="danger">disabled</Badge>}</span></li>)}</ul>
+              <ul className="text-sm">{portalUsers.map((u) => <li key={u.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-border py-2 first:border-0"><span>{u.name} <span className="text-xs text-muted">{[u.email, u.phone].filter(Boolean).join(" · ")}</span></span><span className="flex items-center gap-2 text-xs text-muted">{u.lastLoginAt ? `last sign-in ${u.lastLoginAt.toLocaleDateString()}` : "never signed in"}{u.active ? <Badge tone="success">active</Badge> : <Badge tone="danger">disabled</Badge>}</span></li>)}</ul>
             )}
             <p className="text-xs text-muted">Portal users see only this client&apos;s issued invoices, statements, quotations, content approvals, meetings and the tasks shared with them.</p>
           </section>

@@ -3,14 +3,30 @@ import { requireClientUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { portalInvoices, portalManager, portalPayments, portalSupport, portalProjects } from "@/lib/portal";
-import { PageHeader } from "@/components/ui";
+import { Notice, PageHeader } from "@/components/ui";
+import { redirect } from "next/navigation";
+import { ClientReviewError, openPortalReviews, submitClientReview, weekLabel } from "@/lib/client-reviews";
+
+async function sendReview(formData: FormData): Promise<void> {
+  "use server";
+  const user = await requireClientUser();
+  try {
+    await submitClientReview(db, { requestId: String(formData.get("requestId") ?? ""), clientId: user.clientId, userId: user.id, rating: Number(formData.get("rating") || 0), review: String(formData.get("review") ?? "") });
+  } catch (e) {
+    if (e instanceof ClientReviewError) redirect(`/portal?reviewError=${encodeURIComponent(e.message)}#reviews`);
+    throw e;
+  }
+  redirect("/portal?reviewed=1#reviews");
+}
 
 export const dynamic = "force-dynamic";
 
 const LABEL: Record<string, string> = { TODO: "To do", IN_PROGRESS: "In progress", REVIEW: "In review", DONE: "Done" };
 
-export default async function PortalHome() {
+export default async function PortalHome({ searchParams }: { searchParams: Promise<{ reviewError?: string; reviewed?: string }> }) {
   const user = await requireClientUser();
+  const sp = await searchParams;
+  const [openReviews, myReviews] = await Promise.all([openPortalReviews(db, user.clientId), db.clientReview.findMany({ where: { clientId: user.clientId, source: { in: ["CLIENT_LINK", "PORTAL"] } }, orderBy: { weekStart: "desc" }, take: 8, select: { id: true, weekStart: true, rating: true, review: true } })]);
   const [invoices, projects, payments, manager, support] = await Promise.all([portalInvoices(db, user.clientId), portalProjects(db, user.clientId), portalPayments(db, user.clientId), portalManager(db, user.clientId), portalSupport(db, user.clientId)]);
   const owed = new Map<string, number>();
   for (const i of invoices) owed.set(i.currency, (owed.get(i.currency) ?? 0) + Number(i.total.sub(i.amountPaid).sub(i.creditedAmount)));
@@ -26,6 +42,25 @@ export default async function PortalHome() {
         <div className="card"><p className="text-xs font-semibold text-muted">Invoices</p><p className="text-2xl font-bold">{invoices.length}</p></div>
         <div className="card"><p className="text-xs font-semibold text-muted">Active projects</p><p className="text-2xl font-bold">{projects.filter((p) => p.status === "ACTIVE").length}</p></div>
       </div>
+
+      {(openReviews.length > 0 || myReviews.length > 0 || sp.reviewed || sp.reviewError) && (
+        <section id="reviews" className="card space-y-3">
+          <h2 className="font-semibold">Weekly reviews</h2>
+          {sp.reviewed && <Notice kind="ok">Thank you. Your review was sent to your project manager and our management team.</Notice>}
+          {sp.reviewError && <Notice kind="error">{sp.reviewError}</Notice>}
+          {openReviews.slice(0, 1).map((r) => (
+            <form key={r.id} action={sendReview} className="space-y-3 rounded-lg border border-border p-3">
+              <input type="hidden" name="requestId" value={r.id} />
+              <p className="text-sm font-medium">How was the week of {r.week}?</p>
+              <div className="flex flex-wrap gap-2">{[5, 4, 3, 2, 1].map((n) => <label key={n} className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm has-[:checked]:border-primary has-[:checked]:bg-hover"><input type="radio" name="rating" value={n} required defaultChecked={n === 5} /><span aria-hidden>{"★".repeat(n)}</span><span className="sr-only">{n} of 5</span></label>)}</div>
+              <div><label className="label" htmlFor={`rv-${r.id}`}>What went well, and what should we improve?</label><textarea id={`rv-${r.id}`} name="review" required minLength={3} maxLength={2000} rows={3} className="input" /></div>
+              <button className="btn">Send review</button>
+            </form>
+          ))}
+          {openReviews.length > 1 && <p className="text-xs text-muted">{openReviews.length - 1} more week{openReviews.length === 2 ? "" : "s"} waiting for your review after this one.</p>}
+          {myReviews.length > 0 && <ul className="divide-y divide-border text-sm">{myReviews.map((r) => <li key={r.id} className="py-2"><div className="flex flex-wrap justify-between gap-2"><span className="font-medium">Week of {weekLabel(r.weekStart)}</span><span aria-label={`${r.rating} of 5`}>{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span></div><p className="whitespace-pre-line text-muted">{r.review}</p></li>)}</ul>}
+        </section>
+      )}
 
       <section className="card overflow-x-auto">
         <h2 className="font-semibold mb-2">Invoices</h2>
