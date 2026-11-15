@@ -57,12 +57,22 @@ export async function submitVoucher(
   db: PrismaClient,
   p: {
     organizationId: string; submittedById: string; date: string; payee: string; description: string; justification?: string;
-    expenseAccountId: string; projectId?: string | null; budgetId?: string | null; currency: string; amount: string;
+    expenseAccountId: string; projectId?: string | null; budgetId?: string | null; vendorId?: string | null; currency: string; amount: string;
   },
 ) {
   if (!MONEY.test(p.amount) || Number(p.amount) <= 0) throw new ExpenseError("Enter a positive amount.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(p.date)) throw new ExpenseError("Enter a valid date.");
-  if (p.payee.trim().length < 2 || p.description.trim().length < 3) throw new ExpenseError("Enter a payee and a description.");
+  // A registered vendor replaces the typed payee, so the voucher, the ledger and the vendor's statement all use one name.
+  let payee = p.payee.trim();
+  let vendorId: string | null = null;
+  if (p.vendorId) {
+    const vendor = await db.vendor.findFirst({ where: { id: p.vendorId, organizationId: p.organizationId }, select: { id: true, name: true, status: true } });
+    if (!vendor) throw new ExpenseError("Unknown vendor.");
+    if (vendor.status === "SUSPENDED") throw new ExpenseError("This vendor is suspended.");
+    vendorId = vendor.id;
+    payee = vendor.name;
+  }
+  if (payee.length < 2 || p.description.trim().length < 3) throw new ExpenseError("Enter a payee and a description.");
   const acct = await db.account.findFirst({ where: { id: p.expenseAccountId, organizationId: p.organizationId, active: true } });
   if (!acct || !EXPENSE_TYPES.includes(acct.type)) throw new ExpenseError("Choose an expense account.");
   if (p.budgetId) {
@@ -75,7 +85,7 @@ export async function submitVoucher(
     const number = await nextVoucherNo(tx, p.organizationId);
     return tx.expenseVoucher.create({
       data: {
-        organizationId: p.organizationId, number, date: p.date, payee: p.payee.trim(), description: p.description.trim(),
+        organizationId: p.organizationId, number, date: p.date, payee, vendorId, description: p.description.trim(),
         justification: p.justification?.trim() || null, expenseAccountId: acct.id, projectId: p.projectId || null, budgetId: p.budgetId || null,
         currency: p.currency, amount: p.amount, submittedById: p.submittedById,
       },
@@ -154,7 +164,7 @@ export async function postVoucher(db: PrismaClient, p: { organizationId: string;
     const ap = await systemAccount(tx, p.organizationId, "ACCOUNTS_PAYABLE");
     const lines: DraftLine[] = [
       { accountId: v.expenseAccountId, debit: v.amount, memo: v.description },
-      { accountId: ap.id, credit: v.amount, memo: `${v.number} ${v.payee}` },
+      { accountId: ap.id, credit: v.amount, vendorId: v.vendorId, memo: `${v.number} ${v.payee}` },
     ];
     const entry = await postJournal(tx, {
       organizationId: p.organizationId, date: new Date(`${v.date}T00:00:00Z`), memo: `Expense ${v.number}: ${v.payee}`, currency: v.currency,
@@ -176,7 +186,7 @@ export async function payVoucher(db: PrismaClient, p: { organizationId: string; 
     const entry = await postJournal(tx, {
       organizationId: p.organizationId, date: new Date(), memo: `Payment of ${v.number} to ${v.payee}`, currency: v.currency,
       sourceType: "EXPENSE_PAYMENT", sourceId: v.id, idempotencyKey: `voucher-pay:${v.id}`, postedById: p.actorId,
-      lines: [{ accountId: ap.id, debit: v.amount }, { accountId: bank.ledgerAccountId, credit: v.amount }],
+      lines: [{ accountId: ap.id, debit: v.amount, vendorId: v.vendorId }, { accountId: bank.ledgerAccountId, credit: v.amount }],
     });
     return tx.expenseVoucher.update({ where: { id: v.id }, data: { status: "PAID", paymentEntryId: entry.id, paidById: p.actorId } });
   });

@@ -20,7 +20,7 @@ async function submit(formData: FormData) {
       organizationId: user.organizationId, submittedById: user.id, date: String(formData.get("date")), payee: String(formData.get("payee") ?? ""),
       description: String(formData.get("description") ?? ""), justification: String(formData.get("justification") ?? ""),
       expenseAccountId: String(formData.get("expenseAccountId")), projectId: String(formData.get("projectId") ?? "") || null,
-      budgetId: String(formData.get("budgetId") ?? "") || null, currency: String(formData.get("currency")), amount: String(formData.get("amount") ?? ""),
+      budgetId: String(formData.get("budgetId") ?? "") || null, vendorId: String(formData.get("vendorId") ?? "") || null, currency: String(formData.get("currency")), amount: String(formData.get("amount") ?? ""),
     });
     id = v.id;
     await notifyPermission(db, user.organizationId, "expenses.review", { kind: "expense.submitted", title: `New expense voucher ${v.number}`, body: `${v.payee}: ${v.amount.toString()} ${v.currency}`, link: `/expenses/${v.id}`, dedupeKey: `expense-submitted:${v.id}` }, user.id);
@@ -43,7 +43,7 @@ export default async function Expenses({ searchParams }: { searchParams: Promise
   const pg = lp.page;
   const mine = expenseScope(user);
   const where = expenseWhere(user, lp);
-  const [vouchers, matched, counts, accounts, budgets, projects, people] = await Promise.all([
+  const [vouchers, matched, counts, accounts, budgets, projects, people, vendors] = await Promise.all([
     db.expenseVoucher.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: pg.skip, take: pg.take }),
     db.expenseVoucher.count({ where }),
     db.expenseVoucher.groupBy({ by: ["status"], where: mine, _count: true }),
@@ -51,6 +51,7 @@ export default async function Expenses({ searchParams }: { searchParams: Promise
     db.budget.findMany({ where: { organizationId: user.organizationId }, orderBy: { name: "asc" } }),
     user.permissions.has("projects.view") ? db.project.findMany({ where: { organizationId: user.organizationId }, orderBy: { number: "asc" } }) : Promise.resolve([]),
     db.user.findMany({ where: { organizationId: user.organizationId }, select: { id: true, name: true } }),
+    db.vendor.findMany({ where: { organizationId: user.organizationId, status: { not: "SUSPENDED" } }, orderBy: { name: "asc" }, select: { id: true, name: true, currency: true } }),
   ]);
   const name = new Map(people.map((p) => [p.id, p.name]));
   const today = new Date().toISOString().slice(0, 10);
@@ -80,7 +81,10 @@ export default async function Expenses({ searchParams }: { searchParams: Promise
       <form action={submit} className="card grid gap-4 sm:grid-cols-2">
         <h2 className="font-semibold sm:col-span-2">Submit a voucher</h2>
         {error && <div className="sm:col-span-2"><Notice kind="error">{error}</Notice></div>}
-        <div><label className="label" htmlFor="payee">Payee</label><input id="payee" name="payee" required className="input" /></div>
+        <div><label className="label" htmlFor="vendorId">Vendor (optional)</label>
+          <select id="vendorId" name="vendorId" className="input"><option value="">Not a registered vendor</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select>
+          <p className="mt-1 text-xs text-muted">Choose a vendor so this payment shows on their portal statement. The payee name is then taken from the vendor.</p></div>
+        <div><label className="label" htmlFor="payee">Payee (if no vendor chosen)</label><input id="payee" name="payee" className="input" /></div>
         <div><label className="label" htmlFor="date">Expense date</label><input id="date" name="date" type="date" defaultValue={today} required className="input" /></div>
         <div className="sm:col-span-2"><label className="label" htmlFor="description">Description</label><input id="description" name="description" required className="input" /></div>
         <div className="sm:col-span-2"><label className="label" htmlFor="justification">Business justification</label><input id="justification" name="justification" className="input" /></div>

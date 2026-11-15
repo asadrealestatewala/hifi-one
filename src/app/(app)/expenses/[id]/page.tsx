@@ -76,7 +76,7 @@ export default async function VoucherPage({ params, searchParams }: { params: Pr
         <div className="flex justify-end"><a className="btn-ghost" href={`/expenses/${v.id}/voucher`} target="_blank" rel="noopener">Voucher PDF</a></div>
         <h1 className="text-xl font-bold">{v.number} <span className="text-base font-normal text-muted">{v.status.replace("_", " ")}</span></h1>
         <dl className="grid grid-cols-3 gap-y-1 text-sm">
-          {([["Payee", v.payee], ["Date", v.date], ["Description", v.description], ["Justification", v.justification], ["Category", acct ? `${acct.code} ${acct.name}` : ""],
+          {([["Payee", v.vendorId ? `${v.payee} (registered vendor)` : v.payee], ["Date", v.date], ["Description", v.description], ["Justification", v.justification], ["Category", acct ? `${acct.code} ${acct.name}` : ""],
             ["Amount", formatMoney(v.amount, v.currency)], ["Project", project ? `${project.number} ${project.name}` : null], ["Submitted by", name(v.submittedById)],
             ["Reviewed by", name(v.reviewedById)], ["Approved by", name(v.approvedById)], ["Paid by", name(v.paidById)], ["Decision note", v.decisionNote],
             ["Over-budget reason", v.overBudgetReason]] as [string, string | null][]).filter(([, x]) => x).map(([k, x]) => (

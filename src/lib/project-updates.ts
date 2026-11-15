@@ -19,7 +19,7 @@ export const isKind = (v: string): v is UpdateKind => (UPDATE_KINDS as readonly 
 // recorded on the entry. Entries are shown to the client only when the project has a client and `visibleToClient` is set.
 export async function postUpdate(db: PrismaClient, p: {
   organizationId: string; projectId: string; authorId: string; kind: string; title: string; body?: string | null;
-  phase?: string | null; visibleToClient: boolean; canSetPhase: boolean;
+  phase?: string | null; visibleToClient: boolean; visibleToVendor?: boolean; canSetPhase: boolean;
 }) {
   const title = p.title.trim();
   if (!title) throw new UpdateError("Give the update a title.");
@@ -40,7 +40,7 @@ export async function postUpdate(db: PrismaClient, p: {
     return tx.projectUpdate.create({
       data: {
         organizationId: p.organizationId, projectId: project.id, authorId: p.authorId, kind: p.kind, title, body,
-        phase: newPhase ?? project.phase, visibleToClient: p.visibleToClient && Boolean(project.clientId),
+        phase: newPhase ?? project.phase, visibleToClient: p.visibleToClient && Boolean(project.clientId), visibleToVendor: Boolean(p.visibleToVendor),
       },
     });
   });
@@ -70,4 +70,23 @@ export async function clientFeed(db: PrismaClient, p: { clientId: string; projec
     phase: project.phase,
     updates: rows.map((r) => ({ id: r.id, kind: r.kind, title: r.title, body: r.body, phase: r.phase, at: r.createdAt, author: names.get(r.authorId) ?? "Hifi team" })),
   };
+}
+
+// Projects a vendor works on: those named on one of their work orders or on one of their live expense vouchers.
+export async function vendorProjectIds(db: PrismaClient, p: { organizationId: string; vendorId: string }) {
+  const [orders, vouchers] = await Promise.all([
+    db.workOrder.findMany({ where: { organizationId: p.organizationId, vendorId: p.vendorId, projectId: { not: null }, status: { not: "CANCELLED" } }, select: { projectId: true } }),
+    db.expenseVoucher.findMany({ where: { organizationId: p.organizationId, vendorId: p.vendorId, projectId: { not: null }, status: { notIn: ["REJECTED", "CANCELLED"] } }, select: { projectId: true } }),
+  ]);
+  return [...new Set([...orders, ...vouchers].map((r) => r.projectId).filter((x): x is string => Boolean(x)))];
+}
+
+// What a vendor sees: for each of their projects, the project name and phase plus only the entries marked for vendors.
+// No client, budget or internal notes are selected.
+export async function vendorFeed(db: PrismaClient, p: { organizationId: string; vendorId: string; take?: number }) {
+  const ids = await vendorProjectIds(db, p);
+  if (ids.length === 0) return [];
+  const projects = await db.project.findMany({ where: { id: { in: ids }, organizationId: p.organizationId, status: { not: "CANCELLED" } }, orderBy: { number: "asc" }, select: { id: true, number: true, name: true, phase: true, status: true } });
+  const rows = await db.projectUpdate.findMany({ where: { projectId: { in: projects.map((x) => x.id) }, visibleToVendor: true }, orderBy: { createdAt: "desc" }, take: p.take ?? 200 });
+  return projects.map((pr) => ({ ...pr, updates: rows.filter((r) => r.projectId === pr.id).map((r) => ({ id: r.id, kind: r.kind, title: r.title, body: r.body, phase: r.phase, at: r.createdAt })) }));
 }
