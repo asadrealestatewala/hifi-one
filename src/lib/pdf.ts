@@ -95,6 +95,8 @@ function start(opts: { compress?: boolean; title: string; cfg: DocConfig; stamp?
       const range = doc.bufferedPageRange();
       for (let i = 0; i < range.count; i++) {
         doc.switchToPage(i);
+        // The page number sits in the bottom margin; without this pdfkit treats it as overflow and adds a blank page
+        doc.page.margins.bottom = 0;
         doc.fontSize(8).fillColor("#777").font("Helvetica");
         const note = ctx.lossy.value ? "Some characters could not be shown in this PDF and appear as ?. See the on-screen version for the full text.  " : "";
         doc.text(`${note}Page ${i + 1} of ${range.count}`, 48, 800, { width: 500, align: "center", lineBreak: false });
