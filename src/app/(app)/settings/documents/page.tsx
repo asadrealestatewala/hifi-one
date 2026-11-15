@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { DEFAULT_DOC_CONFIG, INVOICE_TEMPLATES, TEMPLATE_KEYS, mergeConfig, type DocConfig } from "@/lib/pdf";
+import { DEFAULT_DOC_CONFIG, DEFAULT_INVOICE_TEMPLATE, INVOICE_TEMPLATES, TEMPLATE_KEYS, mergeConfig, type DocConfig } from "@/lib/pdf";
 import { DOC_TYPES, getDocConfig, type DocType } from "@/lib/pdf-data";
 import { Notice, PageHeader } from "@/components/ui";
 
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 const TITLES: Record<DocType, string> = { QUOTE: "Quotations", INVOICE: "Invoices", RECEIPT: "Receipts", CREDIT_NOTE: "Credit notes", STATEMENT: "Client statements", PAYSLIP: "Payslips", VOUCHER: "Expense vouchers" };
 const TOGGLES: [keyof DocConfig, string][] = [
   ["showRegisteredOffice", "Registered office"], ["showSalesCentre", "Sales centre"], ["showPhones", "Phone numbers (UANs)"], ["showEmail", "Company email"],
-  ["showWebsite", "Website"], ["showRegistrationNo", "Registration number"], ["showTaxId", "Tax ID"], ["showBank", "Bank payment instructions"],
+  ["showWebsite", "Website"], ["showRegistrationNo", "Registration number"], ["showTaxId", "Tax ID"], ["showBank", "Bank payment instructions"], ["showStamp", "Company stamp"],
 ];
 
 async function save(formData: FormData) {
@@ -27,8 +27,7 @@ async function save(formData: FormData) {
     for (const [k] of TOGGLES) raw[k] = formData.get(k) === "on";
     if (docType === "INVOICE") {
       const tpl = String(formData.get("template") ?? "");
-      raw.template = TEMPLATE_KEYS.includes(tpl) ? tpl : DEFAULT_DOC_CONFIG.template;
-      raw.showSignature = formData.get("showSignature") === "on";
+      raw.template = TEMPLATE_KEYS.includes(tpl) ? tpl : DEFAULT_INVOICE_TEMPLATE;
     }
     const config = mergeConfig(raw as Partial<DocConfig>);
     await db.documentSetting.upsert({
@@ -82,8 +81,7 @@ export default async function DocumentSettings({ searchParams }: { searchParams:
                   </label>
                 ))}
               </div>
-              <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="showSignature" defaultChecked={config.showSignature} disabled={!canEdit} /> Signature and company stamp (Hifi Signature template only)</label>
-              <p className="text-xs text-muted">Each invoice can use a different template while it is a draft. The template is frozen when the invoice is issued. The accent colour below only applies to the Standard template.</p>
+              <p className="text-xs text-muted">Each invoice can use a different template while it is a draft. The template is frozen when the invoice is issued. The accent colour below is not used by these two templates.</p>
             </div>
           )}
           <div className="grid gap-3 sm:grid-cols-[1fr_8rem]">

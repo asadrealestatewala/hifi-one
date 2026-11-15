@@ -13,7 +13,7 @@ import PrintButton from "@/components/PrintButton";
 import { ConfirmButton, Notice, StatusBadge } from "@/components/ui";
 import { readReason } from "@/lib/reasons";
 import { invoiceIssued } from "@/lib/events";
-import { INVOICE_TEMPLATES, TEMPLATE_KEYS } from "@/lib/pdf";
+import { INVOICE_TEMPLATES, TEMPLATE_KEYS, templateLabel } from "@/lib/pdf";
 import { getDocConfig } from "@/lib/pdf-data";
 
 export const dynamic = "force-dynamic";
@@ -146,9 +146,9 @@ export default async function InvoicePage({
       })()}
       {(() => {
         const frozen = (inv.companySnapshot as { _template?: { config?: { template?: string } } } | null)?._template?.config?.template ?? "standard";
-        const label = (k: string) => INVOICE_TEMPLATES.find((t) => t.key === k)?.label ?? k;
+        const label = templateLabel;
         if (inv.status !== "DRAFT") return <p className="max-w-3xl text-sm text-muted print:hidden">PDF template: {label(frozen)} (set when the invoice was issued)</p>;
-        const chosen = inv.templateKey ?? defaultKey;
+        const chosen = inv.templateKey && TEMPLATE_KEYS.includes(inv.templateKey) ? inv.templateKey : defaultKey;
         return canPost ? (
           <form action={setTemplate} className="flex max-w-3xl flex-wrap items-end gap-2 print:hidden">
             <input type="hidden" name="id" value={inv.id} />

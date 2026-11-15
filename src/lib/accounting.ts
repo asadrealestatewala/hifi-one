@@ -3,7 +3,7 @@
 // Deliberately free of Next.js imports so it can be tested directly against the database.
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { periodLockMessage } from "./period-lock";
-import { TEMPLATE_KEYS } from "./pdf";
+import { DEFAULT_INVOICE_TEMPLATE, TEMPLATE_KEYS } from "./pdf";
 import {
   LedgerError, allocateFifo, assertBalanced, computeInvoiceTotals, dec, invoiceStatusAfterPayment, round2, type DraftLine,
 } from "./ledger-math";
@@ -110,9 +110,9 @@ export async function issueInvoice(db: PrismaClient, p: { organizationId: string
       where: { organizationId: p.organizationId, currency: inv.currency, active: true, isDefault: true },
     });
     const tpl = await tx.documentSetting.findUnique({ where: { organizationId_docType: { organizationId: p.organizationId, docType: "INVOICE" } } });
-    // The layout is frozen with the invoice: its own choice, else the company default, else Hifi Signature for companies that never saved one
+    // The layout is frozen with the invoice: its own choice, else the company default, else Modern Indigo
     const saved = (tpl?.config ?? {}) as { template?: string };
-    const template = inv.templateKey && TEMPLATE_KEYS.includes(inv.templateKey) ? inv.templateKey : saved.template && TEMPLATE_KEYS.includes(saved.template) ? saved.template : tpl ? "standard" : "hifi-signature";
+    const template = inv.templateKey && TEMPLATE_KEYS.includes(inv.templateKey) ? inv.templateKey : saved.template && TEMPLATE_KEYS.includes(saved.template) ? saved.template : DEFAULT_INVOICE_TEMPLATE;
     const tplConfig = { ...saved, template };
     const number = await nextNumber(tx, p.organizationId, "INV", "INV");
     const lines: DraftLine[] = [{ accountId: ar.id, debit: inv.total, clientId: inv.clientId, memo: number }];
