@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_DOC_CONFIG, creditNotePdf, invoicePdf, mergeConfig, payslipPdf, pdfMoney, pdfText, receiptPdf, statementPdf, voucherPdf,
+  DEFAULT_DOC_CONFIG, TEMPLATE_KEYS, creditNotePdf, invoicePdf, mergeConfig, payslipPdf, pdfMoney, pdfText, receiptPdf, statementPdf, voucherPdf,
   type Company, type InvoiceDoc,
 } from "./pdf";
 import { pdfPlainText } from "./pdf-text.testutil";
@@ -42,7 +42,7 @@ describe("invoice templates", () => {
     subtotal: "85000", taxRate: "0", taxAmount: "0", total: "85000", amountPaid: "40000", creditedAmount: "0",
   });
   for (const template of ["hifi-signature", "standard", "modern", "minimal"]) {
-    it(`${template} prints the number, client, line, adjustment and amount payable`, async () => {
+    it(`${template} (offered or retired) prints the number, client, line, adjustment and amount payable`, async () => {
       const buf = await invoicePdf({ ...biz, config: mergeConfig({ template } as never) }, { compress: false });
       expect(buf.subarray(0, 5).toString()).toBe("%PDF-");
       const t = pdfPlainText(buf);
@@ -58,6 +58,24 @@ describe("invoice templates", () => {
     for (const w of ["INVOICE NUMBER", "BILL TO", "SERVICE DETAILS", "AMOUNT PAYABLE", "TRANSACTION DETAILS:", "CLIENT DETAILS:", "Authorised Signature", "Company Stamp"]) expect(t).toContain(w);
     const off = pdfPlainText(await invoicePdf({ ...biz, config: mergeConfig({ template: "hifi-signature", showSignature: false } as never) }, { compress: false }));
     expect(off).not.toContain("Authorised Signature");
+  });
+  it("only Modern Indigo and Minimal are offered; retired layouts still render for invoices issued with them", () => {
+    expect(TEMPLATE_KEYS).toEqual(["modern", "minimal"]);
+    expect(mergeConfig({ template: "hifi-signature" } as never).template).toBe("hifi-signature");
+  });
+  it("puts the company stamp on new invoices, quotes and receipts unless switched off, and never on retired invoice layouts", async () => {
+    const withStamp = pdfPlainText(await invoicePdf({ ...biz, config: mergeConfig({ template: "modern" } as never) }, { compress: false }));
+    expect(withStamp).toContain("Company stamp");
+    const off = pdfPlainText(await invoicePdf({ ...biz, config: mergeConfig({ template: "minimal", showStamp: false } as never) }, { compress: false }));
+    expect(off).not.toContain("Company stamp");
+    const old = pdfPlainText(await invoicePdf({ ...biz, config: mergeConfig({ template: "standard" } as never) }, { compress: false }));
+    expect(old).not.toContain("Company stamp");
+    const rc = pdfPlainText(await receiptPdf({ number: "RCT-1", date: new Date("2026-11-14"), currency: "PKR", amount: "45000", unallocated: "0", method: "BANK_TRANSFER", reference: null, client: { name: "Biztrack UK" }, allocations: [], company, config: DEFAULT_DOC_CONFIG }, { compress: false }));
+    expect(rc).toContain("Company stamp");
+  });
+  it("labels the company details", async () => {
+    const t = pdfPlainText(await invoicePdf({ ...biz, company: { ...company, website: "www.hifimarketing.co", email: "hello@hifimarketing.co" }, config: mergeConfig({ template: "modern" } as never) }, { compress: false }));
+    for (const w of ["Website: www.hifimarketing.co", "Email: hello@hifimarketing.co", "UAN (Pak): +92 316 8080801", "UAN Global: +1 778-652-1616", "Address: PZT Tower, Islamabad", "HQ: 7901 4TH ST N"]) expect(t).toContain(w);
   });
   it("an unknown template falls back to Standard, so old issued invoices look as they did", () => {
     expect(mergeConfig({ template: "nope" } as never).template).toBe("standard");

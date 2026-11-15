@@ -3,7 +3,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { clientStatement } from "./accounting";
 import { vendorLedger } from "./vendors";
-import { DEFAULT_DOC_CONFIG, TEMPLATE_KEYS, mergeConfig, type Bank, type Company, type CreditNoteDoc, type DocConfig, type InvoiceDoc, type PayslipDoc, type ReceiptDoc, type QuoteDoc, type AgreementDoc, type StatementDoc, type VoucherDoc } from "./pdf";
+import { DEFAULT_DOC_CONFIG, DEFAULT_INVOICE_TEMPLATE, TEMPLATE_KEYS, mergeConfig, type Bank, type Company, type CreditNoteDoc, type DocConfig, type InvoiceDoc, type PayslipDoc, type ReceiptDoc, type QuoteDoc, type AgreementDoc, type StatementDoc, type VoucherDoc } from "./pdf";
 
 type Json = Record<string, unknown> | null | undefined;
 
@@ -13,8 +13,8 @@ export const DOC_TYPES: DocType[] = ["QUOTE", "INVOICE", "RECEIPT", "CREDIT_NOTE
 export async function getDocConfig(db: PrismaClient, organizationId: string, docType: DocType): Promise<{ config: DocConfig; version: number }> {
   const row = await db.documentSetting.findUnique({ where: { organizationId_docType: { organizationId, docType } } });
   const config = mergeConfig(row?.config as Partial<DocConfig> | undefined);
-  // An organization that never saved an invoice template starts on the Hifi Signature layout
-  if (docType === "INVOICE" && !row) config.template = "hifi-signature";
+  // New invoices only use the offered layouts; anything else (never saved, or a retired one) means the default
+  if (docType === "INVOICE" && !TEMPLATE_KEYS.includes(config.template)) config.template = DEFAULT_INVOICE_TEMPLATE;
   return { config, version: row?.version ?? 0 };
 }
 

@@ -17,20 +17,28 @@ export type DocConfig = {
   footerText: string;
   accent: string;
   template: string; // invoice layout, see INVOICE_TEMPLATES
-  showSignature: boolean; // signature and stamp, used by the Hifi Signature layout
+  showSignature: boolean; // signature and stamp, used by the retired Hifi Signature layout
+  showStamp: boolean; // company stamp at the end of official documents
 };
 
+// The layouts staff can choose for new invoices
 export const INVOICE_TEMPLATES = [
-  { key: "hifi-signature", label: "Hifi Signature", note: "Teal and orange wave header, bank details, signature and company stamp." },
-  { key: "standard", label: "Standard", note: "Plain layout with a coloured table header (uses the accent colour)." },
   { key: "modern", label: "Modern Indigo", note: "Navy to indigo header band with the logo." },
   { key: "minimal", label: "Minimal", note: "White space, thin lines and a small logo." },
 ] as const;
 export const TEMPLATE_KEYS: string[] = INVOICE_TEMPLATES.map((t) => t.key);
+export const DEFAULT_INVOICE_TEMPLATE = "modern";
+// Retired layouts: no longer offered, but invoices already issued with them keep printing exactly as they were sent
+export const RETIRED_TEMPLATES = [
+  { key: "standard", label: "Standard (retired)" },
+  { key: "hifi-signature", label: "Hifi Signature (retired)" },
+] as const;
+const LAYOUT_KEYS: string[] = [...TEMPLATE_KEYS, ...RETIRED_TEMPLATES.map((t) => t.key)];
+export const templateLabel = (k: string) => [...INVOICE_TEMPLATES, ...RETIRED_TEMPLATES].find((t) => t.key === k)?.label ?? k;
 
 export const DEFAULT_DOC_CONFIG: DocConfig = {
   showRegisteredOffice: true, showSalesCentre: true, showPhones: true, showEmail: true, showWebsite: true, showRegistrationNo: true, showTaxId: true,
-  showBank: true, footerText: "", accent: "#e11d1d", template: "standard", showSignature: true,
+  showBank: true, footerText: "", accent: "#e11d1d", template: "standard", showSignature: true, showStamp: true,
 };
 
 export function mergeConfig(c: Partial<DocConfig> | null | undefined): DocConfig {
@@ -40,7 +48,8 @@ export function mergeConfig(c: Partial<DocConfig> | null | undefined): DocConfig
     if (v !== undefined && typeof v === typeof DEFAULT_DOC_CONFIG[k]) (m as Record<string, unknown>)[k] = v;
   }
   if (!/^#[0-9a-fA-F]{6}$/.test(m.accent)) m.accent = DEFAULT_DOC_CONFIG.accent;
-  if (!TEMPLATE_KEYS.includes(m.template)) m.template = DEFAULT_DOC_CONFIG.template;
+  // Unknown or missing layout means an invoice issued before templates existed, which used the plain layout
+  if (!LAYOUT_KEYS.includes(m.template)) m.template = DEFAULT_DOC_CONFIG.template;
   return m;
 }
 
@@ -73,7 +82,7 @@ export function pdfMoney(amount: { toString(): string } | number | string, curre
 
 const fmtDate = (d: Date | string | null | undefined) => (d ? (typeof d === "string" ? d : d.toISOString().slice(0, 10)) : "");
 
-function start(opts: { compress?: boolean; title: string; cfg: DocConfig }): { ctx: Ctx; done: () => Promise<Buffer> } {
+function start(opts: { compress?: boolean; title: string; cfg: DocConfig; stamp?: boolean }): { ctx: Ctx; done: () => Promise<Buffer> } {
   const doc = new PDFDocument({ size: "A4", margin: 48, compress: opts.compress ?? true, info: { Title: opts.title, Producer: "Hifi One", Creator: "Hifi One" }, bufferPages: true });
   const chunks: Buffer[] = [];
   doc.on("data", (c: Buffer) => chunks.push(c));
@@ -82,6 +91,7 @@ function start(opts: { compress?: boolean; title: string; cfg: DocConfig }): { c
   return {
     ctx,
     done: async () => {
+      if (opts.stamp && ctx.cfg.showStamp) stampBlock(ctx);
       const range = doc.bufferedPageRange();
       for (let i = 0; i < range.count; i++) {
         doc.switchToPage(i);
@@ -95,6 +105,19 @@ function start(opts: { compress?: boolean; title: string; cfg: DocConfig }): { c
   };
 }
 
+// The company stamp, bottom right after the content; on a new page when the last one is full
+function stampBlock(ctx: Ctx) {
+  const img = asset("stamp.png");
+  if (!img) return;
+  const { doc } = ctx;
+  let y = doc.y + 24;
+  if (y + 90 > 785) { doc.addPage(); y = 60; }
+  doc.image(img, 430, y, { height: 72 });
+  doc.lineWidth(0.6).moveTo(410, y + 80).lineTo(547, y + 80).stroke("#999");
+  doc.font("Helvetica").fontSize(7.5).fillColor("#555").text("Company stamp", 410, y + 84, { width: 137, align: "center", lineBreak: false });
+  doc.fillColor("#111");
+}
+
 function t(ctx: Ctx, s: string | null | undefined) {
   const r = pdfText(s);
   if (r.lossy) ctx.lossy.value = true;
@@ -103,14 +126,12 @@ function t(ctx: Ctx, s: string | null | undefined) {
 
 function companyLines(cfg: DocConfig, company: Company): string[] {
   const lines: string[] = [];
-  if (cfg.showRegisteredOffice && company.registeredOffice) lines.push(company.registeredOffice);
-  if (cfg.showSalesCentre && company.salesCentre) lines.push(`Sales centre: ${company.salesCentre}`);
-  if (cfg.showPhones) {
-    const ph = [company.globalUan, company.localUan].filter(Boolean).join("  |  ");
-    if (ph) lines.push(ph);
-  }
-  if (cfg.showEmail && company.email) lines.push(company.email);
-  if (cfg.showWebsite && company.website) lines.push(company.website);
+  if (cfg.showWebsite && company.website) lines.push(`Website: ${company.website}`);
+  if (cfg.showEmail && company.email) lines.push(`Email: ${company.email}`);
+  if (cfg.showPhones && company.localUan) lines.push(`UAN (Pak): ${company.localUan}`);
+  if (cfg.showPhones && company.globalUan) lines.push(`UAN Global: ${company.globalUan}`);
+  if (cfg.showSalesCentre && company.salesCentre) lines.push(`Address: ${company.salesCentre}`);
+  if (cfg.showRegisteredOffice && company.registeredOffice) lines.push(`HQ: ${company.registeredOffice}`);
   if (cfg.showRegistrationNo && company.registrationNo) lines.push(`Reg. no. ${company.registrationNo}`);
   if (cfg.showTaxId && company.taxId) lines.push(`Tax ID ${company.taxId}`);
   return lines;
@@ -241,7 +262,7 @@ function invoiceRows(d: InvoiceDoc): { rows: [string, string][]; payable: string
   const adjustment = Number(d.amountPaid) + Number(d.creditedAmount);
   const balance = Number(d.total) - adjustment;
   const rows: [string, string][] = [["Subtotal", pdfMoney(d.subtotal, d.currency)]];
-  if (Number(d.taxAmount) > 0) rows.push([`Tax (${d.taxRate}%)`, pdfMoney(d.taxAmount, d.currency)]);
+  if (Number(d.taxAmount) > 0) rows.push([`Tax (${d.taxRate}%)`, pdfMoney(d.taxAmount, d.currency)], ["Total", pdfMoney(d.total, d.currency)]);
   if (adjustment > 0) rows.push(["Adjustment - previous funds", `- ${pdfMoney(adjustment, d.currency)}`]);
   return { rows, payable: pdfMoney(balance, d.currency) };
 }
@@ -421,7 +442,7 @@ function invoiceModern(ctx: Ctx, d: InvoiceDoc) {
   doc.y = y + 40;
   if (d.notes) { doc.font("Helvetica").fontSize(9).fillColor("#555").text(t(ctx, d.notes), 48, doc.y, { width: 499 }); }
   bankBlock(ctx, d.bank);
-  footer(ctx, d.company);
+  footer(ctx, d.company, d.templateVersion ? `Template v${d.templateVersion}` : undefined);
   doc.rect(0, 826, 595.28, 16).fill(INDIGO);
 }
 
@@ -474,11 +495,11 @@ function invoiceMinimal(ctx: Ctx, d: InvoiceDoc) {
   doc.y = y + 44;
   if (d.notes) { doc.font("Helvetica").fontSize(9).fillColor("#666").text(t(ctx, d.notes), 48, doc.y, { width: 499 }); }
   bankBlock(ctx, d.bank);
-  footer(ctx, d.company);
+  footer(ctx, d.company, d.templateVersion ? `Template v${d.templateVersion}` : undefined);
 }
 
 export async function invoicePdf(d: InvoiceDoc, b: Build = {}) {
-  const { ctx, done } = start({ ...b, title: `Invoice ${d.number ?? "draft"}`, cfg: d.config });
+  const { ctx, done } = start({ ...b, title: `Invoice ${d.number ?? "draft"}`, cfg: d.config, stamp: TEMPLATE_KEYS.includes(d.config.template) }); // retired layouts print as they were issued
   const { doc } = ctx;
   if (d.config.template === "hifi-signature") { invoiceHifi(ctx, d); return done(); }
   if (d.config.template === "modern") { invoiceModern(ctx, d); return done(); }
@@ -515,7 +536,7 @@ export type QuoteDoc = {
   subtotal: string; taxRate: string; taxAmount: string; total: string; company: Company; config: DocConfig;
 };
 export async function quotePdf(d: QuoteDoc, b: Build = {}) {
-  const { ctx, done } = start({ ...b, title: `Quotation ${d.number}`, cfg: d.config });
+  const { ctx, done } = start({ ...b, title: `Quotation ${d.number}`, cfg: d.config, stamp: true });
   const { doc } = ctx;
   header(ctx, d.company, "QUOTATION", d.number, d.status === "DRAFT" ? "DRAFT" : undefined);
   const y = doc.y;
@@ -539,7 +560,7 @@ export type CreditNoteDoc = {
   client: { name: string; billingAddress?: string | null }; company: Company; config: DocConfig;
 };
 export async function creditNotePdf(d: CreditNoteDoc, b: Build = {}) {
-  const { ctx, done } = start({ ...b, title: `Credit note ${d.number}`, cfg: d.config });
+  const { ctx, done } = start({ ...b, title: `Credit note ${d.number}`, cfg: d.config, stamp: true });
   header(ctx, d.company, d.kind === "WRITE_OFF" ? "WRITE-OFF NOTICE" : "CREDIT NOTE", d.number);
   kv(ctx, [["Client", d.client.name], ["Address", d.client.billingAddress], ["Date", fmtDate(d.date)], ["Against invoice", d.invoiceNumber], ["Reason", d.reason]]);
   totals(ctx, [["Revenue reversed", pdfMoney(Number(d.amount) - Number(d.taxPortion), d.currency)], ["Tax reversed", pdfMoney(d.taxPortion, d.currency)], ["Total credit", pdfMoney(d.amount, d.currency), true]]);
@@ -553,7 +574,7 @@ export type ReceiptDoc = {
   client: { name: string }; allocations: { invoiceNumber: string | null; amount: string }[]; bankName?: string | null; company: Company; config: DocConfig;
 };
 export async function receiptPdf(d: ReceiptDoc, b: Build = {}) {
-  const { ctx, done } = start({ ...b, title: `Receipt ${d.number}`, cfg: d.config });
+  const { ctx, done } = start({ ...b, title: `Receipt ${d.number}`, cfg: d.config, stamp: true });
   header(ctx, d.company, "PAYMENT RECEIPT", d.number);
   kv(ctx, [["Received from", d.client.name], ["Date", fmtDate(d.date)], ["Method", d.method.replace(/_/g, " ").toLowerCase()], ["Reference", d.reference], ["Paid into", d.bankName], ["Received by", d.receivedBy]]);
   doc_move(ctx);
@@ -575,7 +596,7 @@ export type StatementDoc = {
   labels?: { party: string; debit: string; credit: string; balance: string; heading: string };
 };
 export async function statementPdf(d: StatementDoc, b: Build = {}) {
-  const { ctx, done } = start({ ...b, title: `Statement ${d.client.name}`, cfg: d.config });
+  const { ctx, done } = start({ ...b, title: `Statement ${d.client.name}`, cfg: d.config, stamp: true });
   const L = d.labels ?? { party: "Client", debit: "Charges", credit: "Payments", balance: "Balance", heading: "ACCOUNT STATEMENT" };
   header(ctx, d.company, L.heading);
   kv(ctx, [[L.party, `${d.client.name}${d.client.code ? ` (${d.client.code})` : ""}`], ["As of", fmtDate(d.asOf)]]);
@@ -602,7 +623,7 @@ export type PayslipDoc = {
   company: Company; config: DocConfig;
 };
 export async function payslipPdf(d: PayslipDoc, b: Build = {}) {
-  const { ctx, done } = start({ ...b, title: `Payslip ${d.period}`, cfg: d.config });
+  const { ctx, done } = start({ ...b, title: `Payslip ${d.period}`, cfg: d.config, stamp: true });
   header(ctx, d.company, `PAYSLIP ${d.period}`, null, d.status === "DRAFT" ? "DRAFT" : undefined);
   kv(ctx, [["Employee", `${d.employee.name}${d.employee.employeeNo ? ` (${d.employee.employeeNo})` : ""}`], ["Designation", d.employee.designation]]);
   doc_move(ctx);
@@ -673,7 +694,7 @@ export type AgreementDoc = {
   declineReason: string | null;
 };
 export async function agreementPdf(d: AgreementDoc, b: Build = {}) {
-  const { ctx, done } = start({ ...b, title: d.title, cfg: d.config });
+  const { ctx, done } = start({ ...b, title: d.title, cfg: d.config, stamp: true });
   const { doc } = ctx;
   header(ctx, d.company, "AGREEMENT", d.number, d.status);
   doc.font("Helvetica-Bold").fontSize(13).fillColor("#111").text(t(ctx, d.title), 48);
