@@ -110,6 +110,8 @@ export default async function InvoicePage({
   const co = (inv.companySnapshot as Snap | null) ?? (live as unknown as Snap | null);
   const bank = inv.bankSnapshot as Snap | null;
   const defaultKey = (await getDocConfig(db, user.organizationId, "INVOICE")).config.template;
+  const proofRows = inv.allocations.length ? await db.storedFile.groupBy({ by: ["ownerId"], where: { organizationId: user.organizationId, ownerType: "PAYMENT", ownerId: { in: inv.allocations.map((a) => a.paymentId) }, deletedAt: null }, _count: { _all: true } }) : [];
+  const proofs = new Map(proofRows.map((r) => [r.ownerId, r._count._all]));
   return (
     <div className="space-y-4">
       <Link href="/finance/invoices" className="text-sm text-muted hover:underline print:hidden">← All invoices</Link>
@@ -222,7 +224,7 @@ export default async function InvoicePage({
         {inv.allocations.length > 0 && (
           <section className="text-sm print:hidden">
             <p className="label">Payments received</p>
-            <ul>{inv.allocations.map((a) => <li key={a.id}>{a.payment.number}: {formatMoney(a.amount, inv.currency)} · <a className="underline" href={`/finance/payments/${a.paymentId}/pdf`} target="_blank" rel="noopener">Receipt PDF</a></li>)}</ul>
+            <ul>{inv.allocations.map((a) => <li key={a.id}><Link className="underline" href={`/finance/payments/${a.paymentId}`}>{a.payment.number}</Link>: {formatMoney(a.amount, inv.currency)} · <a className="underline" href={`/finance/payments/${a.paymentId}/pdf`} target="_blank" rel="noopener">Receipt PDF</a>{proofs.has(a.paymentId) ? <> · <Link className="underline" href={`/finance/payments/${a.paymentId}#files`}>Proof of payment ({proofs.get(a.paymentId)})</Link></> : <span className="text-muted"> · no proof attached</span>}</li>)}</ul>
           </section>
         )}
       </article>
