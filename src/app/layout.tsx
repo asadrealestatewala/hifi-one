@@ -18,8 +18,8 @@ export const metadata: Metadata = {
 };
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 
-// Applies the saved theme before the first paint so there is no flash of the wrong colours.
-const THEME = `try{var t=localStorage.getItem("hifi.theme");if(t==="dark"||t==="light")document.documentElement.dataset.theme=t;else if(matchMedia("(prefers-color-scheme: dark)").matches)document.documentElement.dataset.theme="dark"}catch(e){}`;
+// Applies the saved theme and row density before the first paint so there is no flash of the wrong colours or a jump in row height.
+const THEME = `try{var t=localStorage.getItem("hifi.theme");if(t==="dark"||t==="light")document.documentElement.dataset.theme=t;else if(matchMedia("(prefers-color-scheme: dark)").matches)document.documentElement.dataset.theme="dark";if(localStorage.getItem("hifi.density")==="compact")document.documentElement.dataset.density="compact"}catch(e){}`;
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (

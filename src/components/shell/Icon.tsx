@@ -18,6 +18,7 @@ const P: Record<string, string> = {
   chevron: "m9 6 6 6-6 6",
   down: "m6 9 6 6 6-6",
   menu: "M4 6h16M4 12h16M4 18h16",
+  rows: "M4 5h16M4 9.5h16M4 14h16M4 18.5h16",
   close: "M6 6l12 12M18 6 6 18",
   sun: "M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0-13v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4",
   moon: "M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z",

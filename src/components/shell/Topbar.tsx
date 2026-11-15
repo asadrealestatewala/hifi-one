@@ -26,10 +26,19 @@ export default function Topbar({ unread, chatUnread, quick, canSearch, onMenu, e
   const [items, setItems] = useState<BellItem[] | null>(null);
   const router = useRouter();
   const [dark, setDark] = useState(false);
+  const [compact, setCompact] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   useClickAway(box, () => setMenu(""));
 
-  useEffect(() => { setDark(document.documentElement.dataset.theme === "dark"); }, []);
+  useEffect(() => { setDark(document.documentElement.dataset.theme === "dark"); setCompact(document.documentElement.dataset.density === "compact"); }, []);
+
+  // Compact view: tighter rows on every list. Remembered in this browser, like the theme.
+  const flipDensity = () => {
+    const next = !compact;
+    if (next) document.documentElement.dataset.density = "compact"; else delete document.documentElement.dataset.density;
+    try { localStorage.setItem("hifi.density", next ? "compact" : "comfortable"); } catch { /* private mode: the choice just is not remembered */ }
+    setCompact(next);
+  };
 
   const flip = () => {
     const next = dark ? "light" : "dark";
@@ -95,6 +104,10 @@ export default function Topbar({ unread, chatUnread, quick, canSearch, onMenu, e
         )}
 
         {extra}
+
+        <button type="button" onClick={flipDensity} aria-pressed={compact} className={`hidden rounded-lg p-2 hover:bg-hover hover:text-foreground sm:inline-flex ${compact ? "bg-hover text-foreground" : "text-muted"}`} aria-label={compact ? "Compact view on: switch to comfortable rows" : "Switch to compact view"} title={compact ? "Comfortable rows" : "Compact view"}>
+          <Icon name="rows" />
+        </button>
 
         <button type="button" onClick={flip} className="rounded-lg p-2 text-muted hover:bg-hover hover:text-foreground" aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}>
           <Icon name={dark ? "sun" : "moon"} />

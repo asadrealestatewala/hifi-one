@@ -15,7 +15,7 @@ export default function Avatar({ name, size = 32, userId }: { name: string; size
   let h = 0;
   for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return (
-    <span className="relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold text-white" style={{ width: size, height: size, fontSize: size * 0.38, background: HUES[h % HUES.length] }} title={name}>
+    <span data-avatar className="relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold text-white" style={{ width: size, height: size, fontSize: size * 0.38, background: HUES[h % HUES.length] }} title={name}>
       <span aria-hidden>{initials}</span>
       {userId && !failed && (
         // eslint-disable-next-line @next/next/no-img-element
