@@ -92,6 +92,39 @@ export async function createDraftInvoice(
   });
 }
 
+// A draft can be changed freely until it is issued: nothing is posted for a draft, so replacing its lines is safe.
+// Issued, paid or cancelled invoices are never edited (use a credit note).
+export async function updateDraftInvoice(
+  db: PrismaClient,
+  p: {
+    organizationId: string; invoiceId: string; clientId: string; currency: string; taxRate: string; notes?: string | null; templateKey?: string | null;
+    lines: { description: string; quantity: string; unitPrice: string }[];
+  },
+) {
+  if (p.lines.length === 0) throw new LedgerError("Add at least one line.");
+  const t = computeInvoiceTotals(p.lines, p.taxRate);
+  if (t.total.lte(0)) throw new LedgerError("Invoice total must be greater than zero.");
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Invoice" WHERE id = ${p.invoiceId} FOR UPDATE`;
+    const inv = await tx.invoice.findFirst({ where: { id: p.invoiceId, organizationId: p.organizationId } });
+    if (!inv) throw new LedgerError("Invoice not found.");
+    if (inv.status !== "DRAFT") throw new LedgerError("Only draft invoices can be edited. Use a credit note to correct an issued invoice.");
+    const client = await tx.client.findFirst({ where: { id: p.clientId, organizationId: p.organizationId } });
+    if (!client) throw new LedgerError("Unknown client.");
+    await tx.invoiceLine.deleteMany({ where: { invoiceId: inv.id } });
+    return tx.invoice.update({
+      where: { id: inv.id },
+      data: {
+        clientId: p.clientId, currency: p.currency, taxRate: p.taxRate, notes: p.notes ?? null,
+        ...(p.templateKey !== undefined ? { templateKey: p.templateKey && TEMPLATE_KEYS.includes(p.templateKey) ? p.templateKey : null } : {}),
+        subtotal: t.subtotal, taxAmount: t.taxAmount, total: t.total,
+        lines: { create: p.lines.map((l, i) => ({ description: l.description, quantity: l.quantity, unitPrice: l.unitPrice, amount: t.amounts[i] })) },
+      },
+      include: { lines: true },
+    });
+  });
+}
+
 export async function issueInvoice(db: PrismaClient, p: { organizationId: string; invoiceId: string; actorId: string }) {
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Invoice" WHERE id = ${p.invoiceId} FOR UPDATE`;

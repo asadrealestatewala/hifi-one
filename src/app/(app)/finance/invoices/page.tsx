@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { z } from "zod";
-import { audit, requirePermission } from "@/lib/auth";
-import { createDraftInvoice, LedgerError } from "@/lib/accounting";
+import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { Chips, Empty, ExportLink, NewButton, Notice, PageHeader, Pager, SearchBox, SortTh, Stat, StatusBadge, ListToolbar } from "@/components/ui";
@@ -12,56 +10,16 @@ import { listHref } from "@/lib/list-params";
 import { INVOICE_SORTS, INVOICE_STATUSES, invoiceOutstanding, invoiceParams, invoiceWhere } from "@/lib/lists";
 import SavedViews from "@/components/SavedViews";
 import { loadViews } from "@/lib/saved-views";
-import Drawer from "@/components/ui/Drawer";
-import { INVOICE_TEMPLATES, TEMPLATE_KEYS } from "@/lib/pdf";
-import { getDocConfig } from "@/lib/pdf-data";
-import InvoiceForm from "./InvoiceForm";
 
 export const dynamic = "force-dynamic";
-
-const num = z.string().regex(/^\d{1,10}(\.\d{1,2})?$/);
-
-async function createInvoice(formData: FormData) {
-  "use server";
-  const user = await requirePermission("finance.post");
-  const fail = (m: string) => redirect(`/finance/invoices?new=1&error=${encodeURIComponent(m)}`);
-  const clientId = String(formData.get("clientId") ?? "");
-  const currency = z.enum(["PKR", "USD", "AED", "GBP"]).safeParse(formData.get("currency"));
-  const taxRate = z.string().regex(/^\d{1,3}(\.\d{1,2})?$/).safeParse(formData.get("taxRate") || "0");
-  if (!clientId || !currency.success || !taxRate.success) return fail("Choose a client, a currency and a valid tax rate.");
-  const lines: { description: string; quantity: string; unitPrice: string }[] = [];
-  for (let i = 0; i < 20; i++) {
-    const description = String(formData.get(`desc${i}`) ?? "").trim();
-    const quantity = String(formData.get(`qty${i}`) ?? "").trim();
-    const unitPrice = String(formData.get(`price${i}`) ?? "").trim();
-    if (!description && !quantity && !unitPrice) continue;
-    if (!description || !num.safeParse(quantity).success || !num.safeParse(unitPrice).success) {
-      return fail(`Line ${i + 1}: enter a description, a quantity and a unit price.`);
-    }
-    lines.push({ description, quantity, unitPrice });
-  }
-  let id: string;
-  try {
-    const inv = await createDraftInvoice(db, {
-      organizationId: user.organizationId, clientId, currency: currency.data, taxRate: taxRate.data,
-      notes: String(formData.get("notes") ?? "").trim() || null, createdById: user.id, lines,
-    });
-    id = inv.id;
-    const tk = String(formData.get("templateKey") ?? "");
-    if (TEMPLATE_KEYS.includes(tk)) await db.invoice.update({ where: { id: inv.id }, data: { templateKey: tk } });
-    await audit(user, { action: "invoice.create_draft", entity: "Invoice", entityId: inv.id, after: { total: inv.total.toString(), currency } });
-  } catch (e) {
-    if (e instanceof LedgerError) return fail(e.message);
-    throw e;
-  }
-  redirect(`/finance/invoices/${id}`);
-}
 
 type SP = { error?: string; status?: string; q?: string; new?: string; client?: string; page?: string; sort?: string; dir?: string; viewError?: string };
 
 export default async function Invoices({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requirePermission("finance.view");
   const sp = await searchParams;
+  // Older links (help page, bookmarks) open the full-page editor
+  if (sp.new) redirect(`/finance/invoices/new${sp.client ? `?client=${encodeURIComponent(sp.client)}` : ""}`);
   const org = user.organizationId;
   const canPost = user.permissions.has("finance.post");
   const lp = invoiceParams(sp);
@@ -72,13 +30,11 @@ export default async function Invoices({ searchParams }: { searchParams: Promise
   const sort = lp.sort;
   const views = await loadViews(db, user.id, "invoices");
   // Counts and the outstanding figure come from aggregates over every invoice; only the shown page is loaded
-  const [invoices, matched, counts, owed, clients, rates] = await Promise.all([
+  const [invoices, matched, counts, owed] = await Promise.all([
     db.invoice.findMany({ where, orderBy: orderFor(sort, INVOICE_SORTS), skip: pg.skip, take: pg.take, include: { client: true } }),
     db.invoice.count({ where }),
     db.invoice.groupBy({ by: ["status"], where: { organizationId: org }, _count: true }),
     invoiceOutstanding(db, user),
-    sp.new && canPost ? db.client.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true, currency: true } }) : Promise.resolve([]),
-    sp.new && canPost ? db.taxRate.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
   ]);
   const count = new Map(counts.map((c) => [c.status as string, c._count]));
   const total = counts.reduce((s, c) => s + c._count, 0);
@@ -87,14 +43,14 @@ export default async function Invoices({ searchParams }: { searchParams: Promise
 
   return (
     <div className="space-y-5">
-      <PageHeader tabs={<ScreenTabs group="client-billing" current="/finance/invoices" />} title="Billing" subtitle="Draft, issue and track what clients owe." actions={<><ExportLink href={listHref("/finance/invoices/export", current)} />{canPost && <NewButton href={href({ new: "1" })}>New invoice</NewButton>}</>} />
+      <PageHeader tabs={<ScreenTabs group="client-billing" current="/finance/invoices" />} title="Billing" subtitle="Draft, issue and track what clients owe." actions={<><ExportLink href={listHref("/finance/invoices/export", current)} />{canPost && <NewButton href="/finance/invoices/new">New invoice</NewButton>}</>} />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="All invoices" value={total} />
         <Stat label="Drafts" value={count.get("DRAFT") ?? 0} hint="not yet posted" />
         <Stat label="Overdue" value={count.get("OVERDUE") ?? 0} />
         <Stat label="Outstanding" value={owed.size === 0 ? "None" : [...owed].map(([c, v]) => formatMoney(v, c)).join(" · ")} hint="per currency" />
       </div>
-      {sp.error && !sp.new && <Notice kind="error">{sp.error}</Notice>}
+      {sp.error && <Notice kind="error">{sp.error}</Notice>}
       <ListToolbar>
         <SearchBox q={q} placeholder="Search number or client" hidden={{ status: status === "all" ? undefined : status }} />
         <Chips current={status} items={[{ key: "all", label: "All", count: total, href: href({ status: undefined }) }, ...INVOICE_STATUSES.map((s) => ({ key: s, label: s.toLowerCase().replace("_", " ").replace(/^./, (c) => c.toUpperCase()), count: count.get(s) ?? 0, href: href({ status: s }) }))]} />
@@ -121,11 +77,6 @@ export default async function Invoices({ searchParams }: { searchParams: Promise
           </table>
           <Pager page={pg.page} size={pg.size} total={matched} href={(n) => href({ page: n > 1 ? String(n) : undefined })} />
         </div>
-      )}
-      {canPost && sp.new && (
-        <Drawer title="New invoice" closeTo={href({ new: undefined, error: undefined })}>
-          <InvoiceForm action={createInvoice} clients={clients} taxPresets={rates.map((r) => ({ name: r.name, rate: r.ratePercent.toString() }))} closeTo={href({ new: undefined })} error={sp.error} defaultClientId={sp.client} templates={INVOICE_TEMPLATES.map((t) => ({ key: t.key, label: t.label }))} defaultTemplate={(await getDocConfig(db, org, "INVOICE")).config.template} />
-        </Drawer>
       )}
     </div>
   );

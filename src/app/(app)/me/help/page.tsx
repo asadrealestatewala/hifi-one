@@ -41,7 +41,7 @@ const TASKS: Task[] = [
   { group: "sales", title: "See your commissions", why: "What you have earned, what is approved, and what has been paid with your salary.", href: "/me/commissions", permission: "commissions.own" },
 
   // Clients and money
-  { group: "clients", title: "Create an invoice", why: "Totals update as you type. It is a draft until you issue it; nothing posts to the books before that.", href: "/finance/invoices?new=1", permission: "finance.post" },
+  { group: "clients", title: "Create an invoice", why: "Totals update as you type. It is a draft until you issue it; nothing posts to the books before that.", href: "/finance/invoices/new", permission: "finance.post" },
   { group: "clients", title: "Record a payment you received", why: "It is applied to the oldest open invoices first; any extra is kept as an advance.", href: "/finance/payments?new=1", permission: "finance.post" },
   { group: "clients", title: "Give a client portal access", why: "Open the client, then Portal access. It makes a one-time invitation link you send them.", href: "/clients", permission: "clients.edit" },
   { group: "clients", title: "Answer a support request", why: "What clients have raised, who owns it, and what was promised.", href: "/support", permission: "support.view" },
