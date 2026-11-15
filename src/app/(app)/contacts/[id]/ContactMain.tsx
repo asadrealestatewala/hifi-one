@@ -1,3 +1,4 @@
+import { categoryLabel } from "@/lib/contact-category";
 import Link from "next/link";
 import type { Contact } from "@prisma/client";
 import Icon from "@/components/shell/Icon";
@@ -39,7 +40,7 @@ export default function ContactMain({ c, parent, people, staff, owners, follower
           <Row label="Website">{link(c.website)}</Row>
           <Row label="Birthday">{c.birthday ? new Date(c.birthday + "T00:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : null}</Row>
           <Row label="Industry">{c.industry}</Row>
-          <Row label="Category"><Badge tone={TONE[c.category] ?? "neutral"}>{c.category.toLowerCase()}</Badge></Row>
+          <Row label="Category"><Badge tone={TONE[c.category] ?? "neutral"}>{categoryLabel(c.category)}</Badge></Row>
           <Row label="Owner">{ownerName ? <span className="inline-flex items-center gap-2"><Avatar name={ownerName} userId={c.ownerId} size={22} />{ownerName}</span> : null}</Row>
         </dl>
       }>

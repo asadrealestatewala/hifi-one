@@ -11,7 +11,7 @@ type Item = { key: string; label: string; count?: number; href: string; icon?: I
 
 export default function Tabs({ items, current, label = "Sections" }: { items: Item[]; current: string; label?: string }) {
   return (
-    <nav aria-label={label} className="-mb-px flex gap-1 overflow-x-auto border-b border-border">
+    <nav aria-label={label} className="mb-1 flex gap-1 overflow-x-auto border-b border-border">
       {items.map((i) => {
         const [gi, gt] = guess(i.label);
         const on = current === i.key;

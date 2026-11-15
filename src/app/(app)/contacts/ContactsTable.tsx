@@ -1,5 +1,6 @@
 "use client";
 
+import { categoryLabel } from "@/lib/contact-category";
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
 import Icon from "@/components/shell/Icon";
@@ -53,7 +54,7 @@ export default function ContactsTable({ rows: initial, staff, canEdit, canAssign
         <div className="sticky top-16 z-10 flex flex-wrap items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm shadow-sm [animation:fade_.15s_ease-out]">
           <strong>{sel.length} selected</strong>
           {canAssign && <form action={bulkAction} className="flex items-center gap-1.5"><input type="hidden" name="action" value="ASSIGN" /><input type="hidden" name="returnTo" value={returnTo} />{ids}<select name="value" aria-label="Assign to" className="input !w-40 !py-1"><option value="">Assign to…</option>{staff.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select><button className="btn-ghost !py-1">Apply</button></form>}
-          <form action={bulkAction} className="flex items-center gap-1.5"><input type="hidden" name="action" value="CATEGORY" /><input type="hidden" name="returnTo" value={returnTo} />{ids}<select name="value" aria-label="Set category" className="input !w-36 !py-1"><option value="">Category…</option>{["LEAD", "CUSTOMER", "PARTNER", "VENDOR", "INVESTOR", "OTHER"].map((c) => <option key={c} value={c}>{c.charAt(0) + c.slice(1).toLowerCase()}</option>)}</select><button className="btn-ghost !py-1">Apply</button></form>
+          <form action={bulkAction} className="flex items-center gap-1.5"><input type="hidden" name="action" value="CATEGORY" /><input type="hidden" name="returnTo" value={returnTo} />{ids}<select name="value" aria-label="Set category" className="input !w-36 !py-1"><option value="">Category…</option>{["LEAD", "CUSTOMER", "PARTNER", "VENDOR", "INVESTOR", "OTHER"].map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}</select><button className="btn-ghost !py-1">Apply</button></form>
           <form action={bulkAction} className="flex items-center gap-1.5"><input type="hidden" name="action" value="TAG" /><input type="hidden" name="returnTo" value={returnTo} />{ids}<input name="value" placeholder="Add tag" aria-label="Tag to add" maxLength={30} className="input !w-28 !py-1" /><button className="btn-ghost !py-1">Tag</button></form>
           <form action={bulkAction}><input type="hidden" name="action" value="ARCHIVE" /><input type="hidden" name="returnTo" value={returnTo} />{ids}<ConfirmButton className="btn-ghost !py-1" title="Archive the selected contacts?" message="They leave lists and search. History is kept and an administrator can restore them." confirmLabel="Archive">Archive</ConfirmButton></form>
           <button type="button" onClick={() => setSel([])} className="ml-auto text-xs text-muted hover:text-foreground">Clear</button>
@@ -75,7 +76,7 @@ export default function ContactsTable({ rows: initial, staff, canEdit, canAssign
                 <td className="py-3 pr-4">
                   <Link href={`/contacts/${r.id}`} className="flex items-center gap-3">
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white" style={{ background: hue(r.name) }}>{r.kind === "ORGANIZATION" ? <Icon name="building" className="h-4 w-4" /> : initials(r.name)}</span>
-                    <span className="min-w-0"><span className="block truncate font-medium hover:underline">{r.name}</span><span className="flex items-center gap-1.5 text-xs"><span className={`rounded-full px-1.5 py-px text-[10px] font-medium ${TONE[r.category] ?? TONE.OTHER}`}>{r.category.charAt(0) + r.category.slice(1).toLowerCase()}</span>{r.parentName && <span className="truncate text-muted">{r.parentName}</span>}</span></span>
+                    <span className="min-w-0"><span className="block truncate font-medium hover:underline">{r.name}</span><span className="flex items-center gap-1.5 text-xs"><span className={`rounded-full px-1.5 py-px text-[10px] font-medium ${TONE[r.category] ?? TONE.OTHER}`}>{categoryLabel(r.category)}</span>{r.parentName && <span className="truncate text-muted">{r.parentName}</span>}</span></span>
                   </Link>
                 </td>
                 <td className="max-w-48 pr-4"><Inline id={r.id} field="phone" value={r.phone} canEdit={canEdit} onSaved={(v) => patch(r.id, { phone: v || null })} onError={flash} /></td>

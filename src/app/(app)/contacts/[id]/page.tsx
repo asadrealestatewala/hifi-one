@@ -1,3 +1,4 @@
+import { categoryLabel } from "@/lib/contact-category";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import WhatsAppButton from "@/components/WhatsAppButton";
@@ -90,7 +91,7 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
         <div className="flex items-center gap-4">
           <span className="flex h-16 w-16 items-center justify-center rounded-2xl text-xl font-bold text-white shadow-md" style={{ background: `linear-gradient(135deg, ${hue(c.name)}, color-mix(in srgb, ${hue(c.name)} 55%, #fff))` }}>{c.kind === "ORGANIZATION" ? <Icon name="building" className="h-7 w-7" /> : initials(c.name)}</span>
           <div className="space-y-1">
-            <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">{[c.title, c.name].filter(Boolean).join(" ")}<Badge tone={TONE[c.category] ?? "neutral"}>{c.category.toLowerCase()}</Badge>{c.archived && <Badge tone="danger">archived</Badge>}</h1>
+            <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">{[c.title, c.name].filter(Boolean).join(" ")}<Badge tone={TONE[c.category] ?? "neutral"}>{categoryLabel(c.category)}</Badge>{c.archived && <Badge tone="danger">archived</Badge>}</h1>
             <p className="text-sm text-muted">{c.jobTitle}{c.jobTitle && parent && " at "}{parent && <Link href={`/contacts/${parent.id}`} className="font-medium text-foreground hover:underline">{parent.name}</Link>}{!c.jobTitle && !parent && (c.kind === "ORGANIZATION" ? c.industry ?? "Organization" : "Contact")}</p>
             <p className="text-xs text-muted">Owner {c.ownerId ? name.get(c.ownerId) ?? "Unknown" : "not set"}{c.followers.length > 0 && ` · ${c.followers.length} follower${c.followers.length === 1 ? "" : "s"}`} · added {c.createdAt.toLocaleDateString()}</p>
           </div>
@@ -150,7 +151,7 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
 
       {tab === "people" && (people.length === 0 ? <Empty title="No people linked">Add a contact and choose this organization as their company.</Empty> : (
         <div className="card overflow-x-auto !p-0"><table className="w-full text-sm"><thead className="text-left"><tr><th className="px-4 py-3">Name</th><th className="pr-4">Job title</th><th className="pr-4">Email</th><th className="pr-4">Category</th></tr></thead>
-          <tbody>{people.map((p) => <tr key={p.id} className="border-t border-border transition hover:bg-hover/50"><td className="px-4 py-3"><Link className="font-medium hover:underline" href={`/contacts/${p.id}`}>{p.name}</Link></td><td className="pr-4">{p.jobTitle}</td><td className="pr-4">{p.primaryEmail}</td><td className="pr-4"><Badge tone={TONE[p.category] ?? "neutral"}>{p.category.toLowerCase()}</Badge></td></tr>)}</tbody></table></div>
+          <tbody>{people.map((p) => <tr key={p.id} className="border-t border-border transition hover:bg-hover/50"><td className="px-4 py-3"><Link className="font-medium hover:underline" href={`/contacts/${p.id}`}>{p.name}</Link></td><td className="pr-4">{p.jobTitle}</td><td className="pr-4">{p.primaryEmail}</td><td className="pr-4"><Badge tone={TONE[p.category] ?? "neutral"}>{categoryLabel(p.category)}</Badge></td></tr>)}</tbody></table></div>
       ))}
 
       {tab === "projects" && (!client ? <Empty title="No client account yet">Projects appear here once this contact has a client account.</Empty> : !user.permissions.has("projects.view") ? <Empty title="Restricted">You do not have access to projects.</Empty> : projects.length === 0 ? <Empty title="No projects">Projects created for {client.name} will show up here.</Empty> : (

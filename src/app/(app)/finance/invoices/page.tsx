@@ -53,7 +53,7 @@ async function createInvoice(formData: FormData) {
   redirect(`/finance/invoices/${id}`);
 }
 
-type SP = { error?: string; status?: string; q?: string; new?: string; page?: string; sort?: string; dir?: string; viewError?: string };
+type SP = { error?: string; status?: string; q?: string; new?: string; client?: string; page?: string; sort?: string; dir?: string; viewError?: string };
 
 export default async function Invoices({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requirePermission("finance.view");
@@ -120,7 +120,7 @@ export default async function Invoices({ searchParams }: { searchParams: Promise
       )}
       {canPost && sp.new && (
         <Drawer title="New invoice" closeTo={href({ new: undefined, error: undefined })}>
-          <InvoiceForm action={createInvoice} clients={clients} taxPresets={rates.map((r) => ({ name: r.name, rate: r.ratePercent.toString() }))} closeTo={href({ new: undefined })} error={sp.error} />
+          <InvoiceForm action={createInvoice} clients={clients} taxPresets={rates.map((r) => ({ name: r.name, rate: r.ratePercent.toString() }))} closeTo={href({ new: undefined })} error={sp.error} defaultClientId={sp.client} />
         </Drawer>
       )}
     </div>

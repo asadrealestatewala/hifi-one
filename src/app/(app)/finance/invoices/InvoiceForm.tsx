@@ -6,8 +6,9 @@ import { Notice } from "@/components/ui";
 
 type ClientOpt = { id: string; name: string; currency: string };
 
-export default function InvoiceForm({ action, clients, taxPresets, closeTo, error }: { action: (f: FormData) => void | Promise<void>; clients: ClientOpt[]; taxPresets: TaxPreset[]; closeTo: string; error?: string }) {
-  const [currency, setCurrency] = useState("USD");
+export default function InvoiceForm({ action, clients, taxPresets, closeTo, error, defaultClientId }: { action: (f: FormData) => void | Promise<void>; clients: ClientOpt[]; taxPresets: TaxPreset[]; closeTo: string; error?: string; defaultClientId?: string }) {
+  const first = clients.find((c) => c.id === defaultClientId);
+  const [currency, setCurrency] = useState(first && ["PKR", "USD", "AED", "GBP"].includes(first.currency) ? first.currency : "USD");
   return (
     <form action={action} className="flex h-full flex-col">
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
@@ -15,7 +16,7 @@ export default function InvoiceForm({ action, clients, taxPresets, closeTo, erro
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="label" htmlFor="clientId">Client</label>
-            <select id="clientId" name="clientId" required className="input" defaultValue="" onChange={(e) => { const c = clients.find((x) => x.id === e.target.value); if (c && ["PKR", "USD", "AED", "GBP"].includes(c.currency)) setCurrency(c.currency); }}>
+            <select id="clientId" name="clientId" required className="input" defaultValue={first?.id ?? ""} onChange={(e) => { const c = clients.find((x) => x.id === e.target.value); if (c && ["PKR", "USD", "AED", "GBP"].includes(c.currency)) setCurrency(c.currency); }}>
               <option value="">Choose…</option>
               {clients.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.currency})</option>)}
             </select>

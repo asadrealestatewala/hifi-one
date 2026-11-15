@@ -31,6 +31,8 @@ The dashboard hero uses the primary colour with a soft gradient (owner asked for
 
 `Tabs` (`src/components/ui/Tabs.tsx`) is the underlined tab bar with a coloured icon and optional count, for screens on one subject (`ScreenTabs`, every `?tab=` page). `Chips` stays for filters. `Stat` shows a tinted icon chip. Both pick an icon and colour from the label through `guess` in `src/lib/tint.ts`; pass `icon` or `tone` to override. New tab lists should use `Tabs`, not `Chips`.
 
+Client record header (2026-11-15): a card with avatar, status, primary contact (first person under the linked contact, or the contact itself) and quick actions that exist today: Call (tel link), WhatsApp (opens the person's own WhatsApp), Email, New project and New invoice (the last two open the existing form with the client pre-selected via `?client=`). Contact categories show "Client" where the stored value is CUSTOMER (`src/lib/contact-category.ts`).
+
 ## Shared components (use these, do not copy markup)
 
 `src/components/ui.tsx`: `PageHeader`, `Stat` (KPI card), `Badge`, `StatusBadge`, `Progress`, `Empty`, `Notice`, `Chips` (filter links with counts), `SearchBox`, `NewButton`, `ExportLink` ("Export CSV" link to a list's export route), `Pager`, `SortTh`, `Avatar`, `PanelForm` (body of a slide-over form; its Save button is a `SubmitButton`), `likeEscape`.
