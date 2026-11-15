@@ -517,6 +517,20 @@ export const SYSTEM_TEMPLATES: TemplateDef[] = [
     },
   },
   {
+    key: "client_weekly_review", name: "Weekly project review form", audience: "Clients",
+    description: "Sent every Monday to each active service client: a link to rate last week's work. The answer shows in the client portal and on the client's Delivery tab.",
+    variables: { client_name: "HB Elan", week: "9 to 15 Nov 2026", project_manager: "Naghma Riaz", link: "https://hifimarketing.co/review/sample", company_name: "Hifi Marketing and Technologies" },
+    blocks: { label: "Your feedback", details: [["Week", "{{week}}"], ["Project manager", "{{project_manager}}"]] },
+    buttonUrlVar: "link",
+    defaults: {
+      subject: "How did we do last week? ({{week}})",
+      preheader: "Rate last week's work in under a minute.",
+      heading: "How was last week?",
+      body: "Dear {{client_name}},\n\nPlease take a minute to rate our work for the week of {{week}}. Your rating and comments go straight to {{project_manager}} and our management team, and you can see every review in your client portal.\n\nThe link works for 14 days and needs no password.",
+      buttonLabel: "Rate last week",
+    },
+  },
+  {
     key: "statement_sent", name: "Account statement email", audience: "Clients",
     description: "The message that carries an account statement PDF to a client.",
     variables: { client_name: "Acme Traders", as_of: "2026-10-31", company_name: "Hifi Marketing and Technologies", portal_link: "https://hifimarketing.co/portal" },

@@ -33,7 +33,8 @@ export const ROLE_LABEL: Record<string, string> = { SALES_AGENT: "Sales agent", 
 
 // The rate a campaign or product pays each role (for example 3% digital marketing, 5% Agentify ERP). Changing a rate restarts the clock
 // so only payments received afterwards use the new one.
-export async function setCampaignRate(db: Db, p: { organizationId: string; campaignId: string; role: string; ratePercent: string; active: boolean; actorId: string }) {
+// firstPaymentOnly: the rate is paid once per client, on the first invoice the client paid, never on later months.
+export async function setCampaignRate(db: Db, p: { organizationId: string; campaignId: string; role: string; ratePercent: string; active: boolean; firstPaymentOnly?: boolean; actorId: string }) {
   if (!(COMMISSION_ROLES as readonly string[]).includes(p.role)) throw new CommissionError("Choose sales agent or sales manager.");
   if (!/^\d{1,2}(\.\d{1,2})?$/.test(p.ratePercent.trim()) || dec(p.ratePercent).gt(50)) throw new CommissionError("Enter a rate between 0 and 50 percent with up to two decimals.");
   if (!(await db.campaign.findFirst({ where: { id: p.campaignId, organizationId: p.organizationId } }))) throw new CommissionError("Choose a campaign.");
@@ -42,13 +43,13 @@ export async function setCampaignRate(db: Db, p: { organizationId: string; campa
   const before = await db.campaignCommissionRate.findUnique({ where: key });
   const row = await db.campaignCommissionRate.upsert({
     where: key,
-    update: { ratePercent: rate, active: p.active, updatedById: p.actorId, ...(before && (!before.ratePercent.eq(rate) || (!before.active && p.active)) ? { effectiveFrom: new Date() } : {}) },
-    create: { organizationId: p.organizationId, campaignId: p.campaignId, role: p.role, ratePercent: rate, active: p.active, updatedById: p.actorId },
+    update: { ratePercent: rate, active: p.active, firstPaymentOnly: Boolean(p.firstPaymentOnly), updatedById: p.actorId, ...(before && (!before.ratePercent.eq(rate) || (!before.active && p.active)) ? { effectiveFrom: new Date() } : {}) },
+    create: { organizationId: p.organizationId, campaignId: p.campaignId, role: p.role, ratePercent: rate, active: p.active, firstPaymentOnly: Boolean(p.firstPaymentOnly), updatedById: p.actorId },
   });
   return { row, before };
 }
 
-export type CampaignRateRow = { campaignId: string; campaign: string; category: string | null; agent: string | null; manager: string | null };
+export type CampaignRateRow = { campaignId: string; campaign: string; category: string | null; agent: string | null; manager: string | null; agentOnce: boolean; managerOnce: boolean };
 
 // What each campaign pays, for showing to sales staff. Only active rates; a campaign with none is left out.
 export async function campaignRates(db: Db, organizationId: string): Promise<CampaignRateRow[]> {
@@ -59,6 +60,8 @@ export async function campaignRates(db: Db, organizationId: string): Promise<Cam
     campaignId: c.id, campaign: c.name, category: c.category?.name ?? null,
     agent: rates.find((r) => r.campaignId === c.id && r.role === "SALES_AGENT")?.ratePercent.toString() ?? null,
     manager: rates.find((r) => r.campaignId === c.id && r.role === "SALES_MANAGER")?.ratePercent.toString() ?? null,
+    agentOnce: rates.some((r) => r.campaignId === c.id && r.role === "SALES_AGENT" && r.firstPaymentOnly),
+    managerOnce: rates.some((r) => r.campaignId === c.id && r.role === "SALES_MANAGER" && r.firstPaymentOnly),
   }));
 }
 
@@ -132,6 +135,15 @@ export async function accrueCommissions(db: Db, p: { organizationId: string; act
     include: { invoice: true, payment: { select: { createdAt: true } } },
   });
   const leadCache = new Map<string, SalesLead | null>();
+  // For "first payment only" rates: the invoice the client's earliest payment went to (all of that invoice's payments count).
+  const firstInvoiceCache = new Map<string, string | null>();
+  const firstInvoiceOf = async (clientId: string) => {
+    if (!firstInvoiceCache.has(clientId)) {
+      const first = await db.paymentAllocation.findFirst({ where: { invoice: { organizationId: p.organizationId, clientId } }, orderBy: [{ payment: { date: "asc" } }, { payment: { createdAt: "asc" } }, { id: "asc" }], select: { invoiceId: true } });
+      firstInvoiceCache.set(clientId, first?.invoiceId ?? null);
+    }
+    return firstInvoiceCache.get(clientId)!;
+  };
   const managerCache = new Map<string, string | null>();
   let created = 0;
   for (const a of allocations) {
@@ -156,11 +168,16 @@ export async function accrueCommissions(db: Db, p: { organizationId: string; act
     const agentRate = agentProduct ?? (lead.campaignId ? rateBy.get(`${lead.campaignId}:SALES_AGENT`) : undefined);
     const managerRate = managerProduct ?? (lead.campaignId ? rateBy.get(`${lead.campaignId}:SALES_MANAGER`) : undefined);
     const personal = ruleBy.get(lead.owner);
+    // A campaign rate set to "first payment only" pays nothing on later invoices (and the personal rate does not step in for it)
+    const onceOnly = async (r: typeof agentRate) => Boolean(r && "firstPaymentOnly" in r && r.firstPaymentOnly) && (await firstInvoiceOf(a.invoice.clientId)) !== a.invoiceId;
+    const agentSkipped = await onceOnly(agentRate);
+    const managerSkipped = await onceOnly(managerRate);
     const shares: { role: string; userId: string; rate: string; from: Date }[] = [];
-    if (agentRate) shares.push({ role: "SALES_AGENT", userId: lead.owner, rate: agentRate.ratePercent.toString(), from: agentRate.effectiveFrom });
+    if (agentRate && agentSkipped) { /* paid on the first invoice only */ }
+    else if (agentRate) shares.push({ role: "SALES_AGENT", userId: lead.owner, rate: agentRate.ratePercent.toString(), from: agentRate.effectiveFrom });
     else if (personal) shares.push({ role: "SALES_AGENT", userId: lead.owner, rate: personal.ratePercent.toString(), from: personal.createdAt });
     const mgr = managerCache.get(lead.owner);
-    if (managerRate && mgr && mgr !== lead.owner) shares.push({ role: "SALES_MANAGER", userId: mgr, rate: managerRate.ratePercent.toString(), from: managerRate.effectiveFrom });
+    if (managerRate && !managerSkipped && mgr && mgr !== lead.owner) shares.push({ role: "SALES_MANAGER", userId: mgr, rate: managerRate.ratePercent.toString(), from: managerRate.effectiveFrom });
     for (const sh of shares) {
       if (done.has(`${a.id}:${sh.role}`) || a.payment.createdAt < sh.from) continue;
       const amount = round2(base.mul(sh.rate).div(100));

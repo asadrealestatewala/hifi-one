@@ -6,6 +6,7 @@ import { paging } from "@/lib/paging";
 import { ConfirmButton, Notice, PageHeader, Pager } from "@/components/ui";
 import { readReason } from "@/lib/reasons";
 import { DeliveryError, setRebateTier } from "@/lib/delivery";
+import { ClientReviewError, setPmBonus } from "@/lib/client-reviews";
 import { formatMoney } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
@@ -25,9 +26,14 @@ async function manage(formData: FormData) {
       return back("msg", "Rate saved. It applies to payments received from now on.");
     }
     if (op === "campaignRate") {
-      const r = await setCampaignRate(db, { organizationId: org, campaignId: s("campaignId"), role: s("role"), ratePercent: s("ratePercent"), active: formData.get("active") === "on", actorId: user.id });
-      await audit(user, { action: "commission.campaign_rate", entity: "CampaignCommissionRate", entityId: r.row.id, before: r.before ? { rate: r.before.ratePercent.toString(), active: r.before.active } : null, after: { campaignId: s("campaignId"), role: s("role"), rate: r.row.ratePercent.toString(), active: r.row.active } });
+      const r = await setCampaignRate(db, { organizationId: org, campaignId: s("campaignId"), role: s("role"), ratePercent: s("ratePercent"), active: formData.get("active") === "on", firstPaymentOnly: formData.get("firstPaymentOnly") === "on", actorId: user.id });
+      await audit(user, { action: "commission.campaign_rate", entity: "CampaignCommissionRate", entityId: r.row.id, before: r.before ? { rate: r.before.ratePercent.toString(), active: r.before.active, firstPaymentOnly: r.before.firstPaymentOnly } : null, after: { campaignId: s("campaignId"), role: s("role"), rate: r.row.ratePercent.toString(), active: r.row.active, firstPaymentOnly: r.row.firstPaymentOnly } });
       return back("msg", "Campaign rate saved. It applies to payments received from now on.");
+    }
+    if (op === "pmBonus") {
+      const r = await setPmBonus(db, { organizationId: org, percent: s("percent"), minAverage: s("minAverage"), active: formData.get("active") === "on", actorId: user.id });
+      await audit(user, { action: "commission.pm_bonus", entity: "PmBonusSetting", entityId: org, before: r.before ? { percent: r.before.percent.toString(), minAverage: r.before.minAverage.toString(), active: r.before.active } : null, after: { percent: r.row.percent.toString(), minAverage: r.row.minAverage.toString(), active: r.row.active } });
+      return back("msg", "Project manager bonus saved. It applies to months worked out from now on.");
     }
     if (op === "rebateTier") {
       await setRebateTier(db, { organizationId: org, minRating: Number(s("minRating")), percent: s("percent"), actorId: user.id });
@@ -51,7 +57,7 @@ async function manage(formData: FormData) {
       await audit(user, { action: "commission.void", entity: "CommissionEntry", entityId: s("entryId"), after: { reason: why.reason } });
     }
   } catch (e) {
-    if (e instanceof CommissionError || e instanceof DeliveryError) return back("error", e.message);
+    if (e instanceof CommissionError || e instanceof DeliveryError || e instanceof ClientReviewError) return back("error", e.message);
     throw e;
   }
   redirect("/finance/commissions");
@@ -87,7 +93,7 @@ export default async function Commissions({ searchParams }: { searchParams: Prom
   const canPay = canApprove && user.permissions.has("finance.post");
   const pg = paging(sp.page);
   const waiting = { organizationId: org, status: { in: ["EARNED", "APPROVED"] as never } };
-  const [rules, entries, waitingCount, staff, banks, campaigns, crates, tiers] = await Promise.all([
+  const [rules, entries, waitingCount, staff, banks, campaigns, crates, tiers, pmBonus] = await Promise.all([
     db.commissionRule.findMany({ where: { organizationId: org } }),
     db.commissionEntry.findMany({ where: waiting, orderBy: [{ createdAt: "asc" }, { id: "asc" }], skip: pg.skip, take: pg.take }),
     db.commissionEntry.count({ where: waiting }),
@@ -96,6 +102,7 @@ export default async function Commissions({ searchParams }: { searchParams: Prom
     db.campaign.findMany({ where: { organizationId: org, archivedAt: null }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     campaignRates(db, org),
     db.reviewRebateTier.findMany({ where: { organizationId: org }, orderBy: { minRating: "desc" } }),
+    db.pmBonusSetting.findUnique({ where: { organizationId: org } }),
   ]);
   const name = new Map(staff.map((u) => [u.id, u.name]));
   const ruleOf = new Map(rules.map((r) => [r.userId, r]));
@@ -152,7 +159,7 @@ export default async function Commissions({ searchParams }: { searchParams: Prom
       <section className="card space-y-3">
         <h2 className="font-semibold">Rates by campaign or solution</h2>
         <p className="text-xs text-muted">What each campaign pays the sales agent who closed the client and that agent&apos;s manager (for example 3% for digital marketing, 5% for an Agentify ERP subscription). Sales staff see these on My commissions. A campaign rate wins over a person&apos;s own rate; without one, the personal rate above still applies. The manager is the agent&apos;s manager in the staff directory.</p>
-        <ul className="text-sm">{crates.map((c) => <li key={c.campaignId} className="flex flex-wrap justify-between gap-2 border-t border-border py-1 first:border-0"><span>{c.campaign}{c.category ? <span className="text-xs text-muted"> · {c.category}</span> : null}</span><span>agent {c.agent ? `${c.agent}%` : "none"} · manager {c.manager ? `${c.manager}%` : "none"}</span></li>)}
+        <ul className="text-sm">{crates.map((c) => <li key={c.campaignId} className="flex flex-wrap justify-between gap-2 border-t border-border py-1 first:border-0"><span>{c.campaign}{c.category ? <span className="text-xs text-muted"> · {c.category}</span> : null}</span><span>agent {c.agent ? `${c.agent}%${c.agentOnce ? " (first payment only)" : ""}` : "none"} · manager {c.manager ? `${c.manager}%${c.managerOnce ? " (first payment only)" : ""}` : "none"}</span></li>)}
           {crates.length === 0 && <li className="text-muted">No campaign rates set yet.</li>}</ul>
         <form action={manage} className="flex flex-wrap items-end gap-3 border-t border-border pt-3">
           <input type="hidden" name="op" value="campaignRate" />
@@ -160,7 +167,22 @@ export default async function Commissions({ searchParams }: { searchParams: Prom
           <div><label className="label" htmlFor="crRole">Paid to</label><select id="crRole" name="role" className="input">{COMMISSION_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}</select></div>
           <div><label className="label" htmlFor="crRate">Rate (%)</label><input id="crRate" name="ratePercent" required inputMode="decimal" className="input !w-24" /></div>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="active" defaultChecked /> Active</label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="firstPaymentOnly" /> First payment only</label>
           <button className="btn-ghost">Save campaign rate</button>
+        </form>
+        <p className="text-xs text-muted">&quot;First payment only&quot; pays the rate once per client, on the first invoice the client paid (all payments towards that invoice count). Later months earn nothing for that role, and the personal rate does not step in.</p>
+      </section>
+
+      <section className="card space-y-3">
+        <h2 className="font-semibold">Project manager monthly bonus</h2>
+        <p className="text-xs text-muted">Every Monday each active service client is emailed a form to rate the week before (they can also answer in their portal). After a month ends, from the 8th of the next month, the client&apos;s project manager earns this percent of the client&apos;s monthly fee when the reviews the client gave for that month average at least the stars below. Reviews recorded by staff do not count. Earned bonuses wait for approval below like any bonus.</p>
+        <p className="text-sm">{pmBonus ? <>{pmBonus.percent.toString()}% of the monthly fee, average of {pmBonus.minAverage.toString()} stars or more{!pmBonus.active && " (off)"}</> : <span className="text-muted">Not set, so no project manager earns this bonus.</span>}</p>
+        <form action={manage} className="flex flex-wrap items-end gap-3 border-t border-border pt-3">
+          <input type="hidden" name="op" value="pmBonus" />
+          <div><label className="label" htmlFor="pmPercent">Percent of monthly fee</label><input id="pmPercent" name="percent" required inputMode="decimal" defaultValue={pmBonus?.percent.toString() ?? ""} className="input !w-24" /></div>
+          <div><label className="label" htmlFor="pmAvg">Average stars needed</label><input id="pmAvg" name="minAverage" required inputMode="decimal" defaultValue={pmBonus?.minAverage.toString() ?? "4.5"} className="input !w-24" /></div>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="active" defaultChecked={pmBonus?.active ?? true} /> Active</label>
+          <button className="btn-ghost">Save</button>
         </form>
       </section>
 

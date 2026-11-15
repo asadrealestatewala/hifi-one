@@ -1,21 +1,28 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
-import { PURPOSE_LABEL, weekStartOf } from "@/lib/delivery";
+import { PURPOSE_LABEL, REVIEW_SOURCE_LABEL, weekStartOf } from "@/lib/delivery";
+import { monthLabel, reviewAreasFor, weekLabel } from "@/lib/client-reviews";
+import { AreaList } from "@/components/ReviewAreasField";
+import ReviewLinkForm from "./ReviewLinkForm";
 import { Badge, Empty, StatusBadge, SubmitButton } from "@/components/ui";
 import { createMeetingAction } from "../../meetings/actions";
-import { attachRecording, saveReview } from "./delivery-actions";
+import { attachRecording, saveReview, saveReviewAreas } from "./delivery-actions";
 
-export default async function DeliveryTab({ organizationId, client, canEdit, canMeet, canWatch, pmName, supportName }: { organizationId: string; client: { id: string; name: string; currency: string; clientType: string; projectManagerId: string | null; supportManagerId: string | null }; canEdit: boolean; canMeet: boolean; canWatch: boolean; pmName: string | null; supportName: string | null }) {
-  const [meetings, reviews, tiers] = await Promise.all([
+export default async function DeliveryTab({ organizationId, client, canEdit, canMeet, canWatch, pmName, supportName }: { organizationId: string; client: { id: string; name: string; email: string | null; currency: string; clientType: string; reviewAreas: string[]; projectManagerId: string | null; supportManagerId: string | null }; canEdit: boolean; canMeet: boolean; canWatch: boolean; pmName: string | null; supportName: string | null }) {
+  const [meetings, reviews, tiers, requests, bonuses, pmSetting] = await Promise.all([
     db.meeting.findMany({ where: { organizationId, clientId: client.id, purpose: { in: ["DISCOVERY", "WEEKLY_REVIEW", "SUPPORT", "TUTORIAL", "INQUIRY"] } }, orderBy: [{ scheduledAt: "desc" }, { createdAt: "desc" }], take: 20 }),
     db.clientReview.findMany({ where: { organizationId, clientId: client.id }, orderBy: { weekStart: "desc" }, take: 20 }),
     db.reviewRebateTier.findMany({ where: { organizationId }, orderBy: { minRating: "desc" } }),
+    db.clientReviewRequest.findMany({ where: { organizationId, clientId: client.id }, orderBy: { weekStart: "desc" }, take: 6 }),
+    db.pmMonthlyBonus.findMany({ where: { organizationId, clientId: client.id }, orderBy: { month: "desc" }, take: 12 }),
+    db.pmBonusSetting.findUnique({ where: { organizationId } }),
   ]);
   const recs = new Map<string, { id: string; startedAt: Date }[]>();
   if (canWatch) for (const r of await db.meetingRecording.findMany({ where: { organizationId, status: "READY", meetingId: { in: meetings.map((m) => m.id) } }, orderBy: { startedAt: "desc" } })) recs.set(r.meetingId, [...(recs.get(r.meetingId) ?? []), r]);
-  const reviewers = new Map((await db.user.findMany({ where: { id: { in: [...new Set(reviews.map((r) => r.reviewerId))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
+  const reviewers = new Map((await db.user.findMany({ where: { id: { in: [...new Set(reviews.map((r) => r.reviewerId).filter((x): x is string => Boolean(x)))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
   const week = weekStartOf(new Date().toISOString().slice(0, 10));
+  const linkWeeks = [7, 14, 21, 28].map((d) => weekStartOf(new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10))).filter((w) => !reviews.some((r) => r.weekStart === w)).map((w) => ({ value: w, label: weekLabel(w) }));
   const returnTo = `/clients/${client.id}?tab=delivery`;
   return (
     <div className="space-y-5">
@@ -63,6 +70,8 @@ export default async function DeliveryTab({ organizationId, client, canEdit, can
 
       <section className="card space-y-3">
         <h2 className="font-semibold">Weekly customer success reviews</h2>
+        <p className="text-xs text-muted">Every Monday the client is emailed a short form to rate the week before{client.email ? "" : " (this client has no email on file, so create the link below and send it yourself)"}. Their answers appear here and in their portal, and the project manager, the project team and the commission approvers are notified.</p>
+        {requests.some((r) => !r.answeredAt) && <p className="text-xs text-muted">Waiting for the client: {requests.filter((r) => !r.answeredAt).map((r) => `${weekLabel(r.weekStart)}${r.sentTo ? (r.emailStatus === "SENT" ? " (emailed)" : " (email not sent)") : " (not emailed)"}`).join(", ")}.</p>}
         {tiers.length === 0
           ? <p className="text-xs text-muted">No rebate tiers are set, so reviews do not earn the team a rebate yet. Finance sets them under Finance, Commissions.</p>
           : <p className="text-xs text-muted">Rebate for the team from this client&apos;s weekly retainer: {tiers.map((t) => `${t.minRating}+ stars ${t.percent}%`).join(", ")}. Shared equally between the project manager and the staff on this client&apos;s active projects, as bonuses waiting for approval.</p>}
@@ -70,12 +79,26 @@ export default async function DeliveryTab({ organizationId, client, canEdit, can
           <ul className="divide-y divide-border text-sm">
             {reviews.map((r) => (
               <li key={r.id} className="space-y-1 py-2">
-                <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-medium">Week of {r.weekStart}: {"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span><span className="text-xs text-muted">by {reviewers.get(r.reviewerId) ?? "staff"}{r.rebatePercent.gt(0) ? <> · <Badge tone="success">{formatMoney(r.rebatePool, r.currency)} for the team</Badge></> : ""}</span></div>
+                <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-medium">Week of {r.weekStart}: {"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span><span className="text-xs text-muted">{r.source === "STAFF" ? `by ${(r.reviewerId && reviewers.get(r.reviewerId)) ?? "staff"}` : REVIEW_SOURCE_LABEL[r.source]}{r.rebatePercent.gt(0) ? <> · <Badge tone="success">{formatMoney(r.rebatePool, r.currency)} for the team</Badge></> : ""}</span></div>
+                <AreaList areas={r.areas} />
                 <p className="whitespace-pre-line text-muted">{r.review}</p>
               </li>
             ))}
           </ul>
         )}
+        <details className="border-t border-border pt-3 text-sm">
+          <summary className="cursor-pointer font-medium">What the client rates each week ({reviewAreasFor(client).length} areas{client.reviewAreas.length ? "" : ", default list"})</summary>
+          <ul className="mt-2 list-inside list-disc text-muted">{reviewAreasFor(client).map((a) => <li key={a}>{a}</li>)}</ul>
+          {canEdit && (
+            <form action={saveReviewAreas} className="mt-3 space-y-2">
+              <input type="hidden" name="clientId" value={client.id} />
+              <label className="label" htmlFor="rv-areas">Areas, one per line (up to 15; leave empty for the default list)</label>
+              <textarea id="rv-areas" name="areas" rows={6} defaultValue={client.reviewAreas.join("\n")} placeholder={reviewAreasFor({ reviewAreas: [], clientType: client.clientType }).join("\n")} className="input" />
+              <SubmitButton className="btn-ghost" pendingText="Saving…">Save areas</SubmitButton>
+            </form>
+          )}
+        </details>
+        {canEdit && linkWeeks.length > 0 && <ReviewLinkForm clientId={client.id} weeks={linkWeeks} />}
         {canEdit && (
           <form action={saveReview} className="grid gap-3 border-t border-border pt-3 sm:grid-cols-3">
             <input type="hidden" name="clientId" value={client.id} />
@@ -85,6 +108,14 @@ export default async function DeliveryTab({ organizationId, client, canEdit, can
             <div className="sm:col-span-3"><label className="label" htmlFor="rv-text">What the client said</label><textarea id="rv-text" name="review" required rows={3} maxLength={2000} className="input" /></div>
             <div className="sm:col-span-3"><SubmitButton pendingText="Saving…">Record review</SubmitButton></div>
           </form>
+        )}
+      </section>
+
+      <section className="card space-y-3">
+        <h2 className="font-semibold">Project manager monthly bonus</h2>
+        <p className="text-xs text-muted">{pmSetting?.active && pmSetting.percent.gt(0) ? `After each month, the project manager earns ${pmSetting.percent.toString()}% of this client's monthly fee when the reviews the client gave themselves (emailed form or portal) average ${pmSetting.minAverage.toString()} stars or more. Reviews recorded by staff do not count. It is worked out from the 8th of the next month and waits for approval like any bonus.` : "Not switched on. Finance sets the percent and the average needed under Finance, Commissions."}</p>
+        {bonuses.length === 0 ? <p className="text-sm text-muted">No month worked out yet.</p> : (
+          <ul className="divide-y divide-border text-sm">{bonuses.map((b) => <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 py-2"><span>{monthLabel(b.month)}: {b.reviews} review{b.reviews === 1 ? "" : "s"}{b.reviews ? `, average ${b.average.toString()}` : ""}</span><span className="text-xs">{b.status === "EARNED" ? <Badge tone="success">{formatMoney(b.amount, b.currency)} earned</Badge> : <span className="text-muted">{b.reason}</span>}</span></li>)}</ul>
         )}
       </section>
     </div>

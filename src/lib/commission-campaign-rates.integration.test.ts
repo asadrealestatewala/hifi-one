@@ -48,8 +48,8 @@ describe("campaign commission rates", () => {
     await setCampaignRate(db, { organizationId: org, campaignId: digital, role: "SALES_MANAGER", ratePercent: "1", active: true, actorId: boss });
     await setCampaignRate(db, { organizationId: org, campaignId: erp, role: "SALES_AGENT", ratePercent: "5", active: true, actorId: boss });
     expect(await campaignRates(db, org)).toEqual([
-      { campaignId: erp, campaign: "Agentify ERP", category: null, agent: "5", manager: null },
-      { campaignId: digital, campaign: "Digital Marketing", category: null, agent: "3", manager: "1" },
+      { campaignId: erp, campaign: "Agentify ERP", category: null, agent: "5", manager: null, agentOnce: false, managerOnce: false },
+      { campaignId: digital, campaign: "Digital Marketing", category: null, agent: "3", manager: "1", agentOnce: false, managerOnce: false },
     ]);
     expect(await campaignRates(db, other)).toEqual([]);
     await setCampaignRate(db, { organizationId: org, campaignId: erp, role: "SALES_AGENT", ratePercent: "5", active: false, actorId: boss });
@@ -94,5 +94,28 @@ describe("campaign commission rates", () => {
     await wait(); await pay(c1, "100");
     await accrueCommissions(db, { organizationId: org, actorId: boss });
     expect((await db.commissionEntry.findFirstOrThrow({ where: { clientId: c1, role: "SALES_AGENT" }, orderBy: { createdAt: "desc" } })).amount.toString()).toBe("8");
+  });
+
+  it("a first-payment-only rate pays once per client: every payment towards the first invoice, nothing on later invoices", async () => {
+    const stage = await db.pipelineStage.findFirstOrThrow({ where: { organizationId: org } });
+    const marketing = (await db.campaign.create({ data: { organizationId: org, name: "Retainers" } })).id;
+    const c3 = (await db.client.create({ data: { organizationId: org, name: "Retainer Client", currency: "USD" } })).id;
+    await db.lead.create({ data: { organizationId: org, stageId: stage.id, name: "L3", assignedToId: agent, clientId: c3, campaignId: marketing, convertedAt: new Date() } });
+    await setCampaignRate(db, { organizationId: org, campaignId: marketing, role: "SALES_AGENT", ratePercent: "4", active: true, firstPaymentOnly: true, actorId: boss });
+    expect((await campaignRates(db, org)).find((r) => r.campaignId === marketing)).toMatchObject({ agent: "4", agentOnce: true, managerOnce: false });
+    // Month 1 is paid in two parts: both parts earn
+    await wait();
+    const d = await createDraftInvoice(db, { organizationId: org, clientId: c3, currency: "USD", taxRate: "0", createdById: boss, lines: [{ description: "Month 1", quantity: "1", unitPrice: "750" }] });
+    const inv = await issueInvoice(db, { organizationId: org, invoiceId: d.id, actorId: boss });
+    await recordPayment(db, { organizationId: org, actorId: boss, clientId: c3, bankAccountId: bank, amount: "500", date: new Date(), method: "BANK_TRANSFER", idempotencyKey: `cr-${++n}`, invoiceIds: [inv.id] });
+    await recordPayment(db, { organizationId: org, actorId: boss, clientId: c3, bankAccountId: bank, amount: "250", date: new Date(), method: "BANK_TRANSFER", idempotencyKey: `cr-${++n}`, invoiceIds: [inv.id] });
+    // Months 2 and 3 earn nothing, and the agent's personal rate does not step in
+    await setRule(db, { organizationId: org, userId: agent, ratePercent: "2", active: true, actorId: boss });
+    await wait(); await pay(c3, "750"); await pay(c3, "750");
+    await accrueCommissions(db, { organizationId: org, actorId: boss });
+    const rows = await db.commissionEntry.findMany({ where: { clientId: c3 }, orderBy: { amount: "asc" } });
+    expect(rows.map((r) => [r.role, r.amount.toString(), r.invoiceId])).toEqual([["SALES_AGENT", "10", inv.id], ["SALES_AGENT", "20", inv.id]]);
+    // Running again creates nothing more
+    expect((await accrueCommissions(db, { organizationId: org, actorId: boss })).created).toBe(0);
   });
 });
