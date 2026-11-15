@@ -4,7 +4,7 @@ import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { certificateKindLabel, certificateStatus, durationLabel, parsePartnerId, partnerId } from "@/lib/partner-stack";
 import { paging } from "@/lib/paging";
-import { Chips, Empty, Notice, PageHeader, Pager, SearchBox, StatusBadge } from "@/components/ui";
+import { Chips, Empty, Notice, PageHeader, Pager, SearchBox, StatusBadge, ListToolbar } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import Drawer from "@/components/ui/Drawer";
 import SubmitButton from "@/components/ui/SubmitButton";
@@ -46,10 +46,10 @@ export default async function Partners({ searchParams }: { searchParams: Promise
   return (
     <div className="space-y-5">
       <PageHeader tabs={<ScreenTabs group="partner-stack" current="/partner-stack/partners" />} title="Partner Stack" subtitle="Approved partners and the terms each one earns on." />
-      <div className="flex flex-wrap items-center gap-3">
+      <ListToolbar>
         <SearchBox q={q} placeholder="Search Partner ID, name, email, territory or referral code" hidden={{ ...current, q: undefined }} />
         <Chips current={status ?? "all"} items={[{ key: "all", label: "All", count: all, href: href({ status: undefined, page: undefined }) }, { key: "ACTIVE", label: "Active", count: count.get("ACTIVE") ?? 0, href: href({ status: "ACTIVE", page: undefined }) }, { key: "SUSPENDED", label: "Suspended", count: count.get("SUSPENDED") ?? 0, href: href({ status: "SUSPENDED", page: undefined }) }]} />
-      </div>
+      </ListToolbar>
       {rows.length === 0 ? (
         <Empty title={all === 0 ? "No partners yet" : "No partners match these filters"}>{all === 0 ? <>Approve an application to create the first partner. <Link className="underline" href="/partner-stack">Open applications</Link></> : <Link className="underline" href="/partner-stack/partners">Clear filters</Link>}</Empty>
       ) : (

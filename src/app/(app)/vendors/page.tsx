@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { VendorError, createVendor } from "@/lib/vendors";
-import { Avatar, Chips, Empty, NewButton, PageHeader, PanelForm, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import { Avatar, Chips, Empty, NewButton, PageHeader, PanelForm, SearchBox, Stat, StatusBadge, ListToolbar } from "@/components/ui";
 import Drawer from "@/components/ui/Drawer";
 
 export const dynamic = "force-dynamic";
@@ -50,10 +50,10 @@ export default async function Vendors({ searchParams }: { searchParams: Promise<
         <Stat label="Approved" value={all.filter((v) => v.status === "APPROVED").length} />
         <Stat label="Awaiting approval" value={all.filter((v) => v.status === "PENDING").length} />
       </div>
-      <div className="flex flex-wrap items-center gap-3">
+      <ListToolbar>
         <SearchBox q={sp.q?.trim()} placeholder="Search name, code or category" hidden={{ status: status === "all" ? undefined : status }} />
         <Chips current={status} items={[{ key: "all", label: "All", count: all.length, href: href({ status: undefined }) }, ...statuses.map((s) => ({ key: s, label: s.toLowerCase().replace(/^./, (c) => c.toUpperCase()), count: all.filter((v) => v.status === s).length, href: href({ status: s }) }))]} />
-      </div>
+      </ListToolbar>
       {vendors.length === 0 ? <Empty title={q || status !== "all" ? "No vendors match" : "No vendors yet"}>{canManage ? "Add a vendor with the button above. New vendors start as pending until approved." : "Vendors will appear here."}</Empty> : (
         <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">

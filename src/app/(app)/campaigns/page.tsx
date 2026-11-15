@@ -4,7 +4,7 @@ import { campaignMetrics, campaignWhere } from "@/lib/campaigns";
 import { CAMPAIGN_STATUSES } from "@/lib/crm";
 import { db } from "@/lib/db";
 import { paging } from "@/lib/paging";
-import { AppliedFilters, Chips, Empty, NewButton, Notice, PageHeader, PanelForm, Pager, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import { AppliedFilters, Chips, Empty, NewButton, Notice, PageHeader, PanelForm, Pager, SearchBox, Stat, StatusBadge, ListToolbar } from "@/components/ui";
 import Drawer from "@/components/ui/Drawer";
 import { createCampaignAction } from "./actions";
 import CampaignFields from "./CampaignFields";
@@ -62,7 +62,7 @@ export default async function Campaigns({ searchParams }: { searchParams: Promis
         <Stat label="Archived" value={archivedCount} href="/campaigns?archived=1" />
       </div>
       <AppliedFilters items={applied} clearHref="/campaigns" backHref={sp.from === "dashboard" ? "/dashboard" : undefined} />
-      <div className="flex flex-wrap items-center gap-3">
+      <ListToolbar>
         <SearchBox q={q} placeholder="Search name, code or description" hidden={{ ...current, q: undefined }} />
         {sp.archived !== "1" && <Chips current={status ?? "all"} items={[{ key: "all", label: "All", count: total, href: href({ status: undefined }) }, ...CAMPAIGN_STATUSES.map((s) => ({ key: s, label: s.charAt(0) + s.slice(1).toLowerCase(), count: count.get(s) ?? 0, href: href({ status: s }) }))]} />}
         <form className="flex flex-wrap gap-2" aria-label="More filters">
@@ -72,7 +72,7 @@ export default async function Campaigns({ searchParams }: { searchParams: Promis
           <button className="btn-ghost">Apply</button>
         </form>
         <Link href={href({ member: "me" })} className="btn-ghost">My campaigns</Link>
-      </div>
+      </ListToolbar>
       {rows.length === 0 ? <Empty title={applied.length || status ? "No campaigns match" : "No campaigns yet"}>{applied.length || status ? <Link href="/campaigns" className="underline">Clear the filters</Link> : canManage ? "Create the first one with New campaign." : "Campaigns will appear here."}</Empty> : (
         <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">

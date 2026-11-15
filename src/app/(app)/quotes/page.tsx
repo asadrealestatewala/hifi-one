@@ -5,7 +5,7 @@ import { CatalogError, resolvePlanLines } from "@/lib/catalog";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { SalesError, createQuote, expireQuotes } from "@/lib/sales";
-import { Chips, Empty, ExportLink, NewButton, Notice, PageHeader, Pager, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import { Chips, Empty, ExportLink, NewButton, Notice, PageHeader, Pager, SearchBox, Stat, StatusBadge, ListToolbar } from "@/components/ui";
 import { listHref } from "@/lib/list-params";
 import { QUOTE_STATUSES, quoteParams, quoteWhere } from "@/lib/lists";
 import Drawer from "@/components/ui/Drawer";
@@ -83,10 +83,10 @@ export default async function Quotes({ searchParams }: { searchParams: Promise<S
         <Stat label="Expired or declined" value={count("EXPIRED") + count("DECLINED")} />
       </div>
       {sp.error && !sp.new && <Notice kind="error">{sp.error}</Notice>}
-      <div className="flex flex-wrap items-center gap-3">
+      <ListToolbar>
         <SearchBox q={sp.q?.trim()} placeholder="Search number or client" hidden={{ status: status === "all" ? undefined : status }} />
         <Chips current={status} items={[{ key: "all", label: "All", count: all, href: href({ status: undefined }) }, ...statuses.map((s) => ({ key: s, label: s.toLowerCase().replace(/^./, (c) => c.toUpperCase()), count: count(s), href: href({ status: s }) }))]} />
-      </div>
+      </ListToolbar>
       {quotes.length === 0 ? <Empty title={q || status !== "all" ? "No quotations match" : "No quotations yet"}>{canManage ? "Create one with New quotation." : "Quotations will appear here."}</Empty> : (
         <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">

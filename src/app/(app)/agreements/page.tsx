@@ -4,7 +4,7 @@ import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AGREEMENT_STATUSES, PLACEHOLDERS, TEMPLATE_KINDS } from "@/lib/agreements";
 import { paging } from "@/lib/paging";
-import { Chips, Empty, NewButton, PageHeader, PanelForm, Pager, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import { Chips, Empty, NewButton, PageHeader, PanelForm, Pager, SearchBox, Stat, StatusBadge, ListToolbar } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import Drawer from "@/components/ui/Drawer";
 import { createAgreementAction, saveTemplateAction } from "./actions";
@@ -49,10 +49,10 @@ export default async function Agreements({ searchParams }: { searchParams: Promi
             <Stat label="Signed" value={count.get("SIGNED") ?? 0} href={href({ status: "SIGNED", page: undefined })} />
             <Stat label="Declined" value={count.get("DECLINED") ?? 0} href={href({ status: "DECLINED", page: undefined })} />
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <ListToolbar>
             <SearchBox q={q} placeholder="Search title or number" hidden={{ status: status === "all" ? undefined : status }} />
             <Chips current={status} items={[{ key: "all", label: "All", count: total, href: href({ status: undefined, page: undefined }) }, ...AGREEMENT_STATUSES.map((s) => ({ key: s, label: s.toLowerCase().replace(/^./, (c) => c.toUpperCase()), count: count.get(s) ?? 0, href: href({ status: s, page: undefined }) }))]} />
-          </div>
+          </ListToolbar>
           {rows.length === 0 ? <Empty title={q || status !== "all" ? "No agreements match" : "No agreements yet"}>{canManage ? "Create one with New agreement. Start from a template to save typing." : "Agreements will appear here."}</Empty> : (
             <div className="card overflow-x-auto !p-0">
               <table className="w-full text-sm">

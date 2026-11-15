@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { DEMO_MODES, DEMO_MODE_LABEL, DEMO_STATUS_LABEL, demoQueue, trainers, type DemoMode, type DemoStatus } from "@/lib/demo-bookings";
 import { listProducts, zoneOffsetMinutes } from "@/lib/field-visits";
 import { companyZone } from "@/lib/mobile-api";
-import { Badge, Chips, ConfirmButton, Empty, Notice, PageHeader, Pager, SearchBox, SubmitButton } from "@/components/ui";
+import { Badge, Chips, ConfirmButton, Empty, Notice, PageHeader, Pager, SearchBox, SubmitButton, ListToolbar } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import { closeDemoAction, scheduleDemoAction } from "./actions";
 
@@ -43,7 +43,7 @@ export default async function DemoQueue({ searchParams }: { searchParams: Promis
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {sp.ok && <Notice kind="ok">{sp.ok}</Notice>}
 
-      <div className="flex flex-wrap items-center gap-3">
+      <ListToolbar>
         <Chips current={queue.tab} items={[
           { key: "requested", label: "Requested", count: queue.counts.requested, href: href({ tab: "requested", page: undefined }) },
           { key: "scheduled", label: "Booked", count: queue.counts.scheduled, href: href({ tab: "scheduled", page: undefined }) },
@@ -56,7 +56,7 @@ export default async function DemoQueue({ searchParams }: { searchParams: Promis
             {products.map((p) => <Link key={p.id} href={href({ product: p.id, page: undefined })} aria-current={sp.product === p.id ? "page" : undefined} className={`rounded-full border px-3 py-1 ${sp.product === p.id ? "border-primary text-primary" : "border-border text-muted"}`}>{p.name}</Link>)}
           </nav>
         )}
-      </div>
+      </ListToolbar>
 
       {queue.rows.length === 0 ? (
         <Empty title={queue.tab === "requested" ? "No demo requests waiting" : queue.tab === "scheduled" ? "No demos booked" : "Nothing finished yet"}>

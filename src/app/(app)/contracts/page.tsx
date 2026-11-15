@@ -4,7 +4,7 @@ import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { SalesError, createContract, daysUntil, expireContracts } from "@/lib/sales";
-import { Chips, Empty, NewButton, PageHeader, PanelForm, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import { Chips, Empty, NewButton, PageHeader, PanelForm, SearchBox, Stat, StatusBadge, ListToolbar } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import Drawer from "@/components/ui/Drawer";
 
@@ -57,10 +57,10 @@ export default async function Contracts({ searchParams }: { searchParams: Promis
         <Stat label="Renewal due" value={renewals} hint="inside their reminder window" />
         <Stat label="All contracts" value={all.length} />
       </div>
-      <div className="flex flex-wrap items-center gap-3">
+      <ListToolbar>
         <SearchBox q={sp.q?.trim()} placeholder="Search title or client" hidden={{ status: status === "all" ? undefined : status }} />
         <Chips current={status} items={[{ key: "all", label: "All", count: all.length, href: href({ status: undefined }) }, ...statuses.map((s) => ({ key: s, label: s.toLowerCase().replace(/^./, (c) => c.toUpperCase()), count: all.filter((c) => c.status === s).length, href: href({ status: s }) }))]} />
-      </div>
+      </ListToolbar>
       {contracts.length === 0 ? <Empty title={q || status !== "all" ? "No contracts match" : "No contracts yet"}>{canManage ? "Create one with New contract." : "Contracts will appear here."}</Empty> : (
         <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">

@@ -6,7 +6,7 @@ import { audit, requirePermission } from "@/lib/auth";
 import { LedgerError, recordPayment } from "@/lib/accounting";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
-import { AppliedFilters, DateRangeForm, Empty, ExportLink, NewButton, Notice, PageHeader, Pager, PanelForm, SearchBox, Stat } from "@/components/ui";
+import { AppliedFilters, DateRangeForm, Empty, ExportLink, NewButton, Notice, PageHeader, Pager, PanelForm, SearchBox, Stat, ListToolbar } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import { rangeLabel } from "@/lib/date-range";
 import { listHref as buildHref } from "@/lib/list-params";
@@ -87,10 +87,10 @@ export default async function Payments({ searchParams }: { searchParams: Promise
       {ok && <Notice kind="ok">Payment recorded and applied to open invoices, oldest first.</Notice>}
       {error && !open && <Notice kind="error">{error}</Notice>}
       <AppliedFilters items={range.from || range.to ? [{ label: `Received ${rangeLabel(range)}`, removeHref: listHref(1, { from: undefined, to: undefined }) }] : []} clearHref="/finance/payments" backHref={src === "dashboard" ? "/dashboard" : undefined} />
-      <div className="flex flex-wrap items-center gap-3">
+      <ListToolbar>
         <SearchBox q={search} placeholder="Search receipt, client or reference" hidden={{ from: range.from, to: range.to, src }} />
         <DateRangeForm from={range.from} to={range.to} label="Received" hidden={{ q: search, src }} />
-      </div>
+      </ListToolbar>
       {payments.length === 0 ? <Empty title={search ? "No payments match" : "No payments yet"}>{canPost ? "Record the first one with Record payment." : "Receipts will appear here."}</Empty> : (
         <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">

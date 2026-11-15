@@ -3,7 +3,7 @@ import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { paging } from "@/lib/paging";
 import { SUPPORT_STATUSES } from "@/lib/support";
-import { AppliedFilters, Chips, Empty, PageHeader, Pager, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import { AppliedFilters, Chips, Empty, PageHeader, Pager, SearchBox, Stat, StatusBadge, ListToolbar } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -48,11 +48,11 @@ export default async function SupportList({ searchParams }: { searchParams: Prom
         <Stat label="Resolved" value={count.get("RESOLVED") ?? 0} href={href({ status: "RESOLVED", who: undefined })} />
       </div>
       <AppliedFilters items={sp.client ? [{ label: `Client: ${clientName ?? "unknown"}`, removeHref: href({ client: undefined }) }] : []} clearHref="/support" />
-      <div className="flex flex-wrap items-center gap-3">
+      <ListToolbar>
         <SearchBox q={q} placeholder="Search subject or number" hidden={{ ...cur, q: undefined }} />
         <Chips current={status} items={[{ key: "active", label: "Open", count: activeCount, href: href({ status: undefined, page: undefined }) }, ...SUPPORT_STATUSES.map((s) => ({ key: s, label: s.toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()), count: count.get(s) ?? 0, href: href({ status: s, page: undefined }) })), { key: "all", label: "All", href: href({ status: "all", page: undefined }) }]} />
         <Chips current={who} items={[{ key: "all", label: "Everyone", href: href({ who: undefined }) }, { key: "me", label: "Mine", href: href({ who: "me" }) }]} />
-      </div>
+      </ListToolbar>
       {rows.length === 0 ? <Empty title="No requests match">Nothing needs attention here.</Empty> : (
         <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">

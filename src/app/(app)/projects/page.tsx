@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { projectScope } from "@/lib/projects";
 import { projectProgress } from "@/lib/project-rules";
 import { createProject } from "./actions";
-import { AppliedFilters, Avatar, Chips, Empty, NewButton, PageHeader, PanelForm, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import { AppliedFilters, Avatar, Chips, Empty, NewButton, PageHeader, PanelForm, SearchBox, Stat, StatusBadge, ListToolbar } from "@/components/ui";
 import Drawer from "@/components/ui/Drawer";
 import { isOverdue } from "@/lib/project-rules";
 import TasksView from "./TasksView";
@@ -47,10 +47,10 @@ export default async function Projects({ searchParams }: { searchParams: Promise
         <Stat label="Overdue tasks" value={lateTasks} hint="across active projects" href="/projects?view=tasks&who=all&due=overdue" />
       </div>
       <AppliedFilters items={camp ? [{ label: camp === "linked" ? "Linked to a campaign" : `Campaign: ${campaignName}`, removeHref: href({ campaign: undefined }) }] : []} clearHref="/projects" backHref={sp.from === "dashboard" ? "/dashboard?tab=campaigns" : undefined} />
-      <div className="flex flex-wrap items-center gap-3">
+      <ListToolbar>
         <SearchBox q={q} placeholder="Search project, number or client" hidden={{ status: status === "all" ? undefined : status, campaign: camp, from: sp.from }} />
         <Chips current={status} items={[{ key: "all", label: "All", count: all.length, href: href({ status: undefined }) }, ...STATUSES.map((s) => ({ key: s, label: s.toLowerCase().replace("_", " ").replace(/^./, (c) => c.toUpperCase()), count: count(s), href: href({ status: s }) }))]} />
-      </div>
+      </ListToolbar>
       {projects.length === 0 ? <Empty title={q || status !== "all" ? "No projects match" : "No projects yet"}>{canManage ? "Start one with New project." : "Projects you work on will appear here."}</Empty> : (
         <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">
