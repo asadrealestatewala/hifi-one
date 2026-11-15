@@ -224,3 +224,7 @@ Projects used to be managed by whoever created them, with no way to hand over. N
 ## 2026-11-15: Visual refresh, step 1 (cream ground, tinted icons, icon tabs)
 
 The owner found the screens plain. Decision: neutrals move from cool grey-white to warm cream (`--background` #f8f4ec, `--surface` #fffdf9, borders #ebe4d6); eight module/status tints are added as tokens (`--tint-*`, lighter in dark mode); `Tabs` replaces `Chips` where chips acted as screen tabs; `Stat` gets an icon chip. Brand colours (red logo, indigo primary, navy sidebar) are unchanged. Icons and colours for tabs and stats are chosen from the label by `src/lib/tint.ts` so every screen gets them without per-page edits. Proposal and mockups: https://claude.ai/artifact/LcJZwTyVPush8N3pT5VPLt. Later steps: sidebar entry icons and Quick add, record header with quick actions, portals, public site.
+
+## 2026-11-15: Visual refresh, final standards pass
+
+After comparing with Atlassian, Salesforce Lightning, Shopify Polaris, HubSpot (2025) and WCAG 2.2 AA, the owner approved ("go final"): icon tints deepened to pass non-text contrast on cream; semantic roles `--danger`, `--info`, `--discovery` separate from module accents; the `brand` Tailwind utility now uses `--danger` (#b81414) because it is used for error text, while the logo red stays `--brand`; one type scale (7 sizes, 3 weights); radius 8/12; hairline elevation at rest. Next: one icon and colour per record type, a shared list action bar, WCAG 2.2 target size and focus fixes.

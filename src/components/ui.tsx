@@ -32,6 +32,8 @@ const TONES = {
   success: "bg-success/10 text-success",
   warning: "bg-warning/10 text-warning",
   danger: "bg-brand/10 text-brand",
+  info: "bg-info/10 text-info",
+  discovery: "bg-discovery/10 text-discovery",
 } as const;
 export function Badge({ children, tone = "neutral" }: { children: ReactNode; tone?: keyof typeof TONES }) {
   return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${TONES[tone]}`}>{children}</span>;
