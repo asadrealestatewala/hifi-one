@@ -117,7 +117,7 @@ describe("syncing with leads and clients", () => {
     expect((await db.contact.findUniqueOrThrow({ where: { id: c.parentId! } })).category).toBe("CUSTOMER");
     expect((await db.client.findUniqueOrThrow({ where: { id: r.clientId } })).contactId).toBe(c.id);
     const log = await db.contactActivity.findMany({ where: { contactId: c.id, kind: "SYSTEM" } });
-    expect(log.some((a) => /customer/i.test(a.body ?? ""))).toBe(true);
+    expect(log.some((a) => /became a client/i.test(a.body ?? ""))).toBe(true);
     await updateContact(db, { organizationId: org, id: c.id, actorId: ann, patch: { phones: [{ type: "WORK", value: "+1 202 555 0777" }] } });
     expect((await db.client.findUniqueOrThrow({ where: { id: r.clientId } })).phone).toBe("+1202555 0777".replace(" ", ""));
   });

@@ -1,6 +1,8 @@
 "use server";
 
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { ClientDetailsError, updateClientDetails } from "@/lib/client-details";
 import { z } from "zod";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -26,4 +28,19 @@ export async function inviteToPortal(_prev: InviteState, formData: FormData): Pr
     if (e instanceof LedgerError) return { error: e.message };
     throw e;
   }
+}
+
+// Edit the client's own details (name, contact, address, tax ID, payment terms). Currency is not editable.
+export async function saveClientDetails(formData: FormData): Promise<void> {
+  const user = await requirePermission("clients.edit");
+  const clientId = String(formData.get("clientId") ?? "");
+  let result: Awaited<ReturnType<typeof updateClientDetails>>;
+  try {
+    result = await updateClientDetails(db, { organizationId: user.organizationId, clientId, input: Object.fromEntries(formData) });
+  } catch (e) {
+    if (e instanceof ClientDetailsError) redirect(`/clients/${clientId}?edit=1&error=${encodeURIComponent(e.message)}`);
+    throw e;
+  }
+  if (result.changed) await audit(user, { action: "client.details", entity: "Client", entityId: clientId, before: result.before, after: result.after });
+  redirect(`/clients/${clientId}?detailsSaved=1`);
 }

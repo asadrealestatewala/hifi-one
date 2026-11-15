@@ -94,7 +94,7 @@ export default async function Clients({ searchParams }: { searchParams: Promise<
                   <td className="pr-4 text-muted">{c.email}</td>
                   <td className="pr-4 text-muted">{c.country}</td>
                   <td className="pr-4">{c.currency}</td>
-                  <td className="pr-4 text-muted">{c.paymentTermsDays} days</td>
+                  <td className="pr-4 text-muted">{c.paymentTermsDays === 0 ? "On receipt" : `${c.paymentTermsDays} days`}</td>
                   <td className="pr-4"><StatusBadge status={c.active ? "ACTIVE" : "ENDED"} /></td>
                 </tr>
               ))}
