@@ -53,6 +53,11 @@ describe("invoice templates", () => {
       if (template !== "standard") expect(t.toLowerCase()).toContain("adjustment");
     });
   }
+  it("a short invoice, receipt or statement fits on one page (no blank page from the page number)", async () => {
+    const pages = (b: Buffer) => (b.toString("latin1").match(/\/Type \/Page\b/g) ?? []).length;
+    for (const template of ["modern", "minimal", "hifi-signature", "standard"]) expect(pages(await invoicePdf({ ...biz, config: mergeConfig({ template } as never) }, { compress: false }))).toBe(1);
+    expect(pages(await receiptPdf({ number: "RCT-1", date: new Date("2026-11-14"), currency: "PKR", amount: "45000", unallocated: "0", method: "BANK_TRANSFER", reference: null, client: { name: "Biztrack UK" }, allocations: [], company, config: DEFAULT_DOC_CONFIG }, { compress: false }))).toBe(1);
+  });
   it("Hifi Signature follows the attached layout labels and honours the signature setting", async () => {
     const t = pdfPlainText(await invoicePdf({ ...biz, config: mergeConfig({ template: "hifi-signature" } as never) }, { compress: false }));
     for (const w of ["INVOICE NUMBER", "BILL TO", "SERVICE DETAILS", "AMOUNT PAYABLE", "TRANSACTION DETAILS:", "CLIENT DETAILS:", "Authorised Signature", "Company Stamp"]) expect(t).toContain(w);
