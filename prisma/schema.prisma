@@ -1601,6 +1601,8 @@ model Contract {
   currency          String?
   value             Decimal? @db.Decimal(14, 2)
   notes             String?
+  sharedWithClient  Boolean  @default(false) // shown, with its files, on the client's portal Agreements page
+  sharedAt          DateTime?
   createdById       String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

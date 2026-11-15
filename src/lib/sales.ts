@@ -225,6 +225,20 @@ export async function setContractStatus(db: Db, p: { organizationId: string; con
   if (r.count === 0) throw new SalesError("The contract changed while you were editing. Reload and try again.");
 }
 
+// Shows a contract (and its files) on the client's portal, or takes it off. Drafts cannot be shown: only what was agreed.
+export async function setContractShared(db: Db, p: { organizationId: string; contractId: string; shared: boolean }) {
+  const c = await db.contract.findFirst({ where: { id: p.contractId, organizationId: p.organizationId } });
+  if (!c) throw new SalesError("Contract not found.");
+  if (p.shared && c.status === "DRAFT") throw new SalesError("Mark the contract as active (signed) before showing it to the client.");
+  if (c.sharedWithClient === p.shared) return { contract: c, changed: false };
+  const contract = await db.contract.update({ where: { id: c.id }, data: { sharedWithClient: p.shared, sharedAt: p.shared ? new Date() : null } });
+  return { contract, changed: true };
+}
+
+// What a client sees on their portal: their own contracts that staff shared, newest first.
+export const portalContracts = (db: Db, clientId: string) =>
+  db.contract.findMany({ where: { clientId, sharedWithClient: true }, orderBy: [{ startDate: "desc" }, { createdAt: "desc" }] });
+
 // Active contracts whose end date has passed are marked expired.
 export async function expireContracts(db: Db, organizationId: string, today: string) {
   const r = await db.contract.updateMany({ where: { organizationId, status: "ACTIVE", endDate: { lt: today } }, data: { status: "EXPIRED" } });

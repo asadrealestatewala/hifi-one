@@ -52,6 +52,13 @@ export async function invoiceIssued(db: Db, p: { organizationId: string; invoice
   });
 }
 
+// A contract was shown to the client: their portal users hear once that it is on their Agreements page.
+export async function contractShared(db: Db, p: { organizationId: string; contractId: string }) {
+  const c = await db.contract.findFirst({ where: { id: p.contractId, organizationId: p.organizationId, sharedWithClient: true }, select: { id: true, title: true, clientId: true } });
+  if (!c) return;
+  await notifyMany(db, await portalUsers(db, { clientId: c.clientId }), { kind: "contract.shared", title: `Agreement added: ${c.title}`, link: "/portal/agreements", dedupeKey: `contract-shared:${c.id}` });
+}
+
 // Money arrived: the salesperson who won the client and the client's portal users hear about it.
 export async function paymentReceived(db: Db, p: { organizationId: string; paymentId: string; actorId: string }) {
   const pay = await db.payment.findFirst({ where: { id: p.paymentId, organizationId: p.organizationId }, select: { id: true, number: true, clientId: true, amount: true, currency: true, client: { select: { name: true } } } });
