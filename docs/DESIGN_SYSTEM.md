@@ -11,7 +11,11 @@ Source of truth for colours is `src/app/globals.css` (light default, dark by cho
 | `--sidebar` | #0f1230 | Dark navy sidebar |
 | `--brand` | #e11d1d | The logo red, also errors and alerts |
 | `--success` / `--warning` | #15803d / #b45309 | Status |
-| `--background` / `--surface` / `--hover` / `--border` / `--muted` | #f6f7fb / #fff / #f0f1f8 / #e5e7f0 / #6b7189 | Workspace |
+| `--background` / `--surface` / `--hover` / `--border` / `--muted` | #f8f4ec / #fffdf9 / #f1ebde / #ebe4d6 / #736d62 | Workspace (warm cream since 2026-11-15) |
+| `--tint-blue` `violet` `orange` `green` `pink` `teal` `amber` `slate` | #2563eb #7c3aed #c2410c #047857 #be185d #0f766e #b45309 #475569 | Accent colours for modules and record types. They never carry meaning. Icon colour; the chip behind is a 12-18% `color-mix`. Each passes 4:1 on its chip (WCAG 1.4.11 needs 3:1). Dark mode has lighter values |
+| `--danger` / `--info` / `--discovery` | #b81414 / #1d4ed8 / #6d28d9 | Semantic roles (with `--success`, `--warning`). Tailwind `brand` utilities (`text-brand`, `bg-brand/10`) map to `--danger`, so error text passes 4.5:1; `--brand` (#e11d1d) stays the logo red for direct CSS use |
+
+Type scale (2026-11-15): 12 `text-xs` caption, 13 `text-small`, 14 `text-sm` body, 16 `text-base` lead, 20 `text-xl` section title, 24 `text-2xl` page title, 30 `text-3xl` display; weights 400, 500, 600 only. Spacing on a 4-pt grid (4, 8, 12, 16, 24, 32, 48). Radius: 8px fields and buttons, 12px cards, round for chips and avatars. Elevation: hairline border and surface contrast at rest; shadow only on hover lift, menus, drawers and dialogs. Benchmarks: Atlassian, Salesforce Lightning, Shopify Polaris, WCAG 2.2 AA (see `docs/DECISIONS.md`).
 
 Classes `btn`, `btn-ghost`, `input`, `label`, `card` and `skeleton` are defined in `globals.css`. Animations: `slidein`, `fade`, `pop`, `confetti`, `shimmer`.
 
@@ -22,6 +26,10 @@ Dark sidebar with module groups (dropdowns, a coloured icon chip per module, cou
 Interactivity: pages fade in on navigation; link cards and stat tiles lift on hover; a click anywhere on a table row opens its record (`RowClick`, only when the click is not on a control or a text selection; the real link stays for keyboard users); menu items nudge on hover; reduced-motion settings switch the motion off.
 
 The dashboard hero uses the primary colour with a soft gradient (owner asked for a sample-style hero); a small floating Ask button sits bottom-right on every screen where the assistant is allowed.
+
+## Tabs, stat icons (2026-11-15 refresh)
+
+`Tabs` (`src/components/ui/Tabs.tsx`) is the underlined tab bar with a coloured icon and optional count, for screens on one subject (`ScreenTabs`, every `?tab=` page). `Chips` stays for filters. `Stat` shows a tinted icon chip. Both pick an icon and colour from the label through `guess` in `src/lib/tint.ts`; pass `icon` or `tone` to override. New tab lists should use `Tabs`, not `Chips`.
 
 ## Shared components (use these, do not copy markup)
 

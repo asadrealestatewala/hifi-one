@@ -1,10 +1,11 @@
+import Tabs from "@/components/ui/Tabs";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { vendorLedger } from "@/lib/vendors";
-import { Badge, Chips, Empty, StatusBadge } from "@/components/ui";
+import { Badge, Empty, StatusBadge } from "@/components/ui";
 import FilesPanel from "@/components/FilesPanel";
 import { changeStatus } from "./actions";
 import VendorInviteForm from "./VendorInviteForm";
@@ -33,7 +34,7 @@ export default async function VendorPage({ params, searchParams }: { params: Pro
     <div className="space-y-6">
       <Link href="/vendors" className="text-sm text-muted hover:underline">← All vendors</Link>
       <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">{v.name} <span className="text-base font-normal text-muted">{v.code}</span><StatusBadge status={v.status} /></h1>
-      <Chips current={tab} items={TABS.map(([k, l]) => ({ key: k, label: l, href: tabHref(k) }))} />
+      <Tabs current={tab} items={TABS.map(([k, l]) => ({ key: k, label: l, href: tabHref(k) }))} />
 
       {tab === "overview" && (
         <>

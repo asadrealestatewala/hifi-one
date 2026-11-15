@@ -2,12 +2,12 @@
 
 /* Design tokens. Light is the default; dark applies from the saved choice or the system setting (see the script in layout.tsx). */
 :root {
-  --background: #f6f7fb;
-  --foreground: #161a33;
-  --surface: #ffffff;
-  --hover: #f0f1f8;
-  --border: #e5e7f0;
-  --muted: #6b7189;
+  --background: #f8f4ec;
+  --foreground: #1c1a2e;
+  --surface: #fffdf9;
+  --hover: #f1ebde;
+  --border: #ebe4d6;
+  --muted: #736d62;
   --primary: #5648e8;
   --primary-dark: #4437c9;
   --accent: #a89cff;
@@ -18,7 +18,12 @@
   --brand-dark: #b81414;
   --success: #15803d;
   --warning: #b45309;
-  --shadow: 0 1px 2px rgb(16 20 50 / 0.05), 0 1px 3px rgb(16 20 50 / 0.04);
+  --shadow: 0 1px 2px rgb(60 40 10 / 0.04); /* hairline at rest; lift only on hover, menus and dialogs */
+  /* Module and status tints (2026-11-15 refresh). Use the solid colour for an icon and a 12% mix for its chip. */
+  --tint-blue: #2563eb; --tint-violet: #7c3aed; --tint-orange: #c2410c; --tint-green: #047857;
+  --tint-pink: #be185d; --tint-teal: #0f766e; --tint-amber: #b45309; --tint-slate: #475569;
+  /* Semantic roles (status meaning only; module tints never carry meaning). Each passes WCAG AA on cream. */
+  --danger: #b81414; --info: #1d4ed8; --discovery: #6d28d9;
 }
 
 :root[data-theme="dark"] {
@@ -38,6 +43,9 @@
   --success: #4ade80;
   --warning: #fbbf24;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+  --tint-blue: #60a5fa; --tint-violet: #a78bfa; --tint-orange: #fb923c; --tint-green: #34d399;
+  --tint-pink: #f472b6; --tint-teal: #2dd4bf; --tint-amber: #fbbf24; --tint-slate: #94a3b8;
+  --danger: #ff6b6b; --info: #60a5fa; --discovery: #a78bfa;
 }
 
 @theme inline {
@@ -53,10 +61,14 @@
   --color-sidebar: var(--sidebar);
   --color-sidebar-fg: var(--sidebar-fg);
   --color-navy: var(--navy);
-  --color-brand: var(--brand);
+  --color-brand: var(--danger); /* utilities like text-brand are alerts and errors, so they use the accessible red; the logo is an image */
+  --color-danger: var(--danger); --color-info: var(--info); --color-discovery: var(--discovery);
+  --text-small: 0.8125rem; --text-small--line-height: 1.25rem;
   --color-brand-dark: var(--brand-dark);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --color-tint-blue: var(--tint-blue); --color-tint-violet: var(--tint-violet); --color-tint-orange: var(--tint-orange); --color-tint-green: var(--tint-green);
+  --color-tint-pink: var(--tint-pink); --color-tint-teal: var(--tint-teal); --color-tint-amber: var(--tint-amber); --color-tint-slate: var(--tint-slate);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -78,7 +90,7 @@ body {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--foreground);
-  border-radius: 0.625rem;
+  border-radius: 0.5rem;
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -94,7 +106,7 @@ input.input[type="date"], input.input[type="datetime-local"] { min-width: 0; max
 /* Buttons */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
-  background: var(--primary); color: #fff; border-radius: 0.625rem; padding: 0.5rem 1rem;
+  background: var(--primary); color: #fff; border-radius: 0.5rem; padding: 0.5rem 1rem;
   font-size: 0.875rem; font-weight: 600; box-shadow: var(--shadow); transition: background 0.15s, transform 0.05s;
 }
 .btn:hover:not(:disabled) { background: var(--primary-dark); }
@@ -102,7 +114,7 @@ input.input[type="date"], input.input[type="datetime-local"] { min-width: 0; max
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn-ghost {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
-  border: 1px solid var(--border); background: var(--surface); border-radius: 0.625rem; padding: 0.4rem 0.8rem;
+  border: 1px solid var(--border); background: var(--surface); border-radius: 0.5rem; padding: 0.4rem 0.8rem;
   font-size: 0.8125rem; font-weight: 500; transition: background 0.15s, border-color 0.15s;
 }
 .btn-ghost:hover:not(:disabled) { background: var(--hover); border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); }
@@ -111,7 +123,7 @@ input.input[type="date"], input.input[type="datetime-local"] { min-width: 0; max
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0.875rem;
+  border-radius: 0.75rem;
   padding: 1.25rem;
   box-shadow: var(--shadow);
 }
@@ -156,7 +168,7 @@ main h1 { letter-spacing: -0.02em; }
 
 /* Interactivity: cards lift a little on hover when they are links or stat tiles, and table rows that open a record show it */
 main a > .card, main .card[tabindex] { transition: transform .15s ease, box-shadow .15s ease; }
-main a:hover > .card { transform: translateY(-2px); box-shadow: 0 6px 18px rgb(16 20 50 / 0.10); }
+main a:hover > .card { transform: translateY(-2px); box-shadow: 0 8px 22px rgb(60 40 10 / 0.10); }
 main tbody tr:has(a[href]) { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   main a:hover > .card { transform: none; }
