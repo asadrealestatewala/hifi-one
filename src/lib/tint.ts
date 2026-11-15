@@ -51,8 +51,8 @@ export const RECORD: Record<RecordType, { icon: IconName; tone: Tone; label: str
 const TITLE_TYPE: Record<string, RecordType> = { clients: "client", leads: "lead", invoices: "invoice", quotations: "quote", contracts: "contract", projects: "project", vendors: "vendor", people: "staff", tasks: "task" };
 export const recordTypeFromTitle = (title: string): RecordType | null => TITLE_TYPE[title.toLowerCase()] ?? null;
 const HREF_TYPE: [RegExp, RecordType][] = [
-  [/^\/clients\b/, "client"], [/^\/(leads|pipeline)\b/, "lead"], [/[?&]task=|^\/projects\/[^/?]+\/tasks|^\/me\/tasks/, "task"], [/^\/projects\b/, "project"],
+  [/^\/clients\b/, "client"], [/^\/(leads|pipeline)\b/, "lead"], [/[?&]task=|^\/projects\/[^/?]+\/tasks|^\/me\/tasks/, "task"], [/^\/(portal\/)?projects\b/, "project"],
   [/^\/finance\/invoices\b|^\/portal\/invoices\b/, "invoice"], [/^\/finance\/payments\b|^\/portal\/receipts\b/, "payment"], [/^\/quotes\b|^\/portal\/quotes\b/, "quote"],
-  [/^\/contracts\b|^\/agreements\b/, "contract"], [/^\/vendors\b|^\/vendor\b/, "vendor"], [/^\/(hr|users|me|payroll|payslips)\b/, "staff"], [/^\/(meetings|room)\b/, "meeting"], [/^\/(campaigns|clout)\b/, "campaign"],
+  [/^\/contracts\b|^\/agreements\b/, "contract"], [/^\/vendors\b|^\/vendor\b/, "vendor"], [/^\/(hr|users|me|payroll|payslips)\b/, "staff"], [/^\/(portal\/)?(meetings|room)\b/, "meeting"], [/^\/(campaigns|clout)\b|^\/portal\/(content|clout)\b/, "campaign"],
 ];
 export const recordTypeFromHref = (href: string | null | undefined): RecordType | null => (href ? HREF_TYPE.find(([re]) => re.test(href))?.[1] ?? null : null);

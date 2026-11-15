@@ -3,7 +3,7 @@ import { requireClientUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { portalInvoices, portalManager, portalPayments, portalSupport, portalProjects } from "@/lib/portal";
-import { Notice, PageHeader } from "@/components/ui";
+import { Notice, PageHeader, Stat } from "@/components/ui";
 import { redirect } from "next/navigation";
 import ReviewAreasField, { AreaList, readAreaRatings } from "@/components/ReviewAreasField";
 import { ClientReviewError, openPortalReviews, reviewAreasFor, submitClientReview, weekLabel } from "@/lib/client-reviews";
@@ -37,11 +37,9 @@ export default async function PortalHome({ searchParams }: { searchParams: Promi
       {manager && <p className="text-sm text-muted">Your project manager: <strong className="text-foreground">{manager.name}</strong>{manager.employeeNo && ` (ID ${manager.employeeNo})`}</p>}
       {support && <p className="text-sm text-muted">Your {support.dedicated ? "support manager" : "support contact"}: <strong className="text-foreground">{support.name}</strong>{support.employeeNo && ` (ID ${support.employeeNo})`}. Tutorials and support calls appear under Meetings.</p>}
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="card"><p className="text-xs font-semibold text-muted">Outstanding</p>
-          {owed.size === 0 ? <p className="text-2xl font-bold">Nothing due</p> : [...owed].map(([c, v]) => <p key={c} className="text-2xl font-bold">{formatMoney(v, c)}</p>)}
-        </div>
-        <div className="card"><p className="text-xs font-semibold text-muted">Invoices</p><p className="text-2xl font-bold">{invoices.length}</p></div>
-        <div className="card"><p className="text-xs font-semibold text-muted">Active projects</p><p className="text-2xl font-bold">{projects.filter((p) => p.status === "ACTIVE").length}</p></div>
+        <Stat label="Outstanding" icon="wallet" tone="amber" href="/portal/statement" value={owed.size === 0 ? "Nothing due" : [...owed].map(([c, v]) => <span key={c} className="block">{formatMoney(v, c)}</span>)} />
+        <Stat label="Invoices" icon="receipt" tone="green" href="/portal/statement" value={invoices.length} />
+        <Stat label="Active projects" icon="briefcase" tone="orange" href="/portal/projects" value={projects.filter((p) => p.status === "ACTIVE").length} />
       </div>
 
       {(openReviews.length > 0 || myReviews.length > 0 || sp.reviewed || sp.reviewError) && (

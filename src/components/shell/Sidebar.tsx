@@ -5,7 +5,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import Icon from "./Icon";
-import { MODULE_COLOR } from "./nav-colors";
+import { ENTRY_ICON, MODULE_COLOR } from "./nav-colors";
+import { guess } from "@/lib/tint";
 import Avatar from "@/components/ui/Avatar";
 import ArrangeMenu from "./ArrangeMenu";
 import type { NavStats } from "@/lib/nav-stats";
@@ -126,9 +127,12 @@ export default function Sidebar({ groups: arranged, allGroups, menuPrefs, stats,
                       return (
                         <li key={i.href}>
                           <Link href={i.href} onClick={onClose} aria-current={on ? "page" : undefined}
-                            className={`relative block rounded-md px-3 py-1.5 text-[13px] transition-all duration-150 hover:translate-x-1 ${on ? "bg-gradient-to-r from-white/15 to-transparent font-medium text-white" : "text-sidebar-fg/80 hover:bg-white/8 hover:text-white"}`}>
+                            className={`relative flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] transition-all duration-150 hover:translate-x-1 ${on ? "bg-gradient-to-r from-white/15 to-transparent font-medium text-white" : "text-sidebar-fg/80 hover:bg-white/8 hover:text-white"}`}>
                             {on && <span aria-hidden className="absolute -left-[13px] top-1.5 h-[18px] w-0.5 rounded-full" style={{ background: colorOf(g.id) ?? "var(--accent)" }} />}
-                            {i.label}
+                            <span aria-hidden className={`grid h-5 w-5 shrink-0 place-items-center rounded-md transition ${on ? "" : "opacity-70"}`} style={{ background: on ? colorOf(g.id) ?? "var(--accent)" : "transparent", color: on ? "#fff" : colorOf(g.id) ? `color-mix(in srgb, ${colorOf(g.id)} 55%, #fff)` : "currentColor" }}>
+                              <Icon name={ENTRY_ICON[i.label] ?? guess(i.label)[0]} className="h-3.5 w-3.5" />
+                            </span>
+                            <span className="min-w-0 truncate">{i.label}</span>
                           </Link>
                         </li>
                       );

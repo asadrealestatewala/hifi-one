@@ -1,5 +1,5 @@
-import Image from "next/image";
-import Link from "next/link";
+import PortalHeader from "@/components/portal/PortalHeader";
+import PortalNav, { type PortalNavItem } from "@/components/portal/PortalNav";
 import { redirect } from "next/navigation";
 import { logout, requireClientUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -18,31 +18,23 @@ export default async function PortalLayout({ children }: { children: React.React
   const cloutPosts = await db.cloutCampaign.count({ where: { clientId: user.clientId } });
   const unread = await db.notification.count({ where: { userId: user.id, readAt: null } });
   const approvals = await db.deliverable.count({ where: { status: "PENDING", projectId: { in: (await db.project.findMany({ where: { clientId: user.clientId }, select: { id: true } })).map((p) => p.id) } } });
+  const items: PortalNavItem[] = [
+    { href: "/portal", label: "Overview", icon: "home", tone: "violet" },
+    { href: "/portal/projects", label: "Projects", icon: "briefcase", tone: "orange" },
+    { href: "/portal/approvals", label: "Approvals", icon: "check", tone: "teal", count: approvals },
+    { href: "/portal/content", label: "Content", icon: "calendar", tone: "pink", count: pending },
+    ...(cloutPosts > 0 ? [{ href: "/portal/clout", label: "Influencer posts", icon: "activity", tone: "pink" }] : []),
+    { href: "/portal/quotes", label: "Quotations", icon: "file", tone: "slate", count: quotesOpen },
+    { href: "/portal/statement", label: "Statement", icon: "receipt", tone: "green" },
+    { href: "/portal/meetings", label: "Meetings", icon: "video", tone: "teal" },
+    { href: "/portal/support", label: "Support", icon: "chat", tone: "blue" },
+    { href: "/portal/notifications", label: "Updates", icon: "bell", tone: "amber", count: unread },
+  ];
   return (
     <div className="min-h-screen">
-      <header className="bg-navy text-white">
-        <div className="mx-auto max-w-5xl flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <Image src="/logo.png" alt="Hifi One" width={32} height={32} className="rounded-md" />
-            <span className="font-bold">Hifi Marketing and Technologies</span>
-          </div>
-          <nav aria-label="Portal" className="flex items-center gap-4 text-sm">
-            <Link href="/portal" className="hover:underline">Overview</Link>
-            <Link href="/portal/projects" className="hover:underline">Projects</Link>
-            <Link href="/portal/approvals" className="hover:underline">Approvals{approvals > 0 && ` (${approvals})`}</Link>
-            <Link href="/portal/support" className="hover:underline">Support</Link>
-            {cloutPosts > 0 && <Link href="/portal/clout" className="hover:underline">Influencer posts</Link>}
-            <Link href="/portal/content" className="hover:underline">Content{pending > 0 && ` (${pending})`}</Link>
-            <Link href="/portal/quotes" className="hover:underline">Quotations{quotesOpen > 0 && ` (${quotesOpen})`}</Link>
-            <Link href="/portal/meetings" className="hover:underline">Meetings</Link>
-            <Link href="/portal/notifications" className="hover:underline">Updates{unread > 0 && ` (${unread})`}</Link>
-            <Link href="/portal/statement" className="hover:underline">Statement</Link>
-            <form action={signOut}><button className="underline">Sign out</button></form>
-          </nav>
-        </div>
-      </header>
-      <main className="mx-auto max-w-5xl p-4 space-y-6">
-        <p className="text-sm text-muted">Signed in as {user.name}, {client?.name}</p>
+      <PortalHeader title="Client portal" person={user.name} company={client?.name} signOut={signOut} />
+      <PortalNav items={items} home="/portal" label="Client portal" />
+      <main className="mx-auto max-w-5xl space-y-6 p-4 md:py-8">
         {children}
       </main>
     </div>
