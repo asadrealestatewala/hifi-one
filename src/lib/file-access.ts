@@ -11,7 +11,7 @@ export type FileActor = {
   permissions: ReadonlySet<string>;
 };
 
-export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT", "CIRCULAR", "CHAT_MESSAGE", "PROJECT_ASSET", "EMPLOYEE_REQUEST"] as const;
+export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT", "CIRCULAR", "CHAT_MESSAGE", "PROJECT_ASSET", "EMPLOYEE_REQUEST", "PAYMENT"] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 export type Mode = "read" | "upload" | "delete";
 
@@ -43,6 +43,14 @@ export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: 
     const open = ["SUBMITTED", "UNDER_REVIEW"].includes(v.status);
     if (mode === "upload") return (mine && open) || has("expenses.review");
     return (mine && open) || has("expenses.approve");
+  }
+
+  if (ownerType === "PAYMENT") {
+    // Proof of payment (bank slip, transfer screenshot): finance staff only. Clients never see it in their portal.
+    // Adding a file never changes the posted payment, so it stays open while the payment exists.
+    const pay = await db.payment.findFirst({ where: { id: ownerId, organizationId: a.organizationId }, select: { id: true } });
+    if (!pay) return false;
+    return mode === "read" ? has("finance.view") : has("finance.post");
   }
 
   if (ownerType === "VENDOR_BILL") {

@@ -13,6 +13,9 @@ import { listHref as buildHref } from "@/lib/list-params";
 import { paymentParams, paymentWhere } from "@/lib/lists";
 import Drawer from "@/components/ui/Drawer";
 import { paymentReceived } from "@/lib/events";
+import { toFileActor } from "@/lib/auth";
+import { FileError, saveFile } from "@/lib/files";
+import { defaultStorage } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +32,7 @@ const schema = z.object({
 async function receive(formData: FormData) {
   "use server";
   const user = await requirePermission("finance.post");
-  const parsed = schema.safeParse(Object.fromEntries(formData));
+  const parsed = schema.safeParse(Object.fromEntries([...formData.entries()].filter(([k]) => k !== "proof")));
   if (!parsed.success) redirect(`/finance/payments?new=1&error=${encodeURIComponent(parsed.error.issues[0].message)}`);
   const d = parsed.data;
   let pid: string;
@@ -45,7 +48,18 @@ async function receive(formData: FormData) {
     if (e instanceof LedgerError) redirect(`/finance/payments?new=1&error=${encodeURIComponent(e.message)}`);
     throw e;
   }
-  redirect(`/finance/payments?ok=${pid}`);
+  // Optional proof of payment. The payment is already recorded, so a rejected file is reported on the payment page rather than undoing it.
+  const proof = formData.get("proof");
+  if (proof instanceof File && proof.size > 0) {
+    try {
+      const f = await saveFile(db, defaultStorage(), { actor: toFileActor(user), ownerType: "PAYMENT", ownerId: pid, name: proof.name, bytes: Buffer.from(await proof.arrayBuffer()), category: "Proof of payment" });
+      await audit(user, { action: "file.upload", entity: "StoredFile", entityId: f.id, after: { owner: `PAYMENT:${pid}`, name: f.filename, size: f.size } });
+    } catch (e) {
+      if (e instanceof FileError) redirect(`/finance/payments/${pid}?fileError=${encodeURIComponent(`Payment recorded, but the proof was not attached: ${e.message}`)}`);
+      throw e;
+    }
+  }
+  redirect(`/finance/payments/${pid}?recorded=1`);
 }
 
 export default async function Payments({ searchParams }: { searchParams: Promise<{ error?: string; ok?: string; q?: string; new?: string; page?: string; from?: string; to?: string; src?: string }> }) {
@@ -100,7 +114,7 @@ export default async function Payments({ searchParams }: { searchParams: Promise
             <tbody>
               {payments.map((p) => (
                 <tr key={p.id} className="border-t border-border transition hover:bg-hover/50">
-                  <td className="px-4 py-3 font-medium"><a className="hover:underline" href={`/finance/payments/${p.id}/pdf`} target="_blank" rel="noopener">{p.number}</a></td>
+                  <td className="px-4 py-3 font-medium"><Link className="hover:underline" href={`/finance/payments/${p.id}`}>{p.number}</Link></td>
                   <td className="pr-4">{p.client.name}</td>
                   <td className="pr-4">{p.allocations.map((a) => <Link key={a.id} href={`/finance/invoices/${a.invoiceId}`} className="mr-2 text-primary hover:underline">{a.invoice.number}</Link>)}</td>
                   <td className="pr-4 text-right tabular-nums">{formatMoney(p.amount, p.currency)}</td>
@@ -128,6 +142,9 @@ export default async function Payments({ searchParams }: { searchParams: Promise
                 <select id="method" name="method" className="input">{["BANK_TRANSFER", "CASH", "CARD", "CHEQUE", "OTHER"].map((m) => <option key={m}>{m}</option>)}</select></div>
               <div><label className="label" htmlFor="reference">Transaction reference</label><input id="reference" name="reference" className="input" /></div>
             </div>
+            <div><label className="label" htmlFor="proof">Proof of payment (optional)</label>
+              <input id="proof" name="proof" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className="input" />
+              <p className="mt-1 text-xs text-muted">Bank slip or transfer screenshot, PDF or image, up to 15 MB. Only finance staff can see it.</p></div>
           </PanelForm>
         </Drawer>
       )}
