@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { APPEARANCE_SCRIPT } from "@/lib/appearance";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 // The monospace face is only used for codes and numbers, so it loads when needed instead of delaying the first paint.
@@ -18,13 +19,12 @@ export const metadata: Metadata = {
 };
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 
-// Applies the saved theme and row density before the first paint so there is no flash of the wrong colours or a jump in row height.
-const THEME = `try{var t=localStorage.getItem("hifi.theme");if(t==="dark"||t==="light")document.documentElement.dataset.theme=t;else if(matchMedia("(prefers-color-scheme: dark)").matches)document.documentElement.dataset.theme="dark";if(localStorage.getItem("hifi.density")==="compact")document.documentElement.dataset.density="compact"}catch(e){}`;
+// Applies the saved theme, background colour and row density before the first paint (see src/lib/appearance.ts).
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head><script dangerouslySetInnerHTML={{ __html: THEME }} /></head>
+      <head><script dangerouslySetInnerHTML={{ __html: APPEARANCE_SCRIPT }} /></head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>{children}</body>
     </html>
   );

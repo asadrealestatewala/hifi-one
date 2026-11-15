@@ -48,6 +48,13 @@
   --danger: #ff6b6b; --info: #60a5fa; --discovery: #a78bfa;
 }
 
+/* Background colours a person can pick in the Appearance menu (src/lib/appearance.ts). Light theme only: dark keeps its palette.
+   Each set keeps text and icon tints at WCAG AA, like the default cream. */
+:root[data-bg="grey"]:not([data-theme="dark"]) { --background: #f5f6f8; --surface: #ffffff; --hover: #eef0f3; --border: #e3e6eb; --muted: #646b78; --shadow: 0 1px 2px rgb(20 24 38 / 0.04); }
+:root[data-bg="lavender"]:not([data-theme="dark"]) { --background: #f5f4fb; --surface: #ffffff; --hover: #eeecf8; --border: #e4e1f2; --muted: #676379; --shadow: 0 1px 2px rgb(40 30 90 / 0.04); }
+:root[data-bg="slate"]:not([data-theme="dark"]) { --background: #f1f5f9; --surface: #ffffff; --hover: #e8eef5; --border: #dfe6ee; --muted: #5f6b7a; --shadow: 0 1px 2px rgb(15 30 60 / 0.04); }
+:root[data-bg="sage"]:not([data-theme="dark"]) { --background: #f3f6f3; --surface: #ffffff; --hover: #eaf0ea; --border: #dfe7df; --muted: #626d64; --shadow: 0 1px 2px rgb(20 40 20 / 0.04); }
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

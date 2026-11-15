@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon";
+import { BACKGROUNDS, DEFAULT_BACKGROUND, STORAGE, isBackground, type BackgroundKey } from "@/lib/appearance";
 import { loadBell, readBellAll, readBellItem, type BellItem } from "@/app/(app)/notifications/actions";
 
 type Quick = { href: string; label: string; icon: string };
@@ -21,29 +22,38 @@ function useClickAway(ref: React.RefObject<HTMLElement | null>, close: () => voi
 export default function Topbar({ unread, chatUnread, quick, canSearch, onMenu, extra }: {
   unread: number; chatUnread: number | null; quick: Quick[]; canSearch: boolean; onMenu: () => void; extra?: React.ReactNode;
 }) {
-  const [menu, setMenu] = useState<"" | "quick" | "bell">("");
+  const [menu, setMenu] = useState<"" | "quick" | "bell" | "look">("");
   const [count, setCount] = useState(unread);
   const [items, setItems] = useState<BellItem[] | null>(null);
   const router = useRouter();
   const [dark, setDark] = useState(false);
   const [compact, setCompact] = useState(false);
+  const [bg, setBg] = useState<BackgroundKey>(DEFAULT_BACKGROUND);
   const box = useRef<HTMLDivElement>(null);
   useClickAway(box, () => setMenu(""));
 
-  useEffect(() => { setDark(document.documentElement.dataset.theme === "dark"); setCompact(document.documentElement.dataset.density === "compact"); }, []);
+  useEffect(() => { setDark(document.documentElement.dataset.theme === "dark"); setCompact(document.documentElement.dataset.density === "compact"); const b = document.documentElement.dataset.bg; setBg(isBackground(b) ? b : DEFAULT_BACKGROUND); }, []);
+
+  // Background colour: light theme only, remembered in this browser.
+  const pickBg = (key: BackgroundKey) => {
+    if (key === DEFAULT_BACKGROUND) delete document.documentElement.dataset.bg; else document.documentElement.dataset.bg = key;
+    try { localStorage.setItem(STORAGE.background, key); } catch { /* private mode: the choice just is not remembered */ }
+    setBg(key);
+  };
+  const setTheme = (wantDark: boolean) => { if (wantDark !== dark) flip(); };
 
   // Compact view: tighter rows on every list. Remembered in this browser, like the theme.
   const flipDensity = () => {
     const next = !compact;
     if (next) document.documentElement.dataset.density = "compact"; else delete document.documentElement.dataset.density;
-    try { localStorage.setItem("hifi.density", next ? "compact" : "comfortable"); } catch { /* private mode: the choice just is not remembered */ }
+    try { localStorage.setItem(STORAGE.density, next ? "compact" : "comfortable"); } catch { /* private mode: the choice just is not remembered */ }
     setCompact(next);
   };
 
   const flip = () => {
     const next = dark ? "light" : "dark";
     document.documentElement.dataset.theme = next;
-    try { localStorage.setItem("hifi.theme", next); } catch { /* private mode: the choice just is not remembered */ }
+    try { localStorage.setItem(STORAGE.theme, next); } catch { /* private mode: the choice just is not remembered */ }
     setDark(!dark);
   };
 
@@ -105,13 +115,46 @@ export default function Topbar({ unread, chatUnread, quick, canSearch, onMenu, e
 
         {extra}
 
-        <button type="button" onClick={flipDensity} aria-pressed={compact} className={`hidden rounded-lg p-2 hover:bg-hover hover:text-foreground sm:inline-flex ${compact ? "bg-hover text-foreground" : "text-muted"}`} aria-label={compact ? "Compact view on: switch to comfortable rows" : "Switch to compact view"} title={compact ? "Comfortable rows" : "Compact view"}>
-          <Icon name="rows" />
-        </button>
-
-        <button type="button" onClick={flip} className="rounded-lg p-2 text-muted hover:bg-hover hover:text-foreground" aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}>
-          <Icon name={dark ? "sun" : "moon"} />
-        </button>
+        <div className="sm:relative">
+          <button type="button" onClick={() => setMenu(menu === "look" ? "" : "look")} aria-expanded={menu === "look"} aria-haspopup="dialog" className="rounded-lg p-2 text-muted hover:bg-hover hover:text-foreground" aria-label="Appearance: background, theme and row density" title="Appearance">
+            <Icon name="palette" />
+          </button>
+          {menu === "look" && (
+            <div role="dialog" aria-label="Appearance" className="absolute inset-x-3 top-full z-30 mt-2 space-y-4 rounded-xl border border-border bg-surface p-4 shadow-lg sm:inset-x-auto sm:right-0 sm:w-72">
+              <fieldset>
+                <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Background</legend>
+                <div className="grid grid-cols-5 gap-2">
+                  {BACKGROUNDS.map((b) => (
+                    <button key={b.key} type="button" onClick={() => pickBg(b.key)} aria-pressed={bg === b.key} title={b.label} aria-label={`${b.label} background`}
+                      className={`grid h-10 place-items-center rounded-lg border-2 transition ${bg === b.key ? "border-primary" : "border-border hover:border-primary/40"}`} style={{ background: b.swatch }}>
+                      {bg === b.key && <Icon name="check" className="h-4 w-4 text-primary" />}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-xs text-muted">{BACKGROUNDS.find((b) => b.key === bg)?.label}{dark ? ". Shows in light mode." : ""}</p>
+              </fieldset>
+              <fieldset>
+                <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Mode</legend>
+                <div className="grid grid-cols-2 gap-1 rounded-lg bg-hover p-1">
+                  {([[false, "Light", "sun"], [true, "Dark", "moon"]] as [boolean, string, "sun" | "moon"][]).map(([d, label, ic]) => (
+                    <button key={label} type="button" onClick={() => setTheme(d)} aria-pressed={dark === d} className={`inline-flex items-center justify-center gap-1.5 rounded-md py-1.5 text-sm font-medium ${dark === d ? "bg-surface text-foreground shadow-sm" : "text-muted hover:text-foreground"}`}>
+                      <Icon name={ic} className="h-4 w-4" />{label}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+              <fieldset>
+                <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">List rows</legend>
+                <div className="grid grid-cols-2 gap-1 rounded-lg bg-hover p-1">
+                  {([[false, "Comfortable"], [true, "Compact"]] as [boolean, string][]).map(([c, label]) => (
+                    <button key={label} type="button" onClick={() => { if (c !== compact) flipDensity(); }} aria-pressed={compact === c} className={`rounded-md py-1.5 text-sm font-medium ${compact === c ? "bg-surface text-foreground shadow-sm" : "text-muted hover:text-foreground"}`}>{label}</button>
+                  ))}
+                </div>
+              </fieldset>
+              <p className="text-xs text-muted">Only you see these, on this browser.</p>
+            </div>
+          )}
+        </div>
 
         {chatUnread !== null && (
           <Link href="/chat" className="relative rounded-lg p-2 text-muted hover:bg-hover hover:text-foreground" aria-label={`Team chat, ${chatUnread} unread`}>
