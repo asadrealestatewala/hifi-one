@@ -18,10 +18,12 @@
   --brand-dark: #b81414;
   --success: #15803d;
   --warning: #b45309;
-  --shadow: 0 1px 2px rgb(60 40 10 / 0.05), 0 2px 6px rgb(60 40 10 / 0.04);
+  --shadow: 0 1px 2px rgb(60 40 10 / 0.04); /* hairline at rest; lift only on hover, menus and dialogs */
   /* Module and status tints (2026-11-15 refresh). Use the solid colour for an icon and a 12% mix for its chip. */
-  --tint-blue: #2563eb; --tint-violet: #8b5cf6; --tint-orange: #f97316; --tint-green: #059669;
-  --tint-pink: #e11d74; --tint-teal: #0d9488; --tint-amber: #d97706; --tint-slate: #64748b;
+  --tint-blue: #2563eb; --tint-violet: #7c3aed; --tint-orange: #c2410c; --tint-green: #047857;
+  --tint-pink: #be185d; --tint-teal: #0f766e; --tint-amber: #b45309; --tint-slate: #475569;
+  /* Semantic roles (status meaning only; module tints never carry meaning). Each passes WCAG AA on cream. */
+  --danger: #b81414; --info: #1d4ed8; --discovery: #6d28d9;
 }
 
 :root[data-theme="dark"] {
@@ -43,6 +45,7 @@
   --shadow: 0 1px 2px rgb(0 0 0 / 0.35);
   --tint-blue: #60a5fa; --tint-violet: #a78bfa; --tint-orange: #fb923c; --tint-green: #34d399;
   --tint-pink: #f472b6; --tint-teal: #2dd4bf; --tint-amber: #fbbf24; --tint-slate: #94a3b8;
+  --danger: #ff6b6b; --info: #60a5fa; --discovery: #a78bfa;
 }
 
 @theme inline {
@@ -58,7 +61,9 @@
   --color-sidebar: var(--sidebar);
   --color-sidebar-fg: var(--sidebar-fg);
   --color-navy: var(--navy);
-  --color-brand: var(--brand);
+  --color-brand: var(--danger); /* utilities like text-brand are alerts and errors, so they use the accessible red; the logo is an image */
+  --color-danger: var(--danger); --color-info: var(--info); --color-discovery: var(--discovery);
+  --text-small: 0.8125rem; --text-small--line-height: 1.25rem;
   --color-brand-dark: var(--brand-dark);
   --color-success: var(--success);
   --color-warning: var(--warning);
@@ -85,7 +90,7 @@ body {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--foreground);
-  border-radius: 0.625rem;
+  border-radius: 0.5rem;
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -101,7 +106,7 @@ input.input[type="date"], input.input[type="datetime-local"] { min-width: 0; max
 /* Buttons */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
-  background: var(--primary); color: #fff; border-radius: 0.625rem; padding: 0.5rem 1rem;
+  background: var(--primary); color: #fff; border-radius: 0.5rem; padding: 0.5rem 1rem;
   font-size: 0.875rem; font-weight: 600; box-shadow: var(--shadow); transition: background 0.15s, transform 0.05s;
 }
 .btn:hover:not(:disabled) { background: var(--primary-dark); }
@@ -109,7 +114,7 @@ input.input[type="date"], input.input[type="datetime-local"] { min-width: 0; max
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn-ghost {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
-  border: 1px solid var(--border); background: var(--surface); border-radius: 0.625rem; padding: 0.4rem 0.8rem;
+  border: 1px solid var(--border); background: var(--surface); border-radius: 0.5rem; padding: 0.4rem 0.8rem;
   font-size: 0.8125rem; font-weight: 500; transition: background 0.15s, border-color 0.15s;
 }
 .btn-ghost:hover:not(:disabled) { background: var(--hover); border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); }
@@ -118,7 +123,7 @@ input.input[type="date"], input.input[type="datetime-local"] { min-width: 0; max
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 1rem;
+  border-radius: 0.75rem;
   padding: 1.25rem;
   box-shadow: var(--shadow);
 }
