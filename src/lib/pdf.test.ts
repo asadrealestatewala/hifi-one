@@ -72,6 +72,9 @@ describe("invoice templates", () => {
     expect(old).not.toContain("Company stamp");
     const rc = pdfPlainText(await receiptPdf({ number: "RCT-1", date: new Date("2026-11-14"), currency: "PKR", amount: "45000", unallocated: "0", method: "BANK_TRANSFER", reference: null, client: { name: "Biztrack UK" }, allocations: [], company, config: DEFAULT_DOC_CONFIG }, { compress: false }));
     expect(rc).toContain("Company stamp");
+    expect(rc).toContain("PAID");
+    expect(rc).toContain("AMOUNT RECEIVED");
+    expect(rc).toContain("PKR 45,000.00");
   });
   it("labels the company details", async () => {
     const t = pdfPlainText(await invoicePdf({ ...biz, company: { ...company, website: "www.hifimarketing.co", email: "hello@hifimarketing.co" }, config: mergeConfig({ template: "modern" } as never) }, { compress: false }));

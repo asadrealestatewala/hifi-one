@@ -573,16 +573,70 @@ export type ReceiptDoc = {
   number: string; date: Date; currency: string; amount: string; unallocated: string; method: string; reference?: string | null; receivedBy?: string | null;
   client: { name: string }; allocations: { invoiceNumber: string | null; amount: string }[]; bankName?: string | null; company: Company; config: DocConfig;
 };
+// Receipts match the Modern Indigo invoice, with a green PAID badge so a paid document reads as paid at a glance
 export async function receiptPdf(d: ReceiptDoc, b: Build = {}) {
   const { ctx, done } = start({ ...b, title: `Receipt ${d.number}`, cfg: d.config, stamp: true });
-  header(ctx, d.company, "PAYMENT RECEIPT", d.number);
-  kv(ctx, [["Received from", d.client.name], ["Date", fmtDate(d.date)], ["Method", d.method.replace(/_/g, " ").toLowerCase()], ["Reference", d.reference], ["Paid into", d.bankName], ["Received by", d.receivedBy]]);
-  doc_move(ctx);
-  if (d.allocations.length) {
-    table(ctx, [{ label: "Applied to invoice", width: 330 }, { label: "Amount", width: 169, align: "right" }], d.allocations.map((a) => [a.invoiceNumber ?? "-", pdfMoney(a.amount, d.currency)]));
+  const { doc, cfg } = ctx;
+  const NAVY = "#0f1b4d", INDIGO = "#3b44c4", GREEN = "#15803d", GREEN_BG = "#dcfce7";
+  const g = doc.linearGradient(0, 0, 595.28, 0);
+  g.stop(0, NAVY).stop(1, INDIGO);
+  doc.rect(0, 0, 595.28, 108).fill(g);
+  const logo = asset("logo.png", "public");
+  if (logo) { doc.roundedRect(40, 28, 52, 52, 10).fill("#ffffff"); doc.image(logo, 45, 33, { width: 42 }); }
+  doc.fillColor("#fff").font("Helvetica-Bold").fontSize(20).text("PAYMENT RECEIPT", 250, 34, { width: 297, align: "right", characterSpacing: 2, lineBreak: false });
+  doc.font("Helvetica").fontSize(9).fillColor("#c7cbff").text(t(ctx, `No. ${d.number}`), 250, 62, { width: 297, align: "right", characterSpacing: 1, lineBreak: false });
+  // PAID badge
+  doc.roundedRect(497, 76, 50, 18, 9).fill(GREEN);
+  doc.fillColor("#fff").font("Helvetica-Bold").fontSize(9).text("PAID", 497, 81, { width: 50, align: "center", characterSpacing: 1.5, lineBreak: false });
+  const label = (s2: string, x: number, y: number) => doc.font("Helvetica-Bold").fontSize(7.5).fillColor(INDIGO).text(s2, x, y, { characterSpacing: 1, lineBreak: false });
+  const y0 = 134;
+  label("FROM", 48, y0);
+  doc.font("Helvetica-Bold").fontSize(9.5).fillColor("#111").text(t(ctx, d.company.legalName), 48, y0 + 13, { width: 170 });
+  doc.font("Helvetica").fontSize(8).fillColor("#555");
+  for (const l of companyLines(cfg, d.company)) doc.text(t(ctx, l), 48, doc.y + 1, { width: 170 });
+  const yFrom = doc.y;
+  label("RECEIVED FROM", 235, y0);
+  doc.font("Helvetica-Bold").fontSize(10).fillColor("#111").text(t(ctx, d.client.name), 235, y0 + 13, { width: 150 });
+  const yTo = doc.y;
+  let dy = y0;
+  const facts: [string, string | null | undefined][] = [["DATE", longDate(d.date)], ["METHOD", d.method.replace(/_/g, " ").toLowerCase()], ["REFERENCE", d.reference], ["PAID INTO", d.bankName], ["RECEIVED BY", d.receivedBy]];
+  for (const [k, v] of facts) {
+    if (!v) continue;
+    label(k, 400, dy);
+    doc.font("Helvetica").fontSize(9).fillColor("#111").text(t(ctx, v), 400, dy + 10, { width: 147 });
+    dy = doc.y + 6;
   }
-  totals(ctx, [...(Number(d.unallocated) > 0 ? ([["Held on account", pdfMoney(d.unallocated, d.currency)]] as [string, string][]) : []), ["Amount received", pdfMoney(d.amount, d.currency), true]]);
+  let y = Math.max(yFrom, yTo, dy) + 22;
+  // Amount received, the figure the client cares about
+  doc.roundedRect(48, y, 499, 52, 8).fill(GREEN_BG);
+  doc.rect(48, y, 4, 52).fill(GREEN);
+  doc.fillColor(GREEN).font("Helvetica-Bold").fontSize(8).text("AMOUNT RECEIVED", 64, y + 12, { characterSpacing: 1.2, lineBreak: false });
+  doc.fillColor("#111").font("Helvetica-Bold").fontSize(18).text(t(ctx, pdfMoney(d.amount, d.currency)), 64, y + 24, { lineBreak: false });
+  doc.fillColor(GREEN).font("Helvetica-Bold").fontSize(9).text("Thank you for your payment", 300, y + 21, { width: 235, align: "right", lineBreak: false });
+  y += 52 + 26;
+  if (d.allocations.length) {
+    label("APPLIED TO INVOICE", 48, y);
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor(INDIGO).text("AMOUNT", 400, y, { width: 147, align: "right", characterSpacing: 1, lineBreak: false });
+    y += 13;
+    doc.lineWidth(1.5).moveTo(48, y).lineTo(547, y).stroke(NAVY);
+    y += 9;
+    for (const a of d.allocations) {
+      y = room(ctx, y, 24);
+      doc.font("Helvetica").fontSize(9.5).fillColor("#111").text(t(ctx, a.invoiceNumber ?? "-"), 48, y, { lineBreak: false });
+      doc.text(t(ctx, pdfMoney(a.amount, d.currency)), 400, y, { width: 147, align: "right", lineBreak: false });
+      y += 16;
+      doc.lineWidth(0.5).moveTo(48, y).lineTo(547, y).stroke("#e3e5f5");
+      y += 8;
+    }
+  }
+  if (Number(d.unallocated) > 0) {
+    doc.font("Helvetica").fontSize(9).fillColor("#333").text("Held on account for future invoices", 300, y + 4, { width: 150, lineBreak: false });
+    doc.text(t(ctx, pdfMoney(d.unallocated, d.currency)), 450, y + 4, { width: 97, align: "right", lineBreak: false });
+    y += 22;
+  }
+  doc.y = y + 6;
   footer(ctx, d.company, "This receipt confirms a recorded payment. It is not a tax invoice.");
+  doc.rect(0, 826, 595.28, 16).fill(INDIGO);
   return done();
 }
 function doc_move(ctx: Ctx) { ctx.doc.moveDown(0.5); }
