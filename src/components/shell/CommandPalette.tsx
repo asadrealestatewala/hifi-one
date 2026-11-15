@@ -1,5 +1,7 @@
 "use client";
 
+import RecordIcon from "@/components/ui/RecordIcon";
+import { recordTypeFromHref } from "@/lib/tint";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "./Icon";
@@ -72,7 +74,7 @@ export default function CommandPalette({ groups, quick, canSearch }: {
           {results.map((e, i) => (
             <li key={e.href + e.label + e.hint} id={`palette-${i}`} role="option" aria-selected={i === active} onMouseEnter={() => setActive(i)} onClick={() => go(i)}
               className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm ${i === active ? "bg-hover" : ""}`}>
-              <Icon name={e.icon} className="h-4 w-4 text-muted" /><span className="flex-1">{e.label}</span><span className="text-xs text-muted">{e.hint}</span>
+              <RecordIcon type={recordTypeFromHref(e.href)} size="sm" fallback={e.icon} /><span className="flex-1">{e.label}</span><span className="text-xs text-muted">{e.hint}</span>
             </li>
           ))}
           {searchRow && (
