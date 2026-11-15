@@ -4,7 +4,7 @@ import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { SalesError, createSubscription, generateDueInvoices, setSubscriptionStatus } from "@/lib/sales";
-import { Chips, Empty, NewButton, Notice, PageHeader, PanelForm, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import { Chips, Empty, NewButton, Notice, PageHeader, PanelForm, SearchBox, Stat, StatusBadge, ListToolbar } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import Drawer from "@/components/ui/Drawer";
 
@@ -88,10 +88,10 @@ export default async function Subscriptions({ searchParams }: { searchParams: Pr
       </div>
       {sp.msg && <Notice kind="ok">{sp.msg}</Notice>}
       {sp.error && !sp.new && <Notice kind="error">{sp.error}</Notice>}
-      <div className="flex flex-wrap items-center gap-3">
+      <ListToolbar>
         <SearchBox q={sp.q?.trim()} placeholder="Search name or client" hidden={{ status: status === "all" ? undefined : status }} />
         <Chips current={status} items={[{ key: "all", label: "All", count: all.length, href: href({ status: undefined }) }, ...statuses.map((x) => ({ key: x, label: x.toLowerCase().replace(/^./, (c) => c.toUpperCase()), count: all.filter((y) => y.status === x).length, href: href({ status: x }) }))]} />
-      </div>
+      </ListToolbar>
       {subs.length === 0 ? <Empty title={q || status !== "all" ? "No subscriptions match" : "No subscriptions yet"}>{canManage ? "Create one with New subscription." : "Subscriptions will appear here."}</Empty> : (
         <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">

@@ -3,7 +3,7 @@ import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { paging } from "@/lib/paging";
 import { STAFF_STATUSES, staffWhere, type StaffFilters } from "@/lib/staff";
-import { AppliedFilters, Avatar, Chips, Empty, NewButton, PageHeader, Pager, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import { AppliedFilters, Avatar, Chips, Empty, NewButton, PageHeader, Pager, SearchBox, Stat, StatusBadge, ListToolbar } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import Drawer from "@/components/ui/Drawer";
 import StaffForm from "./StaffForm";
@@ -69,7 +69,7 @@ export default async function Employees({ searchParams }: { searchParams: Promis
         <Stat label="Archived" value={archivedCount} href="/hr/employees?archived=1" />
       </div>
       <AppliedFilters items={applied} clearHref="/hr/employees" backHref={sp.from === "dashboard" ? "/dashboard?tab=people" : undefined} />
-      <div className="flex flex-wrap items-center gap-3">
+      <ListToolbar>
         <SearchBox q={q} placeholder="Search name, email, number, ID or designation" hidden={{ ...current, q: undefined }} />
         {sp.archived !== "1" && <Chips current={status ?? "all"} items={[{ key: "all", label: "All", count: total, href: href({ status: undefined, page: undefined }) }, ...STAFF_STATUSES.map((s) => ({ key: s, label: s.charAt(0) + s.slice(1).toLowerCase(), count: count.get(s) ?? 0, href: href({ status: s }) }))]} />}
         <form className="flex flex-wrap gap-2" aria-label="More filters">
@@ -79,7 +79,7 @@ export default async function Employees({ searchParams }: { searchParams: Promis
           <select name="role" defaultValue={sp.role ?? ""} aria-label="Role" className="input !w-auto"><option value="">All roles</option>{roles.map((r) => <option key={r.key} value={r.key}>{r.name}</option>)}</select>
           <button className="btn-ghost">Apply</button>
         </form>
-      </div>
+      </ListToolbar>
       {rows.length === 0 ? <Empty title={applied.length || status ? "No staff match these filters" : "No staff records yet"}>{applied.length || status ? <Link className="underline" href="/hr/employees">Clear the filters</Link> : canManage ? "Add the first person with Add staff member." : "Staff records will appear here."}</Empty> : (
         <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">

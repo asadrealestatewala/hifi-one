@@ -4,7 +4,7 @@ import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { APPLICATION_STATUSES, PROFESSION_LABEL, durationLabel, ensurePartnerDefaults, partnerId, typeLabel } from "@/lib/partner-stack";
 import { paging } from "@/lib/paging";
-import { Chips, Empty, Notice, PageHeader, Pager, SearchBox, StatusBadge } from "@/components/ui";
+import { Chips, Empty, Notice, PageHeader, Pager, SearchBox, StatusBadge, ListToolbar } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import Drawer from "@/components/ui/Drawer";
 import ConfirmButton from "@/components/ui/ConfirmButton";
@@ -50,10 +50,10 @@ export default async function PartnerApplications({ searchParams }: { searchPara
   return (
     <div className="space-y-5">
       <PageHeader tabs={<ScreenTabs group="partner-stack" current="/partner-stack" />} title="Partner Stack" subtitle={<>Applications from the public <a className="underline" href="/partners" target="_blank" rel="noopener">Hifi Partner Stack</a> page.</>} />
-      <div className="flex flex-wrap items-center gap-3">
+      <ListToolbar>
         <SearchBox q={q} placeholder="Search name, email, phone or city" hidden={{ ...current, q: undefined }} />
         <Chips current={status ?? "all"} items={[{ key: "all", label: "All", count: all, href: href({ status: undefined, page: undefined }) }, ...APPLICATION_STATUSES.map((s) => ({ key: s, label: label(s), count: count.get(s) ?? 0, href: href({ status: s, page: undefined }) }))]} />
-      </div>
+      </ListToolbar>
       {rows.length === 0 ? (
         <Empty title={all === 0 ? "No applications yet" : "No applications match these filters"}>
           {all === 0 ? "When someone applies on the Hifi Partner Stack page, the application appears here and the Partner Managers are notified." : <Link className="underline" href="/partner-stack">Clear filters</Link>}

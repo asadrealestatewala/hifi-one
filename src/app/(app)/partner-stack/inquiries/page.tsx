@@ -4,7 +4,7 @@ import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { INQUIRY_STATUSES, typeLabel } from "@/lib/partner-stack";
 import { paging } from "@/lib/paging";
-import { Chips, Empty, Notice, PageHeader, Pager, SearchBox, StatusBadge } from "@/components/ui";
+import { Chips, Empty, Notice, PageHeader, Pager, SearchBox, StatusBadge, ListToolbar } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import Drawer from "@/components/ui/Drawer";
 import SubmitButton from "@/components/ui/SubmitButton";
@@ -41,10 +41,10 @@ export default async function PartnerInquiries({ searchParams }: { searchParams:
   return (
     <div className="space-y-5">
       <PageHeader tabs={<ScreenTabs group="partner-stack" current="/partner-stack/inquiries" />} title="Partner Stack" subtitle="Questions from the public Hifi Partner Stack page. Reply by email, then mark them replied." />
-      <div className="flex flex-wrap items-center gap-3">
+      <ListToolbar>
         <SearchBox q={q} placeholder="Search name, email or question" hidden={{ ...current, q: undefined }} />
         <Chips current={status ?? "all"} items={[{ key: "all", label: "All", count: all, href: href({ status: undefined, page: undefined }) }, ...INQUIRY_STATUSES.map((s) => ({ key: s, label: label(s), count: count.get(s) ?? 0, href: href({ status: s, page: undefined }) }))]} />
-      </div>
+      </ListToolbar>
       {rows.length === 0 ? (
         <Empty title={all === 0 ? "No questions yet" : "No questions match these filters"}>{all === 0 ? "Questions from the Ask a Question form appear here." : <Link className="underline" href="/partner-stack/inquiries">Clear filters</Link>}</Empty>
       ) : (

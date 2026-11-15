@@ -3,7 +3,7 @@ import type { SessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { paging } from "@/lib/paging";
 import { projectScope } from "@/lib/projects";
-import { AppliedFilters, Chips, Empty, PageHeader, Pager, SearchBox, Stat, StatusBadge } from "@/components/ui";
+import { AppliedFilters, Chips, Empty, PageHeader, Pager, SearchBox, Stat, StatusBadge, ListToolbar } from "@/components/ui";
 
 export type TaskSP = { view?: string; who?: string; tstatus?: string; priority?: string; project?: string; due?: string; q?: string; page?: string; from?: string };
 const TS = ["TODO", "IN_PROGRESS", "REVIEW", "DONE"];
@@ -63,7 +63,7 @@ export default async function TasksView({ user, sp, tabs }: { user: SessionUser;
         <Stat label="Waiting for review" value={review} hint="across my projects" href={href({ who: "all", tstatus: "REVIEW", due: undefined })} />
       </div>
       <AppliedFilters items={applied} clearHref="/projects?view=tasks" backHref={sp.from === "dashboard" ? "/dashboard" : undefined} />
-      <div className="flex flex-wrap items-center gap-3">
+      <ListToolbar>
         <SearchBox q={q} placeholder="Search task title" hidden={{ ...cur, q: undefined }} />
         <Chips current={who} items={[{ key: "me", label: "Assigned to me", href: href({ who: undefined, page: undefined }) }, { key: "all", label: "Everyone", href: href({ who: "all", page: undefined }) }]} />
         <Chips current={tstatus} items={[{ key: "open", label: "Open", href: href({ tstatus: undefined, page: undefined }) }, ...TS.map((s) => ({ key: s, label: label(s), href: href({ tstatus: s, page: undefined }) })), { key: "all", label: "All", href: href({ tstatus: "all", page: undefined }) }]} />
@@ -73,7 +73,7 @@ export default async function TasksView({ user, sp, tabs }: { user: SessionUser;
           <select name="priority" defaultValue={priority ?? ""} aria-label="Priority" className="input !w-auto"><option value="">Any priority</option>{PRIORITIES.map((p) => <option key={p} value={p}>{label(p)}</option>)}</select>
           <button className="btn-ghost">Apply</button>
         </form>
-      </div>
+      </ListToolbar>
       {rows.length === 0 ? <Empty title="No tasks match">{who === "me" && !applied.length && tstatus === "open" ? "Nothing is assigned to you right now. Try Everyone to see the team's tasks." : <Link className="underline" href="/projects?view=tasks">Clear the filters</Link>}</Empty> : (
         <div className="card overflow-x-auto !p-0">
           <table className="w-full text-sm">

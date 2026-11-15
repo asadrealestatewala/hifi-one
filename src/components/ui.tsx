@@ -139,11 +139,12 @@ export function SearchBox({ q, placeholder, hidden }: { q?: string; placeholder:
 
 // The bar above every list: search on the left, then filters, then the list's actions pushed to the right.
 // Same order on every list so people find search, filters and the main button in the same place each time.
-export function ListToolbar({ search, filters, actions }: { search?: ReactNode; filters?: ReactNode; actions?: ReactNode }) {
+export function ListToolbar({ search, filters, actions, children }: { search?: ReactNode; filters?: ReactNode; actions?: ReactNode; children?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-center gap-3">
       {search}
       {filters}
+      {children}
       {actions && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );

@@ -5,7 +5,7 @@ import { audit, requirePermission } from "@/lib/auth";
 import { createDraftInvoice, LedgerError } from "@/lib/accounting";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
-import { Chips, Empty, ExportLink, NewButton, Notice, PageHeader, Pager, SearchBox, SortTh, Stat, StatusBadge } from "@/components/ui";
+import { Chips, Empty, ExportLink, NewButton, Notice, PageHeader, Pager, SearchBox, SortTh, Stat, StatusBadge, ListToolbar } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import { orderFor } from "@/lib/sort";
 import { listHref } from "@/lib/list-params";
@@ -91,10 +91,10 @@ export default async function Invoices({ searchParams }: { searchParams: Promise
         <Stat label="Outstanding" value={owed.size === 0 ? "None" : [...owed].map(([c, v]) => formatMoney(v, c)).join(" · ")} hint="per currency" />
       </div>
       {sp.error && !sp.new && <Notice kind="error">{sp.error}</Notice>}
-      <div className="flex flex-wrap items-center gap-3">
+      <ListToolbar>
         <SearchBox q={q} placeholder="Search number or client" hidden={{ status: status === "all" ? undefined : status }} />
         <Chips current={status} items={[{ key: "all", label: "All", count: total, href: href({ status: undefined }) }, ...INVOICE_STATUSES.map((s) => ({ key: s, label: s.toLowerCase().replace("_", " ").replace(/^./, (c) => c.toUpperCase()), count: count.get(s) ?? 0, href: href({ status: s }) }))]} />
-      </div>
+      </ListToolbar>
       <SavedViews list="invoices" views={views} current={current} error={sp.viewError} />
       {invoices.length === 0 ? <Empty title={q || status !== "all" ? "No invoices match" : "No invoices yet"}>{canPost ? "Create the first one with New invoice." : "Invoices will appear here."}</Empty> : (
         <div className="card overflow-x-auto !p-0">

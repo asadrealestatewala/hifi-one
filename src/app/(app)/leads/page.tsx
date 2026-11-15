@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { leadScope } from "@/lib/leads";
 import { formatMoney } from "@/lib/money";
 import { rangeLabel } from "@/lib/date-range";
-import { AppliedFilters, Badge, DateRangeForm, Chips, Empty, ExportLink, NewButton, PageHeader, Pager, PanelForm, SearchBox, SortTh, Stat } from "@/components/ui";
+import { AppliedFilters, Badge, DateRangeForm, Chips, Empty, ExportLink, NewButton, PageHeader, Pager, PanelForm, SearchBox, SortTh, Stat, ListToolbar } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import { orderFor } from "@/lib/sort";
 import { listHref } from "@/lib/list-params";
@@ -58,11 +58,11 @@ export default async function Leads({ searchParams }: { searchParams: Promise<{ 
         ...(campaign ? [{ label: `Campaign: ${campaignName.get(campaign) ?? "unknown"}`, removeHref: href({ campaign: undefined }) }] : []),
         ...(range.from || range.to ? [{ label: `Created ${rangeLabel(range)}`, removeHref: href({ from: undefined, to: undefined }) }] : []),
       ]} clearHref="/leads" backHref={src === "dashboard" ? "/dashboard" : campaign ? `/campaigns/${campaign}` : undefined} backLabel={src === "dashboard" ? "Back to dashboard" : "Back to the campaign"} />
-      <div className="flex flex-wrap items-center gap-3">
+      <ListToolbar>
         <SearchBox q={search} placeholder="Search name, company, email, phone" hidden={{ stage, campaign, from: range.from, to: range.to, src }} />
         <DateRangeForm from={range.from} to={range.to} label="Created" hidden={{ stage, campaign, q: search, src }} />
         <Chips current={stage ?? "all"} items={[{ key: "all", label: "All", count: total, href: href({ stage: undefined }) }, ...stages.map((st) => ({ key: st.id, label: st.name, count: counts.get(st.id) ?? 0, href: href({ stage: st.id }) }))]} />
-      </div>
+      </ListToolbar>
 
       {leads.length === 0 ? <Empty title={search ? "No leads match your search" : "No leads yet"}>{canEdit ? "Add your first lead below." : "Leads you own will appear here."}</Empty> : (
         <div className="card overflow-x-auto !p-0">

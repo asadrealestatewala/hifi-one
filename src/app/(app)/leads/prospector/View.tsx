@@ -15,7 +15,7 @@ import { listHref, parseListParams } from "@/lib/list-params";
 import { CHANNELS, CHANNEL_LABEL, OUTCOME_LABEL, OUTCOMES, RESULTS, RESULT_LABEL } from "@/lib/prospect-crm";
 import { MANUAL_SOURCE_LABEL } from "@/lib/prospect-manual";
 import { getPolicy } from "@/lib/lead-duplicates";
-import { Badge, Chips, DateFilterBar, Empty, Notice, PageHeader, Pager, SearchBox, SubmitButton } from "@/components/ui";
+import { Badge, Chips, DateFilterBar, Empty, Notice, PageHeader, Pager, SearchBox, SubmitButton, ListToolbar } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import { checkWebsites, claimProspectAction, getFacebookData, reviewProspects, saveFacebookLink, saveSearchLimits, logProspectContact, removeOwnProspectAction, searchProspects, updateScores } from "./actions";
 import AutoRefresh from "./AutoRefresh";
@@ -302,11 +302,11 @@ export default async function ProspectorView({ searchParams, base: BASE, mine: m
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
+      <ListToolbar>
         <Chips current={lp.status ?? "ALL"} items={[{ key: "ALL", label: "All", count: total, href: href({ status: undefined, page: undefined }) }, ...PROSPECT_STATUSES.filter((st) => !(mineView && !manager && st === "DISMISSED")).map((st) => ({ key: st, label: LABEL[st], count: byStatus.get(st) ?? 0, href: href({ status: st, page: undefined }) }))]} />
         <Link className={manualOnly ? "btn" : "btn-ghost"} href={href({ added: manualOnly ? undefined : "1", page: undefined })} aria-pressed={manualOnly}>Added or imported{manualCount > 0 ? ` (${manualCount})` : ""}</Link>
         <SearchBox q={lp.q} placeholder="Search name, address, phone, website" hidden={{ status: lp.status, search: lp.ids.search, added: lp.ids.added, from: lp.range.from, to: lp.range.to, by: cur.by }} />
-      </div>
+      </ListToolbar>
 
       <DateFilterBar base={BASE} current={{ q: lp.q, status: lp.status, search: lp.ids.search, added: lp.ids.added, sort: cur.sort, dir: cur.dir }} range={lp.range} by={dateBy === "contact" ? "contact" : undefined} byOptions={[{ value: "added", label: "Date added" }, { value: "contact", label: "Last contacted" }]} />
 

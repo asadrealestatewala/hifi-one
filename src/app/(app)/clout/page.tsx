@@ -8,7 +8,7 @@ import { POST_SORTS, SORT_COLUMNS, listPosts, totals } from "@/lib/clout-views";
 import { PLATFORMS, POST_STATUSES, PUBLIC_DATA_NOTE } from "@/lib/clout-rules";
 import { listHref, parseListParams } from "@/lib/list-params";
 import { orderFor } from "@/lib/sort";
-import { Badge, Chips, Empty, ExportLink, Notice, PageHeader, Pager, SearchBox, Stat, SubmitButton } from "@/components/ui";
+import { Badge, Chips, Empty, ExportLink, Notice, PageHeader, Pager, SearchBox, Stat, SubmitButton, ListToolbar } from "@/components/ui";
 import LiveRefresh from "@/components/clout/LiveRefresh";
 import { PostTable, n, platformLabel } from "@/components/clout/parts";
 import { addPostAction } from "./actions";
@@ -84,10 +84,10 @@ export default async function CloutPage({ searchParams }: { searchParams: Promis
         </form>
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
+      <ListToolbar>
         <Chips current={lp.status ?? "ALL"} items={[{ key: "ALL", label: "All", count: t.posts, href: href({ status: undefined, page: undefined }) }, ...POST_STATUSES.map((st) => ({ key: st, label: STATUS_LABEL[st], count: byStatus.get(st) ?? 0, href: href({ status: st, page: undefined }) }))]} />
         <SearchBox q={lp.q} placeholder="Search caption, handle, influencer, code" hidden={{ status: lp.status, platform, campaign: lp.ids.campaign, influencer: lp.ids.influencer }} />
-      </div>
+      </ListToolbar>
       <form className="flex flex-wrap items-end gap-3" aria-label="Filter posts">
         {lp.q && <input type="hidden" name="q" value={lp.q} />}{lp.status && <input type="hidden" name="status" value={lp.status} />}
         <div><label className="label" htmlFor="f-platform">Platform</label><select id="f-platform" name="platform" className="input" defaultValue={platform ?? ""}><option value="">All</option>{PLATFORMS.map((p) => <option key={p} value={p}>{platformLabel(p)}</option>)}</select></div>

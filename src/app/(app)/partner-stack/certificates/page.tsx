@@ -4,7 +4,7 @@ import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { certificateKindLabel, certificateStatus, parsePartnerId, partnerId } from "@/lib/partner-stack";
 import { paging } from "@/lib/paging";
-import { Badge, Chips, Empty, Notice, PageHeader, Pager, SearchBox } from "@/components/ui";
+import { Badge, Chips, Empty, Notice, PageHeader, Pager, SearchBox, ListToolbar } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import ConfirmButton from "@/components/ui/ConfirmButton";
 import SubmitButton from "@/components/ui/SubmitButton";
@@ -44,10 +44,10 @@ export default async function Certificates({ searchParams }: { searchParams: Pro
       <PageHeader tabs={<ScreenTabs group="partner-stack" current="/partner-stack/certificates" />} title="Partner Stack" subtitle="Certificates issued to partners. Anyone can check one at /partners/verify/<ID>." />
       {sp.saved && <Notice kind="ok">{sp.saved}</Notice>}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
-      <div className="flex flex-wrap items-center gap-3">
+      <ListToolbar>
         <SearchBox q={q} placeholder="Search Partner ID, partner, Solution or certificate ID" hidden={{ ...current, q: undefined }} />
         <Chips current={status ?? "all"} items={[{ key: "all", label: "All", href: href({ status: undefined, page: undefined }) }, ...STATES.map((s) => ({ key: s, label: s.charAt(0) + s.slice(1).toLowerCase(), href: href({ status: s, page: undefined }) }))]} />
-      </div>
+      </ListToolbar>
       {rows.length === 0 ? (
         <Empty title={all === 0 ? "No certificates yet" : "No certificates match these filters"}>{all === 0 ? "Certificates are issued when you approve an application, or from a partner's page." : <Link className="underline" href="/partner-stack/certificates">Clear filters</Link>}</Empty>
       ) : (

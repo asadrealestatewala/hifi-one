@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { signDownload } from "@/lib/files";
 import { APPLICATION_STATUSES } from "@/lib/job-applications";
 import { paging } from "@/lib/paging";
-import { Chips, Empty, Notice, PageHeader, Pager, SearchBox, StatusBadge } from "@/components/ui";
+import { Chips, Empty, Notice, PageHeader, Pager, SearchBox, StatusBadge, ListToolbar } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import Drawer from "@/components/ui/Drawer";
 import SubmitButton from "@/components/ui/SubmitButton";
@@ -50,10 +50,10 @@ export default async function Applications({ searchParams }: { searchParams: Pro
   return (
     <div className="space-y-5">
       <PageHeader tabs={<ScreenTabs group="hr-hiring" current="/hr/applications" />} title="Hiring" subtitle={<>Applications sent from the careers pages of the website. <a className="underline" href="/site/careers/jobs" target="_blank" rel="noopener">See open roles</a></>} />
-      <div className="flex flex-wrap items-center gap-3">
+      <ListToolbar>
         <SearchBox q={q} placeholder="Search name, email, phone or role" hidden={{ ...current, q: undefined }} />
         <Chips current={status ?? "all"} items={[{ key: "all", label: "All", count: all, href: href({ status: undefined, page: undefined }) }, ...APPLICATION_STATUSES.map((s) => ({ key: s, label: label(s), count: count.get(s) ?? 0, href: href({ status: s, page: undefined }) }))]} />
-      </div>
+      </ListToolbar>
       {rows.length === 0 ? (
         <Empty title={all === 0 ? "No applications yet" : "No applications match these filters"}>
           {all === 0 ? "When someone applies for a role on the website's careers pages, their application and CV appear here." : <Link className="underline" href="/hr/applications">Clear filters</Link>}

@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { canSend } from "@/lib/mailer";
 import { myMailboxes, receivingConfig } from "@/lib/mailboxes";
 import { paging } from "@/lib/paging";
-import { Badge, Chips, Empty, NewButton, Notice, PageHeader, Pager, SearchBox } from "@/components/ui";
+import { Badge, Chips, Empty, NewButton, Notice, PageHeader, Pager, SearchBox, ListToolbar } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -74,10 +74,10 @@ export default async function MailInbox({ searchParams }: { searchParams: Promis
           </ul>
         </nav>
         <div className="space-y-3 min-w-0">
-          <div className="flex flex-wrap items-center gap-3">
+          <ListToolbar>
             <Chips current={folder} items={[{ key: "inbox", label: "Inbox", href: href({ folder: undefined, page: undefined }) }, { key: "sent", label: "Sent", href: href({ folder: "sent", page: undefined }) }, { key: "archived", label: "Archived", href: href({ folder: "archived", page: undefined }) }]} />
             <SearchBox q={q} placeholder="Search subject, address or text" hidden={{ ...cur, q: undefined }} />
-          </div>
+          </ListToolbar>
           {rows.length === 0 ? <Empty title={q ? "No conversations match" : folder === "inbox" ? "Nothing in the inbox" : folder === "sent" ? "Nothing sent yet" : "Nothing archived"}>{folder === "inbox" && !q ? "New emails to these addresses will appear here." : null}</Empty> : (
             <div className="card !p-0 overflow-hidden">
               <ul className="divide-y divide-border">
