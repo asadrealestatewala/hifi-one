@@ -1,3 +1,5 @@
+import RecordIcon from "@/components/ui/RecordIcon";
+import { recordTypeFromHref } from "@/lib/tint";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { requireVendorUser } from "@/lib/auth";
@@ -33,7 +35,8 @@ export default async function Notifications() {
         <div className="card divide-y divide-border !p-0">
           {items.map((n) => (
             <div key={n.id} className={`flex items-start justify-between gap-3 p-4 ${n.readAt ? "" : "bg-primary/5"}`}>
-              <div className="text-sm">
+              <RecordIcon type={recordTypeFromHref(n.link)} />
+              <div className="min-w-0 flex-1 text-sm">
                 <p className="font-semibold">{n.link && n.link.startsWith("/vendor") ? <Link href={n.link} className="hover:underline">{n.title}</Link> : n.title}</p>
                 {n.body && <p className="text-muted">{n.body}</p>}
                 <p className="text-xs text-muted">{n.createdAt.toLocaleString()}</p>

@@ -11,6 +11,9 @@ describe("record icons", () => {
     expect(recordTypeFromHref("/portal/invoices/i1")).toBe("invoice");
     expect(recordTypeFromHref("/vendors/v1")).toBe("vendor");
     expect(recordTypeFromHref("/me/leave")).toBe("staff");
+    expect(recordTypeFromHref("/portal/projects/p1")).toBe("project");
+    expect(recordTypeFromHref("/portal/meetings")).toBe("meeting");
+    expect(recordTypeFromHref("/portal/content")).toBe("campaign");
   });
   it("returns null for pages that are not a record, and for no link", () => {
     expect(recordTypeFromHref("/settings")).toBeNull();
