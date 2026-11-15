@@ -232,3 +232,7 @@ After comparing with Atlassian, Salesforce Lightning, Shopify Polaris, HubSpot (
 ## 2026-11-15: Background colour is a personal choice
 
 Asad asked for the background to be selectable "just like modes". Each person picks cream (default), cool grey, soft lavender, slate blue or soft sage from the Appearance menu in the top bar, next to light/dark and compact rows. Stored per browser in localStorage (`hifi.bg`), like the theme, so no migration and no server write; applied before first paint. Light theme only; dark keeps its palette. Each set redefines only `--background`, `--surface`, `--hover`, `--border`, `--muted` and `--shadow`, and keeps text and icon tints at WCAG AA. The public website keeps its own cream and does not follow this choice.
+
+## 2026-11-15: Contracts can be shown on the client portal
+
+Clients had no place to see their signed scope of work. A contract now has "Show to client" (`contracts.manage`), which puts it and its attached files on the portal's Agreements page (the menu item appears once one is shared). Only active (signed) or later contracts can be shown, never drafts; internal notes are never shown. Client portal users can read those files but never upload or delete. Hiding it again closes file access immediately. The client's portal users get one notification when a contract is first shown.

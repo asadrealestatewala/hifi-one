@@ -120,6 +120,8 @@ export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: 
   if (ownerType === "CONTRACT") {
     const k = await db.contract.findFirst({ where: { id: ownerId, organizationId: a.organizationId } });
     if (!k) return false;
+    // A client's portal users may read (never change) the files of a contract that was shared with them
+    if (a.userType === "CLIENT") return mode === "read" && k.sharedWithClient && a.clientId !== null && a.clientId === k.clientId;
     if (mode === "read") return has("contracts.view");
     return has("contracts.manage") && k.status !== "TERMINATED";
   }

@@ -16,6 +16,7 @@ export default async function PortalLayout({ children }: { children: React.React
   const pending = await db.contentItem.count({ where: { clientId: user.clientId, status: "CLIENT_REVIEW" } });
   const quotesOpen = await db.quote.count({ where: { clientId: user.clientId, status: "SENT" } });
   const cloutPosts = await db.cloutCampaign.count({ where: { clientId: user.clientId } });
+  const agreements = await db.contract.count({ where: { clientId: user.clientId, sharedWithClient: true } });
   const unread = await db.notification.count({ where: { userId: user.id, readAt: null } });
   const approvals = await db.deliverable.count({ where: { status: "PENDING", projectId: { in: (await db.project.findMany({ where: { clientId: user.clientId }, select: { id: true } })).map((p) => p.id) } } });
   const items: PortalNavItem[] = [
@@ -24,6 +25,7 @@ export default async function PortalLayout({ children }: { children: React.React
     { href: "/portal/approvals", label: "Approvals", icon: "check", tone: "teal", count: approvals },
     { href: "/portal/content", label: "Content", icon: "calendar", tone: "pink", count: pending },
     ...(cloutPosts > 0 ? [{ href: "/portal/clout", label: "Influencer posts", icon: "activity", tone: "pink" }] : []),
+    ...(agreements > 0 ? [{ href: "/portal/agreements", label: "Agreements", icon: "file", tone: "violet" } as PortalNavItem] : []),
     { href: "/portal/quotes", label: "Quotations", icon: "file", tone: "slate", count: quotesOpen },
     { href: "/portal/statement", label: "Statement", icon: "receipt", tone: "green" },
     { href: "/portal/meetings", label: "Meetings", icon: "video", tone: "teal" },

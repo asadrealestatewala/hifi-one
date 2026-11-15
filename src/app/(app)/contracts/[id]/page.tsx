@@ -5,7 +5,8 @@ import FilesPanel from "@/components/FilesPanel";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { Notice, StatusBadge } from "@/components/ui";
-import { SalesError, daysUntil, expireContracts, setContractStatus } from "@/lib/sales";
+import { SalesError, daysUntil, expireContracts, setContractShared, setContractStatus } from "@/lib/sales";
+import { contractShared } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,24 @@ async function setStatus(formData: FormData) {
   try {
     await setContractStatus(db, { organizationId: user.organizationId, contractId: id, to });
     await audit(user, { action: "contract.status", entity: "Contract", entityId: id, after: { status: to } });
+  } catch (e) {
+    if (e instanceof SalesError) redirect(`/contracts/${id}?error=${encodeURIComponent(e.message)}`);
+    throw e;
+  }
+  redirect(`/contracts/${id}`);
+}
+
+async function setShared(formData: FormData) {
+  "use server";
+  const user = await requirePermission("contracts.manage");
+  const id = String(formData.get("id") ?? "");
+  const shared = formData.get("shared") === "1";
+  try {
+    const r = await setContractShared(db, { organizationId: user.organizationId, contractId: id, shared });
+    if (r.changed) {
+      await audit(user, { action: shared ? "contract.share" : "contract.unshare", entity: "Contract", entityId: id, after: { sharedWithClient: shared } });
+      if (shared) await contractShared(db, { organizationId: user.organizationId, contractId: id });
+    }
   } catch (e) {
     if (e instanceof SalesError) redirect(`/contracts/${id}?error=${encodeURIComponent(e.message)}`);
     throw e;
@@ -66,6 +85,20 @@ export default async function ContractDetail({ params, searchParams }: { params:
           ))}
         </div>
       )}
+      <section className="card flex flex-wrap items-center justify-between gap-3 text-sm">
+        <div>
+          <p className="font-medium">Client portal</p>
+          <p className="text-muted">{c.sharedWithClient
+            ? `Shown to ${c.client.name} on their portal's Agreements page, with the files below, since ${c.sharedAt?.toISOString().slice(0, 10) ?? "today"}.`
+            : c.status === "DRAFT" ? "Not shown to the client. Mark it as active (signed) first, then you can show it." : "Not shown to the client."}</p>
+        </div>
+        {canManage && (c.sharedWithClient || c.status !== "DRAFT") && (
+          <form action={setShared}>
+            <input type="hidden" name="id" value={c.id} /><input type="hidden" name="shared" value={c.sharedWithClient ? "0" : "1"} />
+            <button className={c.sharedWithClient ? "btn-ghost" : "btn"}>{c.sharedWithClient ? "Hide from client" : "Show to client"}</button>
+          </form>
+        )}
+      </section>
       <FilesPanel user={user} ownerType="CONTRACT" ownerId={c.id} returnTo={`/contracts/${c.id}`} title="Signed contract and attachments" withCategory flash={{ fileError, fileOk }} />
     </div>
   );

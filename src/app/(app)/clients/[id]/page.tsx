@@ -108,7 +108,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
             {portalUsers.length === 0 ? <p className="text-sm text-muted">Nobody has accepted an invitation yet. Invite someone above; the link is shown once and valid for a limited time.</p> : (
               <ul className="text-sm">{portalUsers.map((u) => <li key={u.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-border py-2 first:border-0"><span>{u.name} <span className="text-xs text-muted">{[u.email, u.phone].filter(Boolean).join(" · ")}</span></span><span className="flex items-center gap-2 text-xs text-muted">{u.lastLoginAt ? `last sign-in ${u.lastLoginAt.toLocaleDateString()}` : "never signed in"}{u.active ? <Badge tone="success">active</Badge> : <Badge tone="danger">disabled</Badge>}</span></li>)}</ul>
             )}
-            <p className="text-xs text-muted">Portal users see only this client&apos;s issued invoices, statements, quotations, content approvals, meetings and the tasks shared with them.</p>
+            <p className="text-xs text-muted">Portal users see only this client&apos;s issued invoices, statements, quotations, content approvals, meetings, the tasks shared with them and the contracts you choose to show.</p>
           </section>
         </>
       )}
@@ -127,7 +127,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       {tab === "billing" && (quotes.length > 0 || contracts.length > 0) && (
         <section className="card grid gap-4 text-sm sm:grid-cols-2">
           <div><h2 className="mb-1 font-semibold">Quotations</h2>{quotes.length === 0 ? <p className="text-muted">None</p> : <ul>{quotes.map((q) => <li key={q.id} className="flex items-center justify-between border-t border-border py-1 first:border-0"><Link className="hover:underline" href={`/quotes/${q.id}`}>{q.number}</Link><span className="flex items-center gap-2">{formatMoney(q.total, q.currency)}<StatusBadge status={q.status} /></span></li>)}</ul>}</div>
-          <div><h2 className="mb-1 font-semibold">Contracts</h2>{contracts.length === 0 ? <p className="text-muted">None</p> : <ul>{contracts.map((c) => <li key={c.id} className="flex items-center justify-between border-t border-border py-1 first:border-0"><Link className="hover:underline" href={`/contracts/${c.id}`}>{c.title}</Link><StatusBadge status={c.status} /></li>)}</ul>}</div>
+          <div><h2 className="mb-1 font-semibold">Contracts</h2>{contracts.length === 0 ? <p className="text-muted">None</p> : <ul>{contracts.map((c) => <li key={c.id} className="flex items-center justify-between border-t border-border py-1 first:border-0"><Link className="hover:underline" href={`/contracts/${c.id}`}>{c.title}</Link><span className="flex items-center gap-2">{c.sharedWithClient && <span className="text-xs text-muted">in portal</span>}<StatusBadge status={c.status} /></span></li>)}</ul>}</div>
         </section>
       )}
       {tab === "billing" && user.permissions.has("finance.refund") && statement?.advances.map((a) => (
