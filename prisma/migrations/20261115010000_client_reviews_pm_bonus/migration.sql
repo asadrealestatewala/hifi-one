@@ -8,6 +8,10 @@ ALTER TABLE "ClientInvite" ADD COLUMN "phone" TEXT;
 -- Weekly reviews the client gives directly (emailed form or portal)
 ALTER TABLE "ClientReview" ALTER COLUMN "reviewerId" DROP NOT NULL;
 ALTER TABLE "ClientReview" ADD COLUMN "source" TEXT NOT NULL DEFAULT 'STAFF';
+ALTER TABLE "ClientReview" ADD COLUMN "areas" JSONB;
+
+-- What each client rates in the weekly form (empty: the default list for the client type)
+ALTER TABLE "Client" ADD COLUMN "reviewAreas" TEXT[] DEFAULT ARRAY[]::TEXT[];
 
 CREATE TABLE "ClientReviewRequest" (
     "id" TEXT NOT NULL,

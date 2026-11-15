@@ -430,6 +430,7 @@ model Client {
   contactId        String?
   clientType       String             @default("MARKETING") // MARKETING | SOFTWARE | INCORPORATION | SELLER_SERVICES | SAAS
   projectManagerId String? // the staff member allocated to run this client's work (shown in the client portal)
+  reviewAreas      String[]           @default([]) // what the client rates in the weekly review form; empty means the default list for the client type
   supportManagerId String? // dedicated support manager for a SaaS customer; the project manager covers support when empty
   engagements      Engagement[]
   invoices         Invoice[]
@@ -2924,6 +2925,7 @@ model ClientReview {
   rating         Int // 1 to 5
   review         String
   reviewerId     String? // the staff member who recorded it, or the client's portal user; empty when the client answered the emailed form
+  areas          Json? // ratings per part of the scope: [{ area, rating }] where rating is 1..5 or null for "not this week"
   source         String   @default("STAFF") // STAFF: recorded by staff | CLIENT_LINK: the client answered the weekly emailed form | PORTAL: the client answered in the portal
   rebatePercent  Decimal  @default(0) @db.Decimal(5, 2) // the tier that applied when it was recorded
   rebatePool     Decimal  @default(0) @db.Decimal(14, 2) // money set aside for the team, in the client's currency

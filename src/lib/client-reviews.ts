@@ -21,6 +21,37 @@ export class ClientReviewError extends Error {}
 type Db = PrismaClient;
 
 export const REVIEW_LINK_DAYS = 14;
+
+// What the client rates each week, part by part. A client's own list (set on the Delivery tab) wins; otherwise the default for its type.
+// The marketing list follows a full social media and ads scope of work (HB Elan's SOW, 2026-11-12).
+export const DEFAULT_REVIEW_AREAS: Record<string, string[]> = {
+  MARKETING: [
+    "Feed posts and stories", "Reels and short videos", "Graphic design", "Content calendar and posting on time", "Community engagement (comments and DMs)",
+    "Paid ads (Meta, TikTok, Snapchat, Google)", "Online store management", "Lead and order coordination", "Monthly reporting", "Communication with your project manager",
+  ],
+  OTHER: ["Quality of the work", "Delivery on time", "Communication with your project manager"],
+};
+export const MAX_REVIEW_AREAS = 15;
+export const reviewAreasFor = (c: { reviewAreas: string[]; clientType: string }) => (c.reviewAreas.length ? c.reviewAreas : DEFAULT_REVIEW_AREAS[c.clientType] ?? DEFAULT_REVIEW_AREAS.OTHER);
+
+// One area per line; an empty list goes back to the default for the client type.
+export async function setReviewAreas(db: Db, p: { organizationId: string; clientId: string; text: string }) {
+  const areas = [...new Set(p.text.split(/\r?\n/).map((l) => l.trim().replace(/\s+/g, " ")).filter(Boolean))];
+  if (areas.length > MAX_REVIEW_AREAS) throw new ClientReviewError(`Keep the form to ${MAX_REVIEW_AREAS} areas or fewer.`);
+  if (areas.some((a) => a.length > 80)) throw new ClientReviewError("Keep each area under 80 characters.");
+  const r = await db.client.updateMany({ where: { id: p.clientId, organizationId: p.organizationId }, data: { reviewAreas: areas } });
+  if (r.count === 0) throw new ClientReviewError("Client not found.");
+  return areas;
+}
+
+// Turns the answers for the client's areas (by position: 1..5, or 0 / empty for "not this week") into what is stored.
+export function areaAnswers(areas: string[], ratings: (number | string | null | undefined)[]) {
+  return areas.map((area, i) => {
+    const n = Number(ratings[i] ?? 0);
+    if (!Number.isInteger(n) || n < 0 || n > 5) throw new ClientReviewError(`Choose a rating for "${area}".`);
+    return { area, rating: n === 0 ? null : n };
+  });
+}
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 const hash = (token: string) => crypto.createHash("sha256").update(token).digest("hex");
@@ -97,10 +128,10 @@ export async function reviewByToken(db: Db, token: string, now = new Date()) {
   if (!token || token.length > 100) return null;
   const r = await db.clientReviewRequest.findUnique({ where: { tokenHash: hash(token) } });
   if (!r || r.answeredAt || r.expiresAt < now) return null;
-  const client = await db.client.findUnique({ where: { id: r.clientId }, select: { name: true, projectManagerId: true } });
+  const client = await db.client.findUnique({ where: { id: r.clientId }, select: { name: true, projectManagerId: true, reviewAreas: true, clientType: true } });
   if (!client) return null;
   const pm = client.projectManagerId ? await db.user.findUnique({ where: { id: client.projectManagerId }, select: { name: true } }) : null;
-  return { requestId: r.id, clientName: client.name, weekStart: r.weekStart, week: weekLabel(r.weekStart), projectManager: pm?.name ?? null };
+  return { requestId: r.id, clientName: client.name, weekStart: r.weekStart, week: weekLabel(r.weekStart), projectManager: pm?.name ?? null, areas: reviewAreasFor(client) };
 }
 
 // Weeks a portal user can still review: forms issued for their client in the last five weeks that nobody has answered.
@@ -111,7 +142,8 @@ export async function openPortalReviews(db: Db, clientId: string, now = new Date
   return rows.filter((r) => !reviewed.has(r.weekStart)).map((r) => ({ id: r.id, weekStart: r.weekStart, week: weekLabel(r.weekStart) }));
 }
 
-type Submit = { rating: number; review: string; now?: Date } & ({ token: string } | { requestId: string; clientId: string; userId: string });
+// areaRatings: one answer per area of the client's list, in order (1..5, or 0 for "not this week").
+type Submit = { rating: number; review: string; areaRatings?: (number | string | null)[]; now?: Date } & ({ token: string } | { requestId: string; clientId: string; userId: string });
 
 // The client's answer, from the emailed link or the portal. Saved as the week's review, then the team is told.
 export async function submitClientReview(db: Db, p: Submit) {
@@ -121,6 +153,8 @@ export async function submitClientReview(db: Db, p: Submit) {
     : await db.clientReviewRequest.findFirst({ where: { id: p.requestId, clientId: p.clientId } });
   if (!req || ("token" in p && req.expiresAt < now)) throw new ClientReviewError("This review link is not valid any more. Ask your project manager for a new one.");
   if (req.answeredAt) throw new ClientReviewError("Thank you, this week is already reviewed.");
+  const client = await db.client.findUniqueOrThrow({ where: { id: req.clientId }, select: { reviewAreas: true, clientType: true } });
+  const areas = areaAnswers(reviewAreasFor(client), p.areaRatings ?? []);
   // Claim the request first so a double submit cannot save two reviews
   const claimed = await db.clientReviewRequest.updateMany({ where: { id: req.id, answeredAt: null }, data: { answeredAt: now } });
   if (claimed.count === 0) throw new ClientReviewError("Thank you, this week is already reviewed.");
@@ -128,7 +162,7 @@ export async function submitClientReview(db: Db, p: Submit) {
   try {
     saved = await recordReview(db, {
       organizationId: req.organizationId, clientId: req.clientId, weekOf: req.weekStart, rating: p.rating, review: p.review,
-      reviewerId: "token" in p ? null : p.userId, source: "token" in p ? "CLIENT_LINK" : "PORTAL",
+      reviewerId: "token" in p ? null : p.userId, source: "token" in p ? "CLIENT_LINK" : "PORTAL", areas,
     });
   } catch (e) {
     await db.clientReviewRequest.update({ where: { id: req.id }, data: { answeredAt: null } });

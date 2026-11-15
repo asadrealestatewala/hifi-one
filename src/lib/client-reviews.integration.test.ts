@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { recordReview } from "./delivery";
 import { createEngagement } from "./engagements";
 import {
-  ClientReviewError, issueReviewLink, lastWeekStart, monthlyFee, openPortalReviews, reviewByToken, sendWeeklyReviewRequests, setPmBonus, settlePmBonuses, submitClientReview, weekLabel,
+  ClientReviewError, DEFAULT_REVIEW_AREAS, areaAnswers, issueReviewLink, reviewAreasFor, setReviewAreas, lastWeekStart, monthlyFee, openPortalReviews, reviewByToken, sendWeeklyReviewRequests, setPmBonus, settlePmBonuses, submitClientReview, weekLabel,
 } from "./client-reviews";
 import { acceptInvite, createInvite } from "./portal";
 import { LedgerError } from "./ledger-math";
@@ -85,6 +85,31 @@ describe("weekly review forms", () => {
     const r = await submitClientReview(db, { requestId: open[1].id, clientId: client, userId: portalUser, rating: 4, review: "Good, a bit slow on DMs" });
     expect(r).toMatchObject({ source: "PORTAL", reviewerId: portalUser, rating: 4 });
     expect((await openPortalReviews(db, client, new Date("2026-11-25T00:00:00Z"))).map((o) => o.weekStart)).toEqual(["2026-11-23"]);
+  });
+});
+
+describe("rating each part of the scope", () => {
+  it("uses the client type's default list until the client gets its own, and an empty list goes back to the default", async () => {
+    expect(reviewAreasFor({ reviewAreas: [], clientType: "MARKETING" })).toHaveLength(10);
+    expect(reviewAreasFor({ reviewAreas: [], clientType: "SOFTWARE" })).toEqual(DEFAULT_REVIEW_AREAS.OTHER);
+    expect(await setReviewAreas(db, { organizationId: org, clientId: quiet, text: "  Reels \n\nAds\nReels\n" })).toEqual(["Reels", "Ads"]);
+    await expect(setReviewAreas(db, { organizationId: org, clientId: quiet, text: Array.from({ length: 16 }, (_, i) => `Area ${i}`).join("\n") })).rejects.toThrow(/15 areas/);
+    await expect(setReviewAreas(db, { organizationId: other, clientId: quiet, text: "Reels" })).rejects.toThrow(/not found/);
+    expect(await setReviewAreas(db, { organizationId: org, clientId: idle, text: "" })).toEqual([]);
+  });
+
+  it("reads 1 to 5 per area, 0 or empty as not this week, and refuses anything else", () => {
+    expect(areaAnswers(["A", "B", "C"], ["5", "0", ""])).toEqual([{ area: "A", rating: 5 }, { area: "B", rating: null }, { area: "C", rating: null }]);
+    expect(() => areaAnswers(["A"], ["7"])).toThrow(/rating for "A"/);
+  });
+
+  it("the link shows the client's areas and stores each answer with the review", async () => {
+    const { token } = await issueReviewLink(db, { organizationId: org, clientId: quiet, weekStart: "2026-10-26" });
+    expect((await reviewByToken(db, token))!.areas).toEqual(["Reels", "Ads"]);
+    const r = await submitClientReview(db, { token, rating: 4, review: "Ads were slow", areaRatings: ["5", "2"] });
+    expect(r.areas).toEqual([{ area: "Reels", rating: 5 }, { area: "Ads", rating: 2 }]);
+    const hb = await issueReviewLink(db, { organizationId: org, clientId: client, weekStart: "2026-10-26" });
+    expect((await reviewByToken(db, hb.token))!.areas[6]).toBe("Online store management");
   });
 });
 

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { DeliveryError, recordReview, setRecordingUrl } from "@/lib/delivery";
-import { ClientReviewError, issueReviewLink, lastWeekStart, reviewUrl } from "@/lib/client-reviews";
+import { ClientReviewError, issueReviewLink, lastWeekStart, reviewUrl, setReviewAreas } from "@/lib/client-reviews";
 import { dateInZone } from "@/lib/hr-rules";
 import { getWorkingContext } from "@/lib/working-calendar";
 
@@ -56,4 +56,18 @@ export async function makeReviewLink(_prev: ReviewLinkState, formData: FormData)
     if (e instanceof ClientReviewError) return { error: e.message };
     throw e;
   }
+}
+
+// What the client rates in the weekly form, one area per line. Empty goes back to the default list for the client type.
+export async function saveReviewAreas(formData: FormData): Promise<void> {
+  const user = await requirePermission("clients.edit");
+  const clientId = String(formData.get("clientId") ?? "");
+  try {
+    const areas = await setReviewAreas(db, { organizationId: user.organizationId, clientId, text: String(formData.get("areas") ?? "") });
+    await audit(user, { action: "client.review_areas", entity: "Client", entityId: clientId, after: { areas } });
+  } catch (e) {
+    if (e instanceof ClientReviewError) back(clientId, `error=${encodeURIComponent(e.message)}`);
+    throw e;
+  }
+  back(clientId, "saved=1");
 }

@@ -2,13 +2,14 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { PURPOSE_LABEL, REVIEW_SOURCE_LABEL, weekStartOf } from "@/lib/delivery";
-import { monthLabel, weekLabel } from "@/lib/client-reviews";
+import { monthLabel, reviewAreasFor, weekLabel } from "@/lib/client-reviews";
+import { AreaList } from "@/components/ReviewAreasField";
 import ReviewLinkForm from "./ReviewLinkForm";
 import { Badge, Empty, StatusBadge, SubmitButton } from "@/components/ui";
 import { createMeetingAction } from "../../meetings/actions";
-import { attachRecording, saveReview } from "./delivery-actions";
+import { attachRecording, saveReview, saveReviewAreas } from "./delivery-actions";
 
-export default async function DeliveryTab({ organizationId, client, canEdit, canMeet, canWatch, pmName, supportName }: { organizationId: string; client: { id: string; name: string; email: string | null; currency: string; clientType: string; projectManagerId: string | null; supportManagerId: string | null }; canEdit: boolean; canMeet: boolean; canWatch: boolean; pmName: string | null; supportName: string | null }) {
+export default async function DeliveryTab({ organizationId, client, canEdit, canMeet, canWatch, pmName, supportName }: { organizationId: string; client: { id: string; name: string; email: string | null; currency: string; clientType: string; reviewAreas: string[]; projectManagerId: string | null; supportManagerId: string | null }; canEdit: boolean; canMeet: boolean; canWatch: boolean; pmName: string | null; supportName: string | null }) {
   const [meetings, reviews, tiers, requests, bonuses, pmSetting] = await Promise.all([
     db.meeting.findMany({ where: { organizationId, clientId: client.id, purpose: { in: ["DISCOVERY", "WEEKLY_REVIEW", "SUPPORT", "TUTORIAL", "INQUIRY"] } }, orderBy: [{ scheduledAt: "desc" }, { createdAt: "desc" }], take: 20 }),
     db.clientReview.findMany({ where: { organizationId, clientId: client.id }, orderBy: { weekStart: "desc" }, take: 20 }),
@@ -79,11 +80,24 @@ export default async function DeliveryTab({ organizationId, client, canEdit, can
             {reviews.map((r) => (
               <li key={r.id} className="space-y-1 py-2">
                 <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-medium">Week of {r.weekStart}: {"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span><span className="text-xs text-muted">{r.source === "STAFF" ? `by ${(r.reviewerId && reviewers.get(r.reviewerId)) ?? "staff"}` : REVIEW_SOURCE_LABEL[r.source]}{r.rebatePercent.gt(0) ? <> · <Badge tone="success">{formatMoney(r.rebatePool, r.currency)} for the team</Badge></> : ""}</span></div>
+                <AreaList areas={r.areas} />
                 <p className="whitespace-pre-line text-muted">{r.review}</p>
               </li>
             ))}
           </ul>
         )}
+        <details className="border-t border-border pt-3 text-sm">
+          <summary className="cursor-pointer font-medium">What the client rates each week ({reviewAreasFor(client).length} areas{client.reviewAreas.length ? "" : ", default list"})</summary>
+          <ul className="mt-2 list-inside list-disc text-muted">{reviewAreasFor(client).map((a) => <li key={a}>{a}</li>)}</ul>
+          {canEdit && (
+            <form action={saveReviewAreas} className="mt-3 space-y-2">
+              <input type="hidden" name="clientId" value={client.id} />
+              <label className="label" htmlFor="rv-areas">Areas, one per line (up to 15; leave empty for the default list)</label>
+              <textarea id="rv-areas" name="areas" rows={6} defaultValue={client.reviewAreas.join("\n")} placeholder={reviewAreasFor({ reviewAreas: [], clientType: client.clientType }).join("\n")} className="input" />
+              <SubmitButton className="btn-ghost" pendingText="Saving…">Save areas</SubmitButton>
+            </form>
+          )}
+        </details>
         {canEdit && linkWeeks.length > 0 && <ReviewLinkForm clientId={client.id} weeks={linkWeeks} />}
         {canEdit && (
           <form action={saveReview} className="grid gap-3 border-t border-border pt-3 sm:grid-cols-3">

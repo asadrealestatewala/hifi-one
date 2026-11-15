@@ -57,7 +57,7 @@ export const REVIEW_SOURCE_LABEL: Record<string, string> = { STAFF: "recorded by
 export const CLIENT_SOURCES = ["CLIENT_LINK", "PORTAL"];
 
 // reviewerId: the staff member recording it, or the client's portal user; null when the client answered the emailed form.
-export async function recordReview(db: Db, p: { organizationId: string; clientId: string; weekOf: string; rating: number; review: string; meetingId?: string | null; reviewerId: string | null; source?: (typeof REVIEW_SOURCES)[number] }) {
+export async function recordReview(db: Db, p: { organizationId: string; clientId: string; weekOf: string; rating: number; review: string; meetingId?: string | null; reviewerId: string | null; source?: (typeof REVIEW_SOURCES)[number]; areas?: { area: string; rating: number | null }[] }) {
   if (!DATE.test(p.weekOf)) throw new DeliveryError("Choose the week reviewed.");
   if (!Number.isInteger(p.rating) || p.rating < 1 || p.rating > 5) throw new DeliveryError("Choose a rating from 1 to 5.");
   const review = p.review.trim();
@@ -76,7 +76,7 @@ export async function recordReview(db: Db, p: { organizationId: string; clientId
   return db.$transaction(async (tx) => {
     const dup = await tx.clientReview.findUnique({ where: { clientId_weekStart: { clientId: client.id, weekStart } } });
     if (dup) throw new DeliveryError("This week already has a review for this client.");
-    const r = await tx.clientReview.create({ data: { organizationId: p.organizationId, clientId: client.id, meetingId: p.meetingId || null, weekStart, rating: p.rating, review, reviewerId: p.reviewerId, source, rebatePercent: percent, rebatePool: pool.toString(), currency: client.currency } });
+    const r = await tx.clientReview.create({ data: { organizationId: p.organizationId, clientId: client.id, meetingId: p.meetingId || null, weekStart, rating: p.rating, review, reviewerId: p.reviewerId, source, areas: p.areas?.length ? p.areas : undefined, rebatePercent: percent, rebatePool: pool.toString(), currency: client.currency } });
     if (team.length > 0) {
       const cents = pool.mul(100).toNumber();
       const base = Math.floor(cents / team.length);
