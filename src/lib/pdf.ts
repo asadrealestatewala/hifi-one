@@ -124,7 +124,7 @@ function t(ctx: Ctx, s: string | null | undefined) {
   return r.text;
 }
 
-function companyLines(cfg: DocConfig, company: Company): string[] {
+export function companyLines(cfg: DocConfig, company: Company): string[] {
   const lines: string[] = [];
   if (cfg.showWebsite && company.website) lines.push(`Website: ${company.website}`);
   if (cfg.showEmail && company.email) lines.push(`Email: ${company.email}`);

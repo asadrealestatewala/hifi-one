@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Icon from "@/components/shell/Icon";
 
 type Line = { id: number; plan: string; desc: string; qty: string; price: string };
@@ -11,10 +11,17 @@ const toNum = (s: string) => { const n = Number(s); return Number.isFinite(n) &&
 
 // Invoice and quote lines with a running subtotal, tax and total. Fields are named desc{i}/qty{i}/price{i} so the
 // existing server actions read them unchanged. The server still does the real arithmetic; this is only a preview.
-export default function LineItems({ currency, taxPresets, plans, max = 20 }: { currency: string; taxPresets: TaxPreset[]; plans?: PlanOpt[]; max?: number }) {
-  const [lines, setLines] = useState<Line[]>([{ id: 0, plan: "", desc: "", qty: "1", price: "" }]);
-  const [next, setNext] = useState(1);
-  const [tax, setTax] = useState("0");
+export type LineValue = { desc: string; qty: string; price: string };
+
+// `initial` fills the editor for an existing draft; `onChange` lets a live preview follow every keystroke.
+export default function LineItems({ currency, taxPresets, plans, max = 20, initial, initialTax = "0", onChange }: {
+  currency: string; taxPresets: TaxPreset[]; plans?: PlanOpt[]; max?: number; initial?: LineValue[]; initialTax?: string;
+  onChange?: (lines: LineValue[], tax: string) => void;
+}) {
+  const [lines, setLines] = useState<Line[]>(() => initial?.length ? initial.map((l, i) => ({ id: i, plan: "", ...l })) : [{ id: 0, plan: "", desc: "", qty: "1", price: "" }]);
+  const [next, setNext] = useState(initial?.length ?? 1);
+  const [tax, setTax] = useState(initialTax);
+  useEffect(() => { onChange?.(lines.map(({ desc, qty, price }) => ({ desc, qty, price })), tax); }, [lines, tax, onChange]);
   const sub = lines.reduce((s, l) => s + toNum(l.qty) * toNum(l.price), 0);
   const taxAmt = sub * Math.min(toNum(tax), 100) / 100;
   const fmt = (n: number) => new Intl.NumberFormat("en", { style: "currency", currency, maximumFractionDigits: 2 }).format(n);
@@ -26,7 +33,7 @@ export default function LineItems({ currency, taxPresets, plans, max = 20 }: { c
         {lines.map((l, i) => (
           <div key={l.id} className={`grid ${plans ? "sm:grid-cols-[11rem_1fr_5rem_8rem_6.5rem_2rem]" : "sm:grid-cols-[1fr_5rem_8rem_6.5rem_2rem]"} grid-cols-[1fr_4.5rem_6.5rem_2rem] items-center gap-2`}>
             {plans && <select name={`plan${i}`} value={l.plan} onChange={(e) => set(l.id, { plan: e.target.value })} aria-label={`Line ${i + 1} catalog plan`} className="input col-span-full sm:col-span-1 sm:order-first"><option value="">Custom line</option>{plans.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select>}
-            <input name={`desc${i}`} value={l.desc} onChange={(e) => set(l.id, { desc: e.target.value })} placeholder={l.plan ? "Description (from plan)" : "Description"} aria-label={`Line ${i + 1} description`} className="input" />
+            <textarea name={`desc${i}`} rows={1} value={l.desc} onChange={(e) => set(l.id, { desc: e.target.value })} placeholder={l.plan ? "Description (from plan)" : "Description (press Enter for a second line)"} aria-label={`Line ${i + 1} description`} className="input min-h-10 resize-y" />
             <input name={`qty${i}`} value={l.qty} onChange={(e) => set(l.id, { qty: e.target.value })} inputMode="decimal" aria-label={`Line ${i + 1} quantity`} className="input" />
             <input name={`price${i}`} value={l.price} onChange={(e) => set(l.id, { price: e.target.value })} inputMode="decimal" placeholder="0.00" aria-label={`Line ${i + 1} unit price`} className="input" />
             <span className="hidden text-right text-sm tabular-nums sm:block">{l.plan && !l.price ? "per plan" : fmt(toNum(l.qty) * toNum(l.price))}</span>

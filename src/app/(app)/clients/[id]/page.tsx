@@ -70,7 +70,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
           {client.email && <Link href={`/mail/compose?client=${client.id}`} className="btn-ghost"><span className="text-tint-violet"><Icon name="mail" className="h-4 w-4" /></span>Email</Link>}
           {has("clients.edit") && <Link href={`/clients/${client.id}?${tab !== "overview" ? `tab=${tab}&` : ""}edit=1`} className="btn-ghost"><span className="text-tint-slate"><Icon name="edit" className="h-4 w-4" /></span>Edit details</Link>}
           {has("projects.manage") && <Link href={`/projects?new=1&client=${client.id}`} className="btn-ghost"><span className="text-tint-orange"><Icon name="briefcase" className="h-4 w-4" /></span>New project</Link>}
-          {has("finance.post") && <Link href={`/finance/invoices?new=1&client=${client.id}`} className="btn"><Icon name="plus" className="h-4 w-4" />New invoice</Link>}
+          {has("finance.post") && <Link href={`/finance/invoices/new?client=${client.id}`} className="btn"><Icon name="plus" className="h-4 w-4" />New invoice</Link>}
         </div>
       </header>
       {sp.detailsSaved && <Notice kind="ok">Client details saved. New payment terms apply to invoices created from now on.</Notice>}

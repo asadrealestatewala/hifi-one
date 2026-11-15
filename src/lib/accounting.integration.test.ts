@@ -2,7 +2,7 @@
 // Run `npm run db:start` first. They truncate that database, never the development one.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { cancelInvoice, clientStatement, createDraftInvoice, issueInvoice, recordPayment, trialBalance } from "./accounting";
+import { cancelInvoice, clientStatement, createDraftInvoice, issueInvoice, recordPayment, trialBalance, updateDraftInvoice } from "./accounting";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
 const db = new PrismaClient({ datasourceUrl: url });
@@ -57,6 +57,35 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.$disconnect();
+});
+
+describe("editing a draft invoice", () => {
+  it("replaces lines, totals, notes and template on a draft and posts nothing", async () => {
+    const d = await createDraftInvoice(db, { organizationId: org, clientId: client, currency: "USD", taxRate: "0", createdById: actor, lines: [{ description: "Old", quantity: "1", unitPrice: "100" }] });
+    const journalsBefore = await db.journalEntry.count({ where: { organizationId: org } });
+    const u = await updateDraftInvoice(db, { organizationId: org, invoiceId: d.id, clientId: client, currency: "USD", taxRate: "10", notes: "Net 7", templateKey: "minimal",
+      lines: [{ description: "Formation\nCompany Name: Biztrack UK", quantity: "2", unitPrice: "150" }, { description: "Filing", quantity: "1", unitPrice: "50" }] });
+    expect(u.lines.map((l) => l.description)).toEqual(["Formation\nCompany Name: Biztrack UK", "Filing"]);
+    expect(u.subtotal.toString()).toBe("350");
+    expect(u.taxAmount.toString()).toBe("35");
+    expect(u.total.toString()).toBe("385");
+    expect(u.notes).toBe("Net 7");
+    expect(u.templateKey).toBe("minimal");
+    expect(await db.journalEntry.count({ where: { organizationId: org } })).toBe(journalsBefore);
+    const bad = await updateDraftInvoice(db, { organizationId: org, invoiceId: d.id, clientId: client, currency: "USD", taxRate: "0", templateKey: "hifi-signature", lines: [{ description: "X", quantity: "1", unitPrice: "1" }] });
+    expect(bad.templateKey).toBeNull(); // retired or unknown layouts fall back to the company default
+  });
+  it("refuses issued invoices, other organizations, unknown clients and empty or zero invoices", async () => {
+    const issued = await newInvoice("100");
+    const line = [{ description: "X", quantity: "1", unitPrice: "10" }];
+    await expect(updateDraftInvoice(db, { organizationId: org, invoiceId: issued.id, clientId: client, currency: "USD", taxRate: "0", lines: line })).rejects.toThrow(/Only draft/);
+    const d = await createDraftInvoice(db, { organizationId: org, clientId: client, currency: "USD", taxRate: "0", createdById: actor, lines: line });
+    await expect(updateDraftInvoice(db, { organizationId: "other-org", invoiceId: d.id, clientId: client, currency: "USD", taxRate: "0", lines: line })).rejects.toThrow(/not found/);
+    await expect(updateDraftInvoice(db, { organizationId: org, invoiceId: d.id, clientId: "nobody", currency: "USD", taxRate: "0", lines: line })).rejects.toThrow(/Unknown client/);
+    await expect(updateDraftInvoice(db, { organizationId: org, invoiceId: d.id, clientId: client, currency: "USD", taxRate: "0", lines: [] })).rejects.toThrow(/at least one/);
+    await expect(updateDraftInvoice(db, { organizationId: org, invoiceId: d.id, clientId: client, currency: "USD", taxRate: "0", lines: [{ description: "X", quantity: "1", unitPrice: "0" }] })).rejects.toThrow(/greater than zero/);
+    expect((await db.invoice.findUniqueOrThrow({ where: { id: d.id }, include: { lines: true } })).lines.map((l) => l.description)).toEqual(["X"]);
+  });
 });
 
 describe("invoice issue", () => {
