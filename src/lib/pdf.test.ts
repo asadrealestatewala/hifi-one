@@ -35,6 +35,43 @@ describe("formatting helpers", () => {
   });
 });
 
+describe("invoice templates", () => {
+  const biz = invoice({
+    number: "1086161", currency: "PKR", client: { name: "Biztrack Technologies Limited", billingAddress: "Pakistan" },
+    lines: [{ description: "Formation of SMC Private Limited Company in Pakistan\nCompany Name: Biztrack UK", quantity: "1", unitPrice: "85000", amount: "85000" }],
+    subtotal: "85000", taxRate: "0", taxAmount: "0", total: "85000", amountPaid: "40000", creditedAmount: "0",
+  });
+  for (const template of ["hifi-signature", "standard", "modern", "minimal"]) {
+    it(`${template} prints the number, client, line, adjustment and amount payable`, async () => {
+      const buf = await invoicePdf({ ...biz, config: mergeConfig({ template } as never) }, { compress: false });
+      expect(buf.subarray(0, 5).toString()).toBe("%PDF-");
+      const t = pdfPlainText(buf);
+      expect(t).toContain("1086161");
+      expect(t).toContain("Biztrack Technologies Limited");
+      expect(t).toContain("Formation of SMC Private Limited Company in Pakistan");
+      expect(t).toContain("PKR 45,000.00");
+      if (template !== "standard") expect(t.toLowerCase()).toContain("adjustment");
+    });
+  }
+  it("Hifi Signature follows the attached layout labels and honours the signature setting", async () => {
+    const t = pdfPlainText(await invoicePdf({ ...biz, config: mergeConfig({ template: "hifi-signature" } as never) }, { compress: false }));
+    for (const w of ["INVOICE NUMBER", "BILL TO", "SERVICE DETAILS", "AMOUNT PAYABLE", "TRANSACTION DETAILS:", "CLIENT DETAILS:", "Authorised Signature", "Company Stamp"]) expect(t).toContain(w);
+    const off = pdfPlainText(await invoicePdf({ ...biz, config: mergeConfig({ template: "hifi-signature", showSignature: false } as never) }, { compress: false }));
+    expect(off).not.toContain("Authorised Signature");
+  });
+  it("an unknown template falls back to Standard, so old issued invoices look as they did", () => {
+    expect(mergeConfig({ template: "nope" } as never).template).toBe("standard");
+    expect(mergeConfig(null).template).toBe("standard");
+  });
+  it("a long invoice flows onto extra pages in every template", async () => {
+    const lines = Array.from({ length: 40 }, (_, i) => ({ description: `Line ${i + 1}`, quantity: "1", unitPrice: "10.00", amount: "10.00" }));
+    for (const template of ["hifi-signature", "modern", "minimal"]) {
+      const t = pdfPlainText(await invoicePdf(invoice({ lines, config: mergeConfig({ template } as never) }), { compress: false }));
+      expect(t).toContain("Line 40");
+    }
+  });
+});
+
 describe("documents", () => {
   it("an invoice is a real PDF with the number, lines, totals, balance and bank details", async () => {
     const buf = await invoicePdf(invoice(), { compress: false });

@@ -523,6 +523,7 @@ model Invoice {
   creditedAmount  Decimal   @default(0) @db.Decimal(14, 2)
   projectId       String?
   notes           String?
+  templateKey     String? // PDF layout chosen for this invoice; empty means the company default
   // Frozen at issue time so later settings changes never alter issued documents
   companySnapshot Json?
   bankSnapshot    Json?

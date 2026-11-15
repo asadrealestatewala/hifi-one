@@ -3,7 +3,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { clientStatement } from "./accounting";
 import { vendorLedger } from "./vendors";
-import { DEFAULT_DOC_CONFIG, mergeConfig, type Bank, type Company, type CreditNoteDoc, type DocConfig, type InvoiceDoc, type PayslipDoc, type ReceiptDoc, type QuoteDoc, type AgreementDoc, type StatementDoc, type VoucherDoc } from "./pdf";
+import { DEFAULT_DOC_CONFIG, TEMPLATE_KEYS, mergeConfig, type Bank, type Company, type CreditNoteDoc, type DocConfig, type InvoiceDoc, type PayslipDoc, type ReceiptDoc, type QuoteDoc, type AgreementDoc, type StatementDoc, type VoucherDoc } from "./pdf";
 
 type Json = Record<string, unknown> | null | undefined;
 
@@ -12,7 +12,10 @@ export const DOC_TYPES: DocType[] = ["QUOTE", "INVOICE", "RECEIPT", "CREDIT_NOTE
 
 export async function getDocConfig(db: PrismaClient, organizationId: string, docType: DocType): Promise<{ config: DocConfig; version: number }> {
   const row = await db.documentSetting.findUnique({ where: { organizationId_docType: { organizationId, docType } } });
-  return { config: mergeConfig(row?.config as Partial<DocConfig> | undefined), version: row?.version ?? 0 };
+  const config = mergeConfig(row?.config as Partial<DocConfig> | undefined);
+  // An organization that never saved an invoice template starts on the Hifi Signature layout
+  if (docType === "INVOICE" && !row) config.template = "hifi-signature";
+  return { config, version: row?.version ?? 0 };
 }
 
 const str = (v: unknown) => (typeof v === "string" ? v : v == null ? null : String(v));
@@ -43,7 +46,9 @@ export async function loadInvoiceDoc(db: PrismaClient, p: { organizationId: stri
     lines: inv.lines.map((l) => ({ description: l.description, quantity: l.quantity.toString(), unitPrice: l.unitPrice.toString(), amount: l.amount.toString() })),
     subtotal: inv.subtotal.toString(), taxRate: inv.taxRate.toString(), taxAmount: inv.taxAmount.toString(), total: inv.total.toString(),
     amountPaid: inv.amountPaid.toString(), creditedAmount: inv.creditedAmount.toString(),
-    company, bank: (inv.bankSnapshot as Bank | null) ?? null, config: tpl ? mergeConfig(tpl.config) : live!.config, templateVersion: tpl?.version ?? live?.version ?? null,
+    company, bank: (inv.bankSnapshot as Bank | null) ?? null,
+    // A draft can name its own layout; once issued, the layout frozen at issue time is used
+    config: tpl ? mergeConfig(tpl.config) : inv.templateKey && TEMPLATE_KEYS.includes(inv.templateKey) ? { ...live!.config, template: inv.templateKey } : live!.config, templateVersion: tpl?.version ?? live?.version ?? null,
   };
 }
 
