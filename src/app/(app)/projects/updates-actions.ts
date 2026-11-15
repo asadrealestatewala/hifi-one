@@ -18,9 +18,9 @@ export async function postUpdateAction(formData: FormData): Promise<void> {
   try {
     const u = await postUpdate(db, {
       organizationId: user.organizationId, projectId, authorId: user.id, kind: s(formData, "kind"), title: s(formData, "title"), body: s(formData, "body"),
-      phase: s(formData, "phase"), visibleToClient: formData.get("visibleToClient") === "on", canSetPhase: user.permissions.has("projects.manage"),
+      phase: s(formData, "phase"), visibleToClient: formData.get("visibleToClient") === "on", visibleToVendor: formData.get("visibleToVendor") === "on", canSetPhase: user.permissions.has("projects.manage"),
     });
-    await audit(user, { action: "project.update_posted", entity: "ProjectUpdate", entityId: u.id, after: { kind: u.kind, title: u.title, phase: u.phase, visibleToClient: u.visibleToClient } });
+    await audit(user, { action: "project.update_posted", entity: "ProjectUpdate", entityId: u.id, after: { kind: u.kind, title: u.title, phase: u.phase, visibleToClient: u.visibleToClient, visibleToVendor: u.visibleToVendor } });
   } catch (e) {
     if (e instanceof UpdateError) return back(projectId, "error", e.message);
     throw e;
@@ -45,4 +45,19 @@ export async function updateVisibilityAction(formData: FormData): Promise<void> 
   }
   revalidatePath(`/projects/${projectId}`);
   back(projectId, "msg", show ? "Now shown to the client." : "Hidden from the client.");
+}
+
+// Shows or hides an entry for vendors working on the project (work order or voucher on this project).
+export async function updateVendorVisibilityAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("tasks.edit");
+  const projectId = s(formData, "projectId");
+  if (!(await db.project.findFirst({ where: { id: projectId, ...projectScope(user) }, select: { id: true } }))) return back(projectId, "error", "Project not found.");
+  const updateId = s(formData, "id");
+  const show = s(formData, "show") === "1";
+  const found = await db.projectUpdate.findFirst({ where: { id: updateId, projectId, organizationId: user.organizationId }, select: { id: true } });
+  if (!found) return back(projectId, "error", "Update not found.");
+  await db.projectUpdate.update({ where: { id: found.id }, data: { visibleToVendor: show } });
+  await audit(user, { action: "project.update_vendor_visibility", entity: "ProjectUpdate", entityId: updateId, after: { visibleToVendor: show } });
+  revalidatePath(`/projects/${projectId}`);
+  back(projectId, "msg", show ? "Now shown to vendors on this project." : "Hidden from vendors.");
 }

@@ -3,6 +3,7 @@ import { requireVendorUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { VendorError, markDelivered, submitBill } from "@/lib/vendors";
 import { formatMoney } from "@/lib/money";
+import { vendorFeed } from "@/lib/project-updates";
 import { notifyPermission } from "@/lib/notifications";
 import FilesPanel from "@/components/FilesPanel";
 import { Notice, PageHeader } from "@/components/ui";
@@ -40,14 +41,30 @@ async function bill(formData: FormData) {
 export default async function VendorWork({ searchParams }: { searchParams: Promise<{ error?: string; fileError?: string; fileOk?: string }> }) {
   const user = await requireVendorUser();
   const { error, fileError, fileOk } = await searchParams;
-  const [orders, bills] = await Promise.all([
+  const [orders, bills, progress] = await Promise.all([
     db.workOrder.findMany({ where: { vendorId: user.vendorId }, orderBy: { createdAt: "desc" }, select: { id: true, number: true, title: true, scope: true, amount: true, currency: true, status: true } }),
     db.vendorBill.findMany({ where: { vendorId: user.vendorId }, orderBy: { createdAt: "desc" }, select: { id: true, number: true, workOrderId: true, amount: true, currency: true, status: true, decisionNote: true } }),
+    vendorFeed(db, { organizationId: user.organizationId, vendorId: user.vendorId }),
   ]);
   return (
     <div className="space-y-6">
       <PageHeader title="Work orders and bills" />
       {error && <Notice kind="error">{error}</Notice>}
+      {progress.length > 0 && (
+        <section className="card space-y-3">
+          <h2 className="font-semibold">Project progress</h2>
+          {progress.map((pr) => (
+            <div key={pr.id} className="space-y-1 border-t border-border pt-2 first:border-0 first:pt-0">
+              <p className="text-sm font-medium">{pr.number} · {pr.name}{pr.phase && <span className="ml-2 text-xs text-muted">Phase: {pr.phase.toLowerCase().replace("_", " ")}</span>}</p>
+              {pr.updates.length === 0 ? <p className="text-sm text-muted">No progress shared with you yet.</p> : (
+                <ul className="space-y-1 text-sm">
+                  {pr.updates.map((u) => <li key={u.id}><span className="text-xs text-muted">{u.at.toLocaleDateString()}</span> {u.title}{u.body && <span className="block whitespace-pre-wrap text-muted">{u.body}</span>}</li>)}
+                </ul>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
       {orders.length === 0 && <div className="card text-sm text-muted">No work orders yet.</div>}
       {orders.map((w) => {
         const mine = bills.filter((b) => b.workOrderId === w.id);

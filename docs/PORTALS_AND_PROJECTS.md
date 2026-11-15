@@ -34,6 +34,8 @@ See `docs/MONITORING.md`. In short: the menu entries are Workfolio (HR and manag
 - Vendor page tabs: Overview, Work (work orders and applications), Bills and ledger, Portal access.
 - Client portal: Overview, Projects (progress, shared tasks, messages to the team), Content, Quotations, Meetings, Updates (notifications), Statement. Everything is scoped by the signed-in client; nothing takes a client id from the address.
 - Vendor portal: Opportunities, Work and bills, Statement, Profile (edit email and phone only), Updates.
+- Expense vouchers can name a registered vendor (optional). Posting and paying then stamp the vendor on the Accounts Payable lines, so the payout appears on the vendor's portal Statement. The payee is taken from the vendor.
+- Vendors see project progress on Work and bills for projects named on their work orders or live vouchers: only project updates marked "Show to vendors" (off by default), plus the project name and phase. Nothing about the client or budget.
 - Notifications sent to portal users: invoice issued, payment received, shared task comment (client); vendor bill approved, rejected or paid (vendor).
 
 ## Not built

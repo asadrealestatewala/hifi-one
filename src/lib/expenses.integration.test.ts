@@ -6,6 +6,8 @@ import {
   reviewVoucher, submitVoucher,
 } from "./expenses";
 import { trialBalance } from "./accounting";
+import { vendorLedger } from "./vendors";
+import { vendorFeed } from "./project-updates";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
 const db = new PrismaClient({ datasourceUrl: url });
@@ -31,7 +33,7 @@ const toApproved = async (amount: string, budgetId?: string, canOverride = false
 
 beforeAll(async () => {
   await db.$executeRawUnsafe(
-    'TRUNCATE "BudgetTransfer","ExpenseVoucher","Budget","Project","JournalLine","JournalEntry","BankAccount","Account","NumberSequence","Organization" CASCADE',
+    'TRUNCATE "BudgetTransfer","ExpenseVoucher","ProjectUpdate","WorkOrder","Vendor","Budget","Project","JournalLine","JournalEntry","BankAccount","Account","NumberSequence","Organization" CASCADE',
   );
   org = (await db.organization.create({ data: { name: "Expense Test Org" } })).id;
   const mk = (code: string, name: string, type: string, systemKey?: string) => db.account.create({ data: { organizationId: org, code, name, type, systemKey } });
@@ -154,3 +156,52 @@ describe("budget control", () => {
     ).rejects.toThrow(ExpenseError);
   });
 });
+
+describe("vendor vouchers", () => {
+  const mkVendor = (code: string, status = "APPROVED") => db.vendor.create({ data: { organizationId: org, code, name: `Vendor ${code}`, currency: "PKR", status } });
+
+  it("a voucher for a vendor shows on that vendor's statement only, and takes the vendor's name as payee", async () => {
+    const saad = await mkVendor("V-S");
+    const other = await mkVendor("V-O");
+    const v = await submitVoucher(db, { organizationId: org, submittedById: emp, date: "2026-11-15", payee: "typed name", vendorId: saad.id, description: "Legal fee, first instalment", expenseAccountId: opex, currency: "PKR", amount: "10000" });
+    expect(v.payee).toBe("Vendor V-S");
+    expect(v.vendorId).toBe(saad.id);
+    await reviewVoucher(db, { organizationId: org, id: v.id, reviewerId: rev });
+    await approveVoucher(db, { organizationId: org, id: v.id, approverId: appr, canOverride: false });
+    await postVoucher(db, { organizationId: org, id: v.id, actorId: appr });
+    let rows = await vendorLedger(db, org, saad.id);
+    expect(rows).toHaveLength(1);
+    expect(Number(rows[0].billed)).toBe(10000);
+    await payVoucher(db, { organizationId: org, id: v.id, bankAccountId: bank, actorId: appr });
+    rows = await vendorLedger(db, org, saad.id);
+    expect(rows).toHaveLength(2);
+    expect(Number(rows[1].paid)).toBe(10000);
+    expect(Number(rows[1].balance)).toBe(0);
+    expect(await vendorLedger(db, org, other.id)).toHaveLength(0); // another vendor sees nothing
+  });
+
+  it("an unknown or suspended vendor cannot be used, and a voucher without a vendor needs a typed payee", async () => {
+    const sus = await mkVendor("V-X", "SUSPENDED");
+    const base = { organizationId: org, submittedById: emp, date: "2026-11-15", description: "Fee", expenseAccountId: opex, currency: "PKR", amount: "5" };
+    await expect(submitVoucher(db, { ...base, payee: "", vendorId: "nope" })).rejects.toThrow(/Unknown vendor/);
+    await expect(submitVoucher(db, { ...base, payee: "", vendorId: sus.id })).rejects.toThrow(/suspended/);
+    await expect(submitVoucher(db, { ...base, payee: "" })).rejects.toThrow(/payee/);
+  });
+
+  it("a vendor sees progress only on projects tied to them, and only entries marked for vendors", async () => {
+    const vendor = await mkVendor("V-P");
+    const outsider = await mkVendor("V-Q");
+    const proj = await db.project.create({ data: { organizationId: org, number: "PRJ-T1", name: "SMC formation", managerId: rev, phase: "DEVELOPMENT" } });
+    const hidden = await db.project.create({ data: { organizationId: org, number: "PRJ-T2", name: "Unrelated", managerId: rev } });
+    const mkUpdate = (projectId: string, title: string, visibleToVendor: boolean) => db.projectUpdate.create({ data: { organizationId: org, projectId, title, authorId: rev, visibleToVendor } });
+    await mkUpdate(proj.id, "Name reserved", true);
+    await mkUpdate(proj.id, "Internal note", false);
+    await mkUpdate(hidden.id, "Other job", true);
+    await submitVoucher(db, { organizationId: org, submittedById: emp, date: "2026-11-15", payee: "", vendorId: vendor.id, projectId: proj.id, description: "Fee", expenseAccountId: opex, currency: "PKR", amount: "7" });
+    const feed = await vendorFeed(db, { organizationId: org, vendorId: vendor.id });
+    expect(feed.map((f) => f.number)).toEqual(["PRJ-T1"]);
+    expect(feed[0].updates.map((u) => u.title)).toEqual(["Name reserved"]);
+    expect(await vendorFeed(db, { organizationId: org, vendorId: outsider.id })).toEqual([]);
+  });
+});
+
