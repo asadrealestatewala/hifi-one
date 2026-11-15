@@ -3,6 +3,7 @@
 // Deliberately free of Next.js imports so it can be tested directly against the database.
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { periodLockMessage } from "./period-lock";
+import { TEMPLATE_KEYS } from "./pdf";
 import {
   LedgerError, allocateFifo, assertBalanced, computeInvoiceTotals, dec, invoiceStatusAfterPayment, round2, type DraftLine,
 } from "./ledger-math";
@@ -109,6 +110,10 @@ export async function issueInvoice(db: PrismaClient, p: { organizationId: string
       where: { organizationId: p.organizationId, currency: inv.currency, active: true, isDefault: true },
     });
     const tpl = await tx.documentSetting.findUnique({ where: { organizationId_docType: { organizationId: p.organizationId, docType: "INVOICE" } } });
+    // The layout is frozen with the invoice: its own choice, else the company default, else Hifi Signature for companies that never saved one
+    const saved = (tpl?.config ?? {}) as { template?: string };
+    const template = inv.templateKey && TEMPLATE_KEYS.includes(inv.templateKey) ? inv.templateKey : saved.template && TEMPLATE_KEYS.includes(saved.template) ? saved.template : tpl ? "standard" : "hifi-signature";
+    const tplConfig = { ...saved, template };
     const number = await nextNumber(tx, p.organizationId, "INV", "INV");
     const lines: DraftLine[] = [{ accountId: ar.id, debit: inv.total, clientId: inv.clientId, memo: number }];
     lines.push({ accountId: revenue.id, credit: inv.subtotal, memo: number });
@@ -126,7 +131,7 @@ export async function issueInvoice(db: PrismaClient, p: { organizationId: string
       data: {
         status: "ISSUED", number, issueDate, dueDate, journalEntryId: entry.id,
         // Snapshots keep this invoice's details fixed even if settings change later
-        companySnapshot: profile ? JSON.parse(JSON.stringify({ ...profile, _template: { config: tpl?.config ?? null, version: tpl?.version ?? 0 } })) : undefined,
+        companySnapshot: profile ? JSON.parse(JSON.stringify({ ...profile, _template: { config: tplConfig, version: tpl?.version ?? 0 } })) : undefined,
         bankSnapshot: bank
           ? { bankName: bank.bankName, accountHolder: bank.accountHolder, accountNumber: bank.accountNumber, iban: bank.iban, swift: bank.swift, routingCode: bank.routingCode, currency: bank.currency, paymentInstructions: bank.paymentInstructions }
           : undefined,

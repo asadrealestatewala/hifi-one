@@ -2,6 +2,8 @@
 // Standard PDF fonts only cover Western European characters. Anything else (for example Urdu or Arabic script) is shown as "?"
 // and the document says so, rather than printing wrong letters silently. Full right-to-left support needs a different renderer.
 import PDFDocument from "pdfkit";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 export type DocConfig = {
   showRegisteredOffice: boolean;
@@ -14,11 +16,21 @@ export type DocConfig = {
   showBank: boolean;
   footerText: string;
   accent: string;
+  template: string; // invoice layout, see INVOICE_TEMPLATES
+  showSignature: boolean; // signature and stamp, used by the Hifi Signature layout
 };
+
+export const INVOICE_TEMPLATES = [
+  { key: "hifi-signature", label: "Hifi Signature", note: "Teal and orange wave header, bank details, signature and company stamp." },
+  { key: "standard", label: "Standard", note: "Plain layout with a coloured table header (uses the accent colour)." },
+  { key: "modern", label: "Modern Indigo", note: "Navy to indigo header band with the logo." },
+  { key: "minimal", label: "Minimal", note: "White space, thin lines and a small logo." },
+] as const;
+export const TEMPLATE_KEYS: string[] = INVOICE_TEMPLATES.map((t) => t.key);
 
 export const DEFAULT_DOC_CONFIG: DocConfig = {
   showRegisteredOffice: true, showSalesCentre: true, showPhones: true, showEmail: true, showWebsite: true, showRegistrationNo: true, showTaxId: true,
-  showBank: true, footerText: "", accent: "#e11d1d",
+  showBank: true, footerText: "", accent: "#e11d1d", template: "standard", showSignature: true,
 };
 
 export function mergeConfig(c: Partial<DocConfig> | null | undefined): DocConfig {
@@ -28,6 +40,7 @@ export function mergeConfig(c: Partial<DocConfig> | null | undefined): DocConfig
     if (v !== undefined && typeof v === typeof DEFAULT_DOC_CONFIG[k]) (m as Record<string, unknown>)[k] = v;
   }
   if (!/^#[0-9a-fA-F]{6}$/.test(m.accent)) m.accent = DEFAULT_DOC_CONFIG.accent;
+  if (!TEMPLATE_KEYS.includes(m.template)) m.template = DEFAULT_DOC_CONFIG.template;
   return m;
 }
 
@@ -88,12 +101,7 @@ function t(ctx: Ctx, s: string | null | undefined) {
   return r.text;
 }
 
-function header(ctx: Ctx, company: Company, title: string, number?: string | null, status?: string) {
-  const { doc, cfg } = ctx;
-  doc.fillColor(cfg.accent).font("Helvetica-Bold").fontSize(20).text(t(ctx, title), 48, 48);
-  doc.fillColor("#333").font("Helvetica").fontSize(10);
-  if (number) doc.text(t(ctx, number));
-  if (status) doc.fillColor(status === "DRAFT" ? "#b45309" : "#555").text(t(ctx, status === "DRAFT" ? "DRAFT (not issued)" : status.replace(/_/g, " ")));
+function companyLines(cfg: DocConfig, company: Company): string[] {
   const lines: string[] = [];
   if (cfg.showRegisteredOffice && company.registeredOffice) lines.push(company.registeredOffice);
   if (cfg.showSalesCentre && company.salesCentre) lines.push(`Sales centre: ${company.salesCentre}`);
@@ -105,6 +113,22 @@ function header(ctx: Ctx, company: Company, title: string, number?: string | nul
   if (cfg.showWebsite && company.website) lines.push(company.website);
   if (cfg.showRegistrationNo && company.registrationNo) lines.push(`Reg. no. ${company.registrationNo}`);
   if (cfg.showTaxId && company.taxId) lines.push(`Tax ID ${company.taxId}`);
+  return lines;
+}
+
+const ASSETS = path.join(process.cwd(), "src", "lib", "pdf-assets");
+// Images are optional: if one cannot be read the document is still produced, just without it.
+function asset(file: string, from: "assets" | "public" = "assets"): Buffer | null {
+  try { return readFileSync(from === "assets" ? path.join(ASSETS, file) : path.join(process.cwd(), "public", file)); } catch { return null; }
+}
+
+function header(ctx: Ctx, company: Company, title: string, number?: string | null, status?: string) {
+  const { doc, cfg } = ctx;
+  doc.fillColor(cfg.accent).font("Helvetica-Bold").fontSize(20).text(t(ctx, title), 48, 48);
+  doc.fillColor("#333").font("Helvetica").fontSize(10);
+  if (number) doc.text(t(ctx, number));
+  if (status) doc.fillColor(status === "DRAFT" ? "#b45309" : "#555").text(t(ctx, status === "DRAFT" ? "DRAFT (not issued)" : status.replace(/_/g, " ")));
+  const lines = companyLines(cfg, company);
   doc.fillColor("#111").font("Helvetica-Bold").fontSize(11).text(t(ctx, company.legalName), 300, 48, { width: 247, align: "right" });
   doc.font("Helvetica").fontSize(8.5).fillColor("#555");
   for (const l of lines) doc.text(t(ctx, l), 300, doc.y, { width: 247, align: "right" });
@@ -205,9 +229,260 @@ export type InvoiceDoc = {
   company: Company; bank: Bank | null; config: DocConfig; templateVersion?: number | null;
 };
 
+// ---- Invoice layouts ----
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const longDate = (d: Date | string | null | undefined) => {
+  if (!d) return "-";
+  const x = typeof d === "string" ? new Date(d) : d;
+  return `${x.getUTCDate()} ${MONTHS[x.getUTCMonth()]} ${x.getUTCFullYear()}`;
+};
+
+function invoiceRows(d: InvoiceDoc): { rows: [string, string][]; payable: string } {
+  const adjustment = Number(d.amountPaid) + Number(d.creditedAmount);
+  const balance = Number(d.total) - adjustment;
+  const rows: [string, string][] = [["Subtotal", pdfMoney(d.subtotal, d.currency)]];
+  if (Number(d.taxAmount) > 0) rows.push([`Tax (${d.taxRate}%)`, pdfMoney(d.taxAmount, d.currency)]);
+  if (adjustment > 0) rows.push(["Adjustment - previous funds", `- ${pdfMoney(adjustment, d.currency)}`]);
+  return { rows, payable: pdfMoney(balance, d.currency) };
+}
+
+type InvLine = InvoiceDoc["lines"][number];
+function lineParts(ctx: Ctx, l: InvLine, d: InvoiceDoc) {
+  const parts = t(ctx, l.description).split("\n");
+  const sub = parts.slice(1);
+  if (Number(l.quantity) !== 1) sub.push(`${l.quantity} x ${pdfMoney(l.unitPrice, d.currency)}`);
+  return { title: parts[0], sub: sub.join("\n") };
+}
+function measureLine(ctx: Ctx, l: InvLine, d: InvoiceDoc, w: number, size: number): number {
+  const { doc } = ctx;
+  const p = lineParts(ctx, l, d);
+  let h = doc.font("Helvetica-Bold").fontSize(size).heightOfString(p.title, { width: w });
+  if (p.sub) h += doc.font("Helvetica").fontSize(size - 1).heightOfString(p.sub, { width: w });
+  return h;
+}
+function drawLine(ctx: Ctx, l: InvLine, d: InvoiceDoc, x: number, y: number, w: number, size: number) {
+  const { doc } = ctx;
+  const p = lineParts(ctx, l, d);
+  doc.font("Helvetica-Bold").fontSize(size).fillColor("#111");
+  const h1 = doc.heightOfString(p.title, { width: w });
+  doc.text(p.title, x, y, { width: w });
+  if (p.sub) doc.font("Helvetica").fontSize(size - 1).fillColor("#555").text(p.sub, x, y + h1, { width: w });
+}
+function room(ctx: Ctx, y: number, need: number, top = 48): number {
+  if (y + need <= 770) return y;
+  ctx.doc.addPage();
+  return top;
+}
+function bankPairs(bank: Bank): [string, string][] {
+  const r: [string, string | null | undefined][] = [["Bank", bank.bankName], ["Account title", bank.accountHolder], ["Account number", bank.accountNumber], ["IBAN", bank.iban], ["SWIFT/BIC", bank.swift], ["Routing", bank.routingCode]];
+  return r.filter((x): x is [string, string] => Boolean(x[1]));
+}
+
+// Hifi Signature: the teal and orange wave invoice
+function invoiceHifi(ctx: Ctx, d: InvoiceDoc) {
+  const { doc, cfg } = ctx;
+  const TEAL = "#055579", ORANGE = "#f99d3a", BAND = "#f2f5f8";
+  const img = asset("hifi-header.png");
+  if (img) doc.image(img, 0, 0, { width: 595.28 });
+  else { doc.rect(0, 0, 595.28, 130).fill(TEAL); doc.fillColor("#fff").font("Helvetica-Bold").fontSize(34).text("hifi", 40, 40); }
+  doc.font("Helvetica-Bold").fontSize(8.5).fillColor(TEAL);
+  let y = 116;
+  const head = [`DATED: ${longDate(d.issueDate).toUpperCase()}`, `DUE DATE: ${longDate(d.dueDate).toUpperCase()}`, "INVOICE NUMBER", d.number ?? "DRAFT (NOT ISSUED)"];
+  for (const h of head) { doc.text(t(ctx, h), 300, y, { width: 247, align: "right", characterSpacing: 1.3, lineBreak: false }); y += 14; }
+  let ly = 184;
+  doc.font("Helvetica-Bold").fontSize(8.5).fillColor("#222");
+  doc.text(t(ctx, d.company.legalName), 38, ly, { width: 300 }); ly = doc.y + 2;
+  doc.font("Helvetica").fontSize(8.5).fillColor("#333");
+  for (const l of companyLines(cfg, d.company)) { doc.text(t(ctx, l), 38, ly, { width: 300 }); ly = doc.y + 1; }
+  y = Math.max(ly + 14, 246);
+  doc.rect(32, y, 531, 38).fill(BAND);
+  doc.rect(32, y, 3, 38).fill(ORANGE);
+  doc.fillColor("#333").font("Helvetica").fontSize(8.5).text("BILL TO", 46, y + 8, { lineBreak: false });
+  doc.text("CURRENCY", 330, y + 8, { width: 223, align: "right", lineBreak: false });
+  doc.fillColor("#111").font("Helvetica-Bold").fontSize(10).text(t(ctx, d.client.name), 46, y + 21, { width: 380, lineBreak: false });
+  doc.text(t(ctx, d.currency), 330, y + 21, { width: 223, align: "right", lineBreak: false });
+  y += 38 + 22;
+  doc.lineWidth(0.8).rect(32, y, 531, 26).stroke("#111");
+  doc.fillColor("#111").font("Helvetica-Bold").fontSize(8.5);
+  doc.text("SERVICE DETAILS", 46, y + 9, { characterSpacing: 1.6, lineBreak: false });
+  doc.text("TOTAL", 330, y + 9, { width: 223, align: "right", characterSpacing: 1.6, lineBreak: false });
+  y += 26 + 16;
+  for (const l of d.lines) {
+    const h = measureLine(ctx, l, d, 360, 9.5) + 14;
+    y = room(ctx, y, h);
+    doc.rect(32, y, 531, h).fill(BAND);
+    drawLine(ctx, l, d, 40, y + 7, 360, 9.5);
+    doc.font("Helvetica").fontSize(9.5).fillColor("#222").text(t(ctx, pdfMoney(l.amount, d.currency)), 410, y + 7, { width: 145, align: "right", lineBreak: false });
+    y += h + 4;
+  }
+  const { rows, payable } = invoiceRows(d);
+  y = room(ctx, y + 10, rows.length * 18 + 30);
+  for (const [k, v] of rows) {
+    const adj = k.startsWith("Adjustment");
+    doc.font(adj || k.startsWith("Tax") ? "Helvetica" : "Helvetica-Bold").fontSize(8.5).fillColor("#222");
+    doc.text(t(ctx, k.toUpperCase()), 330, y, { width: 150, lineBreak: false });
+    doc.text(t(ctx, v), 470, y, { width: 93, align: "right", lineBreak: false });
+    y += 18;
+  }
+  doc.font("Helvetica-Bold").fontSize(9.5).fillColor(TEAL);
+  doc.text("AMOUNT PAYABLE", 330, y, { width: 150, lineBreak: false });
+  doc.text(t(ctx, payable), 450, y, { width: 113, align: "right", lineBreak: false });
+  y += 26;
+  if (d.notes) { y = room(ctx, y, 40); doc.font("Helvetica").fontSize(8.5).fillColor("#555").text(t(ctx, d.notes), 38, y, { width: 520 }); y = doc.y + 10; }
+  y = room(ctx, y + 8, 110);
+  const col = (x: number, title: string, pairs: [string, string][], plain: string[]) => {
+    let cy = y;
+    doc.font("Helvetica-Bold").fontSize(9).fillColor("#111").text(title, x, cy, { characterSpacing: 0.6, lineBreak: false });
+    cy += 18;
+    for (const [k, v] of pairs) {
+      doc.font("Helvetica-Bold").fontSize(8.5).fillColor("#111").text(`${k.toUpperCase()}: `, x, cy, { width: 260, continued: true });
+      doc.font("Helvetica").text(t(ctx, v));
+      cy = doc.y + 3;
+    }
+    for (const v of plain) { doc.font("Helvetica").fontSize(8.5).fillColor("#333").text(t(ctx, v), x, cy, { width: 215 }); cy = doc.y + 3; }
+    return cy;
+  };
+  const bank = cfg.showBank && d.bank ? bankPairs(d.bank) : [];
+  const y1 = bank.length || (cfg.showBank && d.bank?.paymentInstructions) ? col(38, "TRANSACTION DETAILS:", bank, d.bank?.paymentInstructions ? [d.bank.paymentInstructions] : []) : y;
+  const y2 = col(330, "CLIENT DETAILS:", [], [d.client.name.toUpperCase(), d.client.billingAddress ?? "", d.client.taxId ? `Tax ID ${d.client.taxId}` : ""].filter(Boolean));
+  doc.y = Math.max(y1, y2);
+  footer(ctx, d.company);
+  if (cfg.showSignature) {
+    let sy = Math.max(doc.y + 56, 705);
+    if (sy > 770) { doc.addPage(); sy = 120; }
+    doc.lineWidth(0.7).moveTo(38, sy).lineTo(200, sy).stroke("#222").moveTo(390, sy).lineTo(547, sy).stroke("#222");
+    const sig = asset("signature.png"), stamp = asset("stamp.png");
+    if (sig) doc.image(sig, 70, sy - 46, { height: 44 });
+    if (stamp) doc.image(stamp, 430, sy - 56, { height: 60 });
+    doc.font("Helvetica-Bold").fontSize(6.5).fillColor("#222");
+    doc.text("Authorised Signature", 38, sy + 4, { lineBreak: false });
+    doc.text("Company Stamp", 390, sy + 4, { lineBreak: false });
+  }
+}
+
+// Modern Indigo: navy to indigo header band
+function invoiceModern(ctx: Ctx, d: InvoiceDoc) {
+  const { doc, cfg } = ctx;
+  const NAVY = "#0f1b4d", INDIGO = "#3b44c4";
+  const g = doc.linearGradient(0, 0, 595.28, 0);
+  g.stop(0, NAVY).stop(1, INDIGO);
+  doc.rect(0, 0, 595.28, 108).fill(g);
+  const logo = asset("logo.png", "public");
+  if (logo) { doc.roundedRect(40, 28, 52, 52, 10).fill("#ffffff"); doc.image(logo, 45, 33, { width: 42 }); }
+  doc.fillColor("#fff").font("Helvetica-Bold").fontSize(24).text("INVOICE", 300, 34, { width: 247, align: "right", characterSpacing: 3, lineBreak: false });
+  doc.font("Helvetica").fontSize(9).fillColor("#c7cbff").text(t(ctx, d.number ? `No. ${d.number}` : "DRAFT (not issued)"), 300, 68, { width: 247, align: "right", characterSpacing: 1, lineBreak: false });
+  const label = (s: string, x: number, y: number) => doc.font("Helvetica-Bold").fontSize(7.5).fillColor(INDIGO).text(s, x, y, { characterSpacing: 1, lineBreak: false });
+  const y0 = 134;
+  label("FROM", 48, y0);
+  doc.font("Helvetica-Bold").fontSize(9.5).fillColor("#111").text(t(ctx, d.company.legalName), 48, y0 + 13, { width: 170 });
+  doc.font("Helvetica").fontSize(8).fillColor("#555");
+  for (const l of companyLines(cfg, d.company)) doc.text(t(ctx, l), 48, doc.y + 1, { width: 170 });
+  const yFrom = doc.y;
+  label("BILLED TO", 235, y0);
+  doc.font("Helvetica-Bold").fontSize(10).fillColor("#111").text(t(ctx, d.client.name), 235, y0 + 13, { width: 150 });
+  doc.font("Helvetica").fontSize(8.5).fillColor("#555");
+  if (d.client.billingAddress) doc.text(t(ctx, d.client.billingAddress), 235, doc.y + 1, { width: 150 });
+  if (d.client.taxId) doc.text(t(ctx, `Tax ID ${d.client.taxId}`), 235, doc.y + 1, { width: 150 });
+  const yTo = doc.y;
+  let dy = y0;
+  for (const [k, v] of [["ISSUED", longDate(d.issueDate)], ["DUE", longDate(d.dueDate)], ["CURRENCY", d.currency]] as const) {
+    label(k, 410, dy);
+    doc.font("Helvetica").fontSize(9).fillColor("#111").text(t(ctx, v), 440, dy - 1, { width: 107, align: "right", lineBreak: false });
+    dy += 17;
+  }
+  let y = Math.max(yFrom, yTo, dy) + 26;
+  label("SERVICE", 48, y);
+  doc.font("Helvetica-Bold").fontSize(7.5).fillColor(INDIGO).text("AMOUNT", 400, y, { width: 147, align: "right", characterSpacing: 1, lineBreak: false });
+  y += 13;
+  doc.lineWidth(1.5).moveTo(48, y).lineTo(547, y).stroke(NAVY);
+  y += 10;
+  for (const l of d.lines) {
+    const h = measureLine(ctx, l, d, 350, 9.5);
+    y = room(ctx, y, h + 14);
+    drawLine(ctx, l, d, 48, y, 350, 9.5);
+    doc.font("Helvetica").fontSize(9.5).fillColor("#111").text(t(ctx, pdfMoney(l.amount, d.currency)), 400, y, { width: 147, align: "right", lineBreak: false });
+    y += h + 8;
+    doc.lineWidth(0.5).moveTo(48, y).lineTo(547, y).stroke("#e3e5f5");
+    y += 8;
+  }
+  const { rows, payable } = invoiceRows(d);
+  y = room(ctx, y + 10, rows.length * 16 + 50);
+  for (const [k, v] of rows) {
+    doc.font("Helvetica").fontSize(9).fillColor("#333");
+    doc.text(t(ctx, k), 330, y, { width: 130, lineBreak: false });
+    doc.text(t(ctx, v), 450, y, { width: 97, align: "right", lineBreak: false });
+    y += 16;
+  }
+  y += 6;
+  doc.roundedRect(330, y, 217, 30, 6).fill(NAVY);
+  doc.fillColor("#fff").font("Helvetica-Bold").fontSize(10);
+  doc.text("Amount payable", 342, y + 10, { lineBreak: false });
+  doc.text(t(ctx, payable), 430, y + 10, { width: 105, align: "right", lineBreak: false });
+  doc.y = y + 40;
+  if (d.notes) { doc.font("Helvetica").fontSize(9).fillColor("#555").text(t(ctx, d.notes), 48, doc.y, { width: 499 }); }
+  bankBlock(ctx, d.bank);
+  footer(ctx, d.company);
+  doc.rect(0, 826, 595.28, 16).fill(INDIGO);
+}
+
+// Minimal: white space and thin lines
+function invoiceMinimal(ctx: Ctx, d: InvoiceDoc) {
+  const { doc, cfg } = ctx;
+  const logo = asset("logo.png", "public");
+  if (logo) doc.image(logo, 48, 46, { height: 32 });
+  doc.font("Helvetica").fontSize(9).fillColor("#777").text(t(ctx, `INVOICE  ${d.number ?? "DRAFT"}`), 300, 54, { width: 247, align: "right", characterSpacing: 3, lineBreak: false });
+  doc.font("Helvetica-Bold").fontSize(9).fillColor("#222").text(t(ctx, d.company.legalName), 48, 96, { width: 260 });
+  doc.font("Helvetica").fontSize(8).fillColor("#777");
+  for (const l of companyLines(cfg, d.company)) doc.text(t(ctx, l), 48, doc.y + 1, { width: 260 });
+  const yC = doc.y;
+  const small = (s: string, x: number, y: number, align: "left" | "right" = "left") => doc.font("Helvetica").fontSize(8).fillColor("#999").text(s, x, y, { width: 200, align, lineBreak: false });
+  const y0 = Math.max(yC + 30, 190);
+  small("Billed to", 48, y0);
+  doc.font("Helvetica").fontSize(10).fillColor("#111").text(t(ctx, d.client.name), 48, y0 + 12, { width: 260 });
+  doc.font("Helvetica").fontSize(8.5).fillColor("#666");
+  if (d.client.billingAddress) doc.text(t(ctx, d.client.billingAddress), 48, doc.y + 1, { width: 260 });
+  if (d.client.taxId) doc.text(t(ctx, `Tax ID ${d.client.taxId}`), 48, doc.y + 1, { width: 260 });
+  const yB = doc.y;
+  small("Issued / due", 347, y0, "right");
+  doc.font("Helvetica").fontSize(10).fillColor("#111").text(t(ctx, `${longDate(d.issueDate)} / ${longDate(d.dueDate)}`), 247, y0 + 12, { width: 300, align: "right", lineBreak: false });
+  small(`Currency ${d.currency}`, 347, y0 + 28, "right");
+  let y = Math.max(yB, y0 + 44) + 28;
+  doc.lineWidth(0.8).moveTo(48, y).lineTo(547, y).stroke("#222");
+  y += 12;
+  for (const l of d.lines) {
+    const h = measureLine(ctx, l, d, 360, 9.5);
+    y = room(ctx, y, h + 20);
+    drawLine(ctx, l, d, 48, y, 360, 9.5);
+    doc.font("Helvetica").fontSize(9.5).fillColor("#111").text(t(ctx, pdfMoney(l.amount, d.currency)), 410, y, { width: 137, align: "right", lineBreak: false });
+    y += h + 10;
+    doc.lineWidth(0.4).moveTo(48, y).lineTo(547, y).stroke("#ddd");
+    y += 10;
+  }
+  const { rows, payable } = invoiceRows(d);
+  y = room(ctx, y + 4, rows.length * 16 + 50);
+  for (const [k, v] of rows) {
+    doc.font("Helvetica").fontSize(9).fillColor("#666");
+    doc.text(t(ctx, k), 300, y, { width: 160, lineBreak: false });
+    doc.text(t(ctx, v), 450, y, { width: 97, align: "right", lineBreak: false });
+    y += 16;
+  }
+  y += 6;
+  doc.lineWidth(0.8).moveTo(48, y).lineTo(547, y).stroke("#222");
+  doc.font("Helvetica-Bold").fontSize(13).fillColor("#111");
+  doc.text("Amount payable", 48, y + 10, { lineBreak: false });
+  doc.text(t(ctx, payable), 300, y + 10, { width: 247, align: "right", lineBreak: false });
+  doc.y = y + 44;
+  if (d.notes) { doc.font("Helvetica").fontSize(9).fillColor("#666").text(t(ctx, d.notes), 48, doc.y, { width: 499 }); }
+  bankBlock(ctx, d.bank);
+  footer(ctx, d.company);
+}
+
 export async function invoicePdf(d: InvoiceDoc, b: Build = {}) {
   const { ctx, done } = start({ ...b, title: `Invoice ${d.number ?? "draft"}`, cfg: d.config });
   const { doc } = ctx;
+  if (d.config.template === "hifi-signature") { invoiceHifi(ctx, d); return done(); }
+  if (d.config.template === "modern") { invoiceModern(ctx, d); return done(); }
+  if (d.config.template === "minimal") { invoiceMinimal(ctx, d); return done(); }
   header(ctx, d.company, "INVOICE", d.number, d.status);
   const y = doc.y;
   kv(ctx, [["Bill to", d.client.name], ["Address", d.client.billingAddress], ["Tax ID", d.client.taxId]], 48, 250);

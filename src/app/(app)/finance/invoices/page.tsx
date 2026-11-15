@@ -13,6 +13,8 @@ import { INVOICE_SORTS, INVOICE_STATUSES, invoiceOutstanding, invoiceParams, inv
 import SavedViews from "@/components/SavedViews";
 import { loadViews } from "@/lib/saved-views";
 import Drawer from "@/components/ui/Drawer";
+import { INVOICE_TEMPLATES, TEMPLATE_KEYS } from "@/lib/pdf";
+import { getDocConfig } from "@/lib/pdf-data";
 import InvoiceForm from "./InvoiceForm";
 
 export const dynamic = "force-dynamic";
@@ -45,6 +47,8 @@ async function createInvoice(formData: FormData) {
       notes: String(formData.get("notes") ?? "").trim() || null, createdById: user.id, lines,
     });
     id = inv.id;
+    const tk = String(formData.get("templateKey") ?? "");
+    if (TEMPLATE_KEYS.includes(tk)) await db.invoice.update({ where: { id: inv.id }, data: { templateKey: tk } });
     await audit(user, { action: "invoice.create_draft", entity: "Invoice", entityId: inv.id, after: { total: inv.total.toString(), currency } });
   } catch (e) {
     if (e instanceof LedgerError) return fail(e.message);
@@ -120,7 +124,7 @@ export default async function Invoices({ searchParams }: { searchParams: Promise
       )}
       {canPost && sp.new && (
         <Drawer title="New invoice" closeTo={href({ new: undefined, error: undefined })}>
-          <InvoiceForm action={createInvoice} clients={clients} taxPresets={rates.map((r) => ({ name: r.name, rate: r.ratePercent.toString() }))} closeTo={href({ new: undefined })} error={sp.error} defaultClientId={sp.client} />
+          <InvoiceForm action={createInvoice} clients={clients} taxPresets={rates.map((r) => ({ name: r.name, rate: r.ratePercent.toString() }))} closeTo={href({ new: undefined })} error={sp.error} defaultClientId={sp.client} templates={INVOICE_TEMPLATES.map((t) => ({ key: t.key, label: t.label }))} defaultTemplate={(await getDocConfig(db, org, "INVOICE")).config.template} />
         </Drawer>
       )}
     </div>

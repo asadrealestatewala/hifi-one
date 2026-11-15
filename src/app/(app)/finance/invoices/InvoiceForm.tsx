@@ -6,7 +6,7 @@ import { Notice } from "@/components/ui";
 
 type ClientOpt = { id: string; name: string; currency: string };
 
-export default function InvoiceForm({ action, clients, taxPresets, closeTo, error, defaultClientId }: { action: (f: FormData) => void | Promise<void>; clients: ClientOpt[]; taxPresets: TaxPreset[]; closeTo: string; error?: string; defaultClientId?: string }) {
+export default function InvoiceForm({ action, clients, taxPresets, closeTo, error, defaultClientId, templates, defaultTemplate }: { templates: { key: string; label: string }[]; defaultTemplate: string; action: (f: FormData) => void | Promise<void>; clients: ClientOpt[]; taxPresets: TaxPreset[]; closeTo: string; error?: string; defaultClientId?: string }) {
   const first = clients.find((c) => c.id === defaultClientId);
   const [currency, setCurrency] = useState(first && ["PKR", "USD", "AED", "GBP"].includes(first.currency) ? first.currency : "USD");
   return (
@@ -27,6 +27,12 @@ export default function InvoiceForm({ action, clients, taxPresets, closeTo, erro
               {["PKR", "USD", "AED", "GBP"].map((c) => <option key={c}>{c}</option>)}
             </select>
           </div>
+        </div>
+        <div>
+          <label className="label" htmlFor="templateKey">Invoice template</label>
+          <select id="templateKey" name="templateKey" className="input" defaultValue={defaultTemplate}>
+            {templates.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+          </select>
         </div>
         <LineItems currency={currency} taxPresets={taxPresets} />
         <div>

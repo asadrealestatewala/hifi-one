@@ -13,6 +13,8 @@ import PrintButton from "@/components/PrintButton";
 import { ConfirmButton, Notice, StatusBadge } from "@/components/ui";
 import { readReason } from "@/lib/reasons";
 import { invoiceIssued } from "@/lib/events";
+import { INVOICE_TEMPLATES, TEMPLATE_KEYS } from "@/lib/pdf";
+import { getDocConfig } from "@/lib/pdf-data";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +30,18 @@ async function issue(formData: FormData) {
     if (e instanceof LedgerError) redirect(`/finance/invoices/${id}?error=${encodeURIComponent(e.message)}`);
     throw e;
   }
+  redirect(`/finance/invoices/${id}`);
+}
+
+async function setTemplate(formData: FormData) {
+  "use server";
+  const user = await requirePermission("finance.post");
+  const id = String(formData.get("id"));
+  const key = String(formData.get("templateKey") ?? "");
+  if (!TEMPLATE_KEYS.includes(key)) redirect(`/finance/invoices/${id}?error=${encodeURIComponent("Choose one of the listed templates.")}`);
+  // Only drafts can change layout: an issued invoice keeps the template it was issued with
+  const r = await db.invoice.updateMany({ where: { id, organizationId: user.organizationId, status: "DRAFT" }, data: { templateKey: key } });
+  if (r.count) await audit(user, { action: "invoice.set_template", entity: "Invoice", entityId: id, after: { template: key } });
   redirect(`/finance/invoices/${id}`);
 }
 
@@ -95,6 +109,7 @@ export default async function InvoicePage({
   const live = await db.companyProfile.findFirst({ where: { organizationId: user.organizationId, isDefault: true } });
   const co = (inv.companySnapshot as Snap | null) ?? (live as unknown as Snap | null);
   const bank = inv.bankSnapshot as Snap | null;
+  const defaultKey = (await getDocConfig(db, user.organizationId, "INVOICE")).config.template;
   return (
     <div className="space-y-4">
       <Link href="/finance/invoices" className="text-sm text-muted hover:underline print:hidden">← All invoices</Link>
@@ -126,6 +141,21 @@ export default async function InvoicePage({
             </div>
           </section>
         );
+      })()}
+      {(() => {
+        const frozen = (inv.companySnapshot as { _template?: { config?: { template?: string } } } | null)?._template?.config?.template ?? "standard";
+        const label = (k: string) => INVOICE_TEMPLATES.find((t) => t.key === k)?.label ?? k;
+        if (inv.status !== "DRAFT") return <p className="max-w-3xl text-sm text-muted print:hidden">PDF template: {label(frozen)} (set when the invoice was issued)</p>;
+        const chosen = inv.templateKey ?? defaultKey;
+        return canPost ? (
+          <form action={setTemplate} className="flex max-w-3xl flex-wrap items-end gap-2 print:hidden">
+            <input type="hidden" name="id" value={inv.id} />
+            <div><label className="label" htmlFor="templateKey">PDF template</label>
+              <select id="templateKey" name="templateKey" defaultValue={chosen} className="input">{INVOICE_TEMPLATES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}</select></div>
+            <button className="btn-ghost">Save template</button>
+            <a className="btn-ghost" href={`/finance/invoices/${inv.id}/pdf`} target="_blank" rel="noopener">Preview PDF</a>
+          </form>
+        ) : <p className="max-w-3xl text-sm text-muted print:hidden">PDF template: {label(chosen)}</p>;
       })()}
       <article className="card max-w-3xl space-y-6">
         <header className="flex justify-between gap-4">

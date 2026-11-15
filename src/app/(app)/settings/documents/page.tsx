@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { DEFAULT_DOC_CONFIG, mergeConfig, type DocConfig } from "@/lib/pdf";
+import { DEFAULT_DOC_CONFIG, INVOICE_TEMPLATES, TEMPLATE_KEYS, mergeConfig, type DocConfig } from "@/lib/pdf";
 import { DOC_TYPES, getDocConfig, type DocType } from "@/lib/pdf-data";
 import { Notice, PageHeader } from "@/components/ui";
 
@@ -25,6 +25,11 @@ async function save(formData: FormData) {
   } else {
     const raw: Record<string, unknown> = { footerText: String(formData.get("footerText") ?? "").slice(0, 500), accent: String(formData.get("accent") ?? "") };
     for (const [k] of TOGGLES) raw[k] = formData.get(k) === "on";
+    if (docType === "INVOICE") {
+      const tpl = String(formData.get("template") ?? "");
+      raw.template = TEMPLATE_KEYS.includes(tpl) ? tpl : DEFAULT_DOC_CONFIG.template;
+      raw.showSignature = formData.get("showSignature") === "on";
+    }
     const config = mergeConfig(raw as Partial<DocConfig>);
     await db.documentSetting.upsert({
       where: { organizationId_docType: { organizationId: user.organizationId, docType } },
@@ -65,6 +70,22 @@ export default async function DocumentSettings({ searchParams }: { searchParams:
               <label key={k} className="flex items-center gap-2"><input type="checkbox" name={k} defaultChecked={Boolean(config[k])} disabled={!canEdit} /> {label}</label>
             ))}
           </div>
+          {type === "INVOICE" && (
+            <div className="space-y-2 rounded-lg border border-border p-3">
+              <p className="text-sm font-medium">Default invoice template</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {INVOICE_TEMPLATES.map((o) => (
+                  <label key={o.key} className="flex cursor-pointer items-start gap-2 rounded-lg border border-border p-2 text-sm has-[:checked]:border-primary">
+                    <input type="radio" name="template" value={o.key} defaultChecked={config.template === o.key} disabled={!canEdit} className="mt-1" />
+                    <span><span className="font-medium">{o.label}</span><span className="block text-xs text-muted">{o.note}</span>
+                      <a className="text-xs underline" href={`/settings/documents/preview?type=INVOICE&template=${o.key}`} target="_blank" rel="noopener">Preview</a></span>
+                  </label>
+                ))}
+              </div>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="showSignature" defaultChecked={config.showSignature} disabled={!canEdit} /> Signature and company stamp (Hifi Signature template only)</label>
+              <p className="text-xs text-muted">Each invoice can use a different template while it is a draft. The template is frozen when the invoice is issued. The accent colour below only applies to the Standard template.</p>
+            </div>
+          )}
           <div className="grid gap-3 sm:grid-cols-[1fr_8rem]">
             <div><label className="label" htmlFor={`f-${type}`}>Footer text</label><input id={`f-${type}`} name="footerText" defaultValue={config.footerText} disabled={!canEdit} maxLength={500} className="input" /></div>
             <div><label className="label" htmlFor={`a-${type}`}>Accent colour</label><input id={`a-${type}`} name="accent" type="color" defaultValue={config.accent || DEFAULT_DOC_CONFIG.accent} disabled={!canEdit} className="input !p-1 h-10" /></div>
