@@ -22,9 +22,10 @@ export default async function Projects({ searchParams }: { searchParams: Promise
   if (sp.view === "tasks") return <TasksView user={user} sp={sp} tabs={tabs} />;
   const status = STATUSES.includes(sp.status ?? "") ? sp.status! : "all";
   const q = sp.q?.trim();
-  const [all, clients] = await Promise.all([
+  const [all, clients, staff] = await Promise.all([
     db.project.findMany({ where: projectScope(user), orderBy: { createdAt: "desc" }, include: { tasks: { select: { status: true, dueDate: true, parentId: true } } } }),
     db.client.findMany({ where: { organizationId: user.organizationId, active: true }, orderBy: { name: "asc" } }),
+    canManage && sp.new ? db.user.findMany({ where: { organizationId: user.organizationId, active: true, userType: "EMPLOYEE" }, orderBy: { name: "asc" }, select: { id: true, name: true } }) : Promise.resolve([]),
   ]);
   const clientName = new Map(clients.map((c) => [c.id, c.name]));
   const count = (s: string) => all.filter((p) => p.status === s).length;
@@ -78,6 +79,10 @@ export default async function Projects({ searchParams }: { searchParams: Promise
               <div>
                 <label className="label" htmlFor="clientId">Client</label>
                 <select id="clientId" name="clientId" className="input"><option value="">Internal project</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+              </div>
+              <div>
+                <label className="label" htmlFor="managerId">Project manager</label>
+                <select id="managerId" name="managerId" className="input" defaultValue={user.id}>{staff.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
               </div>
               <div>
                 <label className="label" htmlFor="priority">Priority</label>

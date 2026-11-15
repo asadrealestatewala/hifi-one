@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { projectScope } from "@/lib/projects";
 import { commentSharedWithClient, projectMemberAdded, projectStatusChanged, taskAssigned, taskCommented, taskMoved } from "@/lib/events";
 import { TASK_STATUSES, canCompleteProject } from "@/lib/project-rules";
+import { setProjectManager } from "@/lib/project-manager";
 import { TaskError, addComment, addSubtask, changeTaskStatus, setBlockers, setRecurrence } from "@/lib/tasks";
 
 const optDate = z.string().optional().transform((v) => (v ? new Date(v) : null));
@@ -21,13 +22,18 @@ const projectSchema = z.object({
   budgetAmount: z.string().trim().optional().transform((v) => (v ? v : null)),
   currency: z.enum(["PKR", "USD", "AED", "GBP"]).default("USD"),
   scope: z.string().trim().max(2000).optional().transform((v) => (v ? v : null)),
+  managerId: z.string().optional().transform((v) => (v ? v : null)),
 });
 
 export async function createProject(formData: FormData) {
   const user = await requirePermission("projects.manage");
   const parsed = projectSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) redirect(`/projects?new=1&error=${encodeURIComponent(parsed.error.issues[0].message)}`);
-  const d = parsed.data;
+  const { managerId: chosenManager, ...d } = parsed.data;
+  const managerId = chosenManager ?? user.id;
+  if (managerId !== user.id && !(await db.user.findFirst({ where: { id: managerId, organizationId: user.organizationId, active: true, userType: "EMPLOYEE" } }))) {
+    redirect(`/projects?new=1&error=${encodeURIComponent("Choose an active staff member as project manager")}`);
+  }
   if (d.budgetAmount !== null && !/^\d{1,12}(\.\d{1,2})?$/.test(d.budgetAmount)) {
     redirect(`/projects?new=1&error=${encodeURIComponent("Budget must be a positive number")}`);
   }
@@ -42,13 +48,15 @@ export async function createProject(formData: FormData) {
     });
     return tx.project.create({
       data: {
-        ...d, organizationId: user.organizationId, managerId: user.id,
+        ...d, organizationId: user.organizationId, managerId,
         number: `PRJ-${String(seq.next - 1).padStart(4, "0")}`,
-        members: { create: { userId: user.id, role: "Project Manager" } },
+        // The manager joins as "Project manager"; whoever created it for someone else stays on the team so they can still follow it
+        members: { create: managerId === user.id ? [{ userId: managerId, role: "Project manager" }] : [{ userId: managerId, role: "Project manager" }, { userId: user.id }] },
       },
     });
   });
-  await audit(user, { action: "project.create", entity: "Project", entityId: project.id, after: { number: project.number, name: project.name } });
+  await audit(user, { action: "project.create", entity: "Project", entityId: project.id, after: { number: project.number, name: project.name, managerId } });
+  if (managerId !== user.id) await projectMemberAdded(db, { organizationId: user.organizationId, projectId: project.id, userId: managerId, byUserId: user.id, role: "Project manager" });
   redirect(`/projects/${project.id}`);
 }
 
@@ -119,6 +127,19 @@ export async function moveTask(taskId: string, status: string): Promise<MoveResu
   }
   revalidatePath(`/projects/${task.projectId}`);
   return { ok: true };
+}
+
+// Hands the project to another staff member (the previous manager stays on the team).
+export async function changeProjectManager(formData: FormData): Promise<void> {
+  const user = await requirePermission("projects.manage");
+  const projectId = String(formData.get("projectId"));
+  const project = await loadProject(projectId, user);
+  if (!project) return;
+  const r = await setProjectManager(db, { organizationId: user.organizationId, projectId, managerId: String(formData.get("managerId") ?? ""), byUserId: user.id });
+  if (!r.ok) redirect(`/projects/${projectId}?error=${encodeURIComponent(r.error)}`);
+  if (r.changed) await audit(user, { action: "project.manager", entity: "Project", entityId: projectId, before: { managerId: r.fromId }, after: { managerId: r.toId } });
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/projects");
 }
 
 export async function setProjectStatus(formData: FormData) {
