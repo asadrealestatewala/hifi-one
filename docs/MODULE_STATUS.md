@@ -250,3 +250,6 @@ Partner Academy step 1 (2026-11-14): courses, lessons with YouTube/Vimeo/mp4 vid
 
 
 2026-11-15: Clients can now be edited after creation ("Edit details" on the client header: name, email, phone, country, tax ID, billing address, payment terms; `src/lib/client-details.ts`, audited as `client.details`). Billing currency stays fixed. Payment terms 0 shows as "Due on receipt".
+
+## Ask assistant guide (2026-11-16)
+Done: Ask answers how-to questions through the `how_to_use_hifi_one` tool (`src/lib/assistant-guide.ts`), built from the person's own menu (`visibleNav`), the Help & guide jobs (`src/lib/help-content.ts`, shared with the Help page) and hand-written topics (client, vendor, staff and partner sign-in, access denied, where keys go). Everything is filtered by the asker's permissions. New read-only tools: clients overview, recent payments, my leave requests, my recent attendance. Tested: guide filtering (`assistant-guide.test.ts`); not run against the database or checked in a browser. Keep `TOPICS` true when sign-in or portal rules change.
