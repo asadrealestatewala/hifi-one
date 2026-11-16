@@ -12,6 +12,8 @@ export const INTEGRATIONS = {
   GOOGLE_PAGESPEED: { label: "Google PageSpeed Insights", env: "GOOGLE_PAGESPEED_API_KEY", usedFor: "Prospector: website speed and SEO checks (stage 2).", stage: "In use" },
   ANTHROPIC: { label: "Anthropic (Claude)", env: "ANTHROPIC_API_KEY", usedFor: "Partner Academy: drafting quick-check questions from a lesson script (drafts only; a person reviews and publishes them). The Ask assistant (bottom-right) also uses this key. The content calendar uses it to write a client\u2019s whole month of draft posts. The content calendar uses it to write a client's whole month of draft posts.", stage: "In use" },
   GEMINI: { label: "Google Gemini (images)", env: "GEMINI_API_KEY", usedFor: "Content calendar: the “Make image with AI” button on a post, using Google's image model. Create the key in Google AI Studio; each image costs about 4 to 5 cents.", stage: "In use" },
+  META_APP_ID: { label: "Meta app ID (Facebook and Instagram publishing)", env: "META_APP_ID", usedFor: "Content calendar: posting approved content to clients' Facebook Pages and Instagram accounts. The number shown at the top of your app in developers.facebook.com.", stage: "In use", minLength: 5 },
+  META_APP_SECRET: { label: "Meta app secret", env: "META_APP_SECRET", usedFor: "Goes with the Meta app ID: App settings → Basic → App secret in developers.facebook.com.", stage: "In use" },
   SOCIALAPIS: { label: "SocialAPIs", env: "SOCIALAPIS_API_KEY", usedFor: "Prospector: Facebook followers and last post date (stage 3). The free plan allows 200 requests a month; each business uses 2.", stage: "In use" },
 } as const;
 export type IntegrationProvider = keyof typeof INTEGRATIONS;
@@ -37,16 +39,17 @@ export function unseal(stored: string, secret: string): string | null {
   } catch { return null; } // wrong secret or damaged value
 }
 
-// What a person may paste: one token with no spaces, 16 to 400 visible characters
-export function cleanKey(raw: string): string {
+// What a person may paste: one token with no spaces, 16 to 400 visible characters (an app ID may be shorter)
+export function cleanKey(raw: string, min = 16): string {
   const v = raw.trim();
-  if (v.length < 16 || v.length > 400) throw new IntegrationKeyError("That does not look like an API key (it should be 16 to 400 characters).");
+  if (v.length < min || v.length > 400) throw new IntegrationKeyError(`That does not look like an API key (it should be ${min} to 400 characters).`);
   if (!/^[\x21-\x7e]+$/.test(v)) throw new IntegrationKeyError("The key must be one piece with no spaces or line breaks. Paste it again.");
   return v;
 }
 
 export async function setKey(db: Db, p: { organizationId: string; provider: IntegrationProvider; value: string; userId: string; secret?: string }) {
-  const value = cleanKey(p.value);
+  const cfg = INTEGRATIONS[p.provider];
+  const value = cleanKey(p.value, "minLength" in cfg ? cfg.minLength : 16);
   const valueEnc = seal(value, p.secret ?? appSecret());
   const hint = value.slice(-4);
   await db.integrationKey.upsert({

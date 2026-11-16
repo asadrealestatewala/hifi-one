@@ -13,7 +13,8 @@ import { PLATFORMS, PLATFORM_META, POST_TYPES, POST_TYPE_LABEL, canTransition, c
 import { PlatformDot } from "../PostForm";
 import { STATUS_STYLE } from "../status-style";
 import FilesPanel from "@/components/FilesPanel";
-import { Notice } from "@/components/ui";
+import { ConfirmButton, Notice } from "@/components/ui";
+import { autoPlatforms, cancelAutoPosting, retryPublication, scheduleAutoPosting, SocialError } from "@/lib/social-meta";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,60 @@ async function move(formData: FormData) {
   }
   redirect(`/content/${id}`);
 }
+
+// "Post automatically": queue the approved post for the chosen Facebook and Instagram accounts
+async function scheduleAuto(formData: FormData) {
+  "use server";
+  const user = await requirePermission("content.publish");
+  const id = String(formData.get("id"));
+  let when = "";
+  try {
+    const accounts = Object.fromEntries(["FACEBOOK", "INSTAGRAM"].map((p) => [p, String(formData.get(`acct_${p}`) ?? "")]));
+    const r = await scheduleAutoPosting(db, { organizationId: user.organizationId, itemId: id, userId: user.id, accounts });
+    when = r.now ? "now" : "scheduled";
+    await audit(user, { action: "content.auto_schedule", entity: "ContentItem", entityId: id, after: { accounts, scheduledFor: r.scheduledFor.toISOString() } });
+  } catch (e) {
+    if (e instanceof SocialError) back(id, e.message);
+    throw e;
+  }
+  redirect(`/content/${id}?auto=${when}`);
+}
+
+async function cancelAuto(formData: FormData) {
+  "use server";
+  const user = await requirePermission("content.publish");
+  const id = String(formData.get("id"));
+  try {
+    await cancelAutoPosting(db, { organizationId: user.organizationId, itemId: id, userId: user.id });
+    await audit(user, { action: "content.auto_cancel", entity: "ContentItem", entityId: id });
+  } catch (e) {
+    if (e instanceof SocialError || e instanceof ContentError) back(id, e.message);
+    throw e;
+  }
+  redirect(`/content/${id}`);
+}
+
+async function retryAuto(formData: FormData) {
+  "use server";
+  const user = await requirePermission("content.publish");
+  const id = String(formData.get("id"));
+  try {
+    const pub = await retryPublication(db, { organizationId: user.organizationId, publicationId: String(formData.get("pub")), userId: user.id });
+    await audit(user, { action: "content.auto_retry", entity: "ContentPublication", entityId: pub.id });
+  } catch (e) {
+    if (e instanceof SocialError || e instanceof ContentError) back(id, e.message);
+    throw e;
+  }
+  redirect(`/content/${id}?auto=now`);
+}
+
+const PUB_STATUS: Record<string, { label: string; cls: string }> = {
+  QUEUED: { label: "Waiting", cls: "border-border text-muted" },
+  PUBLISHING: { label: "Posting now", cls: "border-primary/30 text-primary" },
+  PUBLISHED: { label: "Live", cls: "border-success/30 text-success" },
+  FAILED: { label: "Failed", cls: "border-brand/30 text-brand" },
+  CANCELLED: { label: "Cancelled", cls: "border-border text-muted" },
+};
 
 async function save(formData: FormData) {
   "use server";
@@ -100,11 +155,11 @@ async function addHashtags(formData: FormData) {
 
 const REDONE: Record<string, string> = { CAPTION: "New caption written. The earlier one is kept under Earlier versions.", IDEA: "A different idea was written for this slot. The earlier one is kept under Earlier versions.", PLATFORMS: "A caption was written for each platform. Check each tab before sending it on." };
 
-export default async function ContentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; fileError?: string; fileOk?: string; created?: string; redone?: string }> }) {
+export default async function ContentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; fileError?: string; fileOk?: string; created?: string; redone?: string; auto?: string }> }) {
   const user = await requirePermission("content.view");
   const { id } = await params;
-  const { error, fileError, fileOk, created, redone } = await searchParams;
-  const item = await db.contentItem.findFirst({ where: { id, organizationId: user.organizationId }, include: { events: { orderBy: { createdAt: "desc" } }, versions: { orderBy: { version: "desc" } } } });
+  const { error, fileError, fileOk, created, redone, auto } = await searchParams;
+  const item = await db.contentItem.findFirst({ where: { id, organizationId: user.organizationId }, include: { events: { orderBy: { createdAt: "desc" } }, versions: { orderBy: { version: "desc" } }, publications: { include: { account: { select: { name: true, username: true } } }, orderBy: { platform: "asc" } } } });
   if (!item) notFound();
   const [client, people, clientUsers] = await Promise.all([
     item.clientId ? db.client.findUnique({ where: { id: item.clientId } }) : Promise.resolve(null),
@@ -119,6 +174,11 @@ export default async function ContentPage({ params, searchParams }: { params: Pr
   const pc = cleanPlatformCopy(item.platformCopy);
   const issues = captionIssues({ ...item, platforms: plats });
   const canPublish = user.permissions.has("content.publish");
+  const autoPlats = autoPlatforms(item);
+  const socialAccounts = canPublish && item.status === "APPROVED" && autoPlats.length
+    ? await db.socialAccount.findMany({ where: { organizationId: user.organizationId, clientId: item.clientId ?? null, status: "ACTIVE", platform: { in: autoPlats } }, orderBy: { name: "asc" } }) : [];
+  const pubs = item.publications.filter((x) => x.status !== "CANCELLED" || item.status === "SCHEDULED");
+  const canCancelAuto = canPublish && item.publications.some((x) => x.status === "QUEUED" || x.status === "FAILED");
   const next = ["DRAFT", "INTERNAL_REVIEW", "CLIENT_REVIEW", "CHANGES_REQUESTED", "APPROVED", "SCHEDULED", "PUBLISHED"].filter((to) => canTransition("STAFF", item.status, to, Boolean(item.clientId)))
     .filter((to) => (to === "SCHEDULED" || to === "PUBLISHED" ? canPublish : canManage));
   return (
@@ -185,6 +245,56 @@ export default async function ContentPage({ params, searchParams }: { params: Pr
         </form>
       )}
       <FilesPanel user={user} ownerType="CONTENT" ownerId={item.id} returnTo={`/content/${item.id}`} title="Creative files (images, video, documents)" flash={{ fileError, fileOk }} />
+
+      {auto === "scheduled" && <Notice kind="ok">Scheduled. It goes out by itself at the planned time. You and the team are told when it is live or if anything fails.</Notice>}
+      {auto === "now" && <Notice kind="ok">Posting now. Refresh in a minute to see the link (videos on Instagram can take a few minutes).</Notice>}
+      {canPublish && item.status === "APPROVED" && autoPlats.length > 0 && (
+        <form action={scheduleAuto} className="card space-y-3" aria-label="Post automatically">
+          <input type="hidden" name="id" value={item.id} />
+          <h2 className="font-semibold">Post automatically</h2>
+          <p className="text-sm text-muted">Goes out {item.plannedDate ? <>on {item.plannedDate} at {item.plannedTime ?? "10:00"} (company time), or straight away if that time has passed</> : "once the post has a date"}. Uses the attached image(s) or video and the caption for each platform.</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {autoPlats.map((p) => {
+              const list = socialAccounts.filter((a) => a.platform === p);
+              return (
+                <div key={p}>
+                  <label className="label flex items-center gap-1.5" htmlFor={`acct-${p}`}><PlatformDot code={PLATFORM_META[p]?.code ?? "?"} color={PLATFORM_META[p]?.color ?? "#6b7280"} size={16} />{PLATFORM_META[p]?.label}</label>
+                  {list.length ? (
+                    <select id={`acct-${p}`} name={`acct_${p}`} defaultValue={list[0].id} className="input">
+                      {list.map((a) => <option key={a.id} value={a.id}>{a.name}{a.username ? ` (@${a.username})` : ""}</option>)}
+                      <option value="">Post by hand</option>
+                    </select>
+                  ) : <p className="text-sm text-muted">No {PLATFORM_META[p]?.label} account connected for {client?.name ?? "our own posts"}. <Link className="underline" href="/content/accounts">Connect one</Link></p>}
+                </div>
+              );
+            })}
+          </div>
+          {socialAccounts.length > 0 && <SubmitButton className="btn" pendingText="Scheduling…">Schedule posting</SubmitButton>}
+          {plats.some((p) => !autoPlats.includes(p)) && <p className="text-xs text-muted">{plats.filter((p) => !autoPlats.includes(p)).map((p) => PLATFORM_META[p]?.label ?? p).join(", ")}: posted by hand for now. Press &ldquo;Confirm it was published&rdquo; after.</p>}
+        </form>
+      )}
+      {pubs.length > 0 && (
+        <section className="card space-y-2" aria-label="Automatic posting">
+          <h2 className="font-semibold">Automatic posting</h2>
+          <ul className="divide-y divide-border text-sm">
+            {pubs.map((x) => (
+              <li key={x.id} className="flex flex-wrap items-center gap-2 py-2">
+                <PlatformDot code={PLATFORM_META[x.platform]?.code ?? "?"} color={PLATFORM_META[x.platform]?.color ?? "#6b7280"} size={18} />
+                <span className="font-medium">{x.account.name}</span>
+                <span className={`rounded-full border px-2 py-0.5 text-xs ${(PUB_STATUS[x.status] ?? PUB_STATUS.QUEUED).cls}`}>{(PUB_STATUS[x.status] ?? PUB_STATUS.QUEUED).label}</span>
+                <span className="text-xs text-muted">{x.status === "PUBLISHED" && x.publishedAt ? `posted ${x.publishedAt.toLocaleString("en-GB")}` : x.status === "QUEUED" ? `at ${x.scheduledFor.toLocaleString("en-GB")}` : ""}</span>
+                {x.permalink && <a href={x.permalink} target="_blank" rel="noopener noreferrer" className="underline">Open post</a>}
+                {canPublish && (x.status === "FAILED" || x.status === "CANCELLED") && item.status !== "PUBLISHED" && <form action={retryAuto} className="ml-auto"><input type="hidden" name="id" value={item.id} /><input type="hidden" name="pub" value={x.id} /><SubmitButton className="btn-ghost" pendingText="Queuing…">Try again</SubmitButton></form>}
+                {x.error && <p className={`w-full text-xs ${x.status === "PUBLISHED" ? "text-muted" : "text-brand"}`}>{x.error}</p>}
+              </li>
+            ))}
+          </ul>
+          {canCancelAuto && item.status === "SCHEDULED" && (
+            <form action={cancelAuto}><input type="hidden" name="id" value={item.id} />
+              <ConfirmButton title="Stop automatic posting?" message="Posts that have not gone out yet are stopped. If nothing went out, the post goes back to Approved." confirmLabel="Stop posting">Stop automatic posting</ConfirmButton></form>
+          )}
+        </section>
+      )}
 
       {next.length > 0 && (
         <section className="card space-y-2">

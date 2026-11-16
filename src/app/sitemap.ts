@@ -11,6 +11,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...["/site/services", "/site/pricing", "/site/contact", "/site/app"].map((p) => page(p, 0.9)),
     ...["/site/about", "/site/team", "/site/careers", "/site/blog"].map((p) => page(p, 0.7)),
     page("/partners", 0.8),
+    ...["/site/privacy", "/site/data-deletion"].map((p) => page(p, 0.3, "yearly")),
     page("/site/careers/jobs", 0.8, "weekly"),
     ...JOBS.map((j) => page(`/site/careers/jobs/${j.id}`, 0.6, "weekly")),
     ...POSTS.map((p) => ({ ...page(`/site/blog/${p.slug}`, 0.6), lastModified: p.date })),

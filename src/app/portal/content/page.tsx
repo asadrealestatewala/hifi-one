@@ -93,7 +93,7 @@ export default async function PortalContent({ searchParams }: { searchParams: Pr
       {rest.length > 0 && (
         <section className="card">
           <h2 className="font-semibold mb-2">Earlier content</h2>
-          <ul className="text-sm">{rest.map((i) => <li key={i.id} className="flex justify-between border-t border-border py-1.5 first:border-0"><span>{i.title}</span><span className="text-muted">{LABEL(i.status)}</span></li>)}</ul>
+          <ul className="text-sm">{rest.map((i) => <li key={i.id} className="flex flex-wrap justify-between gap-2 border-t border-border py-1.5 first:border-0"><span>{i.title}</span><span className="flex gap-2 text-muted">{i.publications.filter((x) => x.permalink).map((x) => <a key={x.platform} href={x.permalink!} target="_blank" rel="noopener noreferrer" className="underline">View on {PLATFORM_META[x.platform]?.label ?? x.platform}</a>)}{LABEL(i.status)}</span></li>)}</ul>
         </section>
       )}
     </div>
