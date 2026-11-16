@@ -33,6 +33,7 @@ export const SCREEN_GROUPS: ScreenGroup[] = [
   { id: "partner-stack", label: "Partner Stack", tabs: [
     { href: "/partner-stack", label: "Applications", permission: "partners.manage" },
     { href: "/partner-stack/partners", label: "Partners", permission: "partners.manage" },
+    { href: "/partner-stack/resale", label: "Resale billing", permission: "partners.manage" },
     { href: "/partner-stack/certificates", label: "Certificates", permission: "partners.manage" },
     { href: "/partner-stack/academy", label: "Academy", permission: "partners.manage" },
     { href: "/partner-stack/inquiries", label: "Inquiries", permission: "partners.manage" },
@@ -45,6 +46,7 @@ export const SCREEN_GROUPS: ScreenGroup[] = [
   { id: "client-billing", label: "Billing", tabs: [
     { href: "/finance/invoices", label: "Invoices", permission: "finance.view" },
     { href: "/finance/payments", label: "Payments & receipts", permission: "finance.view" },
+    { href: "/finance/partner-payments", label: "Partner payments", permission: "finance.post" },
     { href: "/finance/subscriptions", label: "Subscriptions", permission: "finance.view" },
   ] },
   { id: "fin-books", label: "Books", tabs: [

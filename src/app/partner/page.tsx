@@ -3,6 +3,7 @@ import { requirePartnerUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { certificateKindLabel, certificateStatus, durationLabel, getSettings, linkedInAddUrl, linkedInShareUrl, partnerId } from "@/lib/partner-stack";
 import { IDENTITY_STATE_LABEL, identityState } from "@/lib/partner-identity";
+import { addMonths, monthLabel, monthOf } from "@/lib/partner-resale";
 import { Badge, Empty, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,13 @@ export default async function PartnerHome() {
     db.partnerIdentity.findUnique({ where: { earnerId: earner.id }, select: { status: true, recheckDueAt: true } }),
     db.partnerPayoutAccount.count({ where: { earnerId: earner.id, removedAt: null } }),
   ]);
+  // Resellers: schools still without last month's count, and Hifi invoices waiting for payment
+  const lastMonth = addMonths(monthOf(new Date()), -1);
+  const [resale, missingCounts, unpaid] = await Promise.all([
+    db.partnerResaleTerm.count({ where: { earnerId: earner.id, model: "RESALE" } }),
+    db.resaleSchool.count({ where: { earnerId: earner.id, endedAt: null, startMonth: { lte: lastMonth }, counts: { none: { month: lastMonth } } } }),
+    earner.billingClientId ? db.invoice.count({ where: { clientId: earner.billingClientId, status: { in: ["ISSUED", "PARTIALLY_PAID"] } } }) : 0,
+  ]);
   const company = org?.name ?? "Hifi Marketing and Technologies";
   const now = new Date();
   const idState = identityState(identity, now);
@@ -31,6 +39,12 @@ export default async function PartnerHome() {
         <section className="card flex flex-wrap items-center justify-between gap-3">
           <div><h2 className="font-semibold">Complete your details to get paid</h2><p className="text-sm text-muted">{todo.join(" · ")}. Training and selling are open now; payouts start once these are done.</p></div>
           <Link className="btn" href="/partner/details">Open my details</Link>
+        </section>
+      )}
+      {resale > 0 && (missingCounts > 0 || unpaid > 0) && (
+        <section className="card flex flex-wrap items-center justify-between gap-3">
+          <div><h2 className="font-semibold">Reselling</h2><p className="text-sm text-muted">{[missingCounts > 0 ? `${missingCounts} school${missingCounts === 1 ? "" : "s"} without a student count for ${monthLabel(lastMonth)}` : null, unpaid > 0 ? `${unpaid} invoice${unpaid === 1 ? "" : "s"} to pay` : null].filter(Boolean).join(" · ")}</p></div>
+          <div className="flex flex-wrap gap-2">{missingCounts > 0 && <Link className="btn" href={`/partner/schools?month=${lastMonth}`}>Enter counts</Link>}{unpaid > 0 && <Link className="btn-ghost" href="/partner/invoices">Open invoices</Link>}</div>
         </section>
       )}
       <section className="card space-y-3">

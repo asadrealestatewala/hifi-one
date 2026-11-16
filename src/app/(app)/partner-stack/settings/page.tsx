@@ -1,6 +1,6 @@
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { ACADEMY_TEST_SETTINGS, SOLUTION_EXPIRY_KEY, ensurePartnerDefaults, getSettings } from "@/lib/partner-stack";
+import { ACADEMY_TEST_SETTINGS, RESALE_SETTINGS, SOLUTION_EXPIRY_KEY, ensurePartnerDefaults, getSettings } from "@/lib/partner-stack";
 import { Notice, PageHeader } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import SubmitButton from "@/components/ui/SubmitButton";
@@ -56,6 +56,15 @@ export default async function PartnerSettings({ searchParams }: { searchParams: 
             ))}
           </div>
           <p className="text-xs text-muted">Questions are drawn at random from every published question of the Solution&rsquo;s course. A test not submitted in time counts as a try. After the last try the test pauses and the partner team is told. Passing issues the certificate of authorisation automatically. The refresher test renews it: it uses the same pass mark and retake rules, opens the set number of days before the certificate expires, and keeps the certificate ID.</p>
+        </section>
+        <section className="card space-y-3">
+          <h2 className="font-semibold">Reseller billing</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {Object.entries(RESALE_SETTINGS).map(([key, [label, min, max]]) => (
+              <div key={key}><label className="label" htmlFor={`s-${key}`}>{label}</label><input id={`s-${key}`} name={key} type="number" min={min} max={max} required defaultValue={s[key]} className="input" /></div>
+            ))}
+          </div>
+          <p className="text-xs text-muted">On the 1st, resellers are emailed to enter last month&rsquo;s student counts. On the billing day, draft invoices for last month are made from the confirmed counts for Finance to review. A reseller is warned 7 days after an invoice is due; when it is still unpaid after the set days, the partner team and Finance are told which schools to pause.</p>
         </section>
         <section className="card space-y-3">
           <h2 className="font-semibold">Certificates</h2>

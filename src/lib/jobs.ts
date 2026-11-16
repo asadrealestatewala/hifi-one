@@ -13,6 +13,7 @@ import { notifyMany, usersWithPermission } from "./notifications";
 import { purgeMonitoring } from "./monitoring";
 import { sendCertificateReminders } from "./partner-stack";
 import { sendIdentityRecheckReminders } from "./partner-identity";
+import { runResaleDaily } from "./partner-resale";
 import { sendAcademyWeekly } from "./partner-academy";
 import { expireContracts, expireQuotes, generateDueInvoices } from "./sales";
 import { defaultStorage } from "./storage";
@@ -84,6 +85,12 @@ export const JOBS: JobDef[] = [
     async run({ db, organizationId, now }) {
       const n = await sendIdentityRecheckReminders(db, organizationId, now);
       return `${n} reminder${n === 1 ? "" : "s"} sent`;
+    },
+  },
+  {
+    key: "partner_resale_billing", label: "Reseller billing", what: "On the 1st, asks resellers for last month's student counts. On the billing day (Partner Stack settings, default the 5th), makes draft invoices for last month from the confirmed counts for Finance to review. Warns a reseller 7 days after an invoice is due, and tells the partner team and Finance which schools to pause when it stays unpaid.",
+    async run({ db, organizationId, now }) {
+      return runResaleDaily(db, organizationId, now);
     },
   },
   {
