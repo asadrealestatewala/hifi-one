@@ -11,7 +11,7 @@ export type FileActor = {
   permissions: ReadonlySet<string>;
 };
 
-export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT", "CIRCULAR", "CHAT_MESSAGE", "PROJECT_ASSET", "EMPLOYEE_REQUEST", "PAYMENT"] as const;
+export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT", "CIRCULAR", "CHAT_MESSAGE", "PROJECT_ASSET", "EMPLOYEE_REQUEST", "PAYMENT", "PARTNER_IDENTITY"] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 export type Mode = "read" | "upload" | "delete";
 
@@ -167,6 +167,17 @@ export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: 
     if (!c) return false;
     if (has("circulars.send")) return true;
     return (await db.circularRecipient.count({ where: { circularId: c.id, userId: a.id } })) > 0;
+  }
+
+  if (ownerType === "PARTNER_IDENTITY") {
+    // A partner's ID images (CNIC front and back, passport page). The partner sees and adds their own; staff need partners.view_identity
+    // (the route that serves these files writes every staff view to the audit log). Once verified, only staff remove them.
+    const e = await db.earner.findFirst({ where: { id: ownerId, organizationId: a.organizationId }, select: { userId: true, identity: { select: { status: true } } } });
+    if (!e) return false;
+    const self = a.userType === "PARTNER" && e.userId !== null && e.userId === a.id;
+    const officer = has("partners.view_identity");
+    if (mode === "read" || mode === "upload") return self || officer;
+    return officer || (self && e.identity?.status !== "VERIFIED");
   }
 
   if (ownerType === "EMPLOYEE_REQUEST") {

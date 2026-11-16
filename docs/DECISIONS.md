@@ -236,3 +236,8 @@ Asad asked for the background to be selectable "just like modes". Each person pi
 ## 2026-11-15: Contracts can be shown on the client portal
 
 Clients had no place to see their signed scope of work. A contract now has "Show to client" (`contracts.manage`), which puts it and its attached files on the portal's Agreements page (the menu item appears once one is shared). Only active (signed) or later contracts can be shown, never drafts; internal notes are never shown. Client portal users can read those files but never upload or delete. Hiding it again closes file access immediately. The client's portal users get one notification when a contract is first shown.
+
+## 2026-11-16: Partner identity checks and payout accounts
+
+Asad approved the reseller plan ("ok", 10 recommendations). Identity (KYC) is required before payouts and resale billing, never before training. ID numbers and payout account numbers are encrypted at rest with only the last four characters in clear, because they are more sensitive than a staff CNIC field and partners are outside the company. A new permission `partners.view_identity` (Super Admin and Partner Manager) guards full details and pictures; `partners.manage` alone sees only status. Payout accounts are immutable, wait 48 hours and trigger a security email, because changing the payout destination is the most common partner fraud; a title that does not match the verified name needs a second person's approval. Staff may enter identity details for a partner but never add payout accounts for them. No wallet or card integration is connected, so all payouts are by hand and the screens say so.
+
