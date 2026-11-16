@@ -84,6 +84,15 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   academy_refresher_questions: "15",
   academy_refresher_minutes: "20",
   academy_refresher_window_days: "30",
+  // Reseller billing: drafts for last month are made on this day; schools are flagged for a pause this many days after an unpaid due date
+  resale_billing_day: "5",
+  resale_pause_days: "15",
+};
+
+// Bounds for the reseller billing settings: [label, min, max]
+export const RESALE_SETTINGS: Record<string, [string, number, number]> = {
+  resale_billing_day: ["Day of the month draft invoices are made", 2, 28],
+  resale_pause_days: ["Days unpaid before schools are paused", 1, 90],
 };
 
 // Bounds for the final test settings: [label, min, max]
@@ -155,8 +164,8 @@ export async function saveSettings(db: Db, p: { organizationId: string; actorId:
       clean[key] = t;
     }
     else if (key === "linkedin_company_id") { const t = v.trim(); if (t && !/^\d{1,15}$/.test(t)) throw new PartnerError("LinkedIn company page ID: use the number only, or leave it empty."); clean[key] = t; }
-    else if (key in ACADEMY_TEST_SETTINGS) {
-      const [label, min, max] = ACADEMY_TEST_SETTINGS[key];
+    else if (key in ACADEMY_TEST_SETTINGS || key in RESALE_SETTINGS) {
+      const [label, min, max] = ACADEMY_TEST_SETTINGS[key] ?? RESALE_SETTINGS[key];
       const t = v.trim();
       if (!/^\d{1,4}$/.test(t) || Number(t) < min || Number(t) > max) throw new PartnerError(`${label}: enter a whole number from ${min} to ${max}.`);
       clean[key] = String(Number(t));

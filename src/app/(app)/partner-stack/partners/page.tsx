@@ -18,6 +18,7 @@ import SubmitButton from "@/components/ui/SubmitButton";
 import ConfirmButton from "@/components/ui/ConfirmButton";
 import { addPartnerAction, approvePayoutAction, directAccessAction, issueCertificateAction, reviewIdentityAction, staffIdentityAction, staffRemovePayoutAction, updatePartnerAction } from "../actions";
 import { DurationFields } from "../_components/Fields";
+import { ResaleSection } from "../_components/ResaleSection";
 
 export const dynamic = "force-dynamic";
 
@@ -163,6 +164,7 @@ export default async function Partners({ searchParams }: { searchParams: Promise
                 )}
               </section>
             )}
+            <ResaleSection organizationId={org} earnerId={open.id} solutions={open.solutions} />
             <section className="card space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">Identity check</h3><Badge tone={IDENTITY_TONE[idState]}>{IDENTITY_STATE_LABEL[idState]}</Badge></div>
               {!identity ? (

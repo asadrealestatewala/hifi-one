@@ -8,15 +8,16 @@ import { FileError } from "@/lib/files";
 import { DOCUMENT_LABEL, IdentityError, approvePayoutAccount, removePayoutAccount, reviewIdentity, saveIdentityDocument, submitIdentity } from "@/lib/partner-identity";
 import { defaultStorage } from "@/lib/storage";
 import {
-  ACADEMY_TEST_SETTINGS, PartnerError, TYPE_KEYS, addPartner, approveApplication, issueCertificate, rejectApplication, renewCertificate, revokeCertificate, saveEarnerType, setDirectAccess, saveSettings, updateEarner, updateInquiry,
+  ACADEMY_TEST_SETTINGS, PartnerError, RESALE_SETTINGS, TYPE_KEYS, addPartner, approveApplication, issueCertificate, rejectApplication, renewCertificate, revokeCertificate, saveEarnerType, setDirectAccess, saveSettings, updateEarner, updateInquiry,
 } from "@/lib/partner-stack";
+import { ResaleError, addSchool, confirmCounts, createResaleDrafts, endSchool, enterCount, monthLabel, setResaleTerm } from "@/lib/partner-resale";
 import { readDuration } from "./_components/Fields";
 
 const str = (f: FormData, k: string) => String(f.get(k) ?? "");
 const list = (f: FormData, prefix: string) => [...f.keys()].filter((k) => k.startsWith(prefix) && f.get(k) === "on").map((k) => k.slice(prefix.length));
 const go = (base: string, extra: string): never => redirect(`${base}${base.includes("?") ? "&" : "?"}${extra}`);
 const fail = (base: string, e: unknown): never => {
-  if (e instanceof PartnerError || e instanceof IdentityError || e instanceof FileError) return go(base, `error=${encodeURIComponent(e.message)}`);
+  if (e instanceof PartnerError || e instanceof IdentityError || e instanceof FileError || e instanceof ResaleError) return go(base, `error=${encodeURIComponent(e.message)}`);
   throw e;
 };
 
@@ -134,7 +135,7 @@ export async function saveSettingsAction(formData: FormData): Promise<void> {
   const base = "/partner-stack/settings";
   try {
     const values: Record<string, string> = {};
-    for (const [k, v] of formData.entries()) if (typeof v === "string" && (k.startsWith("cert_") || k.startsWith("calculator_") || k === "terms_text" || k === "linkedin_company_id" || k in ACADEMY_TEST_SETTINGS)) values[k] = v;
+    for (const [k, v] of formData.entries()) if (typeof v === "string" && (k.startsWith("cert_") || k.startsWith("calculator_") || k === "terms_text" || k === "linkedin_company_id" || k in ACADEMY_TEST_SETTINGS || k in RESALE_SETTINGS)) values[k] = v;
     const clean = await saveSettings(db, { organizationId: user.organizationId, actorId: user.id, values });
     await audit(user, { action: "partner.settings", entity: "PartnerSetting", after: { ...clean, terms_text: clean.terms_text ? "(changed)" : undefined } });
     for (const key of TYPE_KEYS) {
@@ -239,4 +240,88 @@ export async function staffRemovePayoutAction(formData: FormData): Promise<void>
   } catch (e) { fail(base, e); }
   revalidatePath("/partner-stack/partners");
   go(base, "saved=Payout account removed.");
+}
+
+// ----- Reseller partners, step 2: resale terms, schools, counts and monthly drafts -----
+
+export async function setResaleTermAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("partners.manage");
+  const id = str(formData, "id");
+  const base = `/partner-stack/partners?open=${encodeURIComponent(id)}`;
+  try {
+    const t = await setResaleTerm(db, {
+      organizationId: user.organizationId, earnerId: id, productCode: str(formData, "productCode"), actorId: user.id,
+      input: { model: str(formData, "model"), collection: str(formData, "collection"), unitName: str(formData, "unitName") || "student", currency: str(formData, "currency") || "PKR", wholesalePrice: str(formData, "wholesalePrice"), resalePrice: str(formData, "resalePrice"), paymentTermsDays: str(formData, "paymentTermsDays") || "10", effectiveFrom: str(formData, "effectiveFrom"), note: str(formData, "note") },
+    });
+    await audit(user, { action: "partner.resale_terms", entity: "PartnerResaleTerm", entityId: t.id, after: { earnerId: id, product: str(formData, "productCode"), model: t.model, collection: t.collection, currency: t.currency, wholesale: String(t.wholesalePrice), resale: t.resalePrice ? String(t.resalePrice) : null, from: t.effectiveFrom, days: t.paymentTermsDays } });
+  } catch (e) { fail(base, e); }
+  revalidatePath("/partner-stack/partners");
+  go(base, "saved=Selling terms saved.#resale");
+}
+
+export async function staffAddSchoolAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("partners.manage");
+  const id = str(formData, "id");
+  const base = `/partner-stack/partners?open=${encodeURIComponent(id)}`;
+  try {
+    const s = await addSchool(db, { organizationId: user.organizationId, earnerId: id, actorId: user.id, byStaff: true, input: { productCode: str(formData, "productCode"), name: str(formData, "name"), email: str(formData, "email"), phone: str(formData, "phone"), city: str(formData, "city"), startMonth: str(formData, "startMonth") } });
+    await audit(user, { action: "partner.school.add", entity: "ResaleSchool", entityId: s.id, after: { earnerId: id, clientId: s.clientId, startMonth: s.startMonth } });
+  } catch (e) { fail(base, e); }
+  revalidatePath("/partner-stack/partners");
+  go(base, "saved=School added.#resale");
+}
+
+export async function staffEndSchoolAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("partners.manage");
+  const id = str(formData, "id");
+  const base = `/partner-stack/partners?open=${encodeURIComponent(id)}`;
+  try {
+    const s = await endSchool(db, { organizationId: user.organizationId, earnerId: id, schoolId: str(formData, "schoolId"), actorId: user.id });
+    await audit(user, { action: "partner.school.end", entity: "ResaleSchool", entityId: s.id, after: { reason: str(formData, "reason").trim() } });
+  } catch (e) { fail(base, e); }
+  revalidatePath("/partner-stack/partners");
+  go(base, "saved=School removed. It stays a Hifi client; months already used are still billed.#resale");
+}
+
+export async function staffEnterCountAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("partners.manage");
+  const month = str(formData, "month");
+  const base = `/partner-stack/resale?month=${encodeURIComponent(month)}`;
+  try {
+    const { before, after } = await enterCount(db, { organizationId: user.organizationId, earnerId: str(formData, "earnerId"), schoolId: str(formData, "schoolId"), month, units: str(formData, "units"), actorId: user.id, byStaff: true });
+    await audit(user, { action: "partner.count.enter", entity: "ResaleCount", entityId: after.id, before: before ? { units: before.units } : undefined, after: { units: after.units, month } });
+  } catch (e) { fail(base, e); }
+  revalidatePath("/partner-stack/resale");
+  go(base, "saved=Count saved and confirmed.");
+}
+
+export async function confirmCountsAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("partners.manage");
+  const month = str(formData, "month");
+  const base = `/partner-stack/resale?month=${encodeURIComponent(month)}`;
+  const ids = formData.getAll("countId").map(String).filter(Boolean);
+  let n = 0;
+  try {
+    n = await confirmCounts(db, { organizationId: user.organizationId, countIds: ids, actorId: user.id });
+    await audit(user, { action: "partner.count.confirm", entity: "ResaleCount", after: { month, confirmed: n } });
+  } catch (e) { fail(base, e); }
+  revalidatePath("/partner-stack/resale");
+  go(base, `saved=${encodeURIComponent(`${n} count${n === 1 ? "" : "s"} confirmed.`)}`);
+}
+
+export async function createDraftsAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("partners.manage");
+  const month = str(formData, "month");
+  const base = `/partner-stack/resale?month=${encodeURIComponent(month)}`;
+  let msg = "";
+  try {
+    const r = await createResaleDrafts(db, { organizationId: user.organizationId, month, actorId: user.id });
+    await audit(user, { action: "partner.resale.drafts", entity: "Invoice", after: { month, ...r, missing: r.missing.length } });
+    msg = `${r.invoices} draft invoice${r.invoices === 1 ? "" : "s"} made for ${monthLabel(month)} (${r.partnerInvoices} to partners, ${r.schoolInvoices} to schools).`;
+    if (r.unconfirmed) msg += ` ${r.unconfirmed} count${r.unconfirmed === 1 ? " is" : "s are"} not confirmed yet.`;
+    if (r.missing.length) msg += ` ${r.missing.length} school${r.missing.length === 1 ? " has" : "s have"} no count.`;
+    if (r.invoices) msg += " Finance reviews and issues them under Billing → Invoices.";
+  } catch (e) { fail(base, e); }
+  revalidatePath("/partner-stack/resale");
+  go(base, `saved=${encodeURIComponent(msg)}`);
 }

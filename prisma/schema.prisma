@@ -445,6 +445,7 @@ model Client {
   cloutCampaigns   CloutCampaign[]
   cloutQuotas      CloutQuota[]
   siteVisits       SiteVisitRequest[]
+  resaleSchools    ResaleSchool[]
 
   @@unique([organizationId, name])
 }
@@ -3227,6 +3228,8 @@ model SaasProduct {
   earnerSolutions     EarnerSolution[]
   partnerCertificates PartnerCertificate[]
   academyCourses      AcademyCourse[]
+  resaleTerms         PartnerResaleTerm[]
+  resaleSchools       ResaleSchool[]
   visits              ProspectVisit[]
   demos               DemoBooking[]
   commissionRates     ProductCommissionRate[]
@@ -3658,6 +3661,7 @@ model Earner {
   directAccessAt      DateTime?
   status              String    @default("ACTIVE") // ACTIVE | SUSPENDED
   inquiryId           String?   @unique // set when staff added the partner from an inquiry instead of an application
+  billingClientId     String?   @unique // the Client record Hifi invoices this partner through (resale, partner collects)
   partnerNumber       Int // sequential per organization, shown as the Partner ID HPS-0001; never reused
   referralCode        String    @unique
   applicationId       String?   @unique
@@ -3669,6 +3673,9 @@ model Earner {
   certificates    PartnerCertificate[]
   identity        PartnerIdentity?
   payoutAccounts  PartnerPayoutAccount[]
+  resaleTerms     PartnerResaleTerm[]
+  resaleSchools   ResaleSchool[]
+  paymentNotices  PartnerPaymentNotice[]
   academyProgress AcademyLessonProgress[]
   academyAttempts AcademyQuizAttempt[]
   academyTests    AcademyTestAttempt[]
@@ -3734,6 +3741,103 @@ model PartnerPayoutAccount {
   earner Earner @relation(fields: [earnerId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, earnerId])
+}
+
+// Resale terms of one partner for one Solution. Never edited: a change is a new row that applies from its month, so
+// invoices already made keep the price they were made with. The latest row with effectiveFrom <= a month is that month's term.
+model PartnerResaleTerm {
+  id               String   @id @default(cuid())
+  organizationId   String
+  earnerId         String
+  productId        String
+  model            String // COMMISSION | RESALE (COMMISSION ends an earlier resale term)
+  collection       String   @default("PARTNER_COLLECTS") // PARTNER_COLLECTS | HIFI_COLLECTS
+  unitName         String   @default("student") // what is counted: student, branch, user
+  currency         String   @default("PKR")
+  wholesalePrice   Decimal  @default(0) @db.Decimal(14, 2) // Hifi's price to the partner per unit per month
+  resalePrice      Decimal? @db.Decimal(14, 2) // the partner's price to schools; Hifi bills it when Hifi collects
+  paymentTermsDays Int      @default(10)
+  effectiveFrom    String // YYYY-MM
+  note             String?
+  createdById      String
+  createdAt        DateTime @default(now())
+
+  earner  Earner      @relation(fields: [earnerId], references: [id], onDelete: Cascade)
+  product SaasProduct @relation(fields: [productId], references: [id])
+
+  @@unique([earnerId, productId, effectiveFrom])
+  @@index([organizationId, effectiveFrom])
+}
+
+// A school (or other end client) a reseller sells a Solution to. The school is a Hifi Client: its data stays with Hifi if the
+// partnership ends. One live link per client and Solution.
+model ResaleSchool {
+  id             String    @id @default(cuid())
+  organizationId String
+  earnerId       String
+  productId      String
+  clientId       String
+  startMonth     String // YYYY-MM, first month billed
+  endedAt        DateTime?
+  endedById      String?
+  addedById      String
+  createdAt      DateTime  @default(now())
+
+  earner  Earner        @relation(fields: [earnerId], references: [id], onDelete: Cascade)
+  product SaasProduct   @relation(fields: [productId], references: [id])
+  client  Client        @relation(fields: [clientId], references: [id])
+  counts  ResaleCount[]
+
+  @@index([organizationId, earnerId])
+  @@index([clientId, productId])
+}
+
+// Units (students) of one school for one month. The partner or staff enter it; staff confirm it; billing uses only confirmed
+// counts and records the prices it used, so a later price change never alters a billed month.
+model ResaleCount {
+  id             String    @id @default(cuid())
+  organizationId String
+  schoolId       String
+  month          String // YYYY-MM
+  units          Int
+  enteredById    String
+  enteredAt      DateTime  @default(now())
+  confirmedById  String?
+  confirmedAt    DateTime?
+  invoiceId      String? // set when billed; a billed count is never changed
+  collection     String? // snapshot at billing
+  wholesalePrice Decimal?  @db.Decimal(14, 2)
+  resalePrice    Decimal?  @db.Decimal(14, 2)
+
+  school ResaleSchool @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, month])
+  @@index([organizationId, month])
+}
+
+// A partner telling Hifi they paid an invoice, with the receipt (StoredFile ownerType PARTNER_PAYMENT_NOTICE). Finance confirms it,
+// which records the payment through the normal receipt flow, or sends it back with a reason. A notice never marks money received.
+model PartnerPaymentNotice {
+  id             String    @id @default(cuid())
+  organizationId String
+  earnerId       String
+  invoiceId      String
+  amount         Decimal   @db.Decimal(14, 2)
+  currency       String
+  paidOn         DateTime
+  reference      String
+  status         String    @default("PENDING") // PENDING | CONFIRMED | REJECTED
+  reviewNote     String?
+  reviewedById   String?
+  reviewedAt     DateTime?
+  paymentId      String?
+  createdById    String
+  createdAt      DateTime  @default(now())
+
+  earner Earner @relation(fields: [earnerId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([invoiceId])
 }
 
 // The Solutions (SaasProduct rows) a partner is approved to sell.

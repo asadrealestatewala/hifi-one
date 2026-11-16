@@ -11,7 +11,7 @@ export type FileActor = {
   permissions: ReadonlySet<string>;
 };
 
-export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT", "CIRCULAR", "CHAT_MESSAGE", "PROJECT_ASSET", "EMPLOYEE_REQUEST", "PAYMENT", "PARTNER_IDENTITY"] as const;
+export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT", "CIRCULAR", "CHAT_MESSAGE", "PROJECT_ASSET", "EMPLOYEE_REQUEST", "PAYMENT", "PARTNER_IDENTITY", "PARTNER_PAYMENT_NOTICE"] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 export type Mode = "read" | "upload" | "delete";
 
@@ -167,6 +167,16 @@ export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: 
     if (!c) return false;
     if (has("circulars.send")) return true;
     return (await db.circularRecipient.count({ where: { circularId: c.id, userId: a.id } })) > 0;
+  }
+
+  if (ownerType === "PARTNER_PAYMENT_NOTICE") {
+    // The receipt a partner attached to "I've paid": the partner sees their own; finance staff see it. Never changed after it is sent.
+    const n = await db.partnerPaymentNotice.findFirst({ where: { id: ownerId, organizationId: a.organizationId }, select: { status: true, earner: { select: { userId: true } } } });
+    if (!n) return false;
+    const self = a.userType === "PARTNER" && n.earner.userId !== null && n.earner.userId === a.id;
+    if (mode === "read") return self || has("finance.view");
+    if (mode === "upload") return self && n.status === "PENDING";
+    return false;
   }
 
   if (ownerType === "PARTNER_IDENTITY") {

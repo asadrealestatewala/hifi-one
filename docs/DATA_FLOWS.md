@@ -106,3 +106,7 @@ A clocked-in person starts a browser screen share themselves; the dock saves a s
 | WhatsApp | click-to-chat links only | labelled as links, never "sent" |
 | Monitoring agent | `agent/`, device token | ingest only from enrolled devices; consent required |
 | Ads, social posting, bank feeds, calendar sync | not built | never shown as connected |
+
+## Reseller partner billing (2026-11-16)
+
+Owner: `src/lib/partner-resale.ts`. Resale terms (`PartnerResaleTerm`) and schools (`ResaleSchool`, each a `Client`) are set by the partner team (`partners.manage`); monthly counts (`ResaleCount`) come from the partner and are confirmed by staff. Confirmed counts become **draft** invoices (to the partner's billing client for Partner collects, to each school for Hifi collects); Finance issues them through `issueInvoice` (journal, number, bank snapshot). A partner's payment report (`PartnerPaymentNotice` + receipt file) becomes money only when Finance confirms it, through `recordPayment` with key `partner-notice:<id>`. Reports: invoices, receivables and receipts as for any client. Portal views: partner My schools and Invoices. Details: `docs/PARTNER_STACK.md`.
