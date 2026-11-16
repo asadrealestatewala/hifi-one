@@ -46,7 +46,7 @@ export const CHART: [string, string, string, string?][] = [
 export const SAAS_PRODUCTS: { code: string; name: string; businessLabel: string; website: string | null }[] = [
   { code: "AGENTIFY", name: "Agentify ERP", businessLabel: "Real estate agency", website: "https://agentifyerp.co" },
   { code: "VELOCITY", name: "Velocity ERP", businessLabel: "Car dealer or workshop", website: "https://velocityerp.co" },
-  { code: "PHARMIVO", name: "Pharmivo", businessLabel: "Pharmacy", website: null },
+  { code: "PHARMIVO", name: "Pharmivo", businessLabel: "Pharmacy", website: "https://pharmivo.hifimarketing.co" },
   { code: "CAMPUSLY", name: "Campusly", businessLabel: "School", website: null },
 ];
 

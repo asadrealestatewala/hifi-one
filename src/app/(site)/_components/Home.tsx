@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { POSTS } from "../_content/blog";
 import { JOBS } from "../_content/jobs";
-import { COMPANY, EMAIL, PHONE, PLAN_GROUPS, PLATFORMS, SITE_URL, SOCIALS } from "../_content/site";
+import { COMPANY, EMAIL, PHONE, PLAN_GROUPS, PLATFORMS, SITE_URL, SOCIALS, SOLUTIONS } from "../_content/site";
 import { CtaBand, PlanCard, PostCard, SectionHead, ServiceCards, Stats } from "./Blocks";
 import { HeroVideo } from "./HeroVideo";
 import { Icon } from "./Icon";
@@ -59,6 +59,27 @@ export function Home() {
         <div className="hs-container">
           <SectionHead eyebrow="Services" title="Explore what we can do for you" intro="Four practices, one team: we design, build, promote and automate." />
           <ServiceCards />
+        </div>
+      </section>
+
+      <section className="hs-section" id="solutions">
+        <div className="hs-container">
+          <SectionHead eyebrow="Solutions" title="ERP Solutions for your industry" intro="Ready-made systems from HIFI for real estate, automobile, pharmacy and schools." />
+          <div className="hs-grid hs-grid-4">
+            {SOLUTIONS.map((s) => (
+              <div key={s.name} className="hs-card">
+                <span className={`hs-ico ${s.tone}`}><Icon name={s.icon} size={22} /></span>
+                <h3>{s.name}</h3>
+                <p className="hs-hint" style={{ marginBottom: 8 }}>For {s.forWho.toLowerCase()}</p>
+                <p>{s.text}</p>
+                <p style={{ marginTop: 12 }}>
+                  {s.href
+                    ? <a className="hs-link" href={s.href} target="_blank" rel="noopener noreferrer">Visit {s.name} <Icon name="external" size={14} /></a>
+                    : <Link className="hs-link" href="/site/contact">Ask for a demo <Icon name="arrow" size={16} /></Link>}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
