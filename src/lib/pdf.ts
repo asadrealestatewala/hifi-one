@@ -406,6 +406,8 @@ type DocSpec = {
   bank: Bank | null;
   footerExtra?: string;
   company: () => Company;
+  beforeFooter?: (ctx: Ctx) => void; // e.g. the signature row on a voucher
+  tableLabel?: string; // heading over the lines in Modern Indigo, SERVICE by default
 };
 
 function sectionsBlock(ctx: Ctx, list: Section[], heading: (s: string) => void) {
@@ -454,7 +456,7 @@ function docModern(ctx: Ctx, d: DocSpec) {
   if (d.title) { doc.font("Helvetica-Bold").fontSize(15).fillColor(NAVY).text(t(ctx, d.title), 48, doc.y, { width: 499 }); doc.y += 14; }
   sectionsBlock(ctx, d.before, (h) => label(h.toUpperCase(), 48, doc.y));
   let y = room(ctx, doc.y, 60);
-  label("SERVICE", 48, y);
+  label(d.tableLabel ?? "SERVICE", 48, y);
   doc.font("Helvetica-Bold").fontSize(7.5).fillColor(INDIGO).text("AMOUNT", 400, y, { width: 147, align: "right", characterSpacing: 1, lineBreak: false });
   y += 13;
   doc.lineWidth(1.5).moveTo(48, y).lineTo(547, y).stroke(NAVY);
@@ -484,6 +486,7 @@ function docModern(ctx: Ctx, d: DocSpec) {
   if (d.notes) { doc.font("Helvetica").fontSize(9).fillColor("#555").text(t(ctx, d.notes), 48, doc.y, { width: 499 }); doc.y += 10; }
   sectionsBlock(ctx, d.after, (h) => label(h.toUpperCase(), 48, doc.y));
   bankBlock(ctx, d.bank);
+  d.beforeFooter?.(ctx);
   footer(ctx, d.company(), d.footerExtra);
   doc.rect(0, 826, 595.28, 16).fill(INDIGO);
 }
@@ -540,6 +543,7 @@ function docMinimal(ctx: Ctx, d: DocSpec) {
   if (d.notes) { doc.font("Helvetica").fontSize(9).fillColor("#666").text(t(ctx, d.notes), 48, doc.y, { width: 499 }); doc.y += 10; }
   sectionsBlock(ctx, d.after, (h) => small(h, 48, doc.y));
   bankBlock(ctx, d.bank);
+  d.beforeFooter?.(ctx);
   footer(ctx, d.company(), d.footerExtra);
 }
 
@@ -765,21 +769,39 @@ export type VoucherDoc = {
   number: string; date: string; status: string; currency: string; amount: string; payee: string; description: string; justification?: string | null; category: string;
   project?: string | null; submittedBy: string; reviewedBy?: string | null; approvedBy?: string | null; paidBy?: string | null; company: Company; config: DocConfig;
 };
-export async function voucherPdf(d: VoucherDoc, b: Build = {}) {
-  const { ctx, done } = start({ ...b, title: `Expense voucher ${d.number}`, cfg: d.config });
-  header(ctx, d.company, "EXPENSE VOUCHER", d.number, d.status);
-  kv(ctx, [["Payee", d.payee], ["Date", d.date], ["Category", d.category], ["Project", d.project], ["Description", d.description], ["Business justification", d.justification]], 48, 499);
-  totals(ctx, [["Amount", pdfMoney(d.amount, d.currency), true]]);
-  ctx.doc.moveDown(1.5);
-  const y = ctx.doc.y;
+// Signature lines for the people who prepared, reviewed, approved and paid a voucher
+function voucherSignatures(ctx: Ctx, d: VoucherDoc) {
+  const { doc } = ctx;
+  const y = room(ctx, doc.y + 18, 60);
   const sign = (label: string, name: string | null | undefined, x: number) => {
-    ctx.doc.moveTo(x, y + 28).lineTo(x + 110, y + 28).strokeColor("#999").stroke();
-    ctx.doc.font("Helvetica").fontSize(8).fillColor("#777").text(t(ctx, label), x, y + 31, { width: 110 });
-    ctx.doc.fontSize(9).fillColor("#111").text(t(ctx, name ?? ""), x, y + 14, { width: 110 });
+    doc.lineWidth(0.6).moveTo(x, y + 28).lineTo(x + 110, y + 28).stroke("#999");
+    doc.font("Helvetica").fontSize(9).fillColor("#111").text(t(ctx, name ?? ""), x, y + 14, { width: 110, lineBreak: false });
+    doc.font("Helvetica").fontSize(8).fillColor("#777").text(label, x, y + 31, { width: 110, lineBreak: false });
   };
   sign("Prepared by", d.submittedBy, 48); sign("Reviewed by", d.reviewedBy, 178); sign("Approved by", d.approvedBy, 308); sign("Paid by", d.paidBy, 438);
-  ctx.doc.y = y + 60;
-  footer(ctx, d.company);
+  doc.y = y + 50;
+}
+
+const VOUCHER_STATUS: Record<string, string> = { SUBMITTED: "Submitted", UNDER_REVIEW: "Under review", APPROVED: "Approved", POSTED: "Posted", PAID: "Paid", REJECTED: "Rejected", CANCELLED: "Cancelled" };
+
+function voucherSpec(d: VoucherDoc): DocSpec {
+  const status = VOUCHER_STATUS[d.status] ?? d.status.charAt(0) + d.status.slice(1).toLowerCase();
+  const line = [d.category, d.project ? `Project ${d.project}` : null].filter(Boolean).join("\n");
+  return {
+    word: "EXPENSE VOUCHER", numberLine: `No. ${d.number}`, numberShort: d.number, partyLabel: "PAYEE", client: { name: d.payee },
+    meta: [["DATE", longDate(d.date)], ["STATUS", status], ["CURRENCY", d.currency]],
+    minimalMeta: { label: "Date / status", value: `${longDate(d.date)} / ${status}`, small: `Currency ${d.currency}` },
+    before: [{ heading: "Description", body: d.description }, { heading: "Business justification", body: d.justification ?? "" }],
+    currency: d.currency, lines: [{ description: line || "Expense", quantity: "1", unitPrice: d.amount, amount: d.amount }], rows: [],
+    payableLabel: "Amount", payable: pdfMoney(d.amount, d.currency), after: [], bank: null,
+    beforeFooter: (ctx) => voucherSignatures(ctx, d), tableLabel: "EXPENSE", company: () => d.company,
+  };
+}
+
+export async function voucherPdf(d: VoucherDoc, b: Build = {}) {
+  const { ctx, done } = start({ ...b, title: `Expense voucher ${d.number}`, cfg: d.config, stamp: true });
+  if (quoteLayout(null, d.config) === "minimal") docMinimal(ctx, voucherSpec(d));
+  else docModern(ctx, voucherSpec(d));
   return done();
 }
 

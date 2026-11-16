@@ -49,6 +49,7 @@ export const NAV: NavGroup[] = [
   ] },
   { id: "finance", title: "Finance & accounting", icon: "wallet", items: [
     { href: "/finance/ledger", label: "Books", permission: null, group: "fin-books" },
+    { href: "/expenses", label: "Expense vouchers", permission: "expenses.view" },
     { href: "/finance/reconciliation", label: "Bank reconciliation", permission: "bank.reconcile" },
     { href: "/finance/budgets", label: "Budgets", permission: "budget.view" },
     { href: "/finance/commissions", label: "Commissions", permission: "commissions.manage" },

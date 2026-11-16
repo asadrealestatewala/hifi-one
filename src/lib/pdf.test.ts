@@ -172,5 +172,11 @@ describe("documents", () => {
     expect(pc).toContain("Commissions and approved bonuses"); expect(pc).toContain("PKR 12,000.00"); expect(pc).toContain("PKR 125,400.00");
     const vc = pdfPlainText(await voucherPdf({ number: "VCH-000001", date: "2026-10-12", status: "APPROVED", currency: "PKR", amount: "800", payee: "Ad Platform Ltd", description: "Facebook ads", category: "6000 Marketing Expense", submittedBy: "Sam", reviewedBy: "Rae", approvedBy: "Lee", company, config: DEFAULT_DOC_CONFIG }, { compress: false }));
     expect(vc).toContain("EXPENSE VOUCHER"); expect(vc).toContain("PKR 800.00"); expect(vc).toContain("Approved by");
+    for (const template of ["modern", "minimal"]) {
+      const buf = await voucherPdf({ number: "VCH-000002", date: "2026-11-16", status: "UNDER_REVIEW", currency: "PKR", amount: "15000", payee: "Saad Sheikh", description: "Legal fee, first instalment", justification: "SMC formation for Biztrack UK", category: "6100 Professional fees", project: "PRJ-0006 Biztrack", submittedBy: "Asad", company, config: mergeConfig({ template } as never) }, { compress: false });
+      const v = pdfPlainText(buf);
+      for (const x of ["EXPENSE VOUCHER", "VCH-000002", "Saad Sheikh", "Legal fee, first instalment", "SMC formation for Biztrack UK", "6100 Professional fees", "PRJ-0006 Biztrack", "PKR 15,000.00", "Under review", "Prepared by", "Paid by", "Company stamp"]) expect(v).toContain(x);
+      expect((buf.toString("latin1").match(/\/Type \/Page\b/g) ?? []).length).toBe(1);
+    }
   });
 });

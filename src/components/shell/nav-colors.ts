@@ -10,7 +10,7 @@ export const ENTRY_ICON: Record<string, string> = {
   "Partner Stack": "link",
   "Service catalog": "layers", Clients: "building", Retainers: "clock", Contracts: "file", "Support requests": "chat", Billing: "receipt",
   Projects: "briefcase", "Content calendar": "calendar", "Team chat": "chat", Meetings: "video",
-  Books: "file", "Bank reconciliation": "wallet", Budgets: "chart", Commissions: "wallet", "Financial reports": "chart", "Assets & investments": "building",
+  Books: "file", "Expense vouchers": "receipt", "Bank reconciliation": "wallet", Budgets: "chart", Commissions: "wallet", "Financial reports": "chart", "Assets & investments": "building",
   "Staff directory": "users", "Staff activity": "activity", "Requests & notices": "bell", Hiring: "user", Payroll: "wallet",
   Vendors: "truck", "Orders & bills": "receipt",
   "My day": "sun", "My attendance": "clock", "My tasks": "check", "My team": "users", "My leave": "calendar", "My payslips": "receipt", "My profile": "user",
