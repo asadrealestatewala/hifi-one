@@ -12,9 +12,9 @@ export async function askAssistant(_prev: AssistantState, formData: FormData): P
   const question = String(formData.get("question") ?? "");
   const log = (status: string, tools: string[] = []) =>
     db.assistantLog.create({ data: { organizationId: user.organizationId, userId: user.id, question: question.slice(0, 1000), toolsUsed: tools, status } });
-  if (!assistantConfigured()) {
+  if (!(await assistantConfigured(db, user.organizationId))) {
     await log("NOT_CONFIGURED");
-    return { question, error: "The assistant is not connected, so nothing was asked. An administrator needs to set ANTHROPIC_API_KEY on the server." };
+    return { question, error: "The assistant is not connected, so nothing was asked. A super admin needs to add the Anthropic key in Settings → Integrations." };
   }
   if (!limiter("assistant-user", 20, 3_600_000).take(user.id)) return { question, error: "You have reached 20 questions this hour. Please try again later." };
   try {
