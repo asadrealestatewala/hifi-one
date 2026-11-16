@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { audit, requirePermission, toFileActor } from "@/lib/auth";
+import { audit, requirePermission, toFileActor, type SessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ContentError, editContent, transition } from "@/lib/content";
-import { ContentAiError, generateImage } from "@/lib/content-ai";
+import { ContentAiError, generateImage, redoPost } from "@/lib/content-ai";
+import { groupsFor, mergeTags } from "@/lib/content-hashtags";
+import CaptionEditor from "../CaptionEditor";
 import { isConfigured } from "@/lib/integration-keys";
 import { defaultStorage } from "@/lib/storage";
 import { SubmitButton } from "@/components/ui";
-import { PLATFORMS, PLATFORM_META, POST_TYPES, POST_TYPE_LABEL, canTransition, isEditable, needsComment } from "@/lib/content-rules";
+import { PLATFORMS, PLATFORM_META, POST_TYPES, POST_TYPE_LABEL, canTransition, captionIssues, cleanPlatformCopy, isEditable, needsComment } from "@/lib/content-rules";
 import { PlatformDot } from "../PostForm";
 import { STATUS_STYLE } from "../status-style";
 import FilesPanel from "@/components/FilesPanel";
@@ -38,7 +40,8 @@ async function save(formData: FormData) {
   const user = await requirePermission("content.manage");
   const id = String(formData.get("id"));
   try {
-    await editContent(db, { organizationId: user.organizationId, id, copy: String(formData.get("copy") ?? ""), hashtags: String(formData.get("hashtags") ?? ""), title: String(formData.get("title") ?? ""), plannedDate: String(formData.get("plannedDate") ?? ""), plannedTime: String(formData.get("plannedTime") ?? ""), postType: String(formData.get("postType") ?? "") || undefined, platforms: formData.getAll("platforms").map(String) });
+    const platformCopy = Object.fromEntries([...formData.entries()].filter(([k]) => k.startsWith("pc_")).map(([k, v]) => [k.slice(3), String(v)]));
+    await editContent(db, { organizationId: user.organizationId, id, copy: String(formData.get("copy") ?? ""), hashtags: String(formData.get("hashtags") ?? ""), platformCopy, firstComment: String(formData.get("firstComment") ?? ""), title: String(formData.get("title") ?? ""), plannedDate: String(formData.get("plannedDate") ?? ""), plannedTime: String(formData.get("plannedTime") ?? ""), postType: String(formData.get("postType") ?? "") || undefined, platforms: formData.getAll("platforms").map(String) });
     await audit(user, { action: "content.edit", entity: "ContentItem", entityId: id });
   } catch (e) {
     if (e instanceof ContentError) back(id, e.message);
@@ -52,7 +55,7 @@ async function makeImage(formData: FormData) {
   const user = await requirePermission("content.manage");
   const id = String(formData.get("id"));
   try {
-    const f = await generateImage(db, defaultStorage(), { organizationId: user.organizationId, itemId: id, actor: toFileActor(user) });
+    const f = await generateImage(db, defaultStorage(), { organizationId: user.organizationId, itemId: id, actor: toFileActor(user), note: String(formData.get("note") ?? "") });
     await audit(user, { action: "content.ai_image", entity: "ContentItem", entityId: id, after: { file: f.filename } });
   } catch (e) {
     if (e instanceof ContentAiError) back(id, e.message);
@@ -61,10 +64,46 @@ async function makeImage(formData: FormData) {
   redirect(`/content/${id}?fileOk=${encodeURIComponent("AI image added to the creative files below. Check it before using it.")}`);
 }
 
-export default async function ContentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; fileError?: string; fileOk?: string; created?: string }> }) {
+// The three redo buttons: each rewrites part of the post with Claude and saves it as a new version
+async function redo(user: SessionUser, formData: FormData, mode: "CAPTION" | "IDEA" | "PLATFORMS") {
+  const id = String(formData.get("id"));
+  try {
+    await redoPost(db, { organizationId: user.organizationId, itemId: id, mode, note: String(formData.get("note") ?? ""), actorId: user.id });
+    await audit(user, { action: `content.ai_redo_${mode.toLowerCase()}`, entity: "ContentItem", entityId: id });
+  } catch (e) {
+    if (e instanceof ContentAiError) back(id, e.message);
+    throw e;
+  }
+  redirect(`/content/${id}?redone=${mode}`);
+}
+async function redoCaption(formData: FormData) { "use server"; await redo(await requirePermission("content.manage"), formData, "CAPTION"); }
+async function redoIdea(formData: FormData) { "use server"; await redo(await requirePermission("content.manage"), formData, "IDEA"); }
+async function redoPlatforms(formData: FormData) { "use server"; await redo(await requirePermission("content.manage"), formData, "PLATFORMS"); }
+
+async function addHashtags(formData: FormData) {
+  "use server";
+  const user = await requirePermission("content.manage");
+  const id = String(formData.get("id"));
+  try {
+    const item = await db.contentItem.findFirst({ where: { id, organizationId: user.organizationId } });
+    if (!item) back(id, "Post not found.");
+    const groups = await db.hashtagGroup.findMany({ where: { organizationId: user.organizationId, clientId: item!.clientId, id: { in: formData.getAll("groupId").map(String) } } });
+    if (groups.length === 0) back(id, "Tick at least one hashtag group.");
+    await editContent(db, { organizationId: user.organizationId, id, copy: item!.copy, hashtags: mergeTags(item!.hashtags, groups.map((g) => g.tags).join(" ")) });
+    await audit(user, { action: "content.hashtags_add", entity: "ContentItem", entityId: id, after: { groups: groups.map((g) => g.name) } });
+  } catch (e) {
+    if (e instanceof ContentError) back(id, e.message);
+    throw e;
+  }
+  redirect(`/content/${id}`);
+}
+
+const REDONE: Record<string, string> = { CAPTION: "New caption written. The earlier one is kept under Earlier versions.", IDEA: "A different idea was written for this slot. The earlier one is kept under Earlier versions.", PLATFORMS: "A caption was written for each platform. Check each tab before sending it on." };
+
+export default async function ContentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; fileError?: string; fileOk?: string; created?: string; redone?: string }> }) {
   const user = await requirePermission("content.view");
   const { id } = await params;
-  const { error, fileError, fileOk, created } = await searchParams;
+  const { error, fileError, fileOk, created, redone } = await searchParams;
   const item = await db.contentItem.findFirst({ where: { id, organizationId: user.organizationId }, include: { events: { orderBy: { createdAt: "desc" } }, versions: { orderBy: { version: "desc" } } } });
   if (!item) notFound();
   const [client, people, clientUsers] = await Promise.all([
@@ -74,7 +113,11 @@ export default async function ContentPage({ params, searchParams }: { params: Pr
   ]);
   const who = (e: { actorId: string; actorType: string }) => [...people, ...clientUsers].find((p) => p.id === e.actorId)?.name ?? "Unknown";
   const canManage = user.permissions.has("content.manage");
-  const imagesOn = canManage && isEditable(item.status) && (await isConfigured(db, user.organizationId, "GEMINI"));
+  const editable = canManage && isEditable(item.status);
+  const [imagesOn, claudeOn, groups] = editable ? await Promise.all([isConfigured(db, user.organizationId, "GEMINI"), isConfigured(db, user.organizationId, "ANTHROPIC"), groupsFor(db, user.organizationId, item.clientId)]) : [false, false, []];
+  const plats = item.platforms.length ? item.platforms : [item.platform];
+  const pc = cleanPlatformCopy(item.platformCopy);
+  const issues = captionIssues({ ...item, platforms: plats });
   const canPublish = user.permissions.has("content.publish");
   const next = ["DRAFT", "INTERNAL_REVIEW", "CLIENT_REVIEW", "CHANGES_REQUESTED", "APPROVED", "SCHEDULED", "PUBLISHED"].filter((to) => canTransition("STAFF", item.status, to, Boolean(item.clientId)))
     .filter((to) => (to === "SCHEDULED" || to === "PUBLISHED" ? canPublish : canManage));
@@ -91,35 +134,54 @@ export default async function ContentPage({ params, searchParams }: { params: Pr
       {item.aiRunId && item.status === "DRAFT" && <p className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm">This draft was written by AI. Read it, correct anything the client would not say, and add the real creative before sending it for review.</p>}
       {created && <p className="rounded-lg bg-success/10 px-3 py-2 text-sm text-success">Post saved as a draft. Attach the creative below, then send it for review.</p>}
       {error && <Notice kind="error">{error}</Notice>}
+      {redone && REDONE[redone] && <Notice kind="ok">{REDONE[redone]}</Notice>}
+      {issues.length > 0 && <Notice kind="error">Fix before sending it on: {issues.map((i) => i.message).join(" ")}</Notice>}
 
       {canManage && isEditable(item.status) ? (
         <form action={save} className="card grid gap-3">
           <input type="hidden" name="id" value={item.id} />
           <div><label className="label" htmlFor="title">Title</label><input id="title" name="title" defaultValue={item.title} className="input" /></div>
-          <div><label className="label" htmlFor="copy">Post copy (saving a change creates a new version)</label><textarea id="copy" name="copy" defaultValue={item.copy} rows={4} className="input" /></div>
+          <div><label className="label" htmlFor="brief-ro">Brief for the maker</label><p id="brief-ro" className="whitespace-pre-line text-sm text-muted">{item.brief || "No brief."}</p></div>
+          <CaptionEditor platforms={plats} copy={item.copy} hashtags={item.hashtags ?? ""} firstComment={item.firstComment ?? ""} platformCopy={pc} />
           <fieldset><legend className="label">Platforms</legend><div className="flex flex-wrap gap-2">{PLATFORMS.filter((p) => p !== "OTHER" || item.platforms.includes("OTHER")).map((p) => <label key={p} className="flex cursor-pointer items-center gap-2 rounded-full border border-border bg-surface py-1 pl-1 pr-3 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/10"><input type="checkbox" name="platforms" value={p} defaultChecked={(item.platforms.length ? item.platforms : [item.platform]).includes(p)} className="sr-only" /><PlatformDot code={PLATFORM_META[p].code} color={PLATFORM_META[p].color} />{PLATFORM_META[p].label}</label>)}</div></fieldset>
           <div className="grid grid-cols-3 gap-2">
             <div><label className="label" htmlFor="postType">Post type</label><select id="postType" name="postType" defaultValue={item.postType} className="input">{POST_TYPES.map((t) => <option key={t} value={t}>{POST_TYPE_LABEL[t]}</option>)}</select></div>
             <div><label className="label" htmlFor="plannedTime">Posting time</label><input id="plannedTime" name="plannedTime" type="time" defaultValue={item.plannedTime ?? ""} className="input" /></div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div><label className="label" htmlFor="hashtags">Hashtags</label><input id="hashtags" name="hashtags" defaultValue={item.hashtags ?? ""} className="input" /></div>
-            <div><label className="label" htmlFor="plannedDate">Planned date</label><input id="plannedDate" name="plannedDate" type="date" defaultValue={item.plannedDate ?? ""} className="input" /></div>
-          </div>
+          <div className="max-w-56"><label className="label" htmlFor="plannedDate">Planned date</label><input id="plannedDate" name="plannedDate" type="date" defaultValue={item.plannedDate ?? ""} className="input" /></div>
           <div><button className="btn-ghost">Save</button></div>
         </form>
       ) : (
         <>
         {(item.brief || item.sampleUrl || item.taskId) && <section className="card text-sm space-y-1"><h2 className="font-semibold">Brief</h2>{item.brief && <p className="whitespace-pre-line">{item.brief}</p>}{item.sampleUrl && <p><a className="underline" href={item.sampleUrl} target="_blank" rel="noopener noreferrer">Sample</a></p>}{item.taskId && <p className="text-xs text-muted">A project task was created for the assignee.</p>}</section>}
-        <section className="card text-sm space-y-1"><p className="whitespace-pre-line">{item.copy}</p>{item.hashtags && <p className="text-muted">{item.hashtags}</p>}</section>
+        <section className="card text-sm space-y-1"><p className="whitespace-pre-line">{item.copy}</p>{item.hashtags && <p className="text-muted">{item.hashtags}</p>}
+          {Object.entries(pc).map(([p, t]) => <div key={p} className="border-t border-border pt-2"><p className="flex items-center gap-1.5 text-xs font-medium"><PlatformDot code={PLATFORM_META[p]?.code ?? "?"} color={PLATFORM_META[p]?.color ?? "#6b7280"} size={16} />{PLATFORM_META[p]?.label ?? p} caption</p><p className="whitespace-pre-line">{t}</p></div>)}
+          {item.firstComment && <p className="border-t border-border pt-2"><span className="text-xs font-medium">First comment: </span>{item.firstComment}</p>}
+        </section>
         </>
       )}
 
-      {imagesOn && (
-        <form action={makeImage} className="card flex flex-wrap items-center justify-between gap-3">
+      {editable && (claudeOn || imagesOn) && (
+        <form className="card space-y-3" aria-label="Redo with AI">
           <input type="hidden" name="id" value={item.id} />
-          <p className="text-sm text-muted">Make a draft image from this post&apos;s brief with Google AI (about 5 cents). It has no text or logo: add those yourself. It is saved with the files below.</p>
-          <SubmitButton pendingText="Making the image…">Make image with AI</SubmitButton>
+          <h2 className="font-semibold">Redo with AI</h2>
+          <div><label className="label" htmlFor="redo-note">What should change? <span className="font-normal text-muted">(optional)</span></label>
+            <input id="redo-note" name="note" maxLength={500} placeholder="e.g. shorter and funnier, mention free delivery, use Roman Urdu, brighter colours" className="input" /></div>
+          <div className="flex flex-wrap gap-2">
+            {claudeOn && <SubmitButton formAction={redoCaption} className="btn-ghost" pendingText="Writing…">New caption</SubmitButton>}
+            {claudeOn && <SubmitButton formAction={redoIdea} className="btn-ghost" pendingText="Thinking of a new idea…">A different idea</SubmitButton>}
+            {claudeOn && plats.length > 1 && <SubmitButton formAction={redoPlatforms} className="btn-ghost" pendingText="Writing for each platform…">Caption for each platform</SubmitButton>}
+            {imagesOn && <SubmitButton formAction={makeImage} className="btn-ghost" pendingText="Making the image…">New image</SubmitButton>}
+          </div>
+          <p className="text-xs text-muted">Each redo saves a new version, so nothing is lost. Images (about 5 cents each) have no text or logo and are added to the files below. Unsaved edits above are lost, so save first.</p>
+        </form>
+      )}
+      {editable && groups.length > 0 && (
+        <form action={addHashtags} className="card space-y-2" aria-label="Hashtag groups">
+          <input type="hidden" name="id" value={item.id} />
+          <h2 className="font-semibold">Add saved hashtags</h2>
+          <div className="flex flex-wrap gap-2">{groups.map((g) => <label key={g.id} title={g.tags} className="flex cursor-pointer items-center gap-2 rounded-full border border-border px-3 py-1 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/10"><input type="checkbox" name="groupId" value={g.id} className="sr-only" />{g.name}</label>)}</div>
+          <SubmitButton className="btn-ghost" pendingText="Adding…">Add to hashtags</SubmitButton>
         </form>
       )}
       <FilesPanel user={user} ownerType="CONTENT" ownerId={item.id} returnTo={`/content/${item.id}`} title="Creative files (images, video, documents)" flash={{ fileError, fileOk }} />

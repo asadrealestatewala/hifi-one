@@ -7,7 +7,7 @@ import { isConfigured } from "@/lib/integration-keys";
 import { Notice, PageHeader, SubmitButton } from "@/components/ui";
 import ConfirmButton from "@/components/ui/ConfirmButton";
 import { PlatformDot } from "../PostForm";
-import { generatePlanAction, saveProfileAction, undoPlanAction } from "./actions";
+import { deleteHashtagGroupAction, generatePlanAction, saveHashtagGroupAction, saveProfileAction, undoPlanAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +28,7 @@ export default async function PlanTheMonth({ searchParams }: { searchParams: Pro
     isConfigured(db, org, "GEMINI"),
     db.contentAiRun.findMany({ where: { organizationId: org, clientId: client.id, kind: "PLAN", undoneAt: null, postCount: { gt: 0 } }, orderBy: { createdAt: "desc" }, take: 5 }),
   ]) : [null, null, false, false, []];
+  const groups = client ? await db.hashtagGroup.findMany({ where: { organizationId: org, clientId: client.id }, orderBy: { name: "asc" } }) : [];
   const todayMonth = new Date().toISOString().slice(0, 7);
   const spent = client ? await aiSpend(db, client.id, todayMonth) : 0;
   const cap = profile ? Number(profile.monthlyCapUsd) : 10;
@@ -101,6 +102,26 @@ export default async function PlanTheMonth({ searchParams }: { searchParams: Pro
               <div><label className="label" htmlFor="pl-brief">This month&apos;s brief</label><textarea id="pl-brief" name="monthBrief" rows={4} maxLength={4000} placeholder="Offers, launches, events and dates to use, for example: 20% off from the 5th to the 12th; Eid sale on the 25th" className="input" /></div>
               <p className="text-xs text-muted">Posts are spread across the month (not Sundays) and written as drafts. Estimated cost about $0.20 to $1. AI spent on this client this month: about ${spent.toFixed(2)} of ${cap.toFixed(2)}.</p>
               <div><SubmitButton pendingText="Writing the month… this can take a few minutes">Write the month with AI</SubmitButton></div>
+            </form>
+          </section>
+
+          <section className="card space-y-3" aria-label="Hashtag groups">
+            <h2 className="font-semibold">Hashtag groups</h2>
+            <p className="text-sm text-muted">Saved sets for this client, for example the brand set or a campaign set. AI uses them when it writes the month, and the team adds them to a post in one click.</p>
+            {groups.map((g) => (
+              <div key={g.id} className="flex flex-wrap items-start justify-between gap-2 border-t border-border pt-2 text-sm first:border-0 first:pt-0">
+                <div className="min-w-0"><p className="font-medium">{g.name}</p><p className="break-words text-muted">{g.tags}</p></div>
+                <form action={deleteHashtagGroupAction}>
+                  <input type="hidden" name="id" value={g.id} /><input type="hidden" name="clientId" value={client.id} /><input type="hidden" name="month" value={month} />
+                  <ConfirmButton title={`Delete “${g.name}”?`} message="Posts that already use these hashtags keep them." confirmLabel="Delete group">Delete</ConfirmButton>
+                </form>
+              </div>
+            ))}
+            <form action={saveHashtagGroupAction} className="grid gap-2 sm:grid-cols-[12rem_1fr_auto] sm:items-end">
+              <input type="hidden" name="clientId" value={client.id} /><input type="hidden" name="month" value={month} />
+              <div><label className="label" htmlFor="hg-name">Group name</label><input id="hg-name" name="name" required minLength={2} maxLength={60} placeholder="Brand" className="input" /></div>
+              <div><label className="label" htmlFor="hg-tags">Hashtags</label><input id="hg-tags" name="tags" required maxLength={1000} placeholder="#BrandName #Lahore #Shoes" className="input" /></div>
+              <SubmitButton className="btn-ghost" pendingText="Saving…">Add group</SubmitButton>
             </form>
           </section>
 

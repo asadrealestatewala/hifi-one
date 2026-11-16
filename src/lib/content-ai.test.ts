@@ -51,5 +51,5 @@ describe("prompt and cost", () => {
     const t = planPrompt({ clientName: "Acme", clientType: "MARKETING", month: "2026-12", monthLabel: "December 2026", profile: { about: "Sells shoes", brandVoice: "Warm", audience: null, topics: null, avoid: "Competitors", languages: null, hashtagRules: null }, monthBrief: "Winter sale on the 10th", slots });
     expect(t).toContain("Acme"); expect(t).toContain("Sells shoes"); expect(t).toContain("Winter sale on the 10th"); expect(t).toContain("Slot 0"); expect(t).toContain("Slot 1"); expect(t).toContain("Competitors");
   });
-  it("estimates cost from tokens", () => { expect(estimateTextCost({ inputTokens: 5000, outputTokens: 10000 })).toBeCloseTo(0.165, 3); });
+  it("estimates cost from tokens", () => { expect(estimateTextCost({ inputTokens: 5000, outputTokens: 10000 })).toBeCloseTo(0.22, 3); });
 });

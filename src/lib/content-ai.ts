@@ -6,8 +6,8 @@
 // - Dates, post types and platforms come from the client's quota and profile, decided here in code. Claude writes the words.
 // - Estimated cost of every AI action is stored, and a client's monthly cap stops further spending.
 import type { PrismaClient } from "@prisma/client";
-import { ContentError, createContent } from "./content";
-import { PLATFORMS } from "./content-rules";
+import { ContentError, createContent, editContent } from "./content";
+import { CAPTION_LIMITS, PLATFORM_META, PLATFORMS, cleanPlatformCopy, isEditable } from "./content-rules";
 import { getKey } from "./integration-keys";
 import { notify } from "./notifications";
 import type { FileActor } from "./file-access";
@@ -17,11 +17,11 @@ import type { StorageProvider } from "./storage";
 type Db = PrismaClient;
 export class ContentAiError extends Error {}
 
-export const PLAN_MODEL = process.env.CONTENT_AI_MODEL ?? "claude-sonnet-5-5";
+export const PLAN_MODEL = process.env.CONTENT_AI_MODEL ?? "claude-opus-5-5";
 export const IMAGE_MODEL = process.env.CONTENT_IMAGE_MODEL ?? "gemini-2.5-flash-image";
 // Estimated prices in US dollars, used only for the cap and the "spent this month" figure. They are estimates, not invoices.
 export const EST_IMAGE_USD = 0.05;
-const EST_INPUT_PER_MTOK = 3, EST_OUTPUT_PER_MTOK = 15;
+const EST_INPUT_PER_MTOK = 4, EST_OUTPUT_PER_MTOK = 20; // Claude Opus 5.5 list prices
 export const estimateTextCost = (u: { inputTokens: number; outputTokens: number }) => Number(((u.inputTokens * EST_INPUT_PER_MTOK + u.outputTokens * EST_OUTPUT_PER_MTOK) / 1_000_000).toFixed(4));
 
 // The three kinds of work a retainer promises, and the post type each plans as
@@ -147,9 +147,34 @@ const PLAN_SCHEMA = {
   },
 } as const;
 
+// One structured-output call to Claude. Returns the parsed JSON and an estimated cost; every error becomes a plain sentence.
+async function askClaude<T>(p: { key: string; prompt: string; schema: object; maxTokens: number; fetchImpl?: FetchLike; timeoutMs?: number }): Promise<{ data: T; cost: number }> {
+  const doFetch: FetchLike = p.fetchImpl ?? (fetch as unknown as FetchLike);
+  let res: Awaited<ReturnType<FetchLike>>;
+  try {
+    res = await doFetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": p.key, "anthropic-version": "2023-06-01", "anthropic-beta": "server-side-fallback-2026-07-01" },
+      body: JSON.stringify({
+        model: PLAN_MODEL, max_tokens: p.maxTokens, fallbacks: "default",
+        output_config: { effort: "medium", format: { type: "json_schema", schema: p.schema } },
+        messages: [{ role: "user", content: p.prompt }],
+      }),
+      signal: AbortSignal.timeout(p.timeoutMs ?? 240_000),
+    });
+  } catch { throw new ContentAiError("Claude could not be reached. Try again in a minute."); }
+  const body = (await res.json().catch(() => null)) as { stop_reason?: string; content?: { type: string; text?: string }[]; usage?: { input_tokens?: number; output_tokens?: number } } | null;
+  if (!res.ok) throw new ContentAiError(res.status === 401 ? "The Anthropic API key was refused. Check it in Settings → Integrations." : `Claude returned an error (${res.status}). Try again later.`);
+  const cost = estimateTextCost({ inputTokens: body?.usage?.input_tokens ?? 4000, outputTokens: body?.usage?.output_tokens ?? 4000 });
+  if (body?.stop_reason === "refusal") throw new ContentAiError("Claude declined this request. Check the client profile and brief, or write it by hand.");
+  if (body?.stop_reason === "max_tokens") throw new ContentAiError("Claude's answer was cut off. Try again with less at a time.");
+  try { return { data: JSON.parse(body?.content?.find((c) => c.type === "text")?.text ?? "") as T, cost }; }
+  catch { throw new ContentAiError("Claude's answer could not be read. Try again."); }
+}
+
 type ProfileRow = Awaited<ReturnType<Db["clientContentProfile"]["findFirstOrThrow"]>>;
 
-export function planPrompt(p: { clientName: string; clientType: string; month: string; monthLabel: string; profile: Pick<ProfileRow, "brandVoice" | "audience" | "about" | "topics" | "avoid" | "languages" | "hashtagRules">; monthBrief: string; slots: Slot[] }) {
+export function planPrompt(p: { clientName: string; clientType: string; month: string; monthLabel: string; profile: Pick<ProfileRow, "brandVoice" | "audience" | "about" | "topics" | "avoid" | "languages" | "hashtagRules">; monthBrief: string; slots: Slot[]; recentTitles?: string[]; hashtagGroups?: { name: string; tags: string }[] }) {
   const f = p.profile;
   const line = (k: string, v: string | null) => (v ? `${k}: ${v}` : null);
   return [
@@ -160,6 +185,8 @@ export function planPrompt(p: { clientName: string; clientType: string; month: s
     "",
     `This month's brief from the project manager (offers, events, dates to use):`,
     p.monthBrief.trim() || "None given. Use the topics above and normal seasonal moments.",
+    ...(p.hashtagGroups?.length ? ["", "Saved hashtag sets for this client (use the brand set on every post, others where they fit):", ...p.hashtagGroups.map((g) => `- ${g.name}: ${g.tags}`)] : []),
+    ...(p.recentTitles?.length ? ["", "Posts already made for this client recently. Do not repeat these ideas or angles:", ...p.recentTitles.map((t) => `- ${t}`)] : []),
     "",
     `The posts to write, one per slot. The date, type and platforms are already decided; write the content for each:`,
     ...p.slots.map((s, i) => `Slot ${i}: ${s.date}, ${s.postType === "REEL" ? "short video (Reel)" : s.postType === "VIDEO" ? "long video" : "static image post"}, for ${s.platforms.join(" and ")}`),
@@ -171,6 +198,17 @@ export function planPrompt(p: { clientName: string; clientType: string; month: s
     "- brief: instructions for the designer or editor: for a static post the layout, headline text on the image and visual idea; for a video the opening hook, the shot list in order and the closing line, with a length.",
     "Use a mix of themes across the month so the posts do not repeat each other. Tie posts to the brief's dates and offers where it makes sense. Never invent prices, discounts, awards, phone numbers or claims that the client details do not give you. Return exactly one post for each slot, with slot set to its number.",
   ].join("\n");
+}
+
+// What the planner should know from earlier work: recent post titles (so ideas do not repeat) and the client's hashtag sets
+export async function planMemory(db: Db, organizationId: string, clientId: string, month: string) {
+  const [y, m] = month.split("-").map(Number);
+  const from = new Date(Date.UTC(y, m - 4, 1)).toISOString().slice(0, 10);
+  const [recent, groups] = await Promise.all([
+    db.contentItem.findMany({ where: { organizationId, clientId, plannedDate: { gte: from, lt: `${month}-01` } }, orderBy: { plannedDate: "desc" }, take: 80, select: { title: true } }),
+    db.hashtagGroup.findMany({ where: { organizationId, clientId }, orderBy: { name: "asc" }, take: 10, select: { name: true, tags: true } }),
+  ]);
+  return { recentTitles: [...new Set(recent.map((r) => r.title))], hashtagGroups: groups };
 }
 
 export type PlanResult = { runId: string; created: number; estimatedCostUsd: number };
@@ -198,28 +236,15 @@ export async function generatePlan(db: Db, p: {
   await assertUnderCap(db, client.id, costMonth, Number(profile.monthlyCapUsd), 0.5);
 
   const monthLabel = new Date(p.month + "-01T00:00:00Z").toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
-  const doFetch: FetchLike = p.fetchImpl ?? (fetch as unknown as FetchLike);
-  let res: Awaited<ReturnType<FetchLike>>;
+  const { recentTitles, hashtagGroups } = await planMemory(db, p.organizationId, client.id, p.month);
+  let parsed: { posts?: { slot: number; title: string; caption: string; hashtags: string; brief: string }[] }, cost: number;
   try {
-    res = await doFetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({
-        model: PLAN_MODEL, max_tokens: 32000,
-        output_config: { format: { type: "json_schema", schema: PLAN_SCHEMA } },
-        messages: [{ role: "user", content: planPrompt({ clientName: client.name, clientType: client.clientType, month: p.month, monthLabel, profile, monthBrief: p.monthBrief ?? "", slots }) }],
-      }),
-      signal: AbortSignal.timeout(240_000),
-    });
-  } catch { throw new ContentAiError("Claude could not be reached. Try again in a minute."); }
-  const body = (await res.json().catch(() => null)) as { stop_reason?: string; content?: { type: string; text?: string }[]; usage?: { input_tokens?: number; output_tokens?: number } } | null;
-  if (!res.ok) throw new ContentAiError(res.status === 401 ? "The Anthropic API key was refused. Check it in Settings → Integrations." : `Claude returned an error (${res.status}). Try again later.`);
-  const cost = estimateTextCost({ inputTokens: body?.usage?.input_tokens ?? 4000, outputTokens: body?.usage?.output_tokens ?? total * 400 });
-  if (body?.stop_reason === "refusal") throw new ContentAiError("Claude declined to write this plan. Check the client profile and brief, or write the posts by hand.");
-  if (body?.stop_reason === "max_tokens") throw new ContentAiError("The plan was cut off. Plan fewer posts at a time.");
-  const out = body?.content?.find((c) => c.type === "text")?.text;
-  let parsed: { posts?: { slot: number; title: string; caption: string; hashtags: string; brief: string }[] };
-  try { parsed = JSON.parse(out ?? ""); } catch { throw new ContentAiError("Claude's answer could not be read. Try again."); }
+    ({ data: parsed, cost } = await askClaude<typeof parsed>({ key, maxTokens: 64000, schema: PLAN_SCHEMA, fetchImpl: p.fetchImpl, timeoutMs: 300_000,
+      prompt: planPrompt({ clientName: client.name, clientType: client.clientType, month: p.month, monthLabel, profile, monthBrief: p.monthBrief ?? "", slots, recentTitles, hashtagGroups }) }));
+  } catch (e) {
+    if (e instanceof ContentAiError && /cut off/.test(e.message)) throw new ContentAiError("The plan was cut off. Plan fewer posts at a time.");
+    throw e;
+  }
   const bySlot = new Map((parsed.posts ?? []).filter((x) => Number.isInteger(x.slot) && x.slot >= 0 && x.slot < slots.length && x.title?.trim() && x.caption?.trim()).map((x) => [x.slot, x]));
   if (bySlot.size < slots.length) {
     await db.contentAiRun.create({ data: { organizationId: p.organizationId, clientId: client.id, month: costMonth, kind: "PLAN", planMonth: p.month, postCount: 0, estimatedCostUsd: cost.toFixed(4), createdById: p.actorId } });
@@ -267,7 +292,7 @@ export async function undoPlan(db: Db, p: { organizationId: string; runId: strin
 // ---------------------------------------------------------------------------------------------------------------------------
 const ASPECT: Record<string, string> = { REEL: "9:16", STORY: "9:16", VIDEO: "16:9", LIVE: "16:9", STATIC: "4:5", CAROUSEL: "1:1" };
 
-export function imagePrompt(item: { title: string; copy: string; brief: string | null; postType: string }, profile: { visualStyle: string | null; avoid: string | null; about: string | null } | null, client: string | null) {
+export function imagePrompt(item: { title: string; copy: string; brief: string | null; postType: string }, profile: { visualStyle: string | null; avoid: string | null; about: string | null } | null, client: string | null, note?: string) {
   return [
     `Create one social media image${client ? ` for the brand ${client}` : ""}.`,
     `Post: ${item.title}`,
@@ -275,11 +300,13 @@ export function imagePrompt(item: { title: string; copy: string; brief: string |
     profile?.about ? `About the business: ${profile.about.slice(0, 600)}` : null,
     profile?.visualStyle ? `Visual style: ${profile.visualStyle}` : null,
     profile?.avoid ? `Never show: ${profile.avoid}` : null,
+    note?.trim() ? `Changes asked for this version: ${note.trim()}` : null,
     "Professional, clean composition with room for a headline. Do not draw any words, letters, numbers, logos or watermarks: the team adds text and the logo afterwards. No real people's faces of public figures.",
   ].filter(Boolean).join("\n");
 }
 
-export async function generateImage(db: Db, storage: StorageProvider, p: { organizationId: string; itemId: string; actor: FileActor; today?: string; fetchImpl?: FetchLike; apiKey?: string }) {
+export async function generateImage(db: Db, storage: StorageProvider, p: { organizationId: string; itemId: string; actor: FileActor; note?: string; today?: string; fetchImpl?: FetchLike; apiKey?: string }) {
+  if ((p.note ?? "").length > 500) throw new ContentAiError("Keep the note under 500 characters.");
   const item = await db.contentItem.findFirst({ where: { id: p.itemId, organizationId: p.organizationId } });
   if (!item) throw new ContentAiError("Post not found.");
   if (!["DRAFT", "INTERNAL_REVIEW", "CHANGES_REQUESTED"].includes(item.status)) throw new ContentAiError("Files can only be added while the post is still being worked on.");
@@ -296,7 +323,7 @@ export async function generateImage(db: Db, storage: StorageProvider, p: { organ
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: imagePrompt(item, profile, client?.name ?? null) }] }],
+        contents: [{ parts: [{ text: imagePrompt(item, profile, client?.name ?? null, p.note) }] }],
         generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: ASPECT[item.postType] ?? "1:1" } },
       }),
       signal: AbortSignal.timeout(120_000),
@@ -314,4 +341,75 @@ export async function generateImage(db: Db, storage: StorageProvider, p: { organ
   const file = await saveFile(db, storage, { actor: p.actor, ownerType: "CONTENT", ownerId: item.id, name: `ai-image-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "")}.${ext}`, bytes, category: "AI generated", media: true });
   await db.contentAiRun.create({ data: { organizationId: p.organizationId, clientId: item.clientId ?? "OWN", month, kind: "IMAGE", itemId: item.id, postCount: 1, estimatedCostUsd: EST_IMAGE_USD.toFixed(4), createdById: p.actor.id } });
   return file;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// Redo one post: a new caption, a completely different idea, or a caption written for each platform
+// ---------------------------------------------------------------------------------------------------------------------------
+export const REDO_MODES = ["CAPTION", "IDEA", "PLATFORMS"] as const;
+export type RedoMode = (typeof REDO_MODES)[number];
+
+const REDO_SCHEMA = {
+  type: "object", additionalProperties: false, required: ["title", "caption", "hashtags", "brief", "platformCaptions"],
+  properties: {
+    title: { type: "string" }, caption: { type: "string" }, hashtags: { type: "string" }, brief: { type: "string" },
+    platformCaptions: { type: "array", items: { type: "object", additionalProperties: false, required: ["platform", "caption"], properties: { platform: { type: "string" }, caption: { type: "string" } } } },
+  },
+} as const;
+
+// Characters a platform caption may use, leaving room for the hashtags added after it
+export const roomFor = (platform: string) => { const l = Math.min(CAPTION_LIMITS[platform] ?? 2200, 2200); return l - (l <= 700 ? 60 : 300); };
+
+export function redoPrompt(p: { mode: RedoMode; note: string; clientName: string | null; profile: Pick<ProfileRow, "brandVoice" | "audience" | "about" | "avoid" | "languages" | "hashtagRules"> | null; item: { title: string; copy: string; hashtags: string | null; brief: string | null; postType: string; platforms: string[]; plannedDate: string | null }; recentTitles: string[] }) {
+  const f = p.profile, it = p.item;
+  const line = (k: string, v: string | null | undefined) => (v ? `${k}: ${v}` : null);
+  const task = p.mode === "CAPTION"
+    ? "Rewrite the caption and hashtags with a fresh angle. Keep the same idea, title and brief (return them unchanged). Leave platformCaptions empty."
+    : p.mode === "IDEA"
+      ? "Replace this post with a completely different idea for the same date, type and platforms: a new title, caption, hashtags and a new brief for the maker. It must not repeat any of the recent posts listed. Leave platformCaptions empty."
+      : `Keep the idea, title, main caption, hashtags and brief unchanged (return them as they are). In platformCaptions write one caption for each of these platforms, suited to how people use it: ${it.platforms.map((x) => `${x} (${PLATFORM_META[x]?.label ?? x}, at most ${roomFor(x)} characters, no hashtags)`).join(", ")}.`;
+  return [
+    `You edit one social media post${p.clientName ? ` for ${p.clientName}` : ""}.`,
+    ...(f ? [line("Business", f.about), line("Audience", f.audience), line("Brand voice", f.brandVoice), line("Never say or show", f.avoid), line("Languages", f.languages), line("Hashtag rules", f.hashtagRules)].filter(Boolean) as string[] : []),
+    "",
+    "The post now:",
+    `Title: ${it.title}`, `Type: ${it.postType}`, `Platforms: ${it.platforms.join(", ")}`, it.plannedDate ? `Date: ${it.plannedDate}` : "",
+    `Caption: ${it.copy}`, `Hashtags: ${it.hashtags ?? ""}`, `Brief for the maker: ${it.brief ?? ""}`,
+    ...(p.recentTitles.length && p.mode === "IDEA" ? ["", "Recent posts for this client (do not repeat):", ...p.recentTitles.slice(0, 40).map((t) => `- ${t}`)] : []),
+    "",
+    `Task: ${task}`,
+    p.note.trim() ? `The project manager asked: ${p.note.trim()}` : "",
+    "Never invent prices, discounts, awards, phone numbers or claims the details above do not give you. No hashtags inside captions.",
+  ].filter((x) => x !== "").join("\n");
+}
+
+export async function redoPost(db: Db, p: { organizationId: string; itemId: string; mode: string; note?: string; actorId: string; today?: string; fetchImpl?: FetchLike; apiKey?: string }) {
+  if (!(REDO_MODES as readonly string[]).includes(p.mode)) throw new ContentAiError("Choose what to redo.");
+  const mode = p.mode as RedoMode, note = (p.note ?? "").trim();
+  if (note.length > 500) throw new ContentAiError("Keep the note under 500 characters.");
+  const item = await db.contentItem.findFirst({ where: { id: p.itemId, organizationId: p.organizationId } });
+  if (!item) throw new ContentAiError("Post not found.");
+  if (!isEditable(item.status)) throw new ContentAiError("This post is with the client or already approved. Withdraw it before changing it.");
+  const platforms = item.platforms.length ? item.platforms : [item.platform];
+  if (mode === "PLATFORMS" && platforms.length < 2) throw new ContentAiError("This post goes to one platform only. Add another platform first.");
+  const key = p.apiKey ?? (await getKey(db, p.organizationId, "ANTHROPIC"));
+  if (!key) throw new ContentAiError("AI is not configured: a Super Admin adds the Anthropic API key in Settings → Integrations.");
+  const profile = item.clientId ? await db.clientContentProfile.findUnique({ where: { clientId: item.clientId } }) : null;
+  const client = item.clientId ? await db.client.findUnique({ where: { id: item.clientId }, select: { name: true } }) : null;
+  const month = (p.today ?? new Date().toISOString().slice(0, 10)).slice(0, 7);
+  if (item.clientId) await assertUnderCap(db, item.clientId, month, Number(profile?.monthlyCapUsd ?? 10), 0.05);
+  const recentTitles = item.clientId ? (await db.contentItem.findMany({ where: { organizationId: p.organizationId, clientId: item.clientId, id: { not: item.id } }, orderBy: { createdAt: "desc" }, take: 40, select: { title: true } })).map((r) => r.title) : [];
+  const { data, cost } = await askClaude<{ title: string; caption: string; hashtags: string; brief: string; platformCaptions: { platform: string; caption: string }[] }>({
+    key, maxTokens: 16000, schema: REDO_SCHEMA, fetchImpl: p.fetchImpl, timeoutMs: 120_000,
+    prompt: redoPrompt({ mode, note, clientName: client?.name ?? null, profile, item: { ...item, platforms }, recentTitles }),
+  });
+  await db.contentAiRun.create({ data: { organizationId: p.organizationId, clientId: item.clientId ?? "OWN", month, kind: `REDO_${mode}`, itemId: item.id, postCount: 1, estimatedCostUsd: cost.toFixed(4), createdById: p.actorId } });
+  if (!data.caption?.trim()) throw new ContentAiError("Claude returned an empty caption. Try again.");
+  const edit = mode === "PLATFORMS"
+    ? { copy: item.copy, hashtags: item.hashtags ?? "", platformCopy: { ...cleanPlatformCopy(item.platformCopy), ...Object.fromEntries((data.platformCaptions ?? []).filter((x) => platforms.includes(x.platform) && x.caption?.trim()).map((x) => [x.platform, x.caption.trim().slice(0, 5000)])) } }
+    : mode === "CAPTION"
+      ? { copy: data.caption.trim().slice(0, 5000), hashtags: (data.hashtags ?? "").trim().slice(0, 500) }
+      : { copy: data.caption.trim().slice(0, 5000), hashtags: (data.hashtags ?? "").trim().slice(0, 500), title: (data.title ?? "").trim().slice(0, 200) || item.title, brief: (data.brief ?? "").trim().slice(0, 3000), platformCopy: {} };
+  try { return await editContent(db, { organizationId: p.organizationId, id: item.id, ...edit }); }
+  catch (e) { if (e instanceof ContentError) throw new ContentAiError(e.message); throw e; }
 }
