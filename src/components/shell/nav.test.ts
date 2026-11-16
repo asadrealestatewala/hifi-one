@@ -100,9 +100,9 @@ describe("CRM & sales", () => {
 describe("Finance, and Services & clients", () => {
   const all = new Set<string>([...NAV.flatMap((g) => g.items.map((i) => i.permission)), ...SCREEN_GROUPS.flatMap((g) => g.tabs.map((t) => t.permission))].filter((p) => p !== null));
 
-  it("Finance is six entries", () => {
+  it("Finance is seven entries", () => {
     const fin = visibleNav(all).find((g) => g.id === "finance");
-    expect(fin!.items.map((i) => i.label)).toEqual(["Books", "Bank reconciliation", "Budgets", "Commissions", "Financial reports", "Assets & investments"]);
+    expect(fin!.items.map((i) => i.label)).toEqual(["Books", "Expense vouchers", "Bank reconciliation", "Budgets", "Commissions", "Financial reports", "Assets & investments"]);
   });
 
   it("Services & clients is six entries", () => {
@@ -120,7 +120,7 @@ describe("Finance, and Services & clients", () => {
     expect(visibleNav(perms("crm.view_all")).find((g) => g.id === "partners")).toBeUndefined();
   });
 
-  it("the whole menu is 48 entries for somebody who may see everything (47 plus Partner Stack)", () => {
-    expect(visibleNav(all).reduce((n, g) => n + g.items.length, 0)).toBe(48);
+  it("the whole menu is 49 entries for somebody who may see everything (47 plus Partner Stack and Expense vouchers)", () => {
+    expect(visibleNav(all).reduce((n, g) => n + g.items.length, 0)).toBe(49);
   });
 });
