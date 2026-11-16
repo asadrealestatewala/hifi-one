@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { audit, requirePermission } from "@/lib/auth";
 import { ContentAiError, generatePlan, saveProfile, undoPlan } from "@/lib/content-ai";
 import { db } from "@/lib/db";
+import { ContentError } from "@/lib/content";
+import { deleteHashtagGroup, saveHashtagGroup } from "@/lib/content-hashtags";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 const num = (f: FormData, k: string) => (s(f, k) === "" ? 0 : Number(s(f, k)));
@@ -58,4 +60,30 @@ export async function undoPlanAction(formData: FormData): Promise<void> {
     throw e;
   }
   to(clientId, month, "ok", msg);
+}
+
+export async function saveHashtagGroupAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("content.manage");
+  const clientId = s(formData, "clientId"), month = s(formData, "month");
+  try {
+    const g = await saveHashtagGroup(db, { organizationId: user.organizationId, clientId: clientId || null, name: s(formData, "name"), tags: s(formData, "tags"), actorId: user.id });
+    await audit(user, { action: "content.hashtag_group_save", entity: "HashtagGroup", entityId: g.id, after: { name: g.name } });
+  } catch (e) {
+    if (e instanceof ContentError) return to(clientId, month, "error", e.message);
+    throw e;
+  }
+  to(clientId, month, "ok", "Hashtag group saved.");
+}
+
+export async function deleteHashtagGroupAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("content.manage");
+  const clientId = s(formData, "clientId"), month = s(formData, "month"), id = s(formData, "id");
+  try {
+    await deleteHashtagGroup(db, { organizationId: user.organizationId, id });
+    await audit(user, { action: "content.hashtag_group_delete", entity: "HashtagGroup", entityId: id });
+  } catch (e) {
+    if (e instanceof ContentError) return to(clientId, month, "error", e.message);
+    throw e;
+  }
+  to(clientId, month, "ok", "Hashtag group deleted.");
 }

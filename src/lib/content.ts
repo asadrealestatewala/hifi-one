@@ -1,7 +1,7 @@
 // Content calendar service: versions, the approval workflow, and the people notified at each step.
 // Free of Next.js imports so it can be tested against the database.
 import type { PrismaClient } from "@prisma/client";
-import { PLATFORMS, POST_TYPES, canTransition, isDate, isEditable, isTime, needsComment, type Actor } from "./content-rules";
+import { PLATFORMS, POST_TYPES, canTransition, captionIssues, cleanPlatformCopy, isDate, isEditable, isTime, needsComment, type Actor, type PlatformCopy } from "./content-rules";
 import { notifyMany } from "./notifications";
 import { QUOTA_LABEL, logUsage, currentPeriod } from "./engagements";
 import { taskAssigned } from "./events";
@@ -92,7 +92,8 @@ export async function reschedule(db: PrismaClient, p: { organizationId: string; 
 }
 
 // Every copy change is a new version, so what the client approved can always be shown.
-export async function editContent(db: PrismaClient, p: { organizationId: string; id: string; copy: string; hashtags?: string; title?: string; plannedDate?: string; plannedTime?: string; postType?: string; platforms?: string[] }) {
+// platformCopy and firstComment: undefined keeps what is there. A platform caption equal to the main caption is dropped.
+export async function editContent(db: PrismaClient, p: { organizationId: string; id: string; copy: string; hashtags?: string; title?: string; plannedDate?: string; plannedTime?: string; postType?: string; platforms?: string[]; platformCopy?: PlatformCopy; firstComment?: string; brief?: string }) {
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "ContentItem" WHERE id = ${p.id} FOR UPDATE`;
     const item = await tx.contentItem.findFirst({ where: { id: p.id, organizationId: p.organizationId } });
@@ -100,17 +101,23 @@ export async function editContent(db: PrismaClient, p: { organizationId: string;
     if (!isEditable(item.status)) throw new ContentError("This content is with the client or already approved. Withdraw it before editing.");
     if (p.copy.trim().length < 1) throw new ContentError("The post copy cannot be empty.");
     const fields = checkFields({ platforms: p.platforms ?? item.platforms, postType: p.postType ?? item.postType, plannedDate: p.plannedDate ?? item.plannedDate ?? undefined, plannedTime: p.plannedTime ?? item.plannedTime ?? undefined });
-    const changed = p.copy !== item.copy || (p.hashtags ?? "") !== (item.hashtags ?? "");
+    const pc = p.platformCopy === undefined ? cleanPlatformCopy(item.platformCopy) : Object.fromEntries(Object.entries(cleanPlatformCopy(p.platformCopy)).filter(([k, v]) => fields.includes(k) && v.trim() !== p.copy.trim()));
+    if (Object.values(pc).some((v) => v.length > 5000)) throw new ContentError("A platform caption is too long.");
+    const firstComment = p.firstComment === undefined ? item.firstComment : p.firstComment.trim() || null;
+    if ((firstComment ?? "").length > 2200) throw new ContentError("The first comment is too long.");
+    if (p.brief !== undefined && p.brief.length > 3000) throw new ContentError("The brief is too long.");
+    const changed = p.copy !== item.copy || (p.hashtags ?? "") !== (item.hashtags ?? "") || JSON.stringify(pc) !== JSON.stringify(cleanPlatformCopy(item.platformCopy)) || firstComment !== item.firstComment;
     const version = changed ? item.version + 1 : item.version;
-    if (changed) await tx.contentVersion.create({ data: { itemId: item.id, version, copy: p.copy, hashtags: p.hashtags || null } });
+    if (changed) await tx.contentVersion.create({ data: { itemId: item.id, version, copy: p.copy, hashtags: p.hashtags || null, platformCopy: pc, firstComment } });
     return tx.contentItem.update({
       where: { id: item.id },
-      data: { copy: p.copy, hashtags: p.hashtags || null, version, title: p.title?.trim() || item.title, plannedDate: p.plannedDate || item.plannedDate, plannedTime: p.plannedTime === undefined ? item.plannedTime : p.plannedTime || null, postType: p.postType ?? item.postType, platforms: fields, platform: fields[0] },
+      data: { copy: p.copy, hashtags: p.hashtags || null, platformCopy: pc, firstComment, ...(p.brief !== undefined ? { brief: p.brief.trim() || null } : {}), version, title: p.title?.trim() || item.title, plannedDate: p.plannedDate || item.plannedDate, plannedTime: p.plannedTime === undefined ? item.plannedTime : p.plannedTime || null, postType: p.postType ?? item.postType, platforms: fields, platform: fields[0] },
     });
   });
 }
 
-export async function transition(db: PrismaClient, p: { organizationId: string; id: string; actor: ContentActor; to: string; comment?: string }) {
+// quiet: the caller sends one summary notification itself (bulk moves)
+export async function transition(db: PrismaClient, p: { organizationId: string; id: string; actor: ContentActor; to: string; comment?: string; quiet?: boolean }) {
   const result = await db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "ContentItem" WHERE id = ${p.id} FOR UPDATE`;
     const item = await tx.contentItem.findFirst({ where: { id: p.id, organizationId: p.organizationId } });
@@ -119,6 +126,11 @@ export async function transition(db: PrismaClient, p: { organizationId: string; 
     if (!canTransition(p.actor.type, item.status, p.to, Boolean(item.clientId))) throw new ContentError(`That change is not allowed from ${item.status.toLowerCase().replace("_", " ")}.`);
     const comment = p.comment?.trim() || null;
     if (needsComment(item.status, p.to) && !comment) throw new ContentError("Please give a reason.");
+    // A caption a platform would reject never reaches the client (or approval, for our own posts)
+    if (p.to === "CLIENT_REVIEW" || (p.to === "APPROVED" && p.actor.type === "STAFF")) {
+      const issues = captionIssues(item);
+      if (issues.length) throw new ContentError(issues[0].message);
+    }
     // The client's project manager approves before the client sees it. Without one, someone other than the author must complete the internal review.
     if (item.status === "INTERNAL_REVIEW" && p.to === "CLIENT_REVIEW") {
       const pm = item.clientId ? (await tx.client.findFirst({ where: { id: item.clientId }, select: { projectManagerId: true } }))?.projectManagerId ?? null : null;
@@ -136,6 +148,7 @@ export async function transition(db: PrismaClient, p: { organizationId: string; 
   // Notifications after the change is saved (idempotent per item and status)
   const { item, comment } = result;
   if (p.to === "PUBLISHED") await countPublishedAgainstQuota(db, item, p.actor.id);
+  if (p.quiet) return item;
   const key = `content:${item.id}:${item.version}:${p.to}`;
   if (p.to === "CLIENT_REVIEW" && item.clientId) {
     const clientUsers = await db.user.findMany({ where: { clientId: item.clientId, active: true }, select: { id: true } });
@@ -156,6 +169,39 @@ export function clientContent(db: PrismaClient, clientId: string) {
   return db.contentItem.findMany({
     where: { clientId, status: { in: ["CLIENT_REVIEW", "CHANGES_REQUESTED", "APPROVED", "SCHEDULED", "PUBLISHED"] } },
     orderBy: [{ plannedDate: "asc" }, { createdAt: "desc" }],
-    select: { id: true, platform: true, title: true, copy: true, hashtags: true, plannedDate: true, status: true, version: true },
+    select: { id: true, platform: true, platforms: true, postType: true, title: true, copy: true, hashtags: true, platformCopy: true, firstComment: true, plannedDate: true, plannedTime: true, status: true, version: true },
   });
+}
+
+// Moving several posts at once (the week view, the sheet, the client's "approve all"). Each post goes through the same rules
+// as a single move; the ones that cannot move are reported, the rest move. One notification per person instead of one per post.
+export async function bulkTransition(db: PrismaClient, p: { organizationId: string; ids: string[]; actor: ContentActor; to: string; comment?: string }) {
+  const ids = [...new Set(p.ids)].slice(0, 200);
+  if (ids.length === 0) throw new ContentError("Choose at least one post.");
+  const moved: { id: string; title: string; clientId: string | null; createdById: string; assignedToId: string | null }[] = [];
+  const failed: { id: string; title: string; reason: string }[] = [];
+  for (const id of ids) {
+    try {
+      const it = await transition(db, { organizationId: p.organizationId, id, actor: p.actor, to: p.to, comment: p.comment, quiet: true });
+      moved.push(it);
+    } catch (e) {
+      if (!(e instanceof ContentError)) throw e;
+      const t = await db.contentItem.findFirst({ where: { id, organizationId: p.organizationId, ...(p.actor.type === "CLIENT" ? { clientId: p.actor.clientId ?? "-" } : {}) }, select: { title: true } });
+      failed.push({ id, title: t?.title ?? "Unknown post", reason: e.message });
+    }
+  }
+  const stamp = Date.now();
+  if (p.to === "CLIENT_REVIEW") {
+    const byClient = new Map<string, number>();
+    for (const m of moved) if (m.clientId) byClient.set(m.clientId, (byClient.get(m.clientId) ?? 0) + 1);
+    for (const [clientId, n] of byClient) {
+      const users = await db.user.findMany({ where: { clientId, active: true }, select: { id: true } });
+      await notifyMany(db, users.map((u) => u.id), { kind: "content.review", title: `${n} post${n === 1 ? "" : "s"} waiting for your approval`, link: "/portal/content", dedupeKey: `content-bulk:${clientId}:${stamp}` });
+    }
+  }
+  if (p.actor.type === "CLIENT" && moved.length) {
+    const staff = [...new Set(moved.flatMap((m) => [m.createdById, m.assignedToId]).filter((x): x is string => Boolean(x)))];
+    await notifyMany(db, staff, { kind: "content.decision", title: p.to === "APPROVED" ? `Client approved ${moved.length} post${moved.length === 1 ? "" : "s"}` : `Client requested changes on ${moved.length} post${moved.length === 1 ? "" : "s"}`, body: p.comment || undefined, link: "/content?view=sheet", dedupeKey: `content-bulk-decision:${moved[0].id}:${stamp}` });
+  }
+  return { moved: moved.length, failed };
 }

@@ -1290,6 +1290,8 @@ model ContentItem {
   sampleUrl      String? // a reference or sample to follow
   taskId         String? // the project task created for the assignee
   aiRunId        String? // set when AI wrote this draft as part of a monthly plan (ContentAiRun)
+  platformCopy   Json     @default("{}") // { PLATFORM: caption } where a platform gets its own wording; others use copy
+  firstComment   String? // posted as the first comment under the post
   createdById    String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -1342,12 +1344,27 @@ model ContentAiRun {
   @@index([organizationId, createdAt])
 }
 
+// Saved hashtag sets, added to a post in one click. clientId empty = for the company's own posts.
+model HashtagGroup {
+  id             String   @id @default(cuid())
+  organizationId String
+  clientId       String?
+  name           String
+  tags           String // "#one #two", cleaned and de-duplicated
+  createdById    String
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, clientId])
+}
+
 model ContentVersion {
   id        String   @id @default(cuid())
   itemId    String
   version   Int
   copy      String
   hashtags  String?
+  platformCopy Json?
+  firstComment String?
   createdAt DateTime @default(now())
 
   item ContentItem @relation(fields: [itemId], references: [id], onDelete: Cascade)

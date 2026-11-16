@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { audit, requirePermission } from "@/lib/auth";
-import { ContentError, createContent, reschedule } from "@/lib/content";
+import { audit, requirePermission, type SessionUser } from "@/lib/auth";
+import { ContentError, bulkTransition, createContent, reschedule } from "@/lib/content";
 import { db } from "@/lib/db";
 
 export type RescheduleResult = { ok: boolean; error?: string };
@@ -41,4 +41,23 @@ export async function reschedulePostAction(id: string, plannedDate: string): Pro
   }
   revalidatePath("/content");
   return { ok: true };
+}
+
+// Week view and sheet: move the ticked posts on together. Each post is checked by the same rules as a single move.
+export async function bulkToInternalAction(formData: FormData): Promise<void> { return bulkMove(await requirePermission("content.manage"), formData, "INTERNAL_REVIEW"); }
+export async function bulkToClientAction(formData: FormData): Promise<void> { return bulkMove(await requirePermission("content.manage"), formData, "CLIENT_REVIEW"); }
+
+async function bulkMove(user: SessionUser, formData: FormData, to: "INTERNAL_REVIEW" | "CLIENT_REVIEW"): Promise<void> {
+  const back = s(formData, "back") || "/content";
+  const safeBack = back.startsWith("/content") ? back : "/content";
+  let msg: string;
+  try {
+    const r = await bulkTransition(db, { organizationId: user.organizationId, ids: formData.getAll("ids").map(String), actor: { id: user.id, type: "STAFF" }, to });
+    await audit(user, { action: `content.bulk_${to.toLowerCase()}`, entity: "ContentItem", entityId: "bulk", after: { moved: r.moved, failed: r.failed.length } });
+    msg = `${r.moved} post${r.moved === 1 ? "" : "s"} moved to ${to === "CLIENT_REVIEW" ? "client review" : "internal review"}.` + (r.failed.length ? ` ${r.failed.length} could not move: ${r.failed.slice(0, 3).map((f) => `“${f.title}” (${f.reason})`).join("; ")}${r.failed.length > 3 ? " and more" : ""}.` : "");
+  } catch (e) {
+    if (e instanceof ContentError) msg = e.message;
+    else throw e;
+  }
+  redirect(`${safeBack}${safeBack.includes("?") ? "&" : "?"}bulk=${encodeURIComponent(msg)}`);
 }
