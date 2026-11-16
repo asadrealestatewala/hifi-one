@@ -3975,3 +3975,18 @@ model AcademyTestAttempt {
   @@index([earnerId, productId, startedAt])
   @@index([organizationId, startedAt])
 }
+
+// One message of a person's Ask chat. A chat is the messages sharing a chatId; the newest chat is the one shown. Only the owner reads them.
+model AssistantMessage {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  chatId         String
+  role           String // USER | ASSISTANT
+  content        String
+  toolsUsed      String[]
+  createdAt      DateTime @default(now())
+
+  @@index([userId, chatId, createdAt])
+  @@index([userId, createdAt])
+}

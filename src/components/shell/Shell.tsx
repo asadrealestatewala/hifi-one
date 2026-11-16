@@ -2,11 +2,11 @@
 
 import { usePathname } from "next/navigation";
 import CallListener from "./CallListener";
+import AssistantPanel from "./AssistantPanel";
 import { Suspense, useState } from "react";
 import NavProgress from "./NavProgress";
 import type { NavStats } from "@/lib/nav-stats";
 import type { MenuPrefs } from "@/lib/menu-layout";
-import Link from "next/link";
 import CommandPalette from "./CommandPalette";
 import Icon from "./Icon";
 import RowClick from "./RowClick";
@@ -27,6 +27,7 @@ export default function Shell({ groups, allGroups, menuPrefs, quick, name, roles
   groups: Group[]; allGroups: Group[]; menuPrefs: MenuPrefs; quick: { href: string; label: string; icon: string }[]; name: string; roles: string; userId: string; unread: number; chatUnread: number | null; stats: NavStats; canSearch: boolean; canAsk: boolean; callerId: string | null; signOut: () => Promise<void>; viewAs: ViewAs | null; children: React.ReactNode;
 }) {
   const [mobile, setMobile] = useState(false);
+  const [askOpen, setAskOpen] = useState(false);
   const pathname = usePathname();
   return (
     <div className="min-h-screen md:flex">
@@ -40,7 +41,11 @@ export default function Shell({ groups, allGroups, menuPrefs, quick, name, roles
         <CircularPopup />
         {callerId && <CallListener meId={callerId} />}
         <main className="mx-auto w-full max-w-[1400px] p-4 md:p-8"><RowClick /><KeyboardShortcuts /><div key={pathname} className="[animation:fade_.25s_ease-out]">{children}</div></main>
-        {canAsk && pathname !== "/assistant" && !pathname.startsWith("/chat") && <Link href="/assistant" className="fixed bottom-5 right-5 z-30 inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-primary-dark print:hidden" aria-label="Ask the assistant"><Icon name="sparkles" className="h-4 w-4" />Ask</Link>}
+        {canAsk && pathname !== "/assistant" && !pathname.startsWith("/chat") && (
+          askOpen
+            ? <div className="fixed inset-0 z-40 bg-surface shadow-2xl sm:inset-auto sm:bottom-5 sm:right-5 sm:h-[600px] sm:max-h-[calc(100vh-2.5rem)] sm:w-[380px] sm:rounded-2xl sm:border sm:border-border print:hidden" role="dialog" aria-label="Ask Hifi One"><AssistantPanel floating onClose={() => setAskOpen(false)} /></div>
+            : <button type="button" onClick={() => setAskOpen(true)} className="fixed bottom-5 right-5 z-30 inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-primary-dark print:hidden" aria-label="Ask the assistant"><Icon name="sparkles" className="h-4 w-4" />Ask</button>
+        )}
       </div>
     </div>
   );
