@@ -88,7 +88,7 @@ describe("CRM & sales", () => {
   it("is nine entries, with Field visits on its own", () => {
     const all = new Set<string>([...NAV.flatMap((g) => g.items.map((i) => i.permission)), ...SCREEN_GROUPS.flatMap((g) => g.tabs.map((t) => t.permission))].filter((p) => p !== null));
     const crm = visibleNav(all).find((g) => g.id === "crm");
-    expect(crm!.items.map((i) => i.label)).toEqual(["Contacts", "Leads", "Opportunities", "Prospector", "Field visits", "Campaigns", "Clout Leader", "Quotations", "Sales reports"]);
+    expect(crm!.items.map((i) => i.label)).toEqual(["Contacts", "Leads", "Opportunities", "Prospector", "Field visits", "Campaigns", "Clout Leader", "Proposals & quotations", "Sales reports"]);
   });
 
   it("a field agent sees Field visits and their own prospects, not the team screens", () => {

@@ -8,6 +8,8 @@ import { templates } from "@/lib/whatsapp";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { SalesError, cancelQuote, convertQuoteToInvoice, decideQuote, expireQuotes, sendQuote } from "@/lib/sales";
+import { isProposal, quoteLayout, templateLabel } from "@/lib/pdf";
+import { getDocConfig } from "@/lib/pdf-data";
 
 export const dynamic = "force-dynamic";
 
@@ -39,14 +41,17 @@ async function act(formData: FormData) {
   back("");
 }
 
-export default async function QuoteDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; mailOk?: string; mailError?: string }> }) {
+export default async function QuoteDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; mailOk?: string; mailError?: string; saved?: string }> }) {
   const user = await requirePermission("quotes.view");
   const { id } = await params;
   const sp = await searchParams;
   const { error } = sp;
   await expireQuotes(db, user.organizationId, new Date().toISOString().slice(0, 10));
-  const q = await db.quote.findFirst({ where: { id, organizationId: user.organizationId }, include: { client: true, lines: true } });
+  const q = await db.quote.findFirst({ where: { id, organizationId: user.organizationId }, include: { client: true, lines: { orderBy: { id: "asc" } } } });
   if (!q) notFound();
+  const proposal = isProposal(q);
+  const layout = templateLabel(quoteLayout(q.templateKey, (await getDocConfig(db, user.organizationId, "QUOTE")).config));
+  const sections = [["Introduction", q.introduction], ["Scope of work", q.scope], ["Timeline", q.timeline]].filter((x): x is [string, string] => Boolean(x[1]));
   const canManage = user.permissions.has("quotes.manage");
   const canInvoice = canManage && user.permissions.has("finance.post");
   const hid = <input type="hidden" name="id" value={q.id} />;
@@ -55,14 +60,20 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
   );
   return (
     <div className="space-y-4 max-w-3xl">
-      <Link href="/quotes" className="text-sm text-muted hover:underline">← Quotations</Link>
+      <Link href="/quotes" className="text-sm text-muted hover:underline">← Proposals & quotations</Link>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">{q.number}<StatusBadge status={q.status} /></h1>
-        <a className="btn-ghost" href={`/quotes/${q.id}/pdf`} target="_blank" rel="noopener">Download PDF</a>
+        <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">{proposal ? "Proposal" : "Quotation"} {q.number}<StatusBadge status={q.status} /></h1>
+        <div className="flex gap-2">
+          {canManage && q.status === "DRAFT" && <Link className="btn-ghost" href={`/quotes/${q.id}/edit`}>Edit draft</Link>}
+          <a className="btn-ghost" href={`/quotes/${q.id}/pdf`} target="_blank" rel="noopener">Download PDF</a>
+        </div>
       </div>
       {error && <Notice kind="error">{error}</Notice>}
+      {sp.saved && <Notice kind="ok">Draft saved. Check the PDF, then mark it as sent when it is ready.</Notice>}
       <section className="card space-y-3">
-        <p className="text-sm">For <strong>{q.client.name}</strong>{q.validUntil && <> · valid until {q.validUntil}</>}</p>
+        {q.title && <h2 className="text-lg font-semibold">{q.title}</h2>}
+        <p className="text-sm">For <strong>{q.client.name}</strong>{q.validUntil && <> · valid until {q.validUntil}</>} · <span className="text-muted">PDF layout: {layout}</span></p>
+        {sections.map(([h, b]) => <div key={h}><h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{h}</h3><p className="mt-1 whitespace-pre-line text-sm">{b}</p></div>)}
         <table className="w-full text-sm">
           <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="py-2 pr-4">Description</th><th className="pr-4 text-right">Qty</th><th className="pr-4 text-right">Unit price</th><th className="text-right">Amount</th></tr></thead>
           <tbody>{q.lines.map((l) => <tr key={l.id} className="border-t border-border transition hover:bg-hover/50"><td className="py-2 pr-4">{l.description}</td><td className="pr-4 text-right">{l.quantity.toString()}</td><td className="pr-4 text-right">{formatMoney(l.unitPrice, q.currency)}</td><td className="text-right">{formatMoney(l.amount, q.currency)}</td></tr>)}</tbody>
@@ -80,9 +91,9 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
       {canManage && (
         <div className="flex flex-wrap gap-2 items-start">
           {q.status === "DRAFT" && form("send", "Mark as sent to client")}
-          {(q.status === "DRAFT" || q.status === "SENT") && form("cancel", "Cancel quotation", true)}
+          {(q.status === "DRAFT" || q.status === "SENT") && form("cancel", proposal ? "Cancel proposal" : "Cancel quotation", true)}
           {q.status === "ACCEPTED" && canInvoice && form("convert", "Convert to draft invoice")}
-          {q.status === "ACCEPTED" && !canInvoice && <p className="text-sm text-muted">Ask someone who can create invoices to convert this quotation.</p>}
+          {q.status === "ACCEPTED" && !canInvoice && <p className="text-sm text-muted">Ask someone who can create invoices to convert this {proposal ? "proposal" : "quotation"}.</p>}
           {q.status === "SENT" && (
             <form action={act} className="card flex flex-wrap items-end gap-2 w-full">
               {hid}

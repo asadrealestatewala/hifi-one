@@ -29,19 +29,24 @@ export default async function PortalQuotes({ searchParams }: { searchParams: Pro
   const sp = await searchParams;
   await expireQuotes(db, user.organizationId, new Date().toISOString().slice(0, 10));
   // Only quotations that were sent to the client, never drafts or cancelled ones
-  const quotes = await db.quote.findMany({ where: { organizationId: user.organizationId, clientId: user.clientId, status: { notIn: ["DRAFT", "CANCELLED"] } }, orderBy: { createdAt: "desc" }, include: { lines: true } });
+  const quotes = await db.quote.findMany({ where: { organizationId: user.organizationId, clientId: user.clientId, status: { notIn: ["DRAFT", "CANCELLED"] } }, orderBy: { createdAt: "desc" }, include: { lines: { orderBy: { id: "asc" } } } });
   return (
     <div className="space-y-4">
-      <PageHeader title="Quotations" />
+      <PageHeader title="Proposals & quotations" />
       {sp.done && <Notice kind="ok">Thank you. Your response has been recorded.</Notice>}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
-      {quotes.length === 0 && <div className="card text-sm text-muted">No quotations yet.</div>}
+      {quotes.length === 0 && <div className="card text-sm text-muted">No proposals or quotations yet.</div>}
       {quotes.map((q) => (
         <section key={q.id} className="card space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-semibold">{q.number} · {formatMoney(q.total, q.currency)} <span className="text-sm font-normal text-muted">{q.status === "INVOICED" ? "accepted" : q.status.toLowerCase()}</span></h2>
             <a className="btn-ghost" href={`/portal/quotes/${q.id}/pdf`} target="_blank" rel="noopener">Download PDF</a>
           </div>
+          {q.title && <p className="font-medium">{q.title}</p>}
+          {[["Introduction", q.introduction], ["Scope of work", q.scope], ["Timeline", q.timeline]].filter(([, b]) => b).map(([h, b]) => (
+            <details key={h} className="rounded-lg border border-border px-3 py-2 text-sm"><summary className="cursor-pointer font-medium">{h}</summary><p className="mt-2 whitespace-pre-line text-muted">{b}</p></details>
+          ))}
+          {q.terms && <p className="text-xs text-muted whitespace-pre-line">Terms: {q.terms}</p>}
           <ul className="text-sm">{q.lines.map((l) => <li key={l.id} className="flex justify-between border-t border-border py-1"><span>{l.description} × {l.quantity.toString()}</span><span>{formatMoney(l.amount, q.currency)}</span></li>)}</ul>
           {q.validUntil && <p className="text-xs text-muted">Valid until {q.validUntil}</p>}
           {q.status === "SENT" && (

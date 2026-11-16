@@ -6,7 +6,7 @@ export const MODULE_COLOR: Record<string, string> = {
 // One icon per menu entry (by label), so every entry is recognisable at a glance. Unlisted labels fall back to a guess.
 export const ENTRY_ICON: Record<string, string> = {
   Dashboard: "home", Search: "search", Approvals: "check", Mailbox: "mail", Assistant: "sparkles",
-  Contacts: "users", Leads: "target", Opportunities: "chart", Prospector: "search", "Field visits": "pin", Campaigns: "sparkles", "Clout Leader": "activity", Quotations: "file", "Sales reports": "chart",
+  Contacts: "users", Leads: "target", Opportunities: "chart", Prospector: "search", "Field visits": "pin", Campaigns: "sparkles", "Clout Leader": "activity", "Proposals & quotations": "file", "Sales reports": "chart",
   "Partner Stack": "link",
   "Service catalog": "layers", Clients: "building", Retainers: "clock", Contracts: "file", "Support requests": "chat", Billing: "receipt",
   Projects: "briefcase", "Content calendar": "calendar", "Team chat": "chat", Meetings: "video",

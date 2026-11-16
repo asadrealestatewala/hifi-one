@@ -7,7 +7,7 @@ import { Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
-const TITLES: Record<DocType, string> = { QUOTE: "Quotations", INVOICE: "Invoices", RECEIPT: "Receipts", CREDIT_NOTE: "Credit notes", STATEMENT: "Client statements", PAYSLIP: "Payslips", VOUCHER: "Expense vouchers" };
+const TITLES: Record<DocType, string> = { QUOTE: "Proposals & quotations", INVOICE: "Invoices", RECEIPT: "Receipts", CREDIT_NOTE: "Credit notes", STATEMENT: "Client statements", PAYSLIP: "Payslips", VOUCHER: "Expense vouchers" };
 const TOGGLES: [keyof DocConfig, string][] = [
   ["showRegisteredOffice", "Registered office"], ["showSalesCentre", "Sales centre"], ["showPhones", "Phone numbers (UANs)"], ["showEmail", "Company email"],
   ["showWebsite", "Website"], ["showRegistrationNo", "Registration number"], ["showTaxId", "Tax ID"], ["showBank", "Bank payment instructions"], ["showStamp", "Company stamp"],
@@ -25,7 +25,7 @@ async function save(formData: FormData) {
   } else {
     const raw: Record<string, unknown> = { footerText: String(formData.get("footerText") ?? "").slice(0, 500), accent: String(formData.get("accent") ?? "") };
     for (const [k] of TOGGLES) raw[k] = formData.get(k) === "on";
-    if (docType === "INVOICE") {
+    if (docType === "INVOICE" || docType === "QUOTE") {
       const tpl = String(formData.get("template") ?? "");
       raw.template = TEMPLATE_KEYS.includes(tpl) ? tpl : DEFAULT_INVOICE_TEMPLATE;
     }
@@ -69,19 +69,19 @@ export default async function DocumentSettings({ searchParams }: { searchParams:
               <label key={k} className="flex items-center gap-2"><input type="checkbox" name={k} defaultChecked={Boolean(config[k])} disabled={!canEdit} /> {label}</label>
             ))}
           </div>
-          {type === "INVOICE" && (
+          {(type === "INVOICE" || type === "QUOTE") && (
             <div className="space-y-2 rounded-lg border border-border p-3">
-              <p className="text-sm font-medium">Default invoice template</p>
+              <p className="text-sm font-medium">{type === "INVOICE" ? "Default invoice template" : "Default proposal and quotation layout"}</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {INVOICE_TEMPLATES.map((o) => (
                   <label key={o.key} className="flex cursor-pointer items-start gap-2 rounded-lg border border-border p-2 text-sm has-[:checked]:border-primary">
-                    <input type="radio" name="template" value={o.key} defaultChecked={config.template === o.key} disabled={!canEdit} className="mt-1" />
+                    <input type="radio" name="template" value={o.key} defaultChecked={(TEMPLATE_KEYS.includes(config.template) ? config.template : DEFAULT_INVOICE_TEMPLATE) === o.key} disabled={!canEdit} className="mt-1" />
                     <span><span className="font-medium">{o.label}</span><span className="block text-xs text-muted">{o.note}</span>
-                      <a className="text-xs underline" href={`/settings/documents/preview?type=INVOICE&template=${o.key}`} target="_blank" rel="noopener">Preview</a></span>
+                      <a className="text-xs underline" href={`/settings/documents/preview?type=${type}&template=${o.key}`} target="_blank" rel="noopener">Preview</a></span>
                   </label>
                 ))}
               </div>
-              <p className="text-xs text-muted">Each invoice can use a different template while it is a draft. The template is frozen when the invoice is issued. The accent colour below is not used by these two templates.</p>
+              <p className="text-xs text-muted">{type === "INVOICE" ? "Each invoice can use a different template while it is a draft. The template is frozen when the invoice is issued." : "Each proposal or quotation can use a different layout while it is a draft."} The accent colour below is not used by these two templates.</p>
             </div>
           )}
           <div className="grid gap-3 sm:grid-cols-[1fr_8rem]">

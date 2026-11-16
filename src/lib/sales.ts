@@ -7,6 +7,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { createDraftInvoice, LedgerError, nextNumber } from "./accounting";
 import { computeInvoiceTotals, dec } from "./ledger-math";
 import { CURRENCIES } from "./money";
+import { TEMPLATE_KEYS } from "./pdf";
 
 export class SalesError extends Error {}
 
@@ -40,9 +41,25 @@ function checkLines(lines: LineIn[]) {
   }
 }
 
-export async function createQuote(db: Db, p: {
-  organizationId: string; clientId: string; currency: string; taxRate: string; validUntil?: string | null; notes?: string | null; terms?: string | null; createdById: string; lines: LineIn[];
-}) {
+// Proposal sections are optional free text; a quote with any of them prints as a proposal
+export type ProposalSections = { title?: string | null; introduction?: string | null; scope?: string | null; timeline?: string | null };
+const SECTION_MAX = { title: 200, introduction: 5000, scope: 5000, timeline: 3000 } as const;
+function sections(p: ProposalSections) {
+  const out: Record<keyof ProposalSections, string | null> = { title: null, introduction: null, scope: null, timeline: null };
+  for (const k of Object.keys(SECTION_MAX) as (keyof ProposalSections)[]) {
+    const v = (p[k] ?? "").replace(/\r\n/g, "\n").trim();
+    if (v.length > SECTION_MAX[k]) throw new SalesError(`Keep the ${k === "title" ? "title" : k} under ${SECTION_MAX[k].toLocaleString("en")} characters.`);
+    out[k] = v || null;
+  }
+  return out;
+}
+const layout = (k?: string | null) => (k && TEMPLATE_KEYS.includes(k) ? k : null);
+
+type QuoteIn = ProposalSections & {
+  organizationId: string; clientId: string; currency: string; taxRate: string; validUntil?: string | null; notes?: string | null; terms?: string | null; templateKey?: string | null; lines: LineIn[];
+};
+
+async function checkQuote(db: Db, p: QuoteIn) {
   checkLines(p.lines);
   if (!(CURRENCIES as readonly string[]).includes(p.currency)) throw new SalesError("Choose a supported currency.");
   if (!/^\d{1,3}(\.\d{1,2})?$/.test(p.taxRate)) throw new SalesError("Enter a valid tax rate.");
@@ -51,13 +68,41 @@ export async function createQuote(db: Db, p: {
   if (!client) throw new SalesError("Unknown client.");
   const t = computeInvoiceTotals(p.lines, p.taxRate);
   if (t.total.lte(0)) throw new SalesError("The quote total must be greater than zero.");
+  return { t, sec: sections(p) };
+}
+const lineRows = (lines: LineIn[], amounts: { toString(): string }[]) =>
+  lines.map((l, i) => ({ description: l.description.trim(), quantity: l.quantity, unitPrice: l.unitPrice, amount: amounts[i].toString(), planId: l.planId ?? null, planVersion: l.planVersion ?? null }));
+
+export async function createQuote(db: Db, p: QuoteIn & { createdById: string }) {
+  const { t, sec } = await checkQuote(db, p);
   return db.$transaction(async (tx) => {
     const number = await nextNumber(tx, p.organizationId, "QT", "QT");
     return tx.quote.create({
       data: {
         organizationId: p.organizationId, number, clientId: p.clientId, currency: p.currency, taxRate: p.taxRate, validUntil: p.validUntil || null,
-        notes: p.notes || null, terms: p.terms || null, subtotal: t.subtotal, taxAmount: t.taxAmount, total: t.total, createdById: p.createdById,
-        lines: { create: p.lines.map((l, i) => ({ description: l.description.trim(), quantity: l.quantity, unitPrice: l.unitPrice, amount: t.amounts[i], planId: l.planId ?? null, planVersion: l.planVersion ?? null })) },
+        notes: p.notes || null, terms: p.terms || null, ...sec, templateKey: layout(p.templateKey),
+        subtotal: t.subtotal, taxAmount: t.taxAmount, total: t.total, createdById: p.createdById,
+        lines: { create: lineRows(p.lines, t.amounts) },
+      },
+    });
+  });
+}
+
+// A draft can be changed freely until it is sent; after that the client may already be reading it, so it is locked.
+export async function updateDraftQuote(db: Db, p: QuoteIn & { quoteId: string }) {
+  const { t, sec } = await checkQuote(db, p);
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Quote" WHERE id = ${p.quoteId} FOR UPDATE`;
+    const q = await tx.quote.findFirst({ where: { id: p.quoteId, organizationId: p.organizationId }, select: { status: true } });
+    if (!q) throw new SalesError("Quote not found.");
+    if (q.status !== "DRAFT") throw new SalesError("Only a draft can be edited. Cancel this one and make a new version instead.");
+    await tx.quoteLine.deleteMany({ where: { quoteId: p.quoteId } });
+    return tx.quote.update({
+      where: { id: p.quoteId },
+      data: {
+        clientId: p.clientId, currency: p.currency, taxRate: p.taxRate, validUntil: p.validUntil || null, notes: p.notes || null, terms: p.terms || null,
+        ...sec, templateKey: layout(p.templateKey), subtotal: t.subtotal, taxAmount: t.taxAmount, total: t.total,
+        lines: { create: lineRows(p.lines, t.amounts) },
       },
     });
   });

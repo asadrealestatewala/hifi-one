@@ -1527,6 +1527,12 @@ model Quote {
   total          Decimal   @default(0) @db.Decimal(14, 2)
   notes          String?
   terms          String?
+  // Proposal sections, all optional; a quote with any of them prints as a proposal
+  title          String?
+  introduction   String?
+  scope          String?
+  timeline       String?
+  templateKey    String? // modern | minimal; null means the organisation default
   sentAt         DateTime?
   decidedAt      DateTime?
   decidedById    String?

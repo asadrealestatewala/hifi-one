@@ -5,8 +5,8 @@ import { useCallback, useState } from "react";
 import LineItems, { type LineValue } from "@/components/ui/LineItems";
 import SubmitButton from "@/components/ui/SubmitButton";
 import { Notice } from "@/components/ui";
-import InvoicePreview from "./InvoicePreview";
-import type { EditorData } from "./editor-data";
+import DocPreview from "@/components/DocPreview";
+import type { EditorData } from "@/lib/doc-editor-data";
 
 const CURRENCIES = ["PKR", "USD", "AED", "GBP"];
 export type EditorInitial = { id: string; number: string | null; clientId: string; currency: string; taxRate: string; notes: string; templateKey: string | null; lines: LineValue[] };
@@ -60,7 +60,7 @@ export default function InvoiceEditor({ data, action, initial, error, defaultCli
           </div>
         </footer>
       </section>
-      <section className="space-y-3 xl:sticky xl:top-4 xl:self-start" aria-label="Preview">
+      <section className="space-y-3 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:self-start xl:overflow-y-auto" aria-label="Preview">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div role="radiogroup" aria-label="Invoice template" className="inline-flex rounded-lg border border-border bg-surface p-0.5">
             {data.templates.map((t) => (
@@ -70,7 +70,7 @@ export default function InvoiceEditor({ data, action, initial, error, defaultCli
           </div>
           {initial && <a className="btn-ghost text-sm" href={`/finance/invoices/${initial.id}/pdf`} target="_blank" rel="noopener">Saved PDF</a>}
         </div>
-        <InvoicePreview template={template} currency={currency} number={initial?.number ? `No. ${initial.number}` : "Number on issue"} issued="On issue" due={due}
+        <DocPreview template={template} currency={currency} number={initial?.number ? `No. ${initial.number}` : "Number on issue"} issued="On issue" due={due}
           company={data.company} client={client} lines={lines} taxRate={tax} notes={notes}
           bank={data.banks[currency] ?? []} bankInstructions={data.bankInstructions[currency]} footer={data.footer} stamp={data.stamp} />
         <p className="text-xs text-muted">Live preview. The PDF is the official copy and uses the same layout; dates and the invoice number are set when you issue it.</p>

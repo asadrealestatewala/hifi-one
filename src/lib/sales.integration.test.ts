@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import {
   SalesError, addMonths, cancelQuote, convertQuoteToInvoice, createContract, createQuote, createSubscription, decideQuote, expireContracts, expireQuotes,
-  generateDueInvoices, periodStart, sendQuote, setContractStatus, setSubscriptionStatus,
+  generateDueInvoices, periodStart, sendQuote, setContractStatus, setSubscriptionStatus, updateDraftQuote,
 } from "./sales";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
@@ -119,6 +119,39 @@ describe("quotes", () => {
     await cancelQuote(db, { organizationId: org, quoteId: q.id });
     await expect(cancelQuote(db, { organizationId: org, quoteId: q.id })).rejects.toThrow(/cancelled/);
     await expect(sendQuote(db, { organizationId: org, quoteId: q.id })).rejects.toThrow(SalesError);
+  });
+});
+
+describe("proposals", () => {
+  it("saves the proposal sections and layout, trimmed, and ignores an unknown layout", async () => {
+    const q = await mkQuote({ title: "  Social media plan ", introduction: "Hello\r\nthere", scope: "  ", timeline: "Week 1: kickoff", templateKey: "minimal" });
+    expect(q).toMatchObject({ title: "Social media plan", introduction: "Hello\nthere", scope: null, timeline: "Week 1: kickoff", templateKey: "minimal" });
+    expect((await mkQuote({ templateKey: "standard" })).templateKey).toBeNull();
+    await expect(mkQuote({ introduction: "x".repeat(5001) })).rejects.toThrow(/under 5,000/);
+  });
+
+  it("edits a draft: replaces lines, totals, client, sections and layout", async () => {
+    const q = await mkQuote({ lines: [{ description: "Old", quantity: "1", unitPrice: "100", planId: "plan-x", planVersion: 2 }] });
+    const u = await updateDraftQuote(db, {
+      organizationId: org, quoteId: q.id, clientId: client2, currency: "PKR", taxRate: "0", validUntil: "2026-12-31", notes: "n", terms: "t",
+      title: "New title", scope: "Item one\nItem two", templateKey: "modern",
+      lines: [{ description: "A", quantity: "2", unitPrice: "1000" }, { description: "B", quantity: "1", unitPrice: "500", planId: "plan-x", planVersion: 2 }],
+    });
+    expect(u).toMatchObject({ clientId: client2, currency: "PKR", validUntil: "2026-12-31", title: "New title", scope: "Item one\nItem two", introduction: null, templateKey: "modern", number: q.number, status: "DRAFT" });
+    expect(u.total.toString()).toBe("2500");
+    const ls = await db.quoteLine.findMany({ where: { quoteId: q.id }, orderBy: { id: "asc" } });
+    expect(ls.map((l) => [l.description, l.amount.toString(), l.planId])).toEqual([["A", "2000", null], ["B", "500", "plan-x"]]);
+  });
+
+  it("refuses to edit a sent quote, another organisation's quote, an unknown client or an empty quote", async () => {
+    const q = await mkQuote();
+    const base = { organizationId: org, quoteId: q.id, clientId: client, currency: "USD", taxRate: "0", lines };
+    await expect(updateDraftQuote(db, { ...base, lines: [] })).rejects.toThrow(/at least one line/);
+    await expect(updateDraftQuote(db, { ...base, clientId: "nope" })).rejects.toThrow(/Unknown client/);
+    await expect(updateDraftQuote(db, { ...base, organizationId: otherOrg })).rejects.toThrow(/Unknown client|not found/);
+    await sendQuote(db, { organizationId: org, quoteId: q.id });
+    await expect(updateDraftQuote(db, base)).rejects.toThrow(/Only a draft can be edited/);
+    expect((await db.quote.findUniqueOrThrow({ where: { id: q.id } })).total.toString()).toBe("1100");
   });
 });
 

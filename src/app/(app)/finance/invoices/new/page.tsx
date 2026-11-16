@@ -2,7 +2,7 @@ import { requirePermission } from "@/lib/auth";
 import { PageHeader } from "@/components/ui";
 import InvoiceEditor from "../InvoiceEditor";
 import { saveInvoiceAction } from "../actions";
-import { loadEditorData } from "../editor-data";
+import { loadEditorData } from "@/lib/doc-editor-data";
 
 export const dynamic = "force-dynamic";
 

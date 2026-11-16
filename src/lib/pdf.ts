@@ -112,8 +112,9 @@ function stampBlock(ctx: Ctx) {
   const img = asset("stamp.png");
   if (!img) return;
   const { doc } = ctx;
-  let y = doc.y + 24;
-  if (y + 90 > 785) { doc.addPage(); y = 60; }
+  // Room for the stamp (about 93pt with its caption) above the page number at 800pt; only a full page moves it to a new one
+  let y = doc.y + 16;
+  if (y + 94 > 796) { doc.addPage(); y = 60; }
   doc.image(img, 430, y, { height: 72 });
   doc.lineWidth(0.6).moveTo(410, y + 80).lineTo(547, y + 80).stroke("#999");
   doc.font("Helvetica").fontSize(7.5).fillColor("#555").text("Company stamp", 410, y + 84, { width: 137, align: "center", lineBreak: false });
@@ -270,22 +271,22 @@ function invoiceRows(d: InvoiceDoc): { rows: [string, string][]; payable: string
 }
 
 type InvLine = InvoiceDoc["lines"][number];
-function lineParts(ctx: Ctx, l: InvLine, d: InvoiceDoc) {
+function lineParts(ctx: Ctx, l: InvLine, currency: string) {
   const parts = t(ctx, l.description).split("\n");
   const sub = parts.slice(1);
-  if (Number(l.quantity) !== 1) sub.push(`${l.quantity} x ${pdfMoney(l.unitPrice, d.currency)}`);
+  if (Number(l.quantity) !== 1) sub.push(`${l.quantity} x ${pdfMoney(l.unitPrice, currency)}`);
   return { title: parts[0], sub: sub.join("\n") };
 }
-function measureLine(ctx: Ctx, l: InvLine, d: InvoiceDoc, w: number, size: number): number {
+function measureLine(ctx: Ctx, l: InvLine, currency: string, w: number, size: number): number {
   const { doc } = ctx;
-  const p = lineParts(ctx, l, d);
+  const p = lineParts(ctx, l, currency);
   let h = doc.font("Helvetica-Bold").fontSize(size).heightOfString(p.title, { width: w });
   if (p.sub) h += doc.font("Helvetica").fontSize(size - 1).heightOfString(p.sub, { width: w });
   return h;
 }
-function drawLine(ctx: Ctx, l: InvLine, d: InvoiceDoc, x: number, y: number, w: number, size: number) {
+function drawLine(ctx: Ctx, l: InvLine, currency: string, x: number, y: number, w: number, size: number) {
   const { doc } = ctx;
-  const p = lineParts(ctx, l, d);
+  const p = lineParts(ctx, l, currency);
   doc.font("Helvetica-Bold").fontSize(size).fillColor("#111");
   const h1 = doc.heightOfString(p.title, { width: w });
   doc.text(p.title, x, y, { width: w });
@@ -331,10 +332,10 @@ function invoiceHifi(ctx: Ctx, d: InvoiceDoc) {
   doc.text("TOTAL", 330, y + 9, { width: 223, align: "right", characterSpacing: 1.6, lineBreak: false });
   y += 26 + 16;
   for (const l of d.lines) {
-    const h = measureLine(ctx, l, d, 360, 9.5) + 14;
+    const h = measureLine(ctx, l, d.currency, 360, 9.5) + 14;
     y = room(ctx, y, h);
     doc.rect(32, y, 531, h).fill(BAND);
-    drawLine(ctx, l, d, 40, y + 7, 360, 9.5);
+    drawLine(ctx, l, d.currency, 40, y + 7, 360, 9.5);
     doc.font("Helvetica").fontSize(9.5).fillColor("#222").text(t(ctx, pdfMoney(l.amount, d.currency)), 410, y + 7, { width: 145, align: "right", lineBreak: false });
     y += h + 4;
   }
@@ -383,8 +384,44 @@ function invoiceHifi(ctx: Ctx, d: InvoiceDoc) {
   }
 }
 
+// The two offered layouts draw any document from this description, so invoices, quotations and proposals look alike
+type Section = { heading: string; body: string };
+type DocSpec = {
+  word: string; // INVOICE, PROPOSAL or QUOTATION
+  numberLine: string; // under the word in Modern Indigo, e.g. "No. 1086161"
+  numberShort: string; // beside the word in Minimal
+  partyLabel: string; // BILLED TO, PREPARED FOR
+  client: { name: string; billingAddress?: string | null; taxId?: string | null };
+  meta: [string, string][]; // Modern Indigo, right column
+  minimalMeta: { label: string; value: string; small: string };
+  title?: string | null;
+  before: Section[]; // printed above the price table
+  currency: string;
+  lines: InvLine[];
+  rows: [string, string][];
+  payableLabel: string;
+  payable: string;
+  notes?: string | null;
+  after: Section[]; // printed below the totals
+  bank: Bank | null;
+  footerExtra?: string;
+  company: () => Company;
+};
+
+function sectionsBlock(ctx: Ctx, list: Section[], heading: (s: string) => void) {
+  const { doc } = ctx;
+  for (const s of list) {
+    if (!s.body.trim()) continue;
+    const y = room(ctx, doc.y, 40); // keep a heading with at least its first lines
+    doc.y = y;
+    heading(s.heading); // drawn at doc.y without moving it, so the body starts below explicitly
+    doc.font("Helvetica").fontSize(9.5).fillColor("#222").text(t(ctx, s.body), 48, y + 13, { width: 499, lineGap: 2 });
+    doc.y += 14;
+  }
+}
+
 // Modern Indigo: navy to indigo header band
-function invoiceModern(ctx: Ctx, d: InvoiceDoc) {
+function docModern(ctx: Ctx, d: DocSpec) {
   const { doc, cfg } = ctx;
   const NAVY = "#0f1b4d", INDIGO = "#3b44c4";
   const g = doc.linearGradient(0, 0, 595.28, 0);
@@ -392,45 +429,47 @@ function invoiceModern(ctx: Ctx, d: InvoiceDoc) {
   doc.rect(0, 0, 595.28, 108).fill(g);
   const logo = asset("logo.png", "public");
   if (logo) { doc.roundedRect(40, 28, 52, 52, 10).fill("#ffffff"); doc.image(logo, 45, 33, { width: 42 }); }
-  doc.fillColor("#fff").font("Helvetica-Bold").fontSize(24).text("INVOICE", 300, 34, { width: 247, align: "right", characterSpacing: 3, lineBreak: false });
-  doc.font("Helvetica").fontSize(9).fillColor("#c7cbff").text(t(ctx, d.number ? `No. ${d.number}` : "DRAFT (not issued)"), 300, 68, { width: 247, align: "right", characterSpacing: 1, lineBreak: false });
+  doc.fillColor("#fff").font("Helvetica-Bold").fontSize(24).text(d.word, 250, 34, { width: 297, align: "right", characterSpacing: 3, lineBreak: false });
+  doc.font("Helvetica").fontSize(9).fillColor("#c7cbff").text(t(ctx, d.numberLine), 250, 68, { width: 297, align: "right", characterSpacing: 1, lineBreak: false });
   const label = (s: string, x: number, y: number) => doc.font("Helvetica-Bold").fontSize(7.5).fillColor(INDIGO).text(s, x, y, { characterSpacing: 1, lineBreak: false });
   const y0 = 134;
   label("FROM", 48, y0);
-  doc.font("Helvetica-Bold").fontSize(9.5).fillColor("#111").text(t(ctx, d.company.legalName), 48, y0 + 13, { width: 170 });
+  doc.font("Helvetica-Bold").fontSize(9.5).fillColor("#111").text(t(ctx, d.company().legalName), 48, y0 + 13, { width: 170 });
   doc.font("Helvetica").fontSize(8).fillColor("#555");
-  for (const l of companyLines(cfg, d.company)) doc.text(t(ctx, l), 48, doc.y + 1, { width: 170 });
+  for (const l of companyLines(cfg, d.company())) doc.text(t(ctx, l), 48, doc.y + 1, { width: 170 });
   const yFrom = doc.y;
-  label("BILLED TO", 235, y0);
+  label(d.partyLabel, 235, y0);
   doc.font("Helvetica-Bold").fontSize(10).fillColor("#111").text(t(ctx, d.client.name), 235, y0 + 13, { width: 150 });
   doc.font("Helvetica").fontSize(8.5).fillColor("#555");
   if (d.client.billingAddress) doc.text(t(ctx, d.client.billingAddress), 235, doc.y + 1, { width: 150 });
   if (d.client.taxId) doc.text(t(ctx, `Tax ID ${d.client.taxId}`), 235, doc.y + 1, { width: 150 });
   const yTo = doc.y;
   let dy = y0;
-  for (const [k, v] of [["ISSUED", longDate(d.issueDate)], ["DUE", longDate(d.dueDate)], ["CURRENCY", d.currency]] as const) {
-    label(k, 410, dy);
+  for (const [k, v] of d.meta) {
+    label(k, 400, dy);
     doc.font("Helvetica").fontSize(9).fillColor("#111").text(t(ctx, v), 440, dy - 1, { width: 107, align: "right", lineBreak: false });
     dy += 17;
   }
-  let y = Math.max(yFrom, yTo, dy) + 26;
+  doc.y = Math.max(yFrom, yTo, dy) + 26;
+  if (d.title) { doc.font("Helvetica-Bold").fontSize(15).fillColor(NAVY).text(t(ctx, d.title), 48, doc.y, { width: 499 }); doc.y += 14; }
+  sectionsBlock(ctx, d.before, (h) => label(h.toUpperCase(), 48, doc.y));
+  let y = room(ctx, doc.y, 60);
   label("SERVICE", 48, y);
   doc.font("Helvetica-Bold").fontSize(7.5).fillColor(INDIGO).text("AMOUNT", 400, y, { width: 147, align: "right", characterSpacing: 1, lineBreak: false });
   y += 13;
   doc.lineWidth(1.5).moveTo(48, y).lineTo(547, y).stroke(NAVY);
   y += 10;
   for (const l of d.lines) {
-    const h = measureLine(ctx, l, d, 350, 9.5);
+    const h = measureLine(ctx, l, d.currency, 350, 9.5);
     y = room(ctx, y, h + 14);
-    drawLine(ctx, l, d, 48, y, 350, 9.5);
+    drawLine(ctx, l, d.currency, 48, y, 350, 9.5);
     doc.font("Helvetica").fontSize(9.5).fillColor("#111").text(t(ctx, pdfMoney(l.amount, d.currency)), 400, y, { width: 147, align: "right", lineBreak: false });
     y += h + 8;
     doc.lineWidth(0.5).moveTo(48, y).lineTo(547, y).stroke("#e3e5f5");
     y += 8;
   }
-  const { rows, payable } = invoiceRows(d);
-  y = room(ctx, y + 10, rows.length * 16 + 50);
-  for (const [k, v] of rows) {
+  y = room(ctx, y + 10, d.rows.length * 16 + 50);
+  for (const [k, v] of d.rows) {
     doc.font("Helvetica").fontSize(9).fillColor("#333");
     doc.text(t(ctx, k), 330, y, { width: 130, lineBreak: false });
     doc.text(t(ctx, v), 450, y, { width: 97, align: "right", lineBreak: false });
@@ -439,51 +478,54 @@ function invoiceModern(ctx: Ctx, d: InvoiceDoc) {
   y += 6;
   doc.roundedRect(330, y, 217, 30, 6).fill(NAVY);
   doc.fillColor("#fff").font("Helvetica-Bold").fontSize(10);
-  doc.text("Amount payable", 342, y + 10, { lineBreak: false });
-  doc.text(t(ctx, payable), 430, y + 10, { width: 105, align: "right", lineBreak: false });
+  doc.text(d.payableLabel, 342, y + 10, { lineBreak: false });
+  doc.text(t(ctx, d.payable), 430, y + 10, { width: 105, align: "right", lineBreak: false });
   doc.y = y + 40;
-  if (d.notes) { doc.font("Helvetica").fontSize(9).fillColor("#555").text(t(ctx, d.notes), 48, doc.y, { width: 499 }); }
+  if (d.notes) { doc.font("Helvetica").fontSize(9).fillColor("#555").text(t(ctx, d.notes), 48, doc.y, { width: 499 }); doc.y += 10; }
+  sectionsBlock(ctx, d.after, (h) => label(h.toUpperCase(), 48, doc.y));
   bankBlock(ctx, d.bank);
-  footer(ctx, d.company, d.templateVersion ? `Template v${d.templateVersion}` : undefined);
+  footer(ctx, d.company(), d.footerExtra);
   doc.rect(0, 826, 595.28, 16).fill(INDIGO);
 }
 
 // Minimal: white space and thin lines
-function invoiceMinimal(ctx: Ctx, d: InvoiceDoc) {
+function docMinimal(ctx: Ctx, d: DocSpec) {
   const { doc, cfg } = ctx;
   const logo = asset("logo.png", "public");
   if (logo) doc.image(logo, 48, 46, { height: 32 });
-  doc.font("Helvetica").fontSize(9).fillColor("#777").text(t(ctx, `INVOICE  ${d.number ?? "DRAFT"}`), 300, 54, { width: 247, align: "right", characterSpacing: 3, lineBreak: false });
-  doc.font("Helvetica-Bold").fontSize(9).fillColor("#222").text(t(ctx, d.company.legalName), 48, 96, { width: 260 });
+  doc.font("Helvetica").fontSize(9).fillColor("#777").text(t(ctx, `${d.word}  ${d.numberShort}`), 250, 54, { width: 297, align: "right", characterSpacing: 3, lineBreak: false });
+  doc.font("Helvetica-Bold").fontSize(9).fillColor("#222").text(t(ctx, d.company().legalName), 48, 96, { width: 260 });
   doc.font("Helvetica").fontSize(8).fillColor("#777");
-  for (const l of companyLines(cfg, d.company)) doc.text(t(ctx, l), 48, doc.y + 1, { width: 260 });
+  for (const l of companyLines(cfg, d.company())) doc.text(t(ctx, l), 48, doc.y + 1, { width: 260 });
   const yC = doc.y;
   const small = (s: string, x: number, y: number, align: "left" | "right" = "left") => doc.font("Helvetica").fontSize(8).fillColor("#999").text(s, x, y, { width: 200, align, lineBreak: false });
   const y0 = Math.max(yC + 30, 190);
-  small("Billed to", 48, y0);
+  small(d.partyLabel.charAt(0) + d.partyLabel.slice(1).toLowerCase(), 48, y0);
   doc.font("Helvetica").fontSize(10).fillColor("#111").text(t(ctx, d.client.name), 48, y0 + 12, { width: 260 });
   doc.font("Helvetica").fontSize(8.5).fillColor("#666");
   if (d.client.billingAddress) doc.text(t(ctx, d.client.billingAddress), 48, doc.y + 1, { width: 260 });
   if (d.client.taxId) doc.text(t(ctx, `Tax ID ${d.client.taxId}`), 48, doc.y + 1, { width: 260 });
   const yB = doc.y;
-  small("Issued / due", 347, y0, "right");
-  doc.font("Helvetica").fontSize(10).fillColor("#111").text(t(ctx, `${longDate(d.issueDate)} / ${longDate(d.dueDate)}`), 247, y0 + 12, { width: 300, align: "right", lineBreak: false });
-  small(`Currency ${d.currency}`, 347, y0 + 28, "right");
-  let y = Math.max(yB, y0 + 44) + 28;
+  small(d.minimalMeta.label, 347, y0, "right");
+  doc.font("Helvetica").fontSize(10).fillColor("#111").text(t(ctx, d.minimalMeta.value), 247, y0 + 12, { width: 300, align: "right", lineBreak: false });
+  small(d.minimalMeta.small, 347, y0 + 28, "right");
+  doc.y = Math.max(yB, y0 + 44) + 28;
+  if (d.title) { doc.font("Helvetica-Bold").fontSize(14).fillColor("#111").text(t(ctx, d.title), 48, doc.y, { width: 499 }); doc.y += 12; }
+  sectionsBlock(ctx, d.before, (h) => small(h, 48, doc.y));
+  let y = room(ctx, doc.y, 60);
   doc.lineWidth(0.8).moveTo(48, y).lineTo(547, y).stroke("#222");
   y += 12;
   for (const l of d.lines) {
-    const h = measureLine(ctx, l, d, 360, 9.5);
+    const h = measureLine(ctx, l, d.currency, 360, 9.5);
     y = room(ctx, y, h + 20);
-    drawLine(ctx, l, d, 48, y, 360, 9.5);
+    drawLine(ctx, l, d.currency, 48, y, 360, 9.5);
     doc.font("Helvetica").fontSize(9.5).fillColor("#111").text(t(ctx, pdfMoney(l.amount, d.currency)), 410, y, { width: 137, align: "right", lineBreak: false });
     y += h + 10;
     doc.lineWidth(0.4).moveTo(48, y).lineTo(547, y).stroke("#ddd");
     y += 10;
   }
-  const { rows, payable } = invoiceRows(d);
-  y = room(ctx, y + 4, rows.length * 16 + 50);
-  for (const [k, v] of rows) {
+  y = room(ctx, y + 4, d.rows.length * 16 + 50);
+  for (const [k, v] of d.rows) {
     doc.font("Helvetica").fontSize(9).fillColor("#666");
     doc.text(t(ctx, k), 300, y, { width: 160, lineBreak: false });
     doc.text(t(ctx, v), 450, y, { width: 97, align: "right", lineBreak: false });
@@ -492,20 +534,32 @@ function invoiceMinimal(ctx: Ctx, d: InvoiceDoc) {
   y += 6;
   doc.lineWidth(0.8).moveTo(48, y).lineTo(547, y).stroke("#222");
   doc.font("Helvetica-Bold").fontSize(13).fillColor("#111");
-  doc.text("Amount payable", 48, y + 10, { lineBreak: false });
-  doc.text(t(ctx, payable), 300, y + 10, { width: 247, align: "right", lineBreak: false });
+  doc.text(d.payableLabel, 48, y + 10, { lineBreak: false });
+  doc.text(t(ctx, d.payable), 300, y + 10, { width: 247, align: "right", lineBreak: false });
   doc.y = y + 44;
-  if (d.notes) { doc.font("Helvetica").fontSize(9).fillColor("#666").text(t(ctx, d.notes), 48, doc.y, { width: 499 }); }
+  if (d.notes) { doc.font("Helvetica").fontSize(9).fillColor("#666").text(t(ctx, d.notes), 48, doc.y, { width: 499 }); doc.y += 10; }
+  sectionsBlock(ctx, d.after, (h) => small(h, 48, doc.y));
   bankBlock(ctx, d.bank);
-  footer(ctx, d.company, d.templateVersion ? `Template v${d.templateVersion}` : undefined);
+  footer(ctx, d.company(), d.footerExtra);
+}
+
+function invoiceSpec(d: InvoiceDoc): DocSpec {
+  const { rows, payable } = invoiceRows(d);
+  return {
+    word: "INVOICE", numberLine: d.number ? `No. ${d.number}` : "DRAFT (not issued)", numberShort: d.number ?? "DRAFT", partyLabel: "BILLED TO", client: d.client,
+    meta: [["ISSUED", longDate(d.issueDate)], ["DUE", longDate(d.dueDate)], ["CURRENCY", d.currency]],
+    minimalMeta: { label: "Issued / due", value: `${longDate(d.issueDate)} / ${longDate(d.dueDate)}`, small: `Currency ${d.currency}` },
+    before: [], currency: d.currency, lines: d.lines, rows, payableLabel: "Amount payable", payable, notes: d.notes, after: [], bank: d.bank,
+    footerExtra: d.templateVersion ? `Template v${d.templateVersion}` : undefined, company: () => d.company,
+  };
 }
 
 export async function invoicePdf(d: InvoiceDoc, b: Build = {}) {
   const { ctx, done } = start({ ...b, title: `Invoice ${d.number ?? "draft"}`, cfg: d.config, stamp: TEMPLATE_KEYS.includes(d.config.template) }); // retired layouts print as they were issued
   const { doc } = ctx;
   if (d.config.template === "hifi-signature") { invoiceHifi(ctx, d); return done(); }
-  if (d.config.template === "modern") { invoiceModern(ctx, d); return done(); }
-  if (d.config.template === "minimal") { invoiceMinimal(ctx, d); return done(); }
+  if (d.config.template === "modern") { docModern(ctx, invoiceSpec(d)); return done(); }
+  if (d.config.template === "minimal") { docMinimal(ctx, invoiceSpec(d)); return done(); }
   header(ctx, d.company, "INVOICE", d.number, d.status);
   const y = doc.y;
   kv(ctx, [["Bill to", d.client.name], ["Address", d.client.billingAddress], ["Tax ID", d.client.taxId]], 48, 250);
@@ -530,29 +584,41 @@ export async function invoicePdf(d: InvoiceDoc, b: Build = {}) {
   return done();
 }
 
-// ---- Quotation ----
+// ---- Quotation and proposal ----
+// A quotation with an introduction, scope or timeline prints as a proposal. Both use the offered invoice layouts.
 export type QuoteDoc = {
   number: string; status: string; currency: string; date: Date; validUntil?: string | null; notes?: string | null; terms?: string | null;
+  title?: string | null; introduction?: string | null; scope?: string | null; timeline?: string | null; template?: string | null;
   client: { name: string; billingAddress?: string | null };
   lines: { description: string; quantity: string; unitPrice: string; amount: string }[];
   subtotal: string; taxRate: string; taxAmount: string; total: string; company: Company; config: DocConfig;
 };
+export const isProposal = (q: { introduction?: string | null; scope?: string | null; timeline?: string | null }) => Boolean(q.introduction?.trim() || q.scope?.trim() || q.timeline?.trim());
+export const quoteLayout = (template: string | null | undefined, cfg: DocConfig) => (template && TEMPLATE_KEYS.includes(template) ? template : TEMPLATE_KEYS.includes(cfg.template) ? cfg.template : DEFAULT_INVOICE_TEMPLATE);
+
+function quoteSpec(d: QuoteDoc): DocSpec {
+  const proposal = isProposal(d);
+  const draft = d.status === "DRAFT";
+  const rows: [string, string][] = [["Subtotal", pdfMoney(d.subtotal, d.currency)]];
+  if (Number(d.taxAmount) > 0) rows.push([`Tax (${d.taxRate}%)`, pdfMoney(d.taxAmount, d.currency)]);
+  const valid = d.validUntil ? longDate(d.validUntil) : "-";
+  return {
+    word: proposal ? "PROPOSAL" : "QUOTATION", numberLine: `No. ${d.number}${draft ? " (draft)" : ""}`, numberShort: `${d.number}${draft ? " DRAFT" : ""}`, partyLabel: "PREPARED FOR", client: d.client,
+    meta: [["DATE", longDate(d.date)], ["VALID UNTIL", valid], ["CURRENCY", d.currency]],
+    minimalMeta: { label: "Date / valid until", value: `${longDate(d.date)} / ${valid}`, small: `Currency ${d.currency}` },
+    title: d.title,
+    before: [{ heading: "Introduction", body: d.introduction ?? "" }, { heading: "Scope of work", body: d.scope ?? "" }, { heading: "Timeline", body: d.timeline ?? "" }],
+    currency: d.currency, lines: d.lines, rows, payableLabel: "Total", payable: pdfMoney(d.total, d.currency), notes: d.notes,
+    after: [{ heading: "Terms", body: d.terms ?? "" }], bank: null,
+    footerExtra: `This ${proposal ? "proposal" : "quotation"} is not an invoice. Prices are valid until the date shown. Accept it in the client portal or reply to us in writing.`,
+    company: () => d.company,
+  };
+}
+
 export async function quotePdf(d: QuoteDoc, b: Build = {}) {
-  const { ctx, done } = start({ ...b, title: `Quotation ${d.number}`, cfg: d.config, stamp: true });
-  const { doc } = ctx;
-  header(ctx, d.company, "QUOTATION", d.number, d.status === "DRAFT" ? "DRAFT" : undefined);
-  const y = doc.y;
-  kv(ctx, [["Prepared for", d.client.name], ["Address", d.client.billingAddress]], 48, 250);
-  const yAfter = doc.y;
-  doc.y = y;
-  kv(ctx, [["Date", fmtDate(d.date)], ["Valid until", d.validUntil || "-"], ["Currency", d.currency]], 340, 200);
-  doc.y = Math.max(doc.y, yAfter) + 8;
-  table(ctx, [{ label: "Description", width: 239 }, { label: "Qty", width: 50, align: "right" }, { label: "Unit price", width: 105, align: "right" }, { label: "Amount", width: 105, align: "right" }],
-    d.lines.map((l) => [l.description, l.quantity, pdfMoney(l.unitPrice, d.currency), pdfMoney(l.amount, d.currency)]));
-  totals(ctx, [["Subtotal", pdfMoney(d.subtotal, d.currency)], [`Tax (${d.taxRate}%)`, pdfMoney(d.taxAmount, d.currency)], ["Total", pdfMoney(d.total, d.currency), true]]);
-  if (d.notes) { doc.moveDown(0.5); doc.font("Helvetica").fontSize(9).fillColor("#555").text(t(ctx, d.notes), 48, doc.y, { width: 499 }); }
-  if (d.terms) { doc.moveDown(0.5); doc.font("Helvetica-Bold").fontSize(9).fillColor("#333").text("Terms", 48, doc.y); doc.font("Helvetica").fillColor("#555").text(t(ctx, d.terms), 48, doc.y, { width: 499 }); }
-  footer(ctx, d.company, "This quotation is not an invoice. Prices are valid until the date shown.");
+  const { ctx, done } = start({ ...b, title: `${isProposal(d) ? "Proposal" : "Quotation"} ${d.number}`, cfg: d.config, stamp: true });
+  if (quoteLayout(d.template, d.config) === "minimal") docMinimal(ctx, quoteSpec(d));
+  else docModern(ctx, quoteSpec(d));
   return done();
 }
 

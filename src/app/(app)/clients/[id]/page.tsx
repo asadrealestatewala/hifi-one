@@ -126,7 +126,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       )}
       {tab === "billing" && (quotes.length > 0 || contracts.length > 0) && (
         <section className="card grid gap-4 text-sm sm:grid-cols-2">
-          <div><h2 className="mb-1 font-semibold">Quotations</h2>{quotes.length === 0 ? <p className="text-muted">None</p> : <ul>{quotes.map((q) => <li key={q.id} className="flex items-center justify-between border-t border-border py-1 first:border-0"><Link className="hover:underline" href={`/quotes/${q.id}`}>{q.number}</Link><span className="flex items-center gap-2">{formatMoney(q.total, q.currency)}<StatusBadge status={q.status} /></span></li>)}</ul>}</div>
+          <div><h2 className="mb-1 font-semibold">Proposals & quotations</h2>{quotes.length === 0 ? <p className="text-muted">None</p> : <ul>{quotes.map((q) => <li key={q.id} className="flex items-center justify-between border-t border-border py-1 first:border-0"><Link className="hover:underline" href={`/quotes/${q.id}`}>{q.number}</Link><span className="flex items-center gap-2">{formatMoney(q.total, q.currency)}<StatusBadge status={q.status} /></span></li>)}</ul>}</div>
           <div><h2 className="mb-1 font-semibold">Contracts</h2>{contracts.length === 0 ? <p className="text-muted">None</p> : <ul>{contracts.map((c) => <li key={c.id} className="flex items-center justify-between border-t border-border py-1 first:border-0"><Link className="hover:underline" href={`/contracts/${c.id}`}>{c.title}</Link><span className="flex items-center gap-2">{c.sharedWithClient && <span className="text-xs text-muted">in portal</span>}<StatusBadge status={c.status} /></span></li>)}</ul>}</div>
         </section>
       )}
