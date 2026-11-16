@@ -412,9 +412,10 @@ function sectionsBlock(ctx: Ctx, list: Section[], heading: (s: string) => void) 
   const { doc } = ctx;
   for (const s of list) {
     if (!s.body.trim()) continue;
-    doc.y = room(ctx, doc.y, 40);
-    heading(s.heading);
-    doc.font("Helvetica").fontSize(9.5).fillColor("#222").text(t(ctx, s.body), 48, doc.y + 4, { width: 499, lineGap: 2 });
+    const y = room(ctx, doc.y, 40); // keep a heading with at least its first lines
+    doc.y = y;
+    heading(s.heading); // drawn at doc.y without moving it, so the body starts below explicitly
+    doc.font("Helvetica").fontSize(9.5).fillColor("#222").text(t(ctx, s.body), 48, y + 13, { width: 499, lineGap: 2 });
     doc.y += 14;
   }
 }

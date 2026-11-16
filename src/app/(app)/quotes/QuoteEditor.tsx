@@ -113,7 +113,7 @@ export default function QuoteEditor({ data, plans, action, initial, error, defau
           </div>
         </footer>
       </section>
-      <section className="space-y-3 xl:sticky xl:top-4 xl:self-start" aria-label="Preview">
+      <section className="space-y-3 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:self-start xl:overflow-y-auto" aria-label="Preview">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div role="radiogroup" aria-label="Layout" className="inline-flex rounded-lg border border-border bg-surface p-0.5">
             {data.templates.map((t) => (

@@ -39,6 +39,16 @@ export default function DocPreview(p: PreviewProps) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  // A long document runs onto more A4 pages, as the PDF does; dashed lines show roughly where each new page starts
+  const content = useRef<HTMLDivElement>(null);
+  const [pages, setPages] = useState(1);
+  useEffect(() => {
+    const el = content.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setPages(Math.max(1, Math.ceil((el.offsetHeight + 90) / PAGE_H))));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const rows = p.lines.filter((l) => l.desc.trim() || toNum(l.price) > 0).map((l) => ({ ...l, amount: round2(toNum(l.qty) * toNum(l.price)) }));
   const sub = round2(rows.reduce((s, r) => s + r.amount, 0));
   const tax = round2(sub * Math.min(toNum(p.taxRate), 100) / 100);
@@ -90,8 +100,9 @@ export default function DocPreview(p: PreviewProps) {
     </div>
   );
   return (
-    <div ref={box} className="w-full overflow-hidden rounded-xl border border-border bg-hover/40" style={{ height: PAGE_H * scale }} aria-label={`Live ${word.toLowerCase()} preview`}>
-      <div style={{ width: PAGE_W, height: PAGE_H, transform: `scale(${scale})`, transformOrigin: "top left", background: "#fff", color: "#111", fontFamily: "Helvetica, Arial, sans-serif", position: "relative", overflow: "hidden" }}>
+    <div ref={box} className="w-full overflow-hidden rounded-xl border border-border bg-hover/40" style={{ height: PAGE_H * pages * scale }} aria-label={`Live ${word.toLowerCase()} preview`}>
+      <div style={{ width: PAGE_W, height: PAGE_H * pages, transform: `scale(${scale})`, transformOrigin: "top left", background: "#fff", color: "#111", fontFamily: "Helvetica, Arial, sans-serif", position: "relative", overflow: "hidden" }}>
+        <div ref={content}>
         {modern ? (
           <>
             <div style={{ height: 144, background: `linear-gradient(90deg, ${NAVY}, ${INDIGO})`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 64px 0 53px" }}>
@@ -143,6 +154,12 @@ export default function DocPreview(p: PreviewProps) {
             {bankAndFooter(false)}
           </div>
         )}
+        </div>
+        {Array.from({ length: pages - 1 }, (_, i) => (
+          <div key={i} aria-hidden style={{ position: "absolute", left: 0, right: 0, top: (i + 1) * PAGE_H, borderTop: "2px dashed #c8c8d0" }}>
+            <span style={{ position: "absolute", right: 12, top: 4, fontSize: 11, color: "#888", background: "#fff", padding: "0 6px" }}>Page {i + 2}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
