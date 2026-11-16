@@ -1288,6 +1288,7 @@ model ContentItem {
   brief          String? // what the designer or editor should make
   sampleUrl      String? // a reference or sample to follow
   taskId         String? // the project task created for the assignee
+  aiRunId        String? // set when AI wrote this draft as part of a monthly plan (ContentAiRun)
   createdById    String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -1297,6 +1298,47 @@ model ContentItem {
 
   @@index([organizationId, status])
   @@index([clientId, status])
+}
+
+// What the AI needs to know about a client to write its posts. One per client, edited by whoever plans the client's content.
+model ClientContentProfile {
+  id             String   @id @default(cuid())
+  organizationId String
+  clientId       String
+  brandVoice     String? // tone and style, for example "warm, professional, short sentences"
+  audience       String? // who the posts speak to
+  about          String? // what the business sells, offers, and any solution details to mention
+  topics         String? // themes to cover
+  avoid          String? // things never to say or show
+  languages      String? // for example "English, Roman Urdu"
+  hashtagRules   String? // brand hashtags, how many
+  visualStyle    String? // colours, look and feel, used for AI images
+  platforms      String[] @default([]) // where this client posts
+  monthlyCapUsd  Decimal  @default(10) @db.Decimal(8, 2) // most estimated AI spend per month for this client
+  updatedById    String?
+  updatedAt      DateTime @updatedAt
+
+  @@unique([clientId])
+  @@index([organizationId])
+}
+
+// One AI action for a client: a monthly plan or one image. Estimated cost is kept so the monthly cap can be enforced and shown.
+model ContentAiRun {
+  id             String   @id @default(cuid())
+  organizationId String
+  clientId       String
+  month          String // YYYY-MM the cost counts toward
+  kind           String // PLAN | IMAGE
+  planMonth      String? // PLAN: the calendar month that was planned
+  itemId         String? // IMAGE: the post
+  postCount      Int      @default(0)
+  estimatedCostUsd Decimal @default(0) @db.Decimal(8, 4)
+  createdById    String
+  createdAt      DateTime @default(now())
+  undoneAt       DateTime?
+
+  @@index([clientId, month])
+  @@index([organizationId, createdAt])
 }
 
 model ContentVersion {

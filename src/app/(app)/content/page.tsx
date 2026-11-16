@@ -65,7 +65,7 @@ export default async function ContentCalendar({ searchParams }: { searchParams: 
   return (
     <div className="space-y-5">
       <PageHeader title="Content calendar" subtitle="Plan daily social-media content: type, caption, platforms, date and time, with the creative attached and approved before it goes out. Posts are marked published by a person; nothing is posted to the platforms automatically."
-        actions={canManage ? <Link href={qs({ new: "1", date: undefined })} className="btn">+ New post</Link> : undefined} />
+        actions={canManage ? <div className="flex gap-2"><Link href="/content/plan" className="btn-ghost">Plan the month with AI</Link><Link href={qs({ new: "1", date: undefined })} className="btn">+ New post</Link></div> : undefined} />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="This month" value={inMonth.length} hint={inMonth.length === 1 ? "post planned" : "posts planned"} />
@@ -107,7 +107,7 @@ export default async function ContentCalendar({ searchParams }: { searchParams: 
                 return (
                   <tr key={r.id} className="border-t border-border transition hover:bg-hover/50">
                     <td className="whitespace-nowrap px-4 py-2.5 text-muted">{r.plannedDate ?? "No date"}{r.plannedTime ? ` · ${r.plannedTime}` : ""}</td>
-                    <td className="pr-4"><Link href={`/content/${r.id}`} className="font-medium hover:underline">{r.title}</Link></td>
+                    <td className="pr-4"><Link href={`/content/${r.id}`} className="font-medium hover:underline">{r.title}</Link>{r.aiRunId && r.status === "DRAFT" && <span className="ml-2 rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">AI draft</span>}</td>
                     <td className="pr-4 text-muted">{r.clientId ? clientName.get(r.clientId) : "Our own"}</td>
                     <td className="pr-4">{POST_TYPE_LABEL[r.postType] ?? r.postType}</td>
                     <td className="pr-4"><span className="flex items-center gap-1">{plats.map((p) => <PlatformDot key={p} code={PLATFORM_META[p]?.code ?? "?"} color={PLATFORM_META[p]?.color ?? "#6b7280"} size={20} />)}</span></td>

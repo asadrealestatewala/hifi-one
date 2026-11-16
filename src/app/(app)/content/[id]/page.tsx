@@ -1,8 +1,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { audit, requirePermission } from "@/lib/auth";
+import { audit, requirePermission, toFileActor } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ContentError, editContent, transition } from "@/lib/content";
+import { ContentAiError, generateImage } from "@/lib/content-ai";
+import { isConfigured } from "@/lib/integration-keys";
+import { defaultStorage } from "@/lib/storage";
+import { SubmitButton } from "@/components/ui";
 import { PLATFORMS, PLATFORM_META, POST_TYPES, POST_TYPE_LABEL, canTransition, isEditable, needsComment } from "@/lib/content-rules";
 import { PlatformDot } from "../PostForm";
 import { STATUS_STYLE } from "../status-style";
@@ -43,6 +47,20 @@ async function save(formData: FormData) {
   redirect(`/content/${id}`);
 }
 
+async function makeImage(formData: FormData) {
+  "use server";
+  const user = await requirePermission("content.manage");
+  const id = String(formData.get("id"));
+  try {
+    const f = await generateImage(db, defaultStorage(), { organizationId: user.organizationId, itemId: id, actor: toFileActor(user) });
+    await audit(user, { action: "content.ai_image", entity: "ContentItem", entityId: id, after: { file: f.filename } });
+  } catch (e) {
+    if (e instanceof ContentAiError) back(id, e.message);
+    throw e;
+  }
+  redirect(`/content/${id}?fileOk=${encodeURIComponent("AI image added to the creative files below. Check it before using it.")}`);
+}
+
 export default async function ContentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; fileError?: string; fileOk?: string; created?: string }> }) {
   const user = await requirePermission("content.view");
   const { id } = await params;
@@ -56,6 +74,7 @@ export default async function ContentPage({ params, searchParams }: { params: Pr
   ]);
   const who = (e: { actorId: string; actorType: string }) => [...people, ...clientUsers].find((p) => p.id === e.actorId)?.name ?? "Unknown";
   const canManage = user.permissions.has("content.manage");
+  const imagesOn = canManage && isEditable(item.status) && (await isConfigured(db, user.organizationId, "GEMINI"));
   const canPublish = user.permissions.has("content.publish");
   const next = ["DRAFT", "INTERNAL_REVIEW", "CLIENT_REVIEW", "CHANGES_REQUESTED", "APPROVED", "SCHEDULED", "PUBLISHED"].filter((to) => canTransition("STAFF", item.status, to, Boolean(item.clientId)))
     .filter((to) => (to === "SCHEDULED" || to === "PUBLISHED" ? canPublish : canManage));
@@ -69,6 +88,7 @@ export default async function ContentPage({ params, searchParams }: { params: Pr
         <span className="inline-flex items-center gap-1">{(item.platforms.length ? item.platforms : [item.platform]).map((p) => <PlatformDot key={p} code={PLATFORM_META[p]?.code ?? "?"} color={PLATFORM_META[p]?.color ?? "#6b7280"} size={20} />)}</span>
         {item.plannedDate && <span>· {item.plannedDate}{item.plannedTime ? ` at ${item.plannedTime}` : ""}</span>}
       </div>
+      {item.aiRunId && item.status === "DRAFT" && <p className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm">This draft was written by AI. Read it, correct anything the client would not say, and add the real creative before sending it for review.</p>}
       {created && <p className="rounded-lg bg-success/10 px-3 py-2 text-sm text-success">Post saved as a draft. Attach the creative below, then send it for review.</p>}
       {error && <Notice kind="error">{error}</Notice>}
 
@@ -95,6 +115,13 @@ export default async function ContentPage({ params, searchParams }: { params: Pr
         </>
       )}
 
+      {imagesOn && (
+        <form action={makeImage} className="card flex flex-wrap items-center justify-between gap-3">
+          <input type="hidden" name="id" value={item.id} />
+          <p className="text-sm text-muted">Make a draft image from this post&apos;s brief with Google AI (about 5 cents). It has no text or logo: add those yourself. It is saved with the files below.</p>
+          <SubmitButton pendingText="Making the image…">Make image with AI</SubmitButton>
+        </form>
+      )}
       <FilesPanel user={user} ownerType="CONTENT" ownerId={item.id} returnTo={`/content/${item.id}`} title="Creative files (images, video, documents)" flash={{ fileError, fileOk }} />
 
       {next.length > 0 && (
