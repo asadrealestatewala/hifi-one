@@ -5,6 +5,18 @@
 export async function register() {
   // The imports stay inside this block so the edge bundle drops them (storage uses node:crypto).
   if (process.env.NEXT_RUNTIME === "nodejs") {
+    // Facebook and Instagram posts go out on time: checked every minute, on by default (SOCIAL_PUBLISH_AUTORUN=0 turns it off,
+    // for example on a second server). Each post is claimed in the database first, so two servers never post it twice.
+    if (process.env.SOCIAL_PUBLISH_AUTORUN !== "0") {
+      const { db } = await import("./lib/db");
+      const { runDuePublications } = await import("./lib/social-meta");
+      let busy = false;
+      setInterval(() => {
+        if (busy) return;
+        busy = true;
+        runDuePublications(db).catch((e) => console.error("Social publishing failed", e)).finally(() => { busy = false; });
+      }, 60_000);
+    }
     if (process.env.JOBS_AUTORUN !== "1") return;
     const { db } = await import("./lib/db");
     const { runJobs } = await import("./lib/jobs");

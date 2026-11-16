@@ -1,6 +1,7 @@
 // Content calendar service: versions, the approval workflow, and the people notified at each step.
 // Free of Next.js imports so it can be tested against the database.
 import type { PrismaClient } from "@prisma/client";
+import { moveQueuedPublications } from "./social-time";
 import { PLATFORMS, POST_TYPES, canTransition, captionIssues, cleanPlatformCopy, isDate, isEditable, isTime, needsComment, type Actor, type PlatformCopy } from "./content-rules";
 import { notifyMany } from "./notifications";
 import { QUOTA_LABEL, logUsage, currentPeriod } from "./engagements";
@@ -88,7 +89,9 @@ export async function reschedule(db: PrismaClient, p: { organizationId: string; 
   const item = await db.contentItem.findFirst({ where: { id: p.id, organizationId: p.organizationId } });
   if (!item) throw new ContentError("Content not found.");
   if (item.status === "PUBLISHED") throw new ContentError("A published post cannot be moved.");
-  return db.contentItem.update({ where: { id: item.id }, data: { plannedDate: p.plannedDate, ...(p.plannedTime !== undefined ? { plannedTime: p.plannedTime || null } : {}) } });
+  const moved = await db.contentItem.update({ where: { id: item.id }, data: { plannedDate: p.plannedDate, ...(p.plannedTime !== undefined ? { plannedTime: p.plannedTime || null } : {}) } });
+  if (moved.status === "SCHEDULED") await moveQueuedPublications(db, moved); // automatic posts follow the new day
+  return moved;
 }
 
 // Every copy change is a new version, so what the client approved can always be shown.
@@ -169,7 +172,7 @@ export function clientContent(db: PrismaClient, clientId: string) {
   return db.contentItem.findMany({
     where: { clientId, status: { in: ["CLIENT_REVIEW", "CHANGES_REQUESTED", "APPROVED", "SCHEDULED", "PUBLISHED"] } },
     orderBy: [{ plannedDate: "asc" }, { createdAt: "desc" }],
-    select: { id: true, platform: true, platforms: true, postType: true, title: true, copy: true, hashtags: true, platformCopy: true, firstComment: true, plannedDate: true, plannedTime: true, status: true, version: true },
+    select: { id: true, platform: true, platforms: true, postType: true, title: true, copy: true, hashtags: true, platformCopy: true, firstComment: true, plannedDate: true, plannedTime: true, status: true, version: true, publications: { where: { status: "PUBLISHED" }, select: { platform: true, permalink: true } } },
   });
 }
 

@@ -79,6 +79,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
         </div>
         <div className="hs-container hs-footer-bottom">
           <p>&copy; 2026 {COMPANY}. All rights reserved.</p>
+          <p><Link href="/site/privacy">Privacy policy</Link> · <Link href="/site/data-deletion">Data deletion</Link></p>
         </div>
       </footer>
     </div>

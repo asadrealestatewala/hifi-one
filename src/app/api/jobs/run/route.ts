@@ -4,6 +4,7 @@ import { runJobs, jobKeys } from "@/lib/jobs";
 import { runFollowUps } from "@/lib/followups";
 import { drainWebsiteChecks } from "@/lib/website-checks";
 import { limiter } from "@/lib/rate-limit";
+import { runDuePublications } from "@/lib/social-meta";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,8 @@ export async function POST(req: Request) {
   if (params.get("only") === "followups") return reply({ ok: true, followUps: await runFollowUps(db) });
   // ?only=checks works through queued Prospector website checks
   if (params.get("only") === "checks") return reply({ ok: true, websiteChecks: await drainWebsiteChecks(db) });
+  // ?only=publish sends Facebook and Instagram posts that are due (the server also does this every minute by itself)
+  if (params.get("only") === "publish") return reply({ ok: true, publishing: await runDuePublications(db) });
   const only = params.get("only")?.split(",").filter((k) => jobKeys.includes(k));
   const results = await runJobs(db, { trigger: "SCHEDULE", only: only?.length ? only : undefined });
   const followUps = only?.length ? [] : await runFollowUps(db);

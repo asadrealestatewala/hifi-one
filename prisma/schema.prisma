@@ -1296,8 +1296,9 @@ model ContentItem {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  events   ContentEvent[]
-  versions ContentVersion[]
+  events       ContentEvent[]
+  versions     ContentVersion[]
+  publications ContentPublication[]
 
   @@index([organizationId, status])
   @@index([clientId, status])
@@ -1355,6 +1356,70 @@ model HashtagGroup {
   createdAt      DateTime @default(now())
 
   @@index([organizationId, clientId])
+}
+
+// A social account connected to Hifi One so posts can be published to it: a Facebook Page or an Instagram professional account.
+// clientId empty = the company's own account. The token is encrypted like the integration keys and never shown again.
+model SocialAccount {
+  id             String    @id @default(cuid())
+  organizationId String
+  clientId       String?
+  platform       String // FACEBOOK | INSTAGRAM
+  externalId     String // Facebook Page id or Instagram user id
+  name           String
+  username       String?
+  pageId         String? // Instagram: the Facebook Page it is linked to
+  tokenEnc       String
+  tokenExpiresAt DateTime? // empty = does not expire (Page tokens)
+  status         String    @default("ACTIVE") // ACTIVE | EXPIRED | DISCONNECTED
+  lastError      String?
+  connectedById  String
+  connectedAt    DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  publications ContentPublication[]
+
+  @@unique([organizationId, platform, externalId])
+  @@index([organizationId, clientId])
+}
+
+// The accounts someone may choose from after signing in with Facebook. Kept for 30 minutes, then useless.
+model SocialConnectSession {
+  id             String   @id @default(cuid())
+  organizationId String
+  clientId       String?
+  userId         String
+  payloadEnc     String
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, userId])
+}
+
+// One post going to one platform. QUEUED until its time, then PUBLISHING, PUBLISHED or FAILED (retry puts it back in the queue).
+model ContentPublication {
+  id             String    @id @default(cuid())
+  organizationId String
+  itemId         String
+  platform       String
+  accountId      String
+  status         String    @default("QUEUED") // QUEUED | PUBLISHING | PUBLISHED | FAILED | CANCELLED
+  scheduledFor   DateTime
+  attempts       Int       @default(0)
+  containerId    String? // Instagram: media container waiting for a video to finish processing
+  externalPostId String?
+  permalink      String?
+  error          String?
+  publishedAt    DateTime?
+  scheduledById  String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  item    ContentItem   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  account SocialAccount @relation(fields: [accountId], references: [id])
+
+  @@unique([itemId, platform])
+  @@index([status, scheduledFor])
 }
 
 model ContentVersion {
