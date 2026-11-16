@@ -229,3 +229,11 @@ export const CULTURE = [
   { src: u("1521737852567-6949f3f9f2b5", "400x300"), alt: "Office culture" },
   { src: u("1553877522-43269d4ea984", "400x300"), alt: "Teamwork at the office" },
 ];
+
+// The ERP Solutions Hifi sells (same four as the Partner Stack). Campusly has no website yet, so it links to the contact page.
+export const SOLUTIONS = [
+  { name: "Agentify ERP", forWho: "Real estate agencies", text: "One connected system for listings, leads, deals and your team.", href: "https://agentifyerp.co", icon: "building", tone: "t-blue" },
+  { name: "Velocity ERP", forWho: "Car dealers and workshops", text: "Run stock, sales, service jobs and clients from one place.", href: "https://velocityerp.co", icon: "layers", tone: "t-violet" },
+  { name: "Pharmivo", forWho: "Pharmacies", text: "Point of sale, stock and expiry tracking built for the pharmacy counter.", href: "https://pharmivo.hifimarketing.co", icon: "briefcase", tone: "t-green" },
+  { name: "Campusly", forWho: "Schools", text: "Admissions, fees, attendance and parents in one school system.", href: null, icon: "users", tone: "t-amber" },
+] as const;
