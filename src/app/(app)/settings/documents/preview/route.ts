@@ -15,13 +15,14 @@ export async function GET(req: Request) {
   const company = companyFrom(profile as unknown as Record<string, unknown>);
   const { config } = await getDocConfig(db, user.organizationId, type);
   const asked = new URL(req.url).searchParams.get("template");
-  if (type === "INVOICE" && asked && TEMPLATE_KEYS.includes(asked)) config.template = asked;
+  if ((type === "INVOICE" || type === "QUOTE") && asked && TEMPLATE_KEYS.includes(asked)) config.template = asked;
   const bank = await db.bankAccount.findFirst({ where: { organizationId: user.organizationId, active: true, isDefault: true } });
   const sampleBank = bank ? { bankName: bank.bankName, accountHolder: bank.accountHolder, accountNumber: "SAMPLE-0000", paymentInstructions: bank.paymentInstructions } : { bankName: "Sample Bank", accountHolder: company.legalName, accountNumber: "SAMPLE-0000" };
   const d = new Date();
   let pdf: Buffer;
   if (type === "QUOTE") {
     pdf = await quotePdf({ number: "QT-SAMPLE", status: "SENT", currency: "USD", date: d, validUntil: d.toISOString().slice(0, 10), notes: "Sample notes.", terms: "50% upfront, balance on delivery.", client: { name: "Sample Client Ltd", billingAddress: "1 Example Street" },
+      title: "Sample proposal", introduction: "A short introduction to the client and what they want to achieve.", scope: "Deliverable one\nDeliverable two", timeline: "Week 1: kickoff\nWeek 4: delivery",
       lines: [{ description: "Sample service", quantity: "2", unitPrice: "500.00", amount: "1000.00" }], subtotal: "1000.00", taxRate: "5", taxAmount: "50.00", total: "1050.00", company, config });
   } else if (type === "INVOICE") {
     pdf = await invoicePdf({ number: "INV-SAMPLE", status: "ISSUED", currency: "USD", issueDate: d, dueDate: d, notes: "Sample notes.", client: { name: "Sample Client Ltd", billingAddress: "1 Example Street" },

@@ -36,7 +36,7 @@ const TASKS: Task[] = [
   { group: "sales", title: "Work your prospect list", why: "Businesses to approach for the software line you are on. Claim one, call it, and log what happened.", href: "/leads/prospector/mine", permission: "crm.edit" },
   { group: "sales", title: "Log a field visit", why: "For agents who visit businesses in person. Works without a signal and sends when you are back online.", href: "/field", permission: "field.capture" },
   { group: "sales", title: "Book a demo", why: "Hand a warm prospect to the demo team, with the time the owner agreed.", href: "/leads/prospector/demos", permission: "prospector.schedule_demo" },
-  { group: "sales", title: "Send a quotation", why: "Pick plans from the service catalog, save as a draft, then mark it sent.", href: "/quotes?new=1", permission: "quotes.manage" },
+  { group: "sales", title: "Send a proposal or quotation", why: "Write the introduction, scope and timeline if you want a proposal, pick plans from the service catalog, watch the live preview, save as a draft, then mark it sent.", href: "/quotes/new", permission: "quotes.manage" },
   { group: "sales", title: "Check your targets", why: "Calls, visits and conversions against what is expected of you this month.", href: "/sales/activity", permission: "crm.view" },
   { group: "sales", title: "See your commissions", why: "What you have earned, what is approved, and what has been paid with your salary.", href: "/me/commissions", permission: "commissions.own" },
 

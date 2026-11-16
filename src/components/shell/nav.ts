@@ -27,7 +27,7 @@ export const NAV: NavGroup[] = [
     { href: "/field", label: "Field visits", permission: "field.capture" },
     { href: "/campaigns", label: "Campaigns", permission: "campaigns.view" },
     { href: "/clout", label: "Clout Leader", permission: "clout.view" },
-    { href: "/quotes", label: "Quotations", permission: "quotes.view" },
+    { href: "/quotes", label: "Proposals & quotations", permission: "quotes.view" },
     { href: "/sales/activity", label: "Sales reports", permission: null, group: "crm-reports" },
   ] },
   { id: "partners", title: "Partner Stack", icon: "link", items: [
@@ -90,7 +90,7 @@ export type QuickCreate = { href: string; label: string; permission: PermissionK
 export const QUICK_CREATE: QuickCreate[] = [
   { href: "/leads", label: "New lead", permission: "crm.edit", icon: "target" },
   { href: "/clients", label: "New client", permission: "clients.edit", icon: "building" },
-  { href: "/quotes", label: "New quotation", permission: "quotes.manage", icon: "file" },
+  { href: "/quotes/new", label: "New proposal or quotation", permission: "quotes.manage", icon: "file" },
   { href: "/finance/invoices", label: "New invoice", permission: "finance.post", icon: "receipt" },
   { href: "/projects", label: "New project", permission: "projects.manage", icon: "briefcase" },
   { href: "/meetings", label: "New meeting", permission: "meetings.use", icon: "video" },

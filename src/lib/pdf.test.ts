@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_DOC_CONFIG, TEMPLATE_KEYS, creditNotePdf, invoicePdf, mergeConfig, payslipPdf, pdfMoney, pdfText, receiptPdf, statementPdf, voucherPdf,
+  DEFAULT_DOC_CONFIG, TEMPLATE_KEYS, creditNotePdf, invoicePdf, isProposal, mergeConfig, quoteLayout, quotePdf, payslipPdf, pdfMoney, pdfText, receiptPdf, statementPdf, voucherPdf,
   type Company, type InvoiceDoc,
 } from "./pdf";
 import { pdfPlainText } from "./pdf-text.testutil";
@@ -16,6 +16,36 @@ const invoice = (over: Partial<InvoiceDoc> = {}): InvoiceDoc => ({
   lines: [{ description: "Social Pro (monthly)", quantity: "2", unitPrice: "1499.00", amount: "2998.00" }, { description: "Setup", quantity: "1", unitPrice: "250.50", amount: "250.50" }],
   subtotal: "3248.50", taxRate: "5", taxAmount: "162.43", total: "3410.93", amountPaid: "1000.00", creditedAmount: "410.93",
   company, bank: { bankName: "Test Bank", accountHolder: "Hifi", accountNumber: "000011112222", iban: "PK00TEST", swift: "TESTPKKA" }, config: DEFAULT_DOC_CONFIG, templateVersion: 3, ...over,
+});
+
+describe("proposals and quotations", () => {
+  const quote = (over: Partial<Parameters<typeof quotePdf>[0]> = {}): Parameters<typeof quotePdf>[0] => ({
+    number: "QT-000007", status: "SENT", currency: "PKR", date: new Date("2026-11-16"), validUntil: "2026-12-01", notes: "Prices exclude ad spend.", terms: "50% upfront",
+    client: { name: "Biztrack UK", billingAddress: "London" }, lines: [{ description: "Social media management\nThree platforms", quantity: "3", unitPrice: "40000", amount: "120000" }],
+    subtotal: "120000", taxRate: "0", taxAmount: "0", total: "120000", company, config: DEFAULT_DOC_CONFIG, ...over,
+  });
+  const pages = (b: Buffer) => (b.toString("latin1").match(/\/Type \/Page\b/g) ?? []).length;
+  it("prints as a proposal when it has sections, in both layouts, on one page", async () => {
+    for (const template of ["modern", "minimal"]) {
+      const buf = await quotePdf(quote({ title: "Social media plan", introduction: "We help brands grow.", scope: "Content calendar\nCommunity replies", timeline: "Week 1: kickoff", template }), { compress: false });
+      const t = pdfPlainText(buf);
+      for (const s of ["PROPOSAL", "QT-000007", "Social media plan", "We help brands grow.", "Community replies", "Week 1: kickoff", "Biztrack UK", "PKR 120,000.00", "50% upfront", "Prices exclude ad spend."]) expect(t).toContain(s);
+      expect(t.toLowerCase()).toContain("scope of work");
+      expect(pages(buf)).toBe(1);
+    }
+  });
+  it("prints as a quotation with no sections, and marks a draft", async () => {
+    const t = pdfPlainText(await quotePdf(quote({ status: "DRAFT" }), { compress: false }));
+    expect(t).toContain("QUOTATION");
+    expect(t).not.toContain("PROPOSAL");
+    expect(t.toLowerCase()).toContain("draft");
+    expect(isProposal({ introduction: "  ", scope: null })).toBe(false);
+  });
+  it("uses the quote's own layout, else the settings default, else Modern Indigo", () => {
+    expect(quoteLayout("minimal", mergeConfig({ template: "modern" } as never))).toBe("minimal");
+    expect(quoteLayout(null, mergeConfig({ template: "minimal" } as never))).toBe("minimal");
+    expect(quoteLayout("standard", DEFAULT_DOC_CONFIG)).toBe("modern");
+  });
 });
 
 describe("formatting helpers", () => {

@@ -61,6 +61,7 @@ export async function loadQuoteDoc(db: PrismaClient, p: { organizationId: string
   if (!q) return null;
   return {
     number: q.number, status: q.status, currency: q.currency, date: q.sentAt ?? q.createdAt, validUntil: q.validUntil, notes: q.notes, terms: q.terms,
+    title: q.title, introduction: q.introduction, scope: q.scope, timeline: q.timeline, template: q.templateKey,
     client: { name: q.client.name, billingAddress: q.client.billingAddress },
     lines: q.lines.map((l) => ({ description: l.description, quantity: l.quantity.toString(), unitPrice: l.unitPrice.toString(), amount: l.amount.toString() })),
     subtotal: q.subtotal.toString(), taxRate: q.taxRate.toString(), taxAmount: q.taxAmount.toString(), total: q.total.toString(),

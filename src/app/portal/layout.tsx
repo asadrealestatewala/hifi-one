@@ -26,7 +26,7 @@ export default async function PortalLayout({ children }: { children: React.React
     { href: "/portal/content", label: "Content", icon: "calendar", tone: "pink", count: pending },
     ...(cloutPosts > 0 ? [{ href: "/portal/clout", label: "Influencer posts", icon: "activity", tone: "pink" }] : []),
     ...(agreements > 0 ? [{ href: "/portal/agreements", label: "Agreements", icon: "file", tone: "violet" } as PortalNavItem] : []),
-    { href: "/portal/quotes", label: "Quotations", icon: "file", tone: "slate", count: quotesOpen },
+    { href: "/portal/quotes", label: "Proposals & quotations", icon: "file", tone: "slate", count: quotesOpen },
     { href: "/portal/statement", label: "Statement", icon: "receipt", tone: "green" },
     { href: "/portal/meetings", label: "Meetings", icon: "video", tone: "teal" },
     { href: "/portal/support", label: "Support", icon: "chat", tone: "blue" },

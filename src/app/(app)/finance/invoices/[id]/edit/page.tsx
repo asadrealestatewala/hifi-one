@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { PageHeader } from "@/components/ui";
 import InvoiceEditor from "../../InvoiceEditor";
 import { saveInvoiceAction } from "../../actions";
-import { loadEditorData } from "../../editor-data";
+import { loadEditorData } from "@/lib/doc-editor-data";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ export default async function EditInvoicePage({ params, searchParams }: { params
   const user = await requirePermission("finance.post");
   const { id } = await params;
   const sp = await searchParams;
-  const inv = await db.invoice.findFirst({ where: { id, organizationId: user.organizationId }, include: { lines: true } });
+  const inv = await db.invoice.findFirst({ where: { id, organizationId: user.organizationId }, include: { lines: { orderBy: { id: "asc" } } } });
   if (!inv) notFound();
   if (inv.status !== "DRAFT") redirect(`/finance/invoices/${id}?error=${encodeURIComponent("Only draft invoices can be edited. Use a credit note to correct an issued invoice.")}`);
   const data = await loadEditorData(user.organizationId);
