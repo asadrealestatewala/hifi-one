@@ -2,10 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { audit, requirePermission } from "@/lib/auth";
+import { audit, requirePermission, toFileActor } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { FileError } from "@/lib/files";
+import { DOCUMENT_LABEL, IdentityError, approvePayoutAccount, removePayoutAccount, reviewIdentity, saveIdentityDocument, submitIdentity } from "@/lib/partner-identity";
+import { defaultStorage } from "@/lib/storage";
 import {
-  ACADEMY_TEST_SETTINGS, PartnerError, TYPE_KEYS, approveApplication, issueCertificate, rejectApplication, renewCertificate, revokeCertificate, saveEarnerType, setDirectAccess, saveSettings, updateEarner, updateInquiry,
+  ACADEMY_TEST_SETTINGS, PartnerError, TYPE_KEYS, addPartner, approveApplication, issueCertificate, rejectApplication, renewCertificate, revokeCertificate, saveEarnerType, setDirectAccess, saveSettings, updateEarner, updateInquiry,
 } from "@/lib/partner-stack";
 import { readDuration } from "./_components/Fields";
 
@@ -13,7 +16,7 @@ const str = (f: FormData, k: string) => String(f.get(k) ?? "");
 const list = (f: FormData, prefix: string) => [...f.keys()].filter((k) => k.startsWith(prefix) && f.get(k) === "on").map((k) => k.slice(prefix.length));
 const go = (base: string, extra: string): never => redirect(`${base}${base.includes("?") ? "&" : "?"}${extra}`);
 const fail = (base: string, e: unknown): never => {
-  if (e instanceof PartnerError) return go(base, `error=${encodeURIComponent(e.message)}`);
+  if (e instanceof PartnerError || e instanceof IdentityError || e instanceof FileError) return go(base, `error=${encodeURIComponent(e.message)}`);
   throw e;
 };
 
@@ -145,4 +148,95 @@ export async function saveSettingsAction(formData: FormData): Promise<void> {
   } catch (e) { fail(base, e); }
   revalidatePath(base);
   go(base, "saved=Settings saved.");
+}
+
+// Staff add a partner straight away (from an inquiry, or after a call or meeting) with the terms agreed with them.
+export async function addPartnerAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("partners.manage");
+  const inquiryId = str(formData, "inquiryId") || undefined;
+  // On a mistake the form comes back with what was typed, so nothing has to be entered twice
+  const keep = new URLSearchParams({ new: "1", ...(inquiryId ? { inquiry: inquiryId } : {}) });
+  for (const k of ["name", "email", "phone", "city", "country", "territory", "typeKey", "ratePercent", "trainingReason"]) if (str(formData, k)) keep.set(`f_${k}`, str(formData, k).slice(0, 300));
+  const sells = list(formData, "sell_");
+  if (sells.length) keep.set("f_sell", sells.join(","));
+  if (formData.get("trainingOptional") === "on") keep.set("f_optional", "1");
+  if (formData.get("leadSharing") === "on") keep.set("f_lead", "1");
+  const base = `/partner-stack/partners?${keep.toString()}`;
+  let id = "";
+  try {
+    const optional = formData.get("trainingOptional") === "on";
+    const e = await addPartner(db, {
+      organizationId: user.organizationId, actorId: user.id, inquiryId, name: str(formData, "name"), email: str(formData, "email"), phone: str(formData, "phone"), city: str(formData, "city"), country: str(formData, "country"),
+      typeKey: str(formData, "typeKey"), ratePercent: str(formData, "ratePercent"), durationMonths: readDuration(formData), leadSharing: formData.get("leadSharing") === "on", territory: str(formData, "territory"),
+      solutionCodes: list(formData, "sell_"), trainingOptional: optional, trainingReason: str(formData, "trainingReason"),
+    });
+    id = e.id;
+    await audit(user, { action: "partner.add", entity: "Earner", entityId: e.id, after: { partnerNumber: e.partnerNumber, inquiryId: inquiryId ?? null, type: str(formData, "typeKey"), rate: String(e.ratePercent), trainingOptional: optional, reason: optional ? e.directAccessReason : undefined } });
+  } catch (e) { fail(base, e); }
+  revalidatePath("/partner-stack/partners");
+  revalidatePath("/partner-stack/inquiries");
+  go(`/partner-stack/partners?open=${encodeURIComponent(id)}`, "saved=Partner added. They were emailed a link to set their own password.");
+}
+
+// Staff enter identity details for a partner who sent them by email or in person. Same rules and review as the partner's own form;
+// the person who enters them should not be the one who verifies them.
+export async function staffIdentityAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("partners.view_identity");
+  const id = str(formData, "id");
+  const base = `/partner-stack/partners?open=${encodeURIComponent(id)}`;
+  const uploaded: string[] = [];
+  try {
+    const earner = await db.earner.findFirst({ where: { id, organizationId: user.organizationId }, select: { id: true } });
+    if (!earner) throw new PartnerError("Partner not found.", 404);
+    for (const key of Object.keys(DOCUMENT_LABEL)) {
+      const file = formData.get(`doc_${key}`);
+      if (!(file instanceof File) || file.size === 0) continue;
+      await saveIdentityDocument(db, defaultStorage(), { actor: toFileActor(user), earnerId: earner.id, category: key, name: file.name, bytes: Buffer.from(await file.arrayBuffer()) });
+      uploaded.push(DOCUMENT_LABEL[key]);
+    }
+    const { after } = await submitIdentity(db, {
+      organizationId: user.organizationId, earnerId: earner.id, actorId: user.id, byStaff: true,
+      input: { legalName: str(formData, "legalName"), idType: str(formData, "idType"), idNumber: str(formData, "idNumber"), businessName: str(formData, "businessName"), ntn: str(formData, "ntn"), secpNumber: str(formData, "secpNumber"), activeTaxpayer: formData.get("activeTaxpayer") === "on", address: str(formData, "address") },
+    });
+    await audit(user, { action: "partner.identity.submit_by_staff", entity: "Earner", entityId: id, after: { status: after.status, idType: after.idType, documents: uploaded } });
+  } catch (e) { fail(base, e); }
+  revalidatePath("/partner-stack/partners");
+  go(base, "saved=Identity details saved and waiting for review.");
+}
+
+export async function reviewIdentityAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("partners.view_identity");
+  const id = str(formData, "id");
+  const decision = str(formData, "decision") === "VERIFY" ? "VERIFY" : "REJECT";
+  const base = `/partner-stack/partners?open=${encodeURIComponent(id)}`;
+  try {
+    const { before, after } = await reviewIdentity(db, { organizationId: user.organizationId, earnerId: id, actorId: user.id, decision, reason: str(formData, "reason") });
+    await audit(user, { action: decision === "VERIFY" ? "partner.identity.verify" : "partner.identity.reject", entity: "Earner", entityId: id, before: { status: before.status }, after: { status: after.status, reason: after.rejectReason ?? undefined } });
+  } catch (e) { fail(base, e); }
+  revalidatePath("/partner-stack/partners");
+  go(base, decision === "VERIFY" ? "saved=Identity verified. The partner was emailed." : "saved=Sent back to the partner with your reason.");
+}
+
+export async function approvePayoutAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("partners.view_identity");
+  const id = str(formData, "id");
+  const base = `/partner-stack/partners?open=${encodeURIComponent(id)}`;
+  try {
+    const a = await approvePayoutAccount(db, { organizationId: user.organizationId, earnerId: id, accountId: str(formData, "accountId"), actorId: user.id });
+    await audit(user, { action: "partner.payout.approve", entity: "PartnerPayoutAccount", entityId: a.id, after: { method: a.method, last4: a.accountLast4, reason: str(formData, "reason").trim() } });
+  } catch (e) { fail(base, e); }
+  revalidatePath("/partner-stack/partners");
+  go(base, "saved=Payout account approved.");
+}
+
+export async function staffRemovePayoutAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("partners.manage");
+  const id = str(formData, "id");
+  const base = `/partner-stack/partners?open=${encodeURIComponent(id)}`;
+  try {
+    const a = await removePayoutAccount(db, { organizationId: user.organizationId, earnerId: id, accountId: str(formData, "accountId"), actorId: user.id });
+    await audit(user, { action: "partner.payout.remove_by_staff", entity: "PartnerPayoutAccount", entityId: a.id, after: { method: a.method, last4: a.accountLast4, reason: str(formData, "reason").trim() } });
+  } catch (e) { fail(base, e); }
+  revalidatePath("/partner-stack/partners");
+  go(base, "saved=Payout account removed.");
 }

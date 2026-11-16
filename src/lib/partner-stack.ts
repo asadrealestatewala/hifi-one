@@ -343,29 +343,10 @@ export async function approveApplication(db: Db, p: ApprovalInput) {
     await tx.$queryRaw`SELECT id FROM "PartnerApplication" WHERE id = ${app.id} FOR UPDATE`;
     const fresh = await tx.partnerApplication.findUniqueOrThrow({ where: { id: app.id } });
     if (fresh.status !== "NEW") throw new PartnerError(`This application was already ${fresh.status.toLowerCase()}.`);
-    // One approval at a time per organization while the next Partner ID is taken, so two approvals never get the same number
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"partner-number:" + p.organizationId}))`;
-    const last = await tx.earner.aggregate({ where: { organizationId: p.organizationId }, _max: { partnerNumber: true } });
-    const partnerNumber = (last._max.partnerNumber ?? 0) + 1;
-    const user = await tx.user.create({
-      data: { organizationId: p.organizationId, email: app.email, phone: null, name: app.name, passwordHash: await bcrypt.hash(crypto.randomBytes(24).toString("base64url"), 10), userType: "PARTNER" },
+    const { user, earner } = await createEarnerTx(tx, {
+      organizationId: p.organizationId, typeId: type.id, name: app.name, email: app.email, phone: app.phone, city: app.city, country: app.country,
+      rate, months, leadSharing: p.leadSharing, territory, productIds: solutions.map((s) => s.id), applicationId: app.id,
     });
-    let earner;
-    for (let attempt = 0; ; attempt++) {
-      try {
-        earner = await tx.earner.create({
-          data: {
-            organizationId: p.organizationId, userId: user.id, typeId: type.id, partnerNumber, name: app.name, email: app.email, phone: app.phone, city: app.city, country: app.country,
-            ratePercent: rate, durationMonths: months, leadSharing: p.leadSharing, territory, referralCode: newReferralCode(), applicationId: app.id,
-            solutions: { create: solutions.map((s) => ({ productId: s.id })) },
-          },
-        });
-        break;
-      } catch (e) {
-        if (attempt < 5 && e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002" && String(e.meta?.target).includes("referralCode")) continue;
-        throw e;
-      }
-    }
     const certs = [];
     // A Solution ticked "Training done" gets its training certificate now; the certificate of authorisation is issued later from the partner's page.
     for (const s of certify) certs.push(await issueCertificateTx(tx, { organizationId: p.organizationId, earnerId: earner.id, productId: s.id, kind: "TRAINING", days: null, actorId: p.actorId, now }));
@@ -381,6 +362,90 @@ export async function approveApplication(db: Db, p: ApprovalInput) {
   });
   for (const c of result.certs) await emailCertificate(db, c.id);
   return { earnerId: result.earner.id, certificates: result.certs.length };
+}
+
+type NewEarner = {
+  organizationId: string; typeId: string; name: string; email: string; phone: string | null; city: string | null; country: string | null; rate: string; months: number | null;
+  leadSharing: boolean; territory: string | null; productIds: string[]; applicationId?: string; inquiryId?: string; directAccess?: { reason: string; actorId: string; now: Date };
+};
+
+// The sign-in and partner record, made the same way whether the partner came from an application or was added by staff.
+async function createEarnerTx(tx: Tx, p: NewEarner) {
+  // One partner at a time per organization while the next Partner ID is taken, so two never get the same number
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"partner-number:" + p.organizationId}))`;
+  const last = await tx.earner.aggregate({ where: { organizationId: p.organizationId }, _max: { partnerNumber: true } });
+  const partnerNumber = (last._max.partnerNumber ?? 0) + 1;
+  const user = await tx.user.create({
+    data: { organizationId: p.organizationId, email: p.email, phone: null, name: p.name, passwordHash: await bcrypt.hash(crypto.randomBytes(24).toString("base64url"), 10), userType: "PARTNER" },
+  });
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const earner = await tx.earner.create({
+        data: {
+          organizationId: p.organizationId, userId: user.id, typeId: p.typeId, partnerNumber, name: p.name, email: p.email, phone: p.phone, city: p.city, country: p.country,
+          ratePercent: p.rate, durationMonths: p.months, leadSharing: p.leadSharing, territory: p.territory, referralCode: newReferralCode(),
+          applicationId: p.applicationId ?? null, inquiryId: p.inquiryId ?? null,
+          ...(p.directAccess ? { academyDirectAccess: true, directAccessReason: p.directAccess.reason, directAccessById: p.directAccess.actorId, directAccessAt: p.directAccess.now } : {}),
+          solutions: { create: p.productIds.map((productId) => ({ productId })) },
+        },
+      });
+      return { user, earner };
+    } catch (e) {
+      if (attempt < 5 && e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002" && String(e.meta?.target).includes("referralCode")) continue;
+      throw e;
+    }
+  }
+}
+
+export type AddPartnerInput = {
+  organizationId: string; actorId: string; inquiryId?: string; name: string; email: string; phone: string; city: string; country: string; typeKey: string; ratePercent: string;
+  durationMonths: string; leadSharing: boolean; territory?: string; solutionCodes: string[]; trainingOptional: boolean; trainingReason?: string; now?: Date;
+};
+
+// Staff add a partner directly, for example after a phone call or meeting that started as an inquiry, with terms agreed with them.
+// The partner gets the same approval email with a link to set their own password. Nobody sets a password for them.
+export async function addPartner(db: Db, p: AddPartnerInput) {
+  const now = p.now ?? new Date();
+  const name = cut(p.name, 120);
+  if (name.length < 2) throw new PartnerError("Enter the partner's name.", 400, "name");
+  const email = normalizeEmail(cut(p.email, 200));
+  if (!email) throw new PartnerError("Enter a valid email address. The partner signs in with it.", 400, "email");
+  const phone = normalizePhone(cut(p.phone, 40));
+  if (!phone) throw new PartnerError("Enter the partner's phone or WhatsApp number.", 400, "phone");
+  const city = cut(p.city, 80) || null;
+  const country = cut(p.country, 80) || null;
+  const type = await db.earnerType.findUnique({ where: { organizationId_key: { organizationId: p.organizationId, key: p.typeKey } } });
+  if (!type || !type.active || p.typeKey === "SALES_AGENT") throw new PartnerError("Choose Student, Referral, Reseller or Exclusive.", 400, "typeKey");
+  const rate = cleanRate(p.ratePercent);
+  const months = cleanDuration(p.durationMonths);
+  const territory = (p.territory ?? "").trim().slice(0, 200) || null;
+  const solutions = await db.saasProduct.findMany({ where: { organizationId: p.organizationId, code: { in: p.solutionCodes }, active: true } });
+  if (solutions.length === 0) throw new PartnerError("Choose at least one Solution the partner may sell.", 400, "solutionCodes");
+  const reason = (p.trainingReason ?? "").trim().slice(0, 300);
+  if (p.trainingOptional && reason.length < 3) throw new PartnerError("Say why training is optional for this partner. It is kept in the audit log.", 400, "trainingReason");
+  let inquiry = null;
+  if (p.inquiryId) {
+    inquiry = await db.partnerInquiry.findFirst({ where: { id: p.inquiryId, organizationId: p.organizationId } });
+    if (!inquiry) throw new PartnerError("Inquiry not found.", 404);
+    if (await db.earner.findFirst({ where: { inquiryId: inquiry.id } })) throw new PartnerError("This inquiry was already made into a partner.");
+  }
+  if (await db.user.findFirst({ where: { email } })) throw new PartnerError("Someone already has an account with this email address.", 400, "email");
+  if (await db.earner.findFirst({ where: { organizationId: p.organizationId, email } })) throw new PartnerError("This email is already a partner.", 400, "email");
+
+  const { user, earner } = await db.$transaction(async (tx) => {
+    const made = await createEarnerTx(tx, {
+      organizationId: p.organizationId, typeId: type.id, name, email, phone, city, country, rate, months, leadSharing: p.leadSharing, territory, productIds: solutions.map((s) => s.id),
+      inquiryId: inquiry?.id, directAccess: p.trainingOptional ? { reason, actorId: p.actorId, now } : undefined,
+    });
+    if (inquiry) await tx.partnerInquiry.update({ where: { id: inquiry.id }, data: { status: "CLOSED", handledById: p.actorId, handledAt: now, note: [inquiry.note, `Added as partner ${partnerId(made.earner.partnerNumber)}.`].filter(Boolean).join("\n") } });
+    return made;
+  });
+  const link = `${appUrl()}/reset/${await createResetLink(db, { organizationId: p.organizationId, userId: user.id, createdById: p.actorId, hours: 72 })}`;
+  await sendTemplateQuietly(db, {
+    organizationId: p.organizationId, key: "partner_approved", to: email, relatedType: "Earner", relatedId: earner.id, secret: true, buttonUrl: link,
+    vars: { first_name: firstName(name), partner_id: partnerId(earner.partnerNumber), type: type.name, rate: `${rate}%`, duration: durationLabel(months), solutions: solutions.map((s) => s.name).join(", "), link, referral_code: earner.referralCode },
+  });
+  return earner;
 }
 
 export async function rejectApplication(db: Db, p: { organizationId: string; applicationId: string; actorId: string; reason: string; now?: Date }) {

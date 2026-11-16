@@ -3615,6 +3615,7 @@ model Earner {
   directAccessById    String?
   directAccessAt      DateTime?
   status              String    @default("ACTIVE") // ACTIVE | SUSPENDED
+  inquiryId           String?   @unique // set when staff added the partner from an inquiry instead of an application
   partnerNumber       Int // sequential per organization, shown as the Partner ID HPS-0001; never reused
   referralCode        String    @unique
   applicationId       String?   @unique
@@ -3624,12 +3625,73 @@ model Earner {
   type            EarnerType              @relation(fields: [typeId], references: [id])
   solutions       EarnerSolution[]
   certificates    PartnerCertificate[]
+  identity        PartnerIdentity?
+  payoutAccounts  PartnerPayoutAccount[]
   academyProgress AcademyLessonProgress[]
   academyAttempts AcademyQuizAttempt[]
   academyTests    AcademyTestAttempt[]
 
   @@unique([organizationId, partnerNumber])
   @@index([organizationId, status])
+}
+
+// A partner's identity check (KYC). The ID number is stored encrypted, with only its last four characters in clear for display.
+// ID images are StoredFile rows with ownerType PARTNER_IDENTITY and ownerId = the earner id. Seen in full only with
+// partners.view_identity; every full view is written to the audit log without the number itself.
+model PartnerIdentity {
+  id             String    @id @default(cuid())
+  organizationId String
+  earnerId       String    @unique
+  legalName      String
+  idType         String // CNIC | NICOP | PASSPORT | SSN
+  idNumberEnc    String // AES-256-GCM, key derived from SESSION_SECRET with its own label
+  idLast4        String
+  businessName   String?
+  ntn            String?
+  secpNumber     String?
+  activeTaxpayer Boolean   @default(false)
+  address        String
+  status         String    @default("SUBMITTED") // SUBMITTED | VERIFIED | REJECTED (no row = not submitted)
+  rejectReason   String?
+  submittedAt    DateTime
+  reviewedById   String?
+  reviewedAt     DateTime?
+  recheckDueAt   DateTime? // a year after verification
+  reminderSentAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  earner Earner @relation(fields: [earnerId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+}
+
+// Where Hifi sends a partner's money. Records are never edited: a change is a new account, and the old one is removed.
+// A new account can be used only after `usableFrom` (a 48-hour hold) and, when its title does not match the partner's
+// verified name, only after staff approve it. All payments are made by hand until an integration exists.
+model PartnerPayoutAccount {
+  id               String    @id @default(cuid())
+  organizationId   String
+  earnerId         String
+  method           String // BANK | EASYPAISA | JAZZCASH | SADAPAY | NAYAPAY | PAYPAL | STRIPE | OTHER
+  otherName        String? // the service's name when method is OTHER
+  bankName         String?
+  accountTitle     String
+  accountEnc       String // IBAN, wallet number, email or account id; encrypted
+  accountLast4     String
+  isDefault        Boolean   @default(false)
+  titleMatches     Boolean
+  approvedById     String? // staff approval, needed when the title does not match
+  approvedAt       DateTime?
+  usableFrom       DateTime
+  removedAt        DateTime?
+  removedById      String?
+  createdById      String
+  createdAt        DateTime  @default(now())
+
+  earner Earner @relation(fields: [earnerId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, earnerId])
 }
 
 // The Solutions (SaasProduct rows) a partner is approved to sell.

@@ -110,6 +110,7 @@ export const PERMISSIONS = {
   "clout.manage": "Clout Leader: manage every campaign, influencer and post, refresh timers and exports",
   "clout.settings": "Clout Leader: choose data providers and set fast-lane quotas per client (Super Admin only)",
   "partners.manage": "Partner Stack: review partner inquiries and applications, approve or reject partners, set their terms and manage their certificates",
+  "partners.view_identity": "Partner Stack: see partners' ID numbers, ID images and full payout account numbers, and verify their identity (every view is logged)",
   "partners.settings": "Partner Stack: set the programme defaults: rates, durations, certificate validity and reminders (Super Admin only)",
 } as const;
 
@@ -146,7 +147,7 @@ export const ROLE_DEFS: RoleDef[] = [
   { key: "COO", name: "Chief Operating Officer", permissions: ["dashboard.view", "dashboard.executive", "crm.view", "crm.view_all", "catalog.view", "clients.view", "projects.view", "projects.view_all", "projects.manage", "tasks.edit", "campaigns.view", "campaigns.manage", "clout.view", "jobs.run", "support.view", "support.manage", "leadsources.manage", "hr.view", "leave.approve", "attendance.view_all", "content.view", "vendors.view", "budget.view"] },
   { key: "HR_COORDINATOR", name: "HR Coordinator", permissions: ["dashboard.view", "hr.view", "hr.manage", "hr.view_sensitive", "circulars.send", "leave.approve", "attendance.view_all"] },
   { key: "AI_DEVELOPER_INTERN", name: "AI Developer Intern", permissions: ["dashboard.view", "projects.view", "tasks.edit"] },
-  { key: "PARTNER_MANAGER", name: "Partner Manager", permissions: ["dashboard.view", "crm.view", "catalog.view", "partners.manage"] },
+  { key: "PARTNER_MANAGER", name: "Partner Manager", permissions: ["dashboard.view", "crm.view", "catalog.view", "partners.manage", "partners.view_identity"] },
   { key: "CLIENT", name: "Client", permissions: [] },
   { key: "VENDOR", name: "Vendor", permissions: [] },
   { key: "BUSINESS_PARTNER", name: "Business Partner", permissions: [] },

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { INQUIRY_STATUSES, typeLabel } from "@/lib/partner-stack";
+import { INQUIRY_STATUSES, partnerId, typeLabel } from "@/lib/partner-stack";
 import { paging } from "@/lib/paging";
 import { Chips, Empty, Notice, PageHeader, Pager, SearchBox, StatusBadge, ListToolbar } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
@@ -34,6 +34,7 @@ export default async function PartnerInquiries({ searchParams }: { searchParams:
     db.partnerInquiry.groupBy({ by: ["status"], where: { organizationId: org }, _count: true }),
     sp.open ? db.partnerInquiry.findFirst({ where: { id: sp.open, organizationId: org } }) : null,
   ]);
+  const madePartner = open ? await db.earner.findFirst({ where: { inquiryId: open.id, organizationId: org }, select: { id: true, partnerNumber: true } }) : null;
   const count = new Map(byStatus.map((s) => [s.status, s._count]));
   const all = byStatus.reduce((n, s) => n + s._count, 0);
   const current = { q, status };
@@ -80,6 +81,14 @@ export default async function PartnerInquiries({ searchParams }: { searchParams:
               <dt className="text-muted">Received</dt><dd>{when(open.createdAt)}</dd>
             </dl>
             <section><h3 className="mb-1 text-sm font-semibold">Question</h3><p className="whitespace-pre-wrap text-sm">{open.message}</p></section>
+            {madePartner ? (
+              <Notice kind="ok">Added as partner {partnerId(madePartner.partnerNumber)}. <Link className="underline" href={`/partner-stack/partners?open=${madePartner.id}`}>Open partner</Link></Notice>
+            ) : (
+              <section className="card flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm">Agreed terms with them on a call or in a meeting? Add them as a partner without a public application.</p>
+                <Link className="btn" href={`/partner-stack/partners?new=1&inquiry=${open.id}`}>Add as partner</Link>
+              </section>
+            )}
             <form action={updateInquiryAction} className="card space-y-3">
               <input type="hidden" name="id" value={open.id} />
               <div><label className="label" htmlFor="iq-status">Status</label><select id="iq-status" name="status" defaultValue={open.status} className="input">{INQUIRY_STATUSES.map((s) => <option key={s} value={s}>{label(s)}</option>)}</select></div>

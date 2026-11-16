@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requirePartnerUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { certificateKindLabel, certificateStatus, durationLabel, getSettings, linkedInAddUrl, linkedInShareUrl, partnerId } from "@/lib/partner-stack";
+import { IDENTITY_STATE_LABEL, identityState } from "@/lib/partner-identity";
 import { Badge, Empty, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -10,18 +11,28 @@ const day = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: 
 // Phase 1 home: the partner's own terms, Solutions and certificates. Leads, clients and commissions arrive in later phases.
 export default async function PartnerHome() {
   const { user, earner } = await requirePartnerUser();
-  const [type, solutions, certs, settings, org] = await Promise.all([
+  const [type, solutions, certs, settings, org, identity, payoutCount] = await Promise.all([
     db.earnerType.findUniqueOrThrow({ where: { id: earner.typeId } }),
     db.earnerSolution.findMany({ where: { earnerId: earner.id }, include: { product: { select: { name: true } } } }),
     db.partnerCertificate.findMany({ where: { earnerId: earner.id }, include: { product: { select: { name: true } } }, orderBy: [{ productId: "asc" }, { issuedAt: "asc" }] }),
     getSettings(db, user.organizationId),
     db.organization.findUnique({ where: { id: user.organizationId }, select: { name: true } }),
+    db.partnerIdentity.findUnique({ where: { earnerId: earner.id }, select: { status: true, recheckDueAt: true } }),
+    db.partnerPayoutAccount.count({ where: { earnerId: earner.id, removedAt: null } }),
   ]);
   const company = org?.name ?? "Hifi Marketing and Technologies";
   const now = new Date();
+  const idState = identityState(identity, now);
+  const todo = [idState !== "VERIFIED" && idState !== "SUBMITTED" ? `Identity check: ${IDENTITY_STATE_LABEL[idState].toLowerCase()}` : null, payoutCount === 0 ? "No payout account yet" : null].filter(Boolean);
   return (
     <>
       <PageHeader title={`Welcome, ${earner.name.split(" ")[0]}`} subtitle="Your Hifi Partner Stack terms and certificates." />
+      {todo.length > 0 && (
+        <section className="card flex flex-wrap items-center justify-between gap-3">
+          <div><h2 className="font-semibold">Complete your details to get paid</h2><p className="text-sm text-muted">{todo.join(" · ")}. Training and selling are open now; payouts start once these are done.</p></div>
+          <Link className="btn" href="/partner/details">Open my details</Link>
+        </section>
+      )}
       <section className="card space-y-3">
         <h2 className="font-semibold">Your terms</h2>
         <dl className="grid grid-cols-[10rem_1fr] gap-x-3 gap-y-2 text-sm">

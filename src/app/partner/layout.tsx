@@ -20,9 +20,10 @@ export default async function PartnerLayout({ children }: { children: React.Reac
             <Image src="/logo.png" alt="" width={32} height={32} className="rounded-md" />
             <span className="font-bold">Hifi Partner Stack</span>
           </div>
-          <nav aria-label="Partner portal" className="flex items-center gap-4 text-sm">
+          <nav aria-label="Partner portal" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm [&>a]:whitespace-nowrap">
             <Link href="/partner" className="hover:underline">Overview</Link>
             <Link href="/partner/academy" className="hover:underline">Academy</Link>
+            <Link href="/partner/details" className="hover:underline">My details</Link>
             <span className="text-white/70">{earner.name}</span>
             <form action={signOut}><button className="underline">Sign out</button></form>
           </nav>

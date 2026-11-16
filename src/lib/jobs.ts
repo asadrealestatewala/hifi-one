@@ -12,6 +12,7 @@ import { formatMoney } from "./money";
 import { notifyMany, usersWithPermission } from "./notifications";
 import { purgeMonitoring } from "./monitoring";
 import { sendCertificateReminders } from "./partner-stack";
+import { sendIdentityRecheckReminders } from "./partner-identity";
 import { sendAcademyWeekly } from "./partner-academy";
 import { expireContracts, expireQuotes, generateDueInvoices } from "./sales";
 import { defaultStorage } from "./storage";
@@ -75,6 +76,13 @@ export const JOBS: JobDef[] = [
     key: "partner_certificates", label: "Partner certificate reminders", what: "Emails partners before a Hifi Partner Stack certificate expires (the first and final reminder days are set in Partner Stack settings) and tells the Partner Managers.",
     async run({ db, organizationId, now }) {
       const n = await sendCertificateReminders(db, organizationId, now);
+      return `${n} reminder${n === 1 ? "" : "s"} sent`;
+    },
+  },
+  {
+    key: "partner_identity_recheck", label: "Partner identity re-check reminders", what: "Emails partners 30 days before their yearly identity re-check is due, asking them to confirm or update their details. Payouts pause if the re-check lapses.",
+    async run({ db, organizationId, now }) {
+      const n = await sendIdentityRecheckReminders(db, organizationId, now);
       return `${n} reminder${n === 1 ? "" : "s"} sent`;
     },
   },
