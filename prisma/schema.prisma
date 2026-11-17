@@ -1473,7 +1473,9 @@ model ContentDesign {
   id             String   @id @default(cuid())
   organizationId String
   itemId         String   @unique
-  layout         String // OFFER | SPOTLIGHT | QUOTE | ANNOUNCE | TIP | EVENT | FRAME | BOLD
+  kind           String   @default("SINGLE") // SINGLE | CAROUSEL
+  layout         String // OFFER | SPOTLIGHT | QUOTE | ANNOUNCE | TIP | EVENT | FRAME | BOLD (a carousel's cover)
+  slides         Json? // carousel only: [{ headline, sub }] in order; the first is the cover, the last carries the button
   sizes          String[] @default([]) // SQUARE | PORTRAIT | STORY
   label          String? // small tag such as "NEW" or a date
   headline       String

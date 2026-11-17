@@ -14,7 +14,7 @@ export async function designWords(formData: FormData) {
   const user = await requirePermission("content.manage");
   const id = s(formData, "id");
   try {
-    await writeDesignWords(db, { organizationId: user.organizationId, itemId: id, actorId: user.id, note: s(formData, "designNote") });
+    await writeDesignWords(db, { organizationId: user.organizationId, itemId: id, actorId: user.id, note: s(formData, "designNote"), kind: s(formData, "kind") });
   } catch (e) {
     if (e instanceof DesignError) back(id, e.message);
     throw e;
@@ -44,7 +44,7 @@ export async function drawPostDesign(formData: FormData) {
   try {
     const r = await makeDesign(db, defaultStorage(), {
       actor: toFileActor(user), itemId: id,
-      input: { layout: s(formData, "layout"), sizes: formData.getAll("sizes").map(String), label: s(formData, "label"), headline: s(formData, "headline"), sub: s(formData, "sub"), cta: s(formData, "cta"), photoFileId: s(formData, "photo") || null },
+      input: { kind: s(formData, "kind"), slides: Array.from({ length: 8 }, (_, i) => ({ headline: s(formData, `slide_h_${i}`), sub: s(formData, `slide_s_${i}`) })), layout: s(formData, "layout"), sizes: formData.getAll("sizes").map(String), label: s(formData, "label"), headline: s(formData, "headline"), sub: s(formData, "sub"), cta: s(formData, "cta"), photoFileId: s(formData, "photo") || null },
     });
     await audit(user, { action: "content.design", entity: "ContentItem", entityId: id, after: { layout: r.design.layout, sizes: r.design.sizes } });
   } catch (e) {

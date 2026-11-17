@@ -1,7 +1,9 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { audit, requirePermission } from "@/lib/auth";
+import { audit, requirePermission, toFileActor } from "@/lib/auth";
+import { drawPlanDesigns } from "@/lib/design";
+import { defaultStorage } from "@/lib/storage";
 import { ContentAiError, generatePlan, saveProfile, undoPlan } from "@/lib/content-ai";
 import { db } from "@/lib/db";
 import { ContentError } from "@/lib/content";
@@ -37,9 +39,11 @@ export async function generatePlanAction(formData: FormData): Promise<void> {
     const r = await generatePlan(db, {
       organizationId: user.organizationId, clientId, month, actorId: user.id, monthBrief: String(formData.get("monthBrief") ?? ""),
       counts: { REEL: num(formData, "REEL"), LONG_VIDEO: num(formData, "LONG_VIDEO"), STATIC_CREATIVE: num(formData, "STATIC_CREATIVE") },
+      designs: formData.get("designs") === "on",
     });
-    await audit(user, { action: "content.ai_plan", entity: "Client", entityId: clientId, after: { month, posts: r.created, runId: r.runId } });
-    msg = `${r.created} draft posts were written for ${month}. Review them in the calendar, assign makers and send them on. Discard them below if you want to start again.`;
+    const d = formData.get("designs") === "on" ? await drawPlanDesigns(db, defaultStorage(), { actor: toFileActor(user), runId: r.runId }) : null;
+    await audit(user, { action: "content.ai_plan", entity: "Client", entityId: clientId, after: { month, posts: r.created, runId: r.runId, designs: d?.drawn ?? 0 } });
+    msg = `${r.created} draft posts were written for ${month}.${d ? ` ${d.drawn} static post${d.drawn === 1 ? "" : "s"} got a draft design${d.failed ? ` (${d.failed} could not be drawn; press Make design on those)` : ""}; add a photo and redraw where it helps.` : ""} Review them in the calendar, assign makers and send them on. Discard them below if you want to start again.`;
   } catch (e) {
     if (e instanceof ContentAiError) return to(clientId, month, "error", e.message);
     throw e;
