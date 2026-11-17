@@ -8,7 +8,7 @@ import { FileError } from "@/lib/files";
 import { DOCUMENT_LABEL, IdentityError, approvePayoutAccount, removePayoutAccount, reviewIdentity, saveIdentityDocument, submitIdentity } from "@/lib/partner-identity";
 import { defaultStorage } from "@/lib/storage";
 import {
-  ACADEMY_TEST_SETTINGS, PartnerError, RESALE_SETTINGS, TYPE_KEYS, addPartner, approveApplication, issueCertificate, rejectApplication, renewCertificate, revokeCertificate, saveEarnerType, setDirectAccess, saveSettings, updateContactDetails, updateEarner, updateInquiry,
+  ACADEMY_TEST_SETTINGS, PartnerError, RESALE_SETTINGS, TYPE_KEYS, addPartner, approveApplication, issueCertificate, rejectApplication, renewCertificate, revokeCertificate, saveEarnerType, sendPartnerWelcome, setDirectAccess, saveSettings, updateContactDetails, updateEarner, updateInquiry,
 } from "@/lib/partner-stack";
 import { ResaleError, addSchool, confirmCounts, createResaleDrafts, endSchool, enterCount, fillCountsFromSolutions, monthLabel, setResaleTerm } from "@/lib/partner-resale";
 import { readDuration } from "./_components/Fields";
@@ -94,6 +94,23 @@ export async function updateContactAction(formData: FormData): Promise<void> {
   } catch (e) { fail(base, e); }
   revalidatePath("/partner-stack/partners");
   go(base, emailChanged ? "saved=Contact details saved. The partner now signs in with the new email; both addresses were emailed." : "saved=Contact details saved.");
+}
+
+// Sends the welcome email again with a fresh 3-day link to choose a password (for a partner whose link expired or who lost the email).
+export async function resendWelcomeAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("partners.manage");
+  const id = str(formData, "id");
+  const base = `/partner-stack/partners?open=${encodeURIComponent(id)}`;
+  let msg = "";
+  try {
+    const r = await sendPartnerWelcome(db, { organizationId: user.organizationId, earnerId: id, actorId: user.id });
+    await audit(user, { action: "partner.welcome.resend", entity: "Earner", entityId: id, after: { emailStatus: r.status } });
+    if (r.status === "NOT_CONFIGURED") throw new PartnerError("Email is not configured, so nothing was sent. Connect a mail account in Settings, then try again.");
+    if (r.status !== "SENT") throw new PartnerError("The welcome email could not be sent. Try again in a few minutes.");
+    msg = `Welcome email sent to ${r.to} with a new link (works for 3 days).`;
+  } catch (e) { fail(base, e); }
+  revalidatePath("/partner-stack/partners");
+  go(base, `saved=${encodeURIComponent(msg)}`);
 }
 
 export async function issueCertificateAction(formData: FormData): Promise<void> {

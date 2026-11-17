@@ -15,12 +15,15 @@ async function reset(formData: FormData) {
   const ip = (await headers()).get("x-forwarded-for")?.split(",")[0].trim() ?? "local";
   if (!limiter("reset", 10, 60 * 60_000).take(ip)) redirect(`/reset/${token}?error=${encodeURIComponent("Too many attempts. Please try again later.")}`);
   if (String(formData.get("password")) !== String(formData.get("confirm"))) redirect(`/reset/${token}?error=${encodeURIComponent("The two passwords do not match.")}`);
+  let user: Awaited<ReturnType<typeof consumeReset>>;
   try {
-    await consumeReset(db, { token, password: String(formData.get("password") ?? "") });
+    user = await consumeReset(db, { token, password: String(formData.get("password") ?? "") });
   } catch (e) {
     if (e instanceof AccountError) redirect(`/reset/${token}?error=${encodeURIComponent(e.message)}`);
     throw e;
   }
+  // Partners land on the partner sign-in page with their email already filled in
+  if (user.userType === "PARTNER") redirect(`/login?for=partner&notice=${encodeURIComponent("Password set. Sign in with your email and new password.")}${user.email ? `&identifier=${encodeURIComponent(user.email)}` : ""}`);
   redirect("/login?notice=" + encodeURIComponent("Password set. Please sign in."));
 }
 

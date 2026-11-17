@@ -364,11 +364,7 @@ export async function approveApplication(db: Db, p: ApprovalInput) {
   });
 
   // Emails after the commit: a mail problem never undoes an approval
-  const link = `${appUrl()}/reset/${await createResetLink(db, { organizationId: p.organizationId, userId: result.user.id, createdById: p.actorId, hours: 72 })}`;
-  await sendTemplateQuietly(db, {
-    organizationId: p.organizationId, key: "partner_approved", to: app.email, relatedType: "Earner", relatedId: result.earner.id, secret: true, buttonUrl: link,
-    vars: { first_name: firstName(app.name), partner_id: partnerId(result.earner.partnerNumber), type: type.name, rate: `${rate}%`, duration: durationLabel(months), solutions: solutions.map((s) => s.name).join(", "), link, referral_code: result.earner.referralCode },
-  });
+  await sendPartnerWelcome(db, { organizationId: p.organizationId, earnerId: result.earner.id, actorId: p.actorId });
   for (const c of result.certs) await emailCertificate(db, c.id);
   return { earnerId: result.earner.id, certificates: result.certs.length };
 }
@@ -478,7 +474,7 @@ export async function addPartner(db: Db, p: AddPartnerInput) {
   if (await db.user.findFirst({ where: { email } })) throw new PartnerError("Someone already has an account with this email address.", 400, "email");
   if (await db.earner.findFirst({ where: { organizationId: p.organizationId, email } })) throw new PartnerError("This email is already a partner.", 400, "email");
 
-  const { user, earner } = await db.$transaction(async (tx) => {
+  const { earner } = await db.$transaction(async (tx) => {
     const made = await createEarnerTx(tx, {
       organizationId: p.organizationId, typeId: type.id, name, email, phone, city, country, rate, months, leadSharing: p.leadSharing, territory, productIds: solutions.map((s) => s.id),
       inquiryId: inquiry?.id, directAccess: p.trainingOptional ? { reason, actorId: p.actorId, now } : undefined,
@@ -486,12 +482,28 @@ export async function addPartner(db: Db, p: AddPartnerInput) {
     if (inquiry) await tx.partnerInquiry.update({ where: { id: inquiry.id }, data: { status: "CLOSED", handledById: p.actorId, handledAt: now, note: [inquiry.note, `Added as partner ${partnerId(made.earner.partnerNumber)}.`].filter(Boolean).join("\n") } });
     return made;
   });
-  const link = `${appUrl()}/reset/${await createResetLink(db, { organizationId: p.organizationId, userId: user.id, createdById: p.actorId, hours: 72 })}`;
-  await sendTemplateQuietly(db, {
-    organizationId: p.organizationId, key: "partner_approved", to: email, relatedType: "Earner", relatedId: earner.id, secret: true, buttonUrl: link,
-    vars: { first_name: firstName(name), partner_id: partnerId(earner.partnerNumber), type: type.name, rate: `${rate}%`, duration: durationLabel(months), solutions: solutions.map((s) => s.name).join(", "), link, referral_code: earner.referralCode },
-  });
+  await sendPartnerWelcome(db, { organizationId: p.organizationId, earnerId: earner.id, actorId: p.actorId });
   return earner;
+}
+
+// The welcome email: what the partner signs in with, where, and a fresh 3-day link to choose a password. Staff can send it again
+// (a new link; older unused links keep working until they expire or one of them is used).
+export async function sendPartnerWelcome(db: Db, p: { organizationId: string; earnerId: string; actorId: string }) {
+  const e = await db.earner.findFirst({ where: { id: p.earnerId, organizationId: p.organizationId }, include: { type: true, solutions: { include: { product: { select: { name: true } } } } } });
+  if (!e) throw new PartnerError("Partner not found.", 404);
+  if (e.status !== "ACTIVE") throw new PartnerError("This partner is suspended. Make them active before sending the welcome email.");
+  const user = e.userId ? await db.user.findFirst({ where: { id: e.userId, organizationId: p.organizationId }, select: { id: true, email: true, active: true } }) : null;
+  if (!user || !user.active) throw new PartnerError("This partner has no active sign-in.");
+  const to = user.email ?? e.email;
+  const link = `${appUrl()}/reset/${await createResetLink(db, { organizationId: p.organizationId, userId: user.id, createdById: p.actorId, hours: 72 })}`;
+  const sent = await sendTemplateQuietly(db, {
+    organizationId: p.organizationId, key: "partner_approved", to, relatedType: "Earner", relatedId: e.id, secret: true, buttonUrl: link,
+    vars: {
+      first_name: firstName(e.name), partner_id: partnerId(e.partnerNumber), type: e.type.name, rate: `${Number(e.ratePercent.toString())}%`, duration: durationLabel(e.durationMonths),
+      solutions: e.solutions.map((s) => s.product.name).join(", "), link, referral_code: e.referralCode, sign_in_email: to, sign_in_url: `${appUrl()}/login?for=partner`,
+    },
+  });
+  return { to, status: (sent?.status ?? "FAILED") as string };
 }
 
 export async function rejectApplication(db: Db, p: { organizationId: string; applicationId: string; actorId: string; reason: string; now?: Date }) {
