@@ -17,6 +17,17 @@ export async function register() {
         runDuePublications(db).catch((e) => console.error("Social publishing failed", e)).finally(() => { busy = false; });
       }, 60_000);
     }
+    // Live Solution results: each connected Solution's summary is read every 15 minutes (checked each minute; SOLUTION_PULL_AUTORUN=0 turns it off)
+    if (process.env.SOLUTION_PULL_AUTORUN !== "0") {
+      const { db } = await import("./lib/db");
+      const { pullDue } = await import("./lib/solution-feed");
+      let busy = false;
+      setInterval(() => {
+        if (busy) return;
+        busy = true;
+        pullDue(db).catch((e) => console.error("Reading Solution summaries failed", e)).finally(() => { busy = false; });
+      }, 60_000);
+    }
     if (process.env.JOBS_AUTORUN !== "1") return;
     const { db } = await import("./lib/db");
     const { runJobs } = await import("./lib/jobs");
