@@ -3,6 +3,7 @@ import { requirePartnerUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { COLLECTION_LABEL, addMonths, hifiCollectsMargin, isMonth, monthLabel, monthOf, termFor } from "@/lib/partner-resale";
 import { getSettings } from "@/lib/partner-stack";
+import { STATUS_LABEL, liveForPartner } from "@/lib/solution-feed";
 import { Badge, Empty, Notice, PageHeader } from "@/components/ui";
 import SubmitButton from "@/components/ui/SubmitButton";
 import { addSchoolAction, enterCountAction } from "./actions";
@@ -20,7 +21,8 @@ export default async function MySchools({ searchParams }: { searchParams: Promis
   const thisMonth = monthOf(new Date());
   const lastMonth = addMonths(thisMonth, -1);
   const month = sp.month && isMonth(sp.month) && [thisMonth, lastMonth].includes(sp.month) ? sp.month : lastMonth;
-  const [terms, schools, settings, margin, solutions] = await Promise.all([
+  const [live, terms, schools, settings, margin, solutions] = await Promise.all([
+    liveForPartner(db, org, earner.id),
     db.partnerResaleTerm.findMany({ where: { organizationId: org, earnerId: earner.id }, include: { product: { select: { code: true, name: true } } } }),
     db.resaleSchool.findMany({ where: { organizationId: org, earnerId: earner.id }, include: { client: { select: { name: true } }, product: { select: { name: true } }, counts: { where: { month: { in: [lastMonth, thisMonth] } } } }, orderBy: [{ endedAt: { sort: "asc", nulls: "first" } }, { createdAt: "asc" }], take: 500 }),
     getSettings(db, org),
@@ -62,10 +64,11 @@ export default async function MySchools({ searchParams }: { searchParams: Promis
       {shown.length === 0 ? <Empty title={`No schools for ${monthLabel(month)}`}>Add a school below.</Empty> : (
         <div className="card !p-0 overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="text-left"><th className="px-4 py-2.5">School</th><th className="pr-4">Solution</th><th className="pr-4">Students</th><th className="pr-4">Status</th></tr></thead>
+            <thead><tr className="text-left"><th className="px-4 py-2.5">School</th><th className="pr-4">Solution</th><th className="pr-4">Students</th><th className="pr-4">Status</th><th className="pr-4">Live results</th></tr></thead>
             <tbody className="divide-y divide-border">
               {shown.map((s) => {
                 const c = s.counts.find((x) => x.month === month);
+                const w = live.find((x) => x.clientId === s.clientId && x.productId === s.productId);
                 return (
                   <tr key={s.id}>
                     <td className="px-4 py-2.5">{s.client.name}</td>
@@ -81,6 +84,16 @@ export default async function MySchools({ searchParams }: { searchParams: Promis
                       )}
                     </td>
                     <td className="pr-4 whitespace-nowrap">{c?.invoiceId ? <Badge>Billed</Badge> : c?.confirmedAt ? <Badge tone="success">Confirmed by Hifi</Badge> : c ? <Badge tone="warning">Waiting for Hifi</Badge> : <Badge tone="warning">Not entered</Badge>}</td>
+                    <td className="pr-4 text-xs">
+                      {w ? (
+                        <div className="space-y-0.5">
+                          <Badge tone={w.status === "LIVE" ? "success" : w.status === "OVERDUE" || w.status === "SUSPENDED" ? "warning" : "neutral"}>{STATUS_LABEL[w.status] ?? w.status}</Badge>
+                          <div>{w.units != null ? `${w.units} ${w.unitLabel ?? "units"}` : "No count reported"}{w.activeUsers != null && ` · ${w.activeUsers} active users`}</div>
+                          <div className="text-muted">{w.lastActivityAt ? `Last activity ${w.lastActivityAt.toLocaleDateString("en-GB", { dateStyle: "medium" })}` : "No activity reported"}{w.stale && " · figures may be out of date"}</div>
+                          {w.units != null && !c?.invoiceId && !c?.confirmedAt && c && c.units !== w.units && <div className="text-muted">Your count ({c.units}) differs from the reported {w.units}; Hifi checks it before billing.</div>}
+                        </div>
+                      ) : <span className="text-muted">Not connected yet</span>}
+                    </td>
                   </tr>
                 );
               })}

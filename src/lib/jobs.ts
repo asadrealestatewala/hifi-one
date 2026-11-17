@@ -14,6 +14,7 @@ import { purgeMonitoring } from "./monitoring";
 import { sendCertificateReminders } from "./partner-stack";
 import { sendIdentityRecheckReminders } from "./partner-identity";
 import { runResaleDaily } from "./partner-resale";
+import { feedHealthAlerts } from "./solution-feed";
 import { sendAcademyWeekly } from "./partner-academy";
 import { expireContracts, expireQuotes, generateDueInvoices } from "./sales";
 import { defaultStorage } from "./storage";
@@ -91,6 +92,13 @@ export const JOBS: JobDef[] = [
     key: "partner_resale_billing", label: "Reseller billing", what: "On the 1st, asks resellers for last month's student counts. On the billing day (Partner Stack settings, default the 5th), makes draft invoices for last month from the confirmed counts for Finance to review. Warns a reseller 7 days after an invoice is due, and tells the partner team and Finance which schools to pause when it stays unpaid.",
     async run({ db, organizationId, now }) {
       return runResaleDaily(db, organizationId, now);
+    },
+  },
+  {
+    key: "solution_feed_health", label: "Live Solutions check", what: "Tells the partner team when a Solution has stopped sending its live results, or when reported client workspaces are still waiting to be linked to a Hifi One client.",
+    async run({ db, organizationId, today, now }) {
+      const people = await usersWithPermission(db, organizationId, "partners.manage");
+      return feedHealthAlerts(db, organizationId, now, today, (title, body, dedupeKey) => notifyMany(db, people, { kind: "partner.solution_feed", title, body, link: "/partner-stack/live", dedupeKey }));
     },
   },
   {
