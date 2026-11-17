@@ -87,3 +87,7 @@ Service `src/lib/partner-resale.ts` (tests `partner-resale.integration.test.ts`)
 - **Partner invoices and "I've paid":** portal → Invoices lists issued invoices to the partner's billing client with the bank details, a PDF (`/partner/invoices/<id>/pdf`) and "I've paid" (amount up to what is owed, date, transaction ID, receipt JPG/PNG/PDF up to 5 MB). One report waits per invoice. Finance → Billing → Partner payments (`finance.post`) shows the receipt and either confirms into a bank account of the same currency (a normal receipt through `recordPayment`, idempotent) or sends it back with a reason. The partner is emailed either way. A report never marks an invoice paid by itself.
 - **Reminders and overdue:** on the 1st the partner is emailed for last month's counts (once per partner and month). At 7 days past due the partner gets one overdue email. At the pause setting (default 15 days) the partner team and Finance get an alert listing the schools and Solutions to pause; Hifi One does not switch off Campusly or other Solutions itself, staff pause access there.
 - **Not built:** paying the Hifi-collects margin to the partner (the portal shows earned and waiting amounts; payouts come with the partner commission screens), deposits or credit limits, automatic pausing inside the Solutions, tax on partner invoices (0% until the accountant confirms).
+
+## Live Solution results (2026-11-17, Asad's "go")
+
+Partners see live status and usage of their own schools in My schools, fed by the Solutions themselves. Counts only. See `docs/SOLUTION_FEED.md`.

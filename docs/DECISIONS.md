@@ -244,3 +244,7 @@ Asad approved the reseller plan ("ok", 10 recommendations). Identity (KYC) is re
 ## 2026-11-16: Reseller billing (partner step 2)
 
 Built on Asad's "go" with the approved plan. Partner collects is the default; Hifi collects is chosen per partner and Solution. Counts become invoices only after staff confirm them, and invoices are drafts for Finance to issue, so the partner's own numbers never post to the books directly. Each school is a Hifi Client so schools stay Hifi's. Terms are versioned by month and a billed month is locked, so a price change never alters an invoice already made. A partner's "I've paid" is only a report; Finance confirms it through the normal receipt flow after checking the bank, because a screenshot is not proof of money received. Hifi One cannot switch off access inside Campusly or other Solutions, so the 15-day rule raises an alert for staff to pause by hand rather than claiming to pause. Partner invoices carry 0% tax until the accountant confirms the treatment.
+
+## 2026-11-17: Solution feed (live results for partners and agents)
+
+Solutions push signed reports (HMAC-SHA256 with a per-Solution secret, 5-minute window) instead of Hifi One reading their databases, so no Solution exposes a database or an admin login to Hifi One. Asad chose status and usage counts only: no client records leave a Solution. Workspaces are linked to clients by staff. Agent ownership follows the converted lead, as for commissions. See `docs/SOLUTION_FEED.md`.

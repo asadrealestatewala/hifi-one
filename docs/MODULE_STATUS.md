@@ -256,3 +256,7 @@ Done: Ask answers how-to questions through the `how_to_use_hifi_one` tool (`src/
 
 ## Ask chat window (2026-11-16)
 Done: the Ask button opens a floating chat window on any screen (`src/components/shell/AssistantPanel.tsx`; full screen on phones) instead of navigating; `/assistant` shows the same chat full size. The conversation is saved per person in `AssistantMessage` (migration `20261116030000_assistant_messages`), shows on every page, and the last 10 turns go to the model so follow-ups work. Screen paths in answers are links. "New chat" starts a fresh conversation. Not built: a list of older chats to reopen (they are kept in the table). Not checked in a browser; the database was not available in the cloud session.
+
+## Live Solution results (added 2026-11-17, see `docs/SOLUTION_FEED.md`)
+
+Done on the Hifi One side: signed feed endpoint, per-Solution secrets, Live Solutions staff screen, partner My schools live column, agents My clients live, daily feed check. Not done: the Solutions sending reports (Campusly first), automatic linking. Not checked in a browser.

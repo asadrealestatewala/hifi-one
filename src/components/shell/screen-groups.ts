@@ -34,6 +34,7 @@ export const SCREEN_GROUPS: ScreenGroup[] = [
     { href: "/partner-stack", label: "Applications", permission: "partners.manage" },
     { href: "/partner-stack/partners", label: "Partners", permission: "partners.manage" },
     { href: "/partner-stack/resale", label: "Resale billing", permission: "partners.manage" },
+    { href: "/partner-stack/live", label: "Live Solutions", permission: "partners.manage" },
     { href: "/partner-stack/certificates", label: "Certificates", permission: "partners.manage" },
     { href: "/partner-stack/academy", label: "Academy", permission: "partners.manage" },
     { href: "/partner-stack/inquiries", label: "Inquiries", permission: "partners.manage" },
@@ -71,6 +72,7 @@ export const SCREEN_GROUPS: ScreenGroup[] = [
   { id: "crm-prospector", label: "Prospector", tabs: [
     { href: "/leads/prospector", label: "All prospects", permission: "crm.view" },
     { href: "/leads/prospector/mine", label: "My prospects", permission: "crm.edit" },
+    { href: "/leads/prospector/clients", label: "My clients live", permission: "crm.edit" },
     { href: "/leads/prospector/field-team", label: "Field sales team", permission: "field.review" },
     { href: "/leads/prospector/demos", label: "Demo queue", permission: "prospector.schedule_demo" },
   ] },

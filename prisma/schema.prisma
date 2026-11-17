@@ -446,6 +446,7 @@ model Client {
   cloutQuotas      CloutQuota[]
   siteVisits       SiteVisitRequest[]
   resaleSchools    ResaleSchool[]
+  workspaces       SolutionWorkspace[]
 
   @@unique([organizationId, name])
 }
@@ -3315,6 +3316,8 @@ model SaasProduct {
   visits              ProspectVisit[]
   demos               DemoBooking[]
   commissionRates     ProductCommissionRate[]
+  feedKey             SolutionFeedKey?
+  workspaces          SolutionWorkspace[]
 
   @@unique([organizationId, code])
   @@index([organizationId, active, sortOrder])
@@ -4175,4 +4178,50 @@ model AssistantMessage {
 
   @@index([userId, chatId, createdAt])
   @@index([userId, createdAt])
+}
+
+// ---------- Solution feed: live results from the Solutions (Campusly, Velocity ERP, Pharmivo, Agentify ERP) ----------
+// Each Solution reports, a few times a day, one summary per client workspace: status, plan, paid-until date and usage counts.
+// Counts only: no client records (students, patients, sales, customers) ever leave a Solution. Reports are signed with a per-Solution secret.
+model SolutionFeedKey {
+  productId    String    @id
+  secretEnc    String // AES-256-GCM sealed with SESSION_SECRET; shown once when created, never again
+  hint         String // last 4 characters, so the right secret can be recognised
+  createdById  String?
+  createdAt    DateTime  @default(now())
+  rotatedAt    DateTime?
+  lastReportAt DateTime?
+
+  product SaasProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+// One client workspace inside a Solution (a school in Campusly, a dealership in Velocity ERP, a pharmacy in Pharmivo ...) and its latest report.
+// A workspace is linked to a Hifi One Client by staff; partner and sales agent portals then show it for their own clients.
+model SolutionWorkspace {
+  id             String    @id @default(cuid())
+  organizationId String
+  productId      String
+  externalId     String // the workspace's own identifier in the Solution (slug or id)
+  name           String
+  clientId       String? // set when staff link it to a Hifi One Client
+  linkedById     String?
+  linkedAt       DateTime?
+  status         String // TRIAL | LIVE | OVERDUE | SUSPENDED | CANCELLED
+  planName       String?
+  paidUntil      String? // YYYY-MM-DD
+  activeUsers    Int?
+  units          Int? // students, devices, branches: whatever the Solution counts as its unit
+  unitLabel      String?
+  lastActivityAt DateTime?
+  appVersion     String?
+  reportedAt     DateTime // when the Solution produced this report
+  receivedAt     DateTime  @default(now())
+  firstSeenAt    DateTime  @default(now())
+
+  product SaasProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  client  Client?     @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@unique([productId, externalId])
+  @@index([organizationId, clientId])
+  @@index([organizationId, productId, status])
 }
