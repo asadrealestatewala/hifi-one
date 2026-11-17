@@ -125,7 +125,7 @@ export async function aiSpend(db: Db, clientId: string, month: string) {
   const r = await db.contentAiRun.aggregate({ where: { clientId, month }, _sum: { estimatedCostUsd: true } });
   return Number(r._sum.estimatedCostUsd ?? 0);
 }
-async function assertUnderCap(db: Db, clientId: string, month: string, capUsd: number, adding: number) {
+export async function assertUnderCap(db: Db, clientId: string, month: string, capUsd: number, adding: number) {
   const spent = await aiSpend(db, clientId, month);
   if (spent + adding > capUsd) throw new ContentAiError(`This client's AI limit for ${month} is $${capUsd.toFixed(2)} and about $${spent.toFixed(2)} is used. Raise the limit in the client's content profile to continue.`);
 }
@@ -133,7 +133,7 @@ async function assertUnderCap(db: Db, clientId: string, month: string, capUsd: n
 // ---------------------------------------------------------------------------------------------------------------------------
 // Monthly plan written by Claude
 // ---------------------------------------------------------------------------------------------------------------------------
-type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
+export type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
 const PLAN_SCHEMA = {
   type: "object", additionalProperties: false, required: ["posts"],
@@ -149,7 +149,7 @@ const PLAN_SCHEMA = {
 } as const;
 
 // One structured-output call to Claude. Returns the parsed JSON and an estimated cost; every error becomes a plain sentence.
-async function askClaude<T>(p: { key: string; prompt: string; schema: object; maxTokens: number; fetchImpl?: FetchLike; timeoutMs?: number }): Promise<{ data: T; cost: number }> {
+export async function askClaude<T>(p: { key: string; prompt: string; schema: object; maxTokens: number; fetchImpl?: FetchLike; timeoutMs?: number }): Promise<{ data: T; cost: number }> {
   const doFetch: FetchLike = p.fetchImpl ?? (fetch as unknown as FetchLike);
   let res: Awaited<ReturnType<FetchLike>>;
   try {
