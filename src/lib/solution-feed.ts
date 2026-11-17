@@ -164,11 +164,14 @@ export type Fetcher = (url: string, init: { headers: Record<string, string>; sig
 
 // The Solution's address as a Super Admin typed it, reduced to https://host[:port]. Plain http is refused outside local testing.
 export function cleanBaseUrl(raw: string): string {
+  // A browser's saved sign-in can fill this field with an email address; say so plainly instead of failing on the "@"
+  if (/^[^\s/@]+@[^\s/@]+\.[^\s/@]+$/.test(raw.trim())) throw new FeedError("The address field holds an email address (your browser may have filled it in). Enter only the Solution's web address, for example https://campusly.co.");
+  if (/^[a-z]{3}_hifi_/i.test(raw.trim())) throw new FeedError("That is the API key. Put it in the API key field, and the Solution's web address (for example https://campusly.co) in the address field.");
   let u: URL;
   try { u = new URL(raw.trim().includes("://") ? raw.trim() : `https://${raw.trim()}`); } catch { throw new FeedError("Enter the Solution's web address, for example https://campusly.co."); }
   const local = u.hostname === "localhost" || u.hostname === "127.0.0.1";
   if (u.protocol !== "https:" && !(local && u.protocol === "http:")) throw new FeedError("The address must start with https://.");
-  if (u.username || u.password) throw new FeedError("The address must not contain a user name or password.");
+  if (u.username || u.password) throw new FeedError("The address contains an \"@\" (your browser may have filled in a saved sign-in). Enter only the Solution's web address, for example https://campusly.co.");
   return `${u.protocol}//${u.host}`;
 }
 
