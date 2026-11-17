@@ -101,6 +101,7 @@ export default async function PlanTheMonth({ searchParams }: { searchParams: Pro
               </div>
               <div><label className="label" htmlFor="pl-brief">This month&apos;s brief</label><textarea id="pl-brief" name="monthBrief" rows={4} maxLength={4000} placeholder="Offers, launches, events and dates to use, for example: 20% off from the 5th to the 12th; Eid sale on the 25th" className="input" /></div>
               <p className="text-xs text-muted">Posts are spread across the month (not Sundays) and written as drafts. Estimated cost about $0.20 to $1. AI spent on this client this month: about ${spent.toFixed(2)} of ${cap.toFixed(2)}.</p>
+              <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="designs" defaultChecked className="mt-1" /><span>Also design the static posts <span className="block text-xs text-muted">Each static post gets a draft design from the brand kit (words on a brand colour). Add a photo later and redraw. Drawing is free.</span></span></label>
               <div><SubmitButton pendingText="Writing the month… this can take a few minutes">Write the month with AI</SubmitButton></div>
             </form>
           </section>

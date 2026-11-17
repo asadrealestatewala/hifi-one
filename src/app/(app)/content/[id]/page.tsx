@@ -14,6 +14,7 @@ import { PlatformDot } from "../PostForm";
 import { STATUS_STYLE } from "../status-style";
 import FilesPanel from "@/components/FilesPanel";
 import { ConfirmButton, Notice } from "@/components/ui";
+import DesignPanel from "./DesignPanel";
 import { autoPlatforms, cancelAutoPosting, retryPublication, scheduleAutoPosting, SocialError } from "@/lib/social-meta";
 
 export const dynamic = "force-dynamic";
@@ -155,10 +156,10 @@ async function addHashtags(formData: FormData) {
 
 const REDONE: Record<string, string> = { CAPTION: "New caption written. The earlier one is kept under Earlier versions.", IDEA: "A different idea was written for this slot. The earlier one is kept under Earlier versions.", PLATFORMS: "A caption was written for each platform. Check each tab before sending it on." };
 
-export default async function ContentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; fileError?: string; fileOk?: string; created?: string; redone?: string; auto?: string }> }) {
+export default async function ContentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; fileError?: string; fileOk?: string; created?: string; redone?: string; auto?: string; design?: string; designError?: string; photo?: string; style?: string }> }) {
   const user = await requirePermission("content.view");
   const { id } = await params;
-  const { error, fileError, fileOk, created, redone, auto } = await searchParams;
+  const { error, fileError, fileOk, created, redone, auto, design, designError, photo, style } = await searchParams;
   const item = await db.contentItem.findFirst({ where: { id, organizationId: user.organizationId }, include: { events: { orderBy: { createdAt: "desc" } }, versions: { orderBy: { version: "desc" } }, publications: { include: { account: { select: { name: true, username: true } } }, orderBy: { platform: "asc" } } } });
   if (!item) notFound();
   const [client, people, clientUsers] = await Promise.all([
@@ -244,6 +245,7 @@ export default async function ContentPage({ params, searchParams }: { params: Pr
           <SubmitButton className="btn-ghost" pendingText="Adding…">Add to hashtags</SubmitButton>
         </form>
       )}
+      {editable && <DesignPanel user={user} item={item} claudeOn={claudeOn} imagesOn={imagesOn} flash={{ design, designError, photo, style }} />}
       <FilesPanel user={user} ownerType="CONTENT" ownerId={item.id} returnTo={`/content/${item.id}`} title="Creative files (images, video, documents)" flash={{ fileError, fileOk }} />
 
       {auto === "scheduled" && <Notice kind="ok">Scheduled. It goes out by itself at the planned time. You and the team are told when it is live or if anything fails.</Notice>}

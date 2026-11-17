@@ -6,6 +6,7 @@
 // - Dates, post types and platforms come from the client's quota and profile, decided here in code. Claude writes the words.
 // - Estimated cost of every AI action is stored, and a client's monthly cap stops further spending.
 import type { PrismaClient } from "@prisma/client";
+import { brandPromptLine, getKit } from "./brand-kit";
 import { ContentError, createContent, editContent } from "./content";
 import { CAPTION_LIMITS, PLATFORM_META, PLATFORMS, cleanPlatformCopy, isEditable } from "./content-rules";
 import { getKey } from "./integration-keys";
@@ -124,7 +125,7 @@ export async function aiSpend(db: Db, clientId: string, month: string) {
   const r = await db.contentAiRun.aggregate({ where: { clientId, month }, _sum: { estimatedCostUsd: true } });
   return Number(r._sum.estimatedCostUsd ?? 0);
 }
-async function assertUnderCap(db: Db, clientId: string, month: string, capUsd: number, adding: number) {
+export async function assertUnderCap(db: Db, clientId: string, month: string, capUsd: number, adding: number) {
   const spent = await aiSpend(db, clientId, month);
   if (spent + adding > capUsd) throw new ContentAiError(`This client's AI limit for ${month} is $${capUsd.toFixed(2)} and about $${spent.toFixed(2)} is used. Raise the limit in the client's content profile to continue.`);
 }
@@ -132,7 +133,7 @@ async function assertUnderCap(db: Db, clientId: string, month: string, capUsd: n
 // ---------------------------------------------------------------------------------------------------------------------------
 // Monthly plan written by Claude
 // ---------------------------------------------------------------------------------------------------------------------------
-type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
+export type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
 const PLAN_SCHEMA = {
   type: "object", additionalProperties: false, required: ["posts"],
@@ -147,8 +148,21 @@ const PLAN_SCHEMA = {
   },
 } as const;
 
+// With "also design the static posts", each post also carries the words for its image. Only text layouts are offered,
+// because a month's plan has no photos yet: the team adds a photo later and redraws.
+export const PLAN_DESIGN_LAYOUTS = ["QUOTE", "TIP", "BOLD"] as const;
+const ON_IMAGE = {
+  type: "object", additionalProperties: false, required: ["headline", "sub", "cta", "label", "layout"],
+  properties: { headline: { type: "string" }, sub: { type: "string" }, cta: { type: "string" }, label: { type: "string" }, layout: { type: "string", enum: [...PLAN_DESIGN_LAYOUTS] } },
+} as const;
+const planSchema = (designs: boolean) => designs ? {
+  ...PLAN_SCHEMA,
+  properties: { posts: { type: "array", items: { ...PLAN_SCHEMA.properties.posts.items, required: [...PLAN_SCHEMA.properties.posts.items.required, "onImage"], properties: { ...PLAN_SCHEMA.properties.posts.items.properties, onImage: ON_IMAGE } } } },
+} : PLAN_SCHEMA;
+export type OnImage = { headline: string; sub: string; cta: string; label: string; layout: string };
+
 // One structured-output call to Claude. Returns the parsed JSON and an estimated cost; every error becomes a plain sentence.
-async function askClaude<T>(p: { key: string; prompt: string; schema: object; maxTokens: number; fetchImpl?: FetchLike; timeoutMs?: number }): Promise<{ data: T; cost: number }> {
+export async function askClaude<T>(p: { key: string; prompt: string; schema: object; maxTokens: number; fetchImpl?: FetchLike; timeoutMs?: number }): Promise<{ data: T; cost: number }> {
   const doFetch: FetchLike = p.fetchImpl ?? (fetch as unknown as FetchLike);
   let res: Awaited<ReturnType<FetchLike>>;
   try {
@@ -174,7 +188,7 @@ async function askClaude<T>(p: { key: string; prompt: string; schema: object; ma
 
 type ProfileRow = Awaited<ReturnType<Db["clientContentProfile"]["findFirstOrThrow"]>>;
 
-export function planPrompt(p: { clientName: string; clientType: string; month: string; monthLabel: string; profile: Pick<ProfileRow, "brandVoice" | "audience" | "about" | "topics" | "avoid" | "languages" | "hashtagRules">; monthBrief: string; slots: Slot[]; recentTitles?: string[]; hashtagGroups?: { name: string; tags: string }[] }) {
+export function planPrompt(p: { clientName: string; clientType: string; month: string; monthLabel: string; profile: Pick<ProfileRow, "brandVoice" | "audience" | "about" | "topics" | "avoid" | "languages" | "hashtagRules">; monthBrief: string; slots: Slot[]; recentTitles?: string[]; hashtagGroups?: { name: string; tags: string }[]; designs?: boolean }) {
   const f = p.profile;
   const line = (k: string, v: string | null) => (v ? `${k}: ${v}` : null);
   return [
@@ -196,6 +210,9 @@ export function planPrompt(p: { clientName: string; clientType: string; month: s
     "- caption: the finished caption, ready to post, in the client's voice and language, written for the platforms listed. No hashtags inside it.",
     "- hashtags: 5 to 10 relevant hashtags separated by spaces (follow the hashtag rules), or an empty string for LinkedIn only.",
     "- brief: instructions for the designer or editor: for a static post the layout, headline text on the image and visual idea; for a video the opening hook, the shot list in order and the closing line, with a length.",
+    ...(p.designs ? [
+      "- onImage: the words drawn on the branded image of a static image post: headline of 8 words or fewer (at most 60 characters), sub one short line (at most 120 characters) or empty, cta button text of 1 to 3 words or empty, label a small tag such as \"New\" (at most 24 characters) or empty, and layout QUOTE (a saying or testimonial), TIP (a tip or how-to) or BOLD (an announcement or offer). English or Roman Urdu only, in Latin letters. For a video slot return empty strings and layout BOLD.",
+    ] : []),
     "Use a mix of themes across the month so the posts do not repeat each other. Tie posts to the brief's dates and offers where it makes sense. Never invent prices, discounts, awards, phone numbers or claims that the client details do not give you. Return exactly one post for each slot, with slot set to its number.",
   ].join("\n");
 }
@@ -213,8 +230,17 @@ export async function planMemory(db: Db, organizationId: string, clientId: strin
 
 export type PlanResult = { runId: string; created: number; estimatedCostUsd: number };
 
+// The planner's on-image words, trimmed to the design limits. Unusable words (empty, or Urdu or Arabic script) give no design.
+export function planDesignWords(o: OnImage): { headline: string; sub: string | null; cta: string | null; label: string | null; layout: string } | null {
+  const cut = (v: string, max: number) => { const t = (v ?? "").replace(/\s+/g, " ").trim(); return t.length > max ? t.slice(0, max).replace(/\s+\S*$/, "") : t; };
+  const rtl = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
+  const w = { headline: cut(o.headline, 60), sub: cut(o.sub, 120) || null, cta: cut(o.cta, 24) || null, label: cut(o.label, 24) || null };
+  if (!w.headline || [w.headline, w.sub, w.cta, w.label].some((x) => x && rtl.test(x))) return null;
+  return { ...w, layout: (PLAN_DESIGN_LAYOUTS as readonly string[]).includes(o.layout) ? o.layout : "BOLD" };
+}
+
 export async function generatePlan(db: Db, p: {
-  organizationId: string; clientId: string; month: string; counts: PlanCounts; monthBrief?: string; actorId: string; today?: string; fetchImpl?: FetchLike; apiKey?: string;
+  organizationId: string; clientId: string; month: string; counts: PlanCounts; monthBrief?: string; actorId: string; today?: string; fetchImpl?: FetchLike; apiKey?: string; designs?: boolean;
 }): Promise<PlanResult> {
   if (!isMonth(p.month)) throw new ContentAiError("Choose a month.");
   const today = p.today ?? new Date().toISOString().slice(0, 10);
@@ -237,10 +263,11 @@ export async function generatePlan(db: Db, p: {
 
   const monthLabel = new Date(p.month + "-01T00:00:00Z").toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
   const { recentTitles, hashtagGroups } = await planMemory(db, p.organizationId, client.id, p.month);
-  let parsed: { posts?: { slot: number; title: string; caption: string; hashtags: string; brief: string }[] }, cost: number;
+  const designs = Boolean(p.designs) && counts.STATIC_CREATIVE > 0;
+  let parsed: { posts?: { slot: number; title: string; caption: string; hashtags: string; brief: string; onImage?: OnImage }[] }, cost: number;
   try {
-    ({ data: parsed, cost } = await askClaude<typeof parsed>({ key, maxTokens: 64000, schema: PLAN_SCHEMA, fetchImpl: p.fetchImpl, timeoutMs: 300_000,
-      prompt: planPrompt({ clientName: client.name, clientType: client.clientType, month: p.month, monthLabel, profile, monthBrief: p.monthBrief ?? "", slots, recentTitles, hashtagGroups }) }));
+    ({ data: parsed, cost } = await askClaude<typeof parsed>({ key, maxTokens: 64000, schema: planSchema(designs), fetchImpl: p.fetchImpl, timeoutMs: 300_000,
+      prompt: planPrompt({ clientName: client.name, clientType: client.clientType, month: p.month, monthLabel, profile, monthBrief: p.monthBrief ?? "", slots, recentTitles, hashtagGroups, designs }) }));
   } catch (e) {
     if (e instanceof ContentAiError && /cut off/.test(e.message)) throw new ContentAiError("The plan was cut off. Plan fewer posts at a time.");
     throw e;
@@ -261,6 +288,10 @@ export async function generatePlan(db: Db, p: {
         platforms: s.platforms, postType: s.postType, plannedDate: s.date, plannedTime: s.time, brief: (x.brief ?? "").trim().slice(0, 3000),
       });
       made.push(item.id);
+      if (designs && s.postType === "STATIC" && x.onImage) {
+        const w = planDesignWords(x.onImage);
+        if (w) await db.contentDesign.create({ data: { organizationId: p.organizationId, itemId: item.id, kind: "SINGLE", sizes: ["PORTRAIT"], createdById: p.actorId, ...w } });
+      }
     }
     await db.contentItem.updateMany({ where: { id: { in: made } }, data: { aiRunId: run.id } });
   } catch (e) {
@@ -281,7 +312,14 @@ export async function undoPlan(db: Db, p: { organizationId: string; runId: strin
   const run = await db.contentAiRun.findFirst({ where: { id: p.runId, organizationId: p.organizationId, kind: "PLAN" } });
   if (!run) throw new ContentAiError("Plan not found.");
   if (run.undoneAt) throw new ContentAiError("This plan was already discarded.");
-  const r = await db.contentItem.deleteMany({ where: { organizationId: p.organizationId, aiRunId: run.id, status: "DRAFT", version: 1, taskId: null } });
+  const where = { organizationId: p.organizationId, aiRunId: run.id, status: "DRAFT", version: 1, taskId: null };
+  const gone = (await db.contentItem.findMany({ where, select: { id: true } })).map((x) => x.id);
+  const r = await db.contentItem.deleteMany({ where: { ...where, id: { in: gone } } });
+  // Their drawn designs go too (files soft deleted, so the retention purge removes the bytes later)
+  if (gone.length) {
+    await db.contentDesign.deleteMany({ where: { organizationId: p.organizationId, itemId: { in: gone } } });
+    await db.storedFile.updateMany({ where: { organizationId: p.organizationId, ownerType: "CONTENT", ownerId: { in: gone }, deletedAt: null }, data: { deletedAt: new Date() } });
+  }
   const left = await db.contentItem.count({ where: { organizationId: p.organizationId, aiRunId: run.id } });
   if (left === 0) await db.contentAiRun.update({ where: { id: run.id }, data: { undoneAt: new Date() } });
   return { removed: r.count, kept: left };
@@ -292,13 +330,14 @@ export async function undoPlan(db: Db, p: { organizationId: string; runId: strin
 // ---------------------------------------------------------------------------------------------------------------------------
 const ASPECT: Record<string, string> = { REEL: "9:16", STORY: "9:16", VIDEO: "16:9", LIVE: "16:9", STATIC: "4:5", CAROUSEL: "1:1" };
 
-export function imagePrompt(item: { title: string; copy: string; brief: string | null; postType: string }, profile: { visualStyle: string | null; avoid: string | null; about: string | null } | null, client: string | null, note?: string) {
+export function imagePrompt(item: { title: string; copy: string; brief: string | null; postType: string }, profile: { visualStyle: string | null; avoid: string | null; about: string | null } | null, client: string | null, note?: string, brandLine?: string | null) {
   return [
     `Create one social media image${client ? ` for the brand ${client}` : ""}.`,
     `Post: ${item.title}`,
     item.brief ? `What the designer was asked to make: ${item.brief}` : `Caption it will sit with: ${item.copy.slice(0, 600)}`,
     profile?.about ? `About the business: ${profile.about.slice(0, 600)}` : null,
     profile?.visualStyle ? `Visual style: ${profile.visualStyle}` : null,
+    brandLine ?? null,
     profile?.avoid ? `Never show: ${profile.avoid}` : null,
     note?.trim() ? `Changes asked for this version: ${note.trim()}` : null,
     "Professional, clean composition with room for a headline. Do not draw any words, letters, numbers, logos or watermarks: the team adds text and the logo afterwards. No real people's faces of public figures.",
@@ -323,7 +362,7 @@ export async function generateImage(db: Db, storage: StorageProvider, p: { organ
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: imagePrompt(item, profile, client?.name ?? null, p.note) }] }],
+        contents: [{ parts: [{ text: imagePrompt(item, profile, client?.name ?? null, p.note, brandPromptLine(await getKit(db, p.organizationId, item.clientId))) }] }],
         generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: ASPECT[item.postType] ?? "1:1" } },
       }),
       signal: AbortSignal.timeout(120_000),

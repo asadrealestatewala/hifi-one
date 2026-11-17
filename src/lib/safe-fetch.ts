@@ -55,9 +55,10 @@ export function parsePublicUrl(raw: string, allowAnyPort = false): URL {
 type Resolve = (host: string) => Promise<{ address: string; family: number }[]>;
 const systemResolve: Resolve = (host) => dns.promises.lookup(host, { all: true, verbatim: true });
 
-export type FetchedPage = { finalUrl: string; status: number; html: string; truncated: boolean; redirects: number };
+export type FetchedPage = { finalUrl: string; status: number; html: string; truncated: boolean; redirects: number; bytes?: Buffer; contentType?: string };
 // `allowAnyPort` exists only so tests can reach a local server on a random port; nothing in the application sets it
-export type FetchOptions = { allowAnyPort?: boolean; timeoutMs?: number; maxBytes?: number; maxRedirects?: number; resolve?: Resolve; isAllowedIp?: (ip: string) => boolean };
+// `types`: which content types are accepted (default: web pages). The brand kit also reads stylesheets and logo images this way.
+export type FetchOptions = { allowAnyPort?: boolean; timeoutMs?: number; maxBytes?: number; maxRedirects?: number; resolve?: Resolve; isAllowedIp?: (ip: string) => boolean; types?: RegExp };
 
 const UA = "HifiOneProspector/1.0 (+https://hifimarketing.co)";
 
@@ -69,19 +70,19 @@ export async function fetchPublicPage(raw: string, opts: FetchOptions = {}): Pro
   for (let hop = 0; hop <= maxRedirects; hop++) {
     const left = deadline - Date.now();
     if (left <= 0) throw new SafeFetchError("The website took too long to answer.", "TIMEOUT");
-    const r = await once(url, { left, maxBytes, resolve, allowed });
+    const r = await once(url, { left, maxBytes, resolve, allowed, types: opts.types ?? /html|xml|text\/plain/i });
     if (r.redirectTo) {
       if (hop === maxRedirects) throw new SafeFetchError("The website redirects too many times.", "REDIRECTS");
       url = parsePublicUrl(new URL(r.redirectTo, url).toString(), opts.allowAnyPort);
       continue;
     }
-    return { finalUrl: url.toString(), status: r.status, html: r.html, truncated: r.truncated, redirects: hop };
+    return { finalUrl: url.toString(), status: r.status, html: r.bytes.toString("utf8"), truncated: r.truncated, redirects: hop, bytes: r.bytes, contentType: r.contentType };
   }
   throw new SafeFetchError("The website redirects too many times.", "REDIRECTS");
 }
 
-type Once = { status: number; html: string; truncated: boolean; redirectTo?: string };
-function once(url: URL, o: { left: number; maxBytes: number; resolve: Resolve; allowed: (ip: string) => boolean }): Promise<Once> {
+type Once = { status: number; bytes: Buffer; contentType: string; truncated: boolean; redirectTo?: string };
+function once(url: URL, o: { left: number; maxBytes: number; resolve: Resolve; allowed: (ip: string) => boolean; types: RegExp }): Promise<Once> {
   return new Promise((resolvePromise, reject) => {
     const mod = url.protocol === "https:" ? https : http;
     // Node does not call the name lookup for an address written as numbers, so those are checked here, before any connection
@@ -106,9 +107,9 @@ function once(url: URL, o: { left: number; maxBytes: number; resolve: Resolve; a
     }, (res) => {
       const status = res.statusCode ?? 0;
       const loc = res.headers.location;
-      if (status >= 300 && status < 400 && loc) { res.resume(); return done({ status, html: "", truncated: false, redirectTo: loc }); }
+      if (status >= 300 && status < 400 && loc) { res.resume(); return done({ status, bytes: Buffer.alloc(0), contentType: "", truncated: false, redirectTo: loc }); }
       const type = String(res.headers["content-type"] ?? "");
-      if (status >= 200 && status < 300 && type && !/html|xml|text\/plain/i.test(type)) { res.resume(); return fail(new SafeFetchError("The address is not a web page.", "NOT_HTML")); }
+      if (status >= 200 && status < 300 && type && !o.types.test(type)) { res.resume(); return fail(new SafeFetchError("The address is not a web page.", "NOT_HTML")); }
       const enc = String(res.headers["content-encoding"] ?? "").toLowerCase();
       let stream: NodeJS.ReadableStream = res;
       // Decompress with a hard limit on the decompressed size, so a tiny compressed file cannot expand without bound
@@ -121,11 +122,11 @@ function once(url: URL, o: { left: number; maxBytes: number; resolve: Resolve; a
       stream.on("data", (c: Buffer) => {
         if (truncated) return;
         size += c.length;
-        if (size > o.maxBytes) { truncated = true; chunks.push(c.subarray(0, c.length - (size - o.maxBytes))); res.destroy(); stream.removeAllListeners("data"); done({ status, html: Buffer.concat(chunks).toString("utf8"), truncated: true }); return; }
+        if (size > o.maxBytes) { truncated = true; chunks.push(c.subarray(0, c.length - (size - o.maxBytes))); res.destroy(); stream.removeAllListeners("data"); done({ status, bytes: Buffer.concat(chunks), contentType: type, truncated: true }); return; }
         chunks.push(c);
       });
-      stream.on("end", () => done({ status, html: Buffer.concat(chunks).toString("utf8"), truncated }));
-      stream.on("error", () => { if (truncated || chunks.length) done({ status, html: Buffer.concat(chunks).toString("utf8"), truncated: true }); else fail(new SafeFetchError("The page could not be read.", "NETWORK")); });
+      stream.on("end", () => done({ status, bytes: Buffer.concat(chunks), contentType: type, truncated }));
+      stream.on("error", () => { if (truncated || chunks.length) done({ status, bytes: Buffer.concat(chunks), contentType: type, truncated: true }); else fail(new SafeFetchError("The page could not be read.", "NETWORK")); });
     });
     req.on("timeout", () => { req.destroy(); fail(new SafeFetchError("The website took too long to answer.", "TIMEOUT")); });
     req.on("error", (e) => fail(e instanceof SafeFetchError ? e : (e as { cause?: unknown }).cause instanceof SafeFetchError ? (e as { cause: SafeFetchError }).cause : /BLOCKED|not a public/.test(String(e.message)) ? new SafeFetchError("That address is not a public website.", "BLOCKED") : new SafeFetchError("The website could not be reached.", "NETWORK")));

@@ -1423,6 +1423,74 @@ model ContentPublication {
   @@index([status, scheduledFor])
 }
 
+// A client's brand kit (ownerKey = the client's id, or "OWN" for our own posts): colours, fonts, contact strip and logo rules.
+// Logos are files in the client's media library (ownerType BRAND); the kit only points at them.
+model BrandKit {
+  id              String   @id @default(cuid())
+  organizationId  String
+  ownerKey        String // client id, or "OWN"
+  clientId        String?
+  colors          Json     @default("[]") // [{ role: PRIMARY|SECONDARY|ACCENT|TEXT|BACKGROUND, hex: "#RRGGBB" }]
+  headingFont     String?
+  bodyFont        String?
+  phone           String?
+  whatsapp        String?
+  website         String?
+  handle          String?
+  logoCorner      String   @default("TOP_RIGHT") // TOP_LEFT | TOP_RIGHT | BOTTOM_LEFT | BOTTOM_RIGHT
+  logoSizePct     Int      @default(14) // logo width as a share of the design's width
+  rules           String? // free notes, for example "never put the logo on red"
+  logoFileId      String?
+  logoLightFileId String? // for dark backgrounds
+  iconFileId      String?
+  suggestion      Json? // what "Fill from website" found, waiting to be applied or dismissed
+  updatedById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([organizationId, ownerKey])
+}
+
+// One image in a client's media library: product photos, logos, team photos, past creatives. The bytes are a StoredFile (ownerType BRAND).
+model MediaItem {
+  id             String   @id @default(cuid())
+  organizationId String
+  ownerKey       String // client id, or "OWN"
+  clientId       String?
+  fileId         String   @unique
+  folder         String   @default("General")
+  tags           String[] @default([])
+  title          String?
+  uploadedById   String
+  byClient       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId, ownerKey, folder])
+}
+
+// A branded design on a post, drawn by our code from the client's brand kit. One per post; redrawing replaces its images.
+model ContentDesign {
+  id             String   @id @default(cuid())
+  organizationId String
+  itemId         String   @unique
+  kind           String   @default("SINGLE") // SINGLE | CAROUSEL
+  layout         String // OFFER | SPOTLIGHT | QUOTE | ANNOUNCE | TIP | EVENT | FRAME | BOLD (a carousel's cover)
+  slides         Json? // carousel only: [{ headline, sub }] in order; the first is the cover, the last carries the button
+  sizes          String[] @default([]) // SQUARE | PORTRAIT | STORY
+  label          String? // small tag such as "NEW" or a date
+  headline       String
+  sub            String?
+  cta            String?
+  photoFileId    String?
+  outputFileIds  String[] @default([]) // the PNGs on the post, one per size
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
 model ContentVersion {
   id        String   @id @default(cuid())
   itemId    String

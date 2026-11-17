@@ -74,7 +74,7 @@ export default async function ContentCalendar({ searchParams }: { searchParams: 
   return (
     <div className="space-y-5">
       <PageHeader title="Content calendar" subtitle="Plan daily social-media content: type, caption, platforms, date and time, with the creative attached and approved before it goes out. Posts are marked published by a person; nothing is posted to the platforms automatically."
-        actions={canManage ? <div className="flex gap-2">{user.permissions.has("content.publish") && <Link href="/content/accounts" className="btn-ghost">Social accounts</Link>}<Link href="/content/plan" className="btn-ghost">Plan the month with AI</Link><Link href={qs({ new: "1", date: undefined })} className="btn">+ New post</Link></div> : undefined} />
+        actions={canManage ? <div className="flex gap-2">{user.permissions.has("content.publish") && <Link href="/content/accounts" className="btn-ghost">Social accounts</Link>}<Link href="/content/brand" className="btn-ghost">Brand kits</Link><Link href="/content/plan" className="btn-ghost">Plan the month with AI</Link><Link href={qs({ new: "1", date: undefined })} className="btn">+ New post</Link></div> : undefined} />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="This month" value={inMonth.length} hint={inMonth.length === 1 ? "post planned" : "posts planned"} />

@@ -11,7 +11,7 @@ export type FileActor = {
   permissions: ReadonlySet<string>;
 };
 
-export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT", "CIRCULAR", "CHAT_MESSAGE", "PROJECT_ASSET", "EMPLOYEE_REQUEST", "PAYMENT", "PARTNER_IDENTITY", "PARTNER_PAYMENT_NOTICE"] as const;
+export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT", "CIRCULAR", "CHAT_MESSAGE", "PROJECT_ASSET", "EMPLOYEE_REQUEST", "PAYMENT", "PARTNER_IDENTITY", "PARTNER_PAYMENT_NOTICE", "BRAND"] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 export type Mode = "read" | "upload" | "delete";
 
@@ -69,6 +69,18 @@ export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: 
       return a.userType === "CLIENT" && a.clientId !== null && a.clientId === c.clientId && CLIENT_VISIBLE.includes(c.status); // never drafts
     }
     return has("content.manage") && CONTENT_EDITABLE.includes(c.status);
+  }
+
+  if (ownerType === "BRAND") {
+    // A client's brand kit and media library (ownerId = the client's id, or "OWN" for our own posts). The content team sees and
+    // manages all of it; the client's own users see theirs and may add files (and remove what they added themselves).
+    if (ownerId === "OWN") return mode === "read" ? has("content.view") : has("content.manage");
+    const cl = await db.client.findFirst({ where: { id: ownerId, organizationId: a.organizationId }, select: { id: true } });
+    if (!cl) return false;
+    const ownClient = a.userType === "CLIENT" && a.clientId !== null && a.clientId === cl.id;
+    if (mode === "read") return has("content.view") || ownClient;
+    if (mode === "upload") return has("content.manage") || ownClient;
+    return has("content.manage");
   }
 
   if (ownerType === "CHAT_MESSAGE") {
