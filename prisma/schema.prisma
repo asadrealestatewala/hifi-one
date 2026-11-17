@@ -1468,6 +1468,26 @@ model MediaItem {
   @@index([organizationId, ownerKey, folder])
 }
 
+// A branded design on a post, drawn by our code from the client's brand kit. One per post; redrawing replaces its images.
+model ContentDesign {
+  id             String   @id @default(cuid())
+  organizationId String
+  itemId         String   @unique
+  layout         String // OFFER | SPOTLIGHT | QUOTE | ANNOUNCE | TIP | EVENT | FRAME | BOLD
+  sizes          String[] @default([]) // SQUARE | PORTRAIT | STORY
+  label          String? // small tag such as "NEW" or a date
+  headline       String
+  sub            String?
+  cta            String?
+  photoFileId    String?
+  outputFileIds  String[] @default([]) // the PNGs on the post, one per size
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
 model ContentVersion {
   id        String   @id @default(cuid())
   itemId    String
