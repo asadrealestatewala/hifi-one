@@ -10,7 +10,7 @@ import { defaultStorage } from "@/lib/storage";
 import {
   ACADEMY_TEST_SETTINGS, PartnerError, RESALE_SETTINGS, TYPE_KEYS, addPartner, approveApplication, issueCertificate, rejectApplication, renewCertificate, revokeCertificate, saveEarnerType, setDirectAccess, saveSettings, updateContactDetails, updateEarner, updateInquiry,
 } from "@/lib/partner-stack";
-import { ResaleError, addSchool, confirmCounts, createResaleDrafts, endSchool, enterCount, monthLabel, setResaleTerm } from "@/lib/partner-resale";
+import { ResaleError, addSchool, confirmCounts, createResaleDrafts, endSchool, enterCount, fillCountsFromSolutions, monthLabel, setResaleTerm } from "@/lib/partner-resale";
 import { readDuration } from "./_components/Fields";
 
 const str = (f: FormData, k: string) => String(f.get(k) ?? "");
@@ -322,6 +322,22 @@ export async function confirmCountsAction(formData: FormData): Promise<void> {
   } catch (e) { fail(base, e); }
   revalidatePath("/partner-stack/resale");
   go(base, `saved=${encodeURIComponent(`${n} count${n === 1 ? "" : "s"} confirmed.`)}`);
+}
+
+// Staff fill a month's missing counts from what the Solutions report (Live Solutions). The daily job does this on the 1st
+// and on the billing day; filled counts still wait for confirmation.
+export async function fillCountsAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("partners.manage");
+  const month = str(formData, "month");
+  const base = `/partner-stack/resale?month=${encodeURIComponent(month)}`;
+  let msg = "";
+  try {
+    const r = await fillCountsFromSolutions(db, { organizationId: user.organizationId, month });
+    await audit(user, { action: "partner.count.fill", entity: "ResaleCount", after: { month, ...r } });
+    msg = r.filled || r.checked ? `${r.filled} count${r.filled === 1 ? "" : "s"} filled from Live Solutions${r.checked ? `, ${r.checked} checked against the report` : ""}. Review and confirm them.` : "Nothing to fill: no linked school has a recent report without a count.";
+  } catch (e) { fail(base, e); }
+  revalidatePath("/partner-stack/resale");
+  go(base, `saved=${encodeURIComponent(msg)}`);
 }
 
 export async function createDraftsAction(formData: FormData): Promise<void> {

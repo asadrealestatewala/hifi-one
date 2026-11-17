@@ -206,11 +206,8 @@ describe("daily job", () => {
   it("asks for counts on the 1st, makes drafts on the billing day, warns at 7 days late and flags a pause at 15", async () => {
     const s = await db.resaleSchool.findFirstOrThrow({ where: { earnerId: imran, client: { name: "Bright Future School" } } });
     const r1 = await runResaleDaily(db, org, new Date("2026-12-01T04:00:00Z"));
-    expect(r1).toMatch(/2 count reminders/); // Imran and Sara both have schools
-    expect(await runResaleDaily(db, org, new Date("2026-12-01T05:00:00Z"))).toMatch(/0 count reminders/); // once per partner and month
-    const asks = sent.filter((m) => /student counts for November 2026/.test(m.subject));
-    expect(asks.map((m) => m.to).sort()).toEqual(["imran@schools.test", "sara@schools.test"]);
-    expect(asks).toHaveLength(2);
+    expect(r1).toBe("0 count reminders"); // every school already has its November count, so nobody is asked
+    expect(sent.filter((m) => /student counts for November 2026/.test(m.subject))).toHaveLength(0);
     await enterCount(db, { organizationId: org, earnerId: imran, schoolId: s.id, month: DEC, units: "125", actorId: officer, byStaff: true, now: new Date("2026-12-20T00:00:00Z") });
     // Invoices are issued with the real clock, so set the 1600 invoice's due date to Jan 1 to test lateness
     const e = await db.earner.findUniqueOrThrow({ where: { id: imran } });

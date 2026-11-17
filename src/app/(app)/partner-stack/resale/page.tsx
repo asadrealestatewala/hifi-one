@@ -9,7 +9,7 @@ import { Badge, Empty, Notice, PageHeader, Pager, Stat } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import SubmitButton from "@/components/ui/SubmitButton";
 import ConfirmButton from "@/components/ui/ConfirmButton";
-import { confirmCountsAction, createDraftsAction, staffEnterCountAction } from "../actions";
+import { confirmCountsAction, createDraftsAction, fillCountsAction, staffEnterCountAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +72,10 @@ export default async function ResaleBilling({ searchParams }: { searchParams: Pr
                 <SubmitButton>Confirm {unconfirmed.length} count{unconfirmed.length === 1 ? "" : "s"}</SubmitButton>
               </form>
             )}
+            <form action={fillCountsAction}>
+              <input type="hidden" name="month" value={month} />
+              <SubmitButton className="btn-ghost" pendingText="Filling…">Fill from Live Solutions</SubmitButton>
+            </form>
             {ended && (
               <form action={createDraftsAction}>
                 <input type="hidden" name="month" value={month} />
@@ -103,13 +107,18 @@ export default async function ResaleBilling({ searchParams }: { searchParams: Pr
                             <SubmitButton className="btn-ghost text-xs">Save</SubmitButton>
                           </form>
                         )}
+                        {c?.reportedUnits != null && (
+                          <span className={`block text-xs ${c.units < c.reportedUnits ? "text-warning font-medium" : "text-muted"}`}>
+                            {s.product.name} reported {c.reportedUnits}{c.units < c.reportedUnits && ` · ${c.reportedUnits - c.units} fewer entered`}
+                          </span>
+                        )}
                       </td>
                       <td className="pr-4 whitespace-nowrap">
                         {!c ? <Badge tone="warning">No count</Badge>
                           : c.invoiceId === "NONE" ? <Badge>Nothing to bill</Badge>
                           : inv ? <Link className="underline" href={`/finance/invoices/${inv.id}`}>{inv.number ?? "Draft invoice"}</Link>
                           : c.confirmedAt ? <Badge tone="success">Confirmed</Badge>
-                          : <Badge tone="warning">From partner, to confirm</Badge>}
+                          : <Badge tone="warning">{c.source === "SOLUTION" ? `From ${s.product.name}, to confirm` : "From partner, to confirm"}</Badge>}
                         {inv && <span className="block text-xs text-muted">{inv.status.toLowerCase().replace(/_/g, " ")}</span>}
                       </td>
                     </tr>
@@ -119,7 +128,7 @@ export default async function ResaleBilling({ searchParams }: { searchParams: Pr
             </table>
             <Pager page={pg.page} size={pg.size} total={total} href={(n) => href(month, n)} />
           </div>
-          <p className="text-xs text-muted">Saving a count here confirms it. Counts a partner enters wait for your confirmation. A billed month is locked; correct it with a credit note in Finance.</p>
+          <p className="text-xs text-muted">Saving a count here confirms it. Counts a partner enters, and counts filled from Live Solutions (on the 1st, on the billing day, or with the button), wait for your confirmation. A count lower than what the Solution reported is shown in amber. A billed month is locked; correct it with a credit note in Finance.</p>
         </>
       )}
     </div>

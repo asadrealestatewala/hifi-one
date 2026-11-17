@@ -3954,8 +3954,11 @@ model ResaleCount {
   schoolId       String
   month          String // YYYY-MM
   units          Int
-  enteredById    String
+  enteredById    String? // empty when the count was filled from the Solution's own report
   enteredAt      DateTime  @default(now())
+  source         String    @default("PARTNER") // PARTNER | STAFF | SOLUTION (filled from Live Solutions)
+  reportedUnits  Int? // what the Solution reported for this school when the count was filled or checked
+  reportedAt     DateTime? // when the Solution produced that report
   confirmedById  String?
   confirmedAt    DateTime?
   invoiceId      String? // set when billed; a billed count is never changed
