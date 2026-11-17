@@ -64,9 +64,18 @@ An older report arriving after a newer one is skipped. Suggested schedule: every
 
 Figures older than 3 hours are marked "may be out of date" everywhere.
 
+## Reseller counts filled from the reports (2026-11-17, Asad's "go")
+
+`fillCountsFromSolutions` (`src/lib/partner-resale.ts`): for each reseller school whose workspace is linked to its client and reported a unit
+count in the last 72 hours, a missing monthly count is filled with the reported number (`ResaleCount.source = SOLUTION`, no person as
+author). It still waits for Hifi to confirm, like a partner's count. For a count already entered but not confirmed, the reported number is
+saved beside it (`reportedUnits`, `reportedAt`); Resale billing shows it, in amber when the entered count is lower. Confirmed and billed
+counts are never changed. Runs in the daily "Reseller billing" job on the 1st and on the billing day (for last month), and from the
+"Fill from Live Solutions" button on Resale billing. The 1st-of-month email now goes only to partners who still have a school without a count.
+
 ## Not built yet
 
 - The Solutions' side (each repo sends the report). Campusly first, then Velocity ERP, Pharmivo POS, Agentify ERP. Those repos deploy through
   GitHub Actions, which is off, so each needs a manual deploy.
 - Automatic linking (for example a partner referral code entered at signup in the Solution). Linking is by staff for now.
-- Pre-filling reseller monthly counts from the reported count (shown beside the entered count today).
+

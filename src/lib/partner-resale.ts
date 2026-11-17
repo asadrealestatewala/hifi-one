@@ -213,10 +213,11 @@ export async function enterCount(db: Db, p: { organizationId: string; earnerId: 
   if (existing?.invoiceId) throw new ResaleError(`${monthLabel(p.month)} is already billed for ${s.client.name}. Ask Hifi if it needs a correction.`);
   if (!p.byStaff && existing?.confirmedAt) throw new ResaleError(`Hifi already confirmed ${monthLabel(p.month)} for ${s.client.name}. Ask your partner manager to correct it.`);
   const confirm = p.byStaff ? { confirmedById: p.actorId, confirmedAt: now } : { confirmedById: null, confirmedAt: null };
+  const source = p.byStaff ? "STAFF" : "PARTNER";
   const row = await db.resaleCount.upsert({
     where: { schoolId_month: { schoolId: s.id, month: p.month } },
-    create: { organizationId: p.organizationId, schoolId: s.id, month: p.month, units, enteredById: p.actorId, enteredAt: now, ...confirm },
-    update: { units, enteredById: p.actorId, enteredAt: now, ...confirm },
+    create: { organizationId: p.organizationId, schoolId: s.id, month: p.month, units, enteredById: p.actorId, enteredAt: now, source, ...confirm },
+    update: { units, enteredById: p.actorId, enteredAt: now, source, ...confirm },
   });
   if (!p.byStaff) {
     const e = await db.earner.findUniqueOrThrow({ where: { id: p.earnerId }, select: { name: true } });
@@ -230,6 +231,46 @@ export async function enterCount(db: Db, p: { organizationId: string; earnerId: 
 export async function confirmCounts(db: Db, p: { organizationId: string; countIds: string[]; actorId: string; now?: Date }) {
   const r = await db.resaleCount.updateMany({ where: { id: { in: p.countIds }, organizationId: p.organizationId, invoiceId: null, confirmedAt: null }, data: { confirmedById: p.actorId, confirmedAt: p.now ?? new Date() } });
   return r.count;
+}
+
+// ----- Counts from the Solutions' own reports (Live Solutions) -----
+
+export const FILL_FRESH_HOURS = 72; // a report older than this is not used to fill a count
+
+// For every school of the month whose Solution workspace is linked to it and reported a unit count recently:
+// - no count yet: the count is filled with the reported number (source SOLUTION, waiting for Hifi to confirm like a partner's count);
+// - a count that is not billed yet: the reported number is kept beside it, so staff see when a partner reports fewer students.
+// Never changes a confirmed or billed number.
+export async function fillCountsFromSolutions(db: Db, p: { organizationId: string; month: string; now?: Date }) {
+  const now = p.now ?? new Date();
+  if (!isMonth(p.month) || p.month > monthOf(now)) throw new ResaleError("Choose this month or an earlier one.");
+  const monthStart = new Date(`${p.month}-01T00:00:00+05:00`);
+  const schools = await db.resaleSchool.findMany({
+    where: { organizationId: p.organizationId, startMonth: { lte: p.month }, OR: [{ endedAt: null }, { endedAt: { gte: monthStart } }] },
+    include: { counts: { where: { month: p.month } } },
+  });
+  const workspaces = await db.solutionWorkspace.findMany({
+    where: { organizationId: p.organizationId, clientId: { in: schools.map((s) => s.clientId) }, units: { not: null }, reportedAt: { gte: new Date(now.getTime() - FILL_FRESH_HOURS * 3600000) } },
+    orderBy: { reportedAt: "desc" },
+  });
+  let filled = 0, checked = 0;
+  for (const s of schools) {
+    const w = workspaces.find((x) => x.clientId === s.clientId && x.productId === s.productId);
+    if (!w || w.units == null) continue;
+    const c = s.counts[0];
+    if (!c) {
+      try {
+        await db.resaleCount.create({ data: { organizationId: p.organizationId, schoolId: s.id, month: p.month, units: w.units, enteredById: null, enteredAt: now, source: "SOLUTION", reportedUnits: w.units, reportedAt: w.reportedAt } });
+        filled++;
+      } catch (e) {
+        if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")) throw e; // entered meanwhile
+      }
+    } else if (!c.invoiceId && !c.confirmedAt) {
+      await db.resaleCount.update({ where: { id: c.id }, data: { reportedUnits: w.units, reportedAt: w.reportedAt } });
+      checked++;
+    }
+  }
+  return { filled, checked };
 }
 
 // ----- Monthly draft invoices -----
@@ -418,8 +459,13 @@ export async function runResaleDaily(db: Db, organizationId: string, now = new D
   const settings = await getSettings(db, organizationId);
   const billingDay = Math.min(28, Math.max(2, Number(settings.resale_billing_day) || 5));
   const pauseDays = Math.min(90, Math.max(1, Number(settings.resale_pause_days) || 15));
+  if (day === 1 || day === billingDay) {
+    const f = await fillCountsFromSolutions(db, { organizationId, month: last, now });
+    if (f.filled) out.push(`${f.filled} count${f.filled === 1 ? "" : "s"} filled from Live Solutions`);
+  }
   if (day === 1) {
-    const partners = await db.earner.findMany({ where: { organizationId, status: "ACTIVE", resaleSchools: { some: { endedAt: null, startMonth: { lte: last } } } }, select: { id: true, name: true, email: true, userId: true } });
+    // Only partners who still have a school without a count (counts filled from the Solutions need no typing)
+    const partners = await db.earner.findMany({ where: { organizationId, status: "ACTIVE", resaleSchools: { some: { endedAt: null, startMonth: { lte: last }, counts: { none: { month: last } } } } }, select: { id: true, name: true, email: true, userId: true } });
     let n = 0;
     for (const e of partners) {
       if (e.userId && !(await once(db, e.userId, `resale-counts:${e.id}:${last}`, `Enter your student counts for ${monthLabel(last)}`))) continue;

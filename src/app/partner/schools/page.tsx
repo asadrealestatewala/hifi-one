@@ -42,7 +42,7 @@ export default async function MySchools({ searchParams }: { searchParams: Promis
   }
   return (
     <div className="space-y-5">
-      <PageHeader title="My schools" subtitle={`Enter each school's student count for the month. Hifi confirms the counts and bills on day ${settings.resale_billing_day} of the next month.`} />
+      <PageHeader title="My schools" subtitle={`Enter each school's student count for the month. Schools connected to Hifi's Live Solutions are filled in for you on the 1st; check them. Hifi confirms the counts and bills on day ${settings.resale_billing_day} of the next month.`} />
       {sp.saved && <Notice kind="ok">{sp.saved}</Notice>}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       <section className="card space-y-2">
@@ -83,14 +83,14 @@ export default async function MySchools({ searchParams }: { searchParams: Promis
                         </form>
                       )}
                     </td>
-                    <td className="pr-4 whitespace-nowrap">{c?.invoiceId ? <Badge>Billed</Badge> : c?.confirmedAt ? <Badge tone="success">Confirmed by Hifi</Badge> : c ? <Badge tone="warning">Waiting for Hifi</Badge> : <Badge tone="warning">Not entered</Badge>}</td>
+                    <td className="pr-4 whitespace-nowrap">{c?.invoiceId ? <Badge>Billed</Badge> : c?.confirmedAt ? <Badge tone="success">Confirmed by Hifi</Badge> : c ? <Badge tone="warning">{c.source === "SOLUTION" ? `From ${s.product.name}, waiting for Hifi` : "Waiting for Hifi"}</Badge> : <Badge tone="warning">Not entered</Badge>}</td>
                     <td className="pr-4 text-xs">
                       {w ? (
                         <div className="space-y-0.5">
                           <Badge tone={w.status === "LIVE" ? "success" : w.status === "OVERDUE" || w.status === "SUSPENDED" ? "warning" : "neutral"}>{STATUS_LABEL[w.status] ?? w.status}</Badge>
                           <div>{w.units != null ? `${w.units} ${w.unitLabel ?? "units"}` : "No count reported"}{w.activeUsers != null && ` · ${w.activeUsers} active users`}</div>
                           <div className="text-muted">{w.lastActivityAt ? `Last activity ${w.lastActivityAt.toLocaleDateString("en-GB", { dateStyle: "medium" })}` : "No activity reported"}{w.stale && " · figures may be out of date"}</div>
-                          {w.units != null && !c?.invoiceId && !c?.confirmedAt && c && c.units !== w.units && <div className="text-muted">Your count ({c.units}) differs from the reported {w.units}; Hifi checks it before billing.</div>}
+                          {!c?.invoiceId && !c?.confirmedAt && c && (c.reportedUnits ?? w.units) != null && c.units !== (c.reportedUnits ?? w.units) && <div className="text-muted">Your count ({c.units}) differs from the reported {c.reportedUnits ?? w.units}; Hifi checks it before billing.</div>}
                         </div>
                       ) : <span className="text-muted">Not connected yet</span>}
                     </td>
