@@ -8,7 +8,7 @@ import { FileError } from "@/lib/files";
 import { DOCUMENT_LABEL, IdentityError, approvePayoutAccount, removePayoutAccount, reviewIdentity, saveIdentityDocument, submitIdentity } from "@/lib/partner-identity";
 import { defaultStorage } from "@/lib/storage";
 import {
-  ACADEMY_TEST_SETTINGS, PartnerError, RESALE_SETTINGS, TYPE_KEYS, addPartner, approveApplication, issueCertificate, rejectApplication, renewCertificate, revokeCertificate, saveEarnerType, setDirectAccess, saveSettings, updateEarner, updateInquiry,
+  ACADEMY_TEST_SETTINGS, PartnerError, RESALE_SETTINGS, TYPE_KEYS, addPartner, approveApplication, issueCertificate, rejectApplication, renewCertificate, revokeCertificate, saveEarnerType, setDirectAccess, saveSettings, updateContactDetails, updateEarner, updateInquiry,
 } from "@/lib/partner-stack";
 import { ResaleError, addSchool, confirmCounts, createResaleDrafts, endSchool, enterCount, monthLabel, setResaleTerm } from "@/lib/partner-resale";
 import { readDuration } from "./_components/Fields";
@@ -79,6 +79,21 @@ export async function updatePartnerAction(formData: FormData): Promise<void> {
   } catch (e) { fail(base, e); }
   revalidatePath("/partner-stack/partners");
   go(base, "saved=Saved.");
+}
+
+// Staff correct a partner's name, email (also their sign-in), phone and location. Old and new values go to the audit log.
+export async function updateContactAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("partners.manage");
+  const id = str(formData, "id");
+  const base = `/partner-stack/partners?open=${encodeURIComponent(id)}`;
+  let emailChanged = false;
+  try {
+    const r = await updateContactDetails(db, { organizationId: user.organizationId, earnerId: id, actorId: user.id, name: str(formData, "name"), email: str(formData, "email"), phone: str(formData, "phone"), city: str(formData, "city"), country: str(formData, "country") });
+    emailChanged = r.emailChanged;
+    await audit(user, { action: "partner.contact.update", entity: "Earner", entityId: id, before: r.before, after: r.after });
+  } catch (e) { fail(base, e); }
+  revalidatePath("/partner-stack/partners");
+  go(base, emailChanged ? "saved=Contact details saved. The partner now signs in with the new email; both addresses were emailed." : "saved=Contact details saved.");
 }
 
 export async function issueCertificateAction(formData: FormData): Promise<void> {

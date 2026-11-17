@@ -16,7 +16,7 @@ import ScreenTabs from "@/components/shell/ScreenTabs";
 import Drawer from "@/components/ui/Drawer";
 import SubmitButton from "@/components/ui/SubmitButton";
 import ConfirmButton from "@/components/ui/ConfirmButton";
-import { addPartnerAction, approvePayoutAction, directAccessAction, issueCertificateAction, reviewIdentityAction, staffIdentityAction, staffRemovePayoutAction, updatePartnerAction } from "../actions";
+import { addPartnerAction, updateContactAction, approvePayoutAction, directAccessAction, issueCertificateAction, reviewIdentityAction, staffIdentityAction, staffRemovePayoutAction, updatePartnerAction } from "../actions";
 import { DurationFields } from "../_components/Fields";
 import { ResaleSection } from "../_components/ResaleSection";
 
@@ -109,6 +109,21 @@ export default async function Partners({ searchParams }: { searchParams: Promise
             {sp.saved && <Notice kind="ok">{sp.saved === "1" ? "Saved." : sp.saved}</Notice>}
             {sp.error && <Notice kind="error">{sp.error}</Notice>}
             <p className="text-sm text-muted">{open.email}{open.phone && ` · ${open.phone}`}{open.city && ` · ${open.city}, ${open.country}`} · referral code <code>{open.referralCode}</code></p>
+            <details className="card">
+              <summary className="cursor-pointer font-semibold">Edit contact details</summary>
+              <form action={updateContactAction} className="mt-3 space-y-3">
+                <input type="hidden" name="id" value={open.id} />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div><label className="label" htmlFor="cd-name">Name</label><input id="cd-name" name="name" required maxLength={120} defaultValue={open.name} className="input" /></div>
+                  <div><label className="label" htmlFor="cd-email">Email (they sign in with it)</label><input id="cd-email" name="email" type="email" required maxLength={200} defaultValue={open.email} className="input" /></div>
+                  <div><label className="label" htmlFor="cd-phone">Phone or WhatsApp</label><input id="cd-phone" name="phone" required maxLength={40} defaultValue={open.phone ?? ""} className="input" /></div>
+                  <div><label className="label" htmlFor="cd-city">City</label><input id="cd-city" name="city" maxLength={80} defaultValue={open.city ?? ""} className="input" /></div>
+                  <div><label className="label" htmlFor="cd-country">Country</label><input id="cd-country" name="country" maxLength={80} defaultValue={open.country ?? ""} className="input" /></div>
+                </div>
+                <p className="text-xs text-muted">A new email becomes their sign-in email straight away; their password stays the same, and both the old and new addresses are told. Once the identity check is verified, the name follows it. To reset the password, use Create reset link in Administration → Users &amp; roles.</p>
+                <SubmitButton>Save contact details</SubmitButton>
+              </form>
+            </details>
             <form action={updatePartnerAction} className="card space-y-3">
               <h3 className="font-semibold">Terms</h3>
               <input type="hidden" name="id" value={open.id} />
