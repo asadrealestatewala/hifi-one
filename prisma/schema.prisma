@@ -3385,6 +3385,7 @@ model SaasProduct {
   demos               DemoBooking[]
   commissionRates     ProductCommissionRate[]
   feedKey             SolutionFeedKey?
+  connection          SolutionConnection?
   workspaces          SolutionWorkspace[]
 
   @@unique([organizationId, code])
@@ -4292,4 +4293,20 @@ model SolutionWorkspace {
   @@unique([productId, externalId])
   @@index([organizationId, clientId])
   @@index([organizationId, productId, status])
+}
+
+// Hifi One reads a Solution's summary itself: a Super Admin pastes the Solution's address and the API key generated in that Solution's
+// own console. Every 15 minutes Hifi One asks for the summary (counts only) and stores it like a pushed report.
+model SolutionConnection {
+  productId     String    @id
+  baseUrl       String // https://campusly.co
+  apiKeyEnc     String // AES-256-GCM sealed with SESSION_SECRET; never shown again
+  hint          String // last 4 characters of the key
+  connectedById String?
+  connectedAt   DateTime  @default(now())
+  lastPullAt    DateTime?
+  lastOkAt      DateTime?
+  lastError     String?
+
+  product SaasProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
 }

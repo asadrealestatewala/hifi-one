@@ -4,7 +4,7 @@ import { STATUS_LABEL, isStale } from "@/lib/solution-feed";
 import { Badge, Empty, Notice, PageHeader, SubmitButton } from "@/components/ui";
 import ConfirmButton from "@/components/ui/ConfirmButton";
 import FeedKeyForm from "./FeedKeyForm";
-import { linkWorkspaceAction, removeFeedKeyAction } from "./actions";
+import { connectSolutionAction, disconnectSolutionAction, linkWorkspaceAction, pullNowAction, removeFeedKeyAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,7 @@ export default async function LiveSolutions({ searchParams }: { searchParams: Pr
   const org = user.organizationId;
   const now = new Date();
   const [products, workspaces, clients] = await Promise.all([
-    db.saasProduct.findMany({ where: { organizationId: org, active: true }, orderBy: { sortOrder: "asc" }, include: { feedKey: { select: { hint: true, lastReportAt: true, rotatedAt: true } } } }),
+    db.saasProduct.findMany({ where: { organizationId: org, active: true }, orderBy: { sortOrder: "asc" }, include: { feedKey: { select: { hint: true, lastReportAt: true, rotatedAt: true } }, connection: { select: { baseUrl: true, hint: true, lastOkAt: true, lastError: true } } } }),
     db.solutionWorkspace.findMany({ where: { organizationId: org }, orderBy: [{ clientId: { sort: "asc", nulls: "first" } }, { name: "asc" }], take: 500, include: { product: { select: { name: true } }, client: { select: { name: true } } } }),
     db.client.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true }, take: 1000 }),
   ]);
@@ -29,29 +29,56 @@ export default async function LiveSolutions({ searchParams }: { searchParams: Pr
       <PageHeader title="Live Solutions" subtitle="What each Solution reports about its client workspaces: status and usage counts only, never client records. Partners and sales agents see the workspaces linked to their own clients." />
       {sp.ok && <Notice kind="ok">{sp.ok}</Notice>}
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
-      <section className="card space-y-3" aria-label="Feeds">
-        <h2 className="font-semibold">Feeds</h2>
+      <section className="card space-y-3" aria-label="Connections">
+        <h2 className="font-semibold">Connections</h2>
+        <p className="text-sm text-muted">In each Solution&rsquo;s own admin console, open Hifi One connection and generate an API key. Paste it here with the Solution&rsquo;s address. Hifi One then reads the summary every 15 minutes.</p>
         <ul className="divide-y divide-border">
           {products.map((p) => {
-            const stale = p.feedKey?.lastReportAt ? isStale(p.feedKey.lastReportAt, now) : false;
+            const c = p.connection;
+            const pushStale = p.feedKey?.lastReportAt ? isStale(p.feedKey.lastReportAt, now) : false;
             return (
-              <li key={p.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
-                <div className="space-y-1">
-                  <p className="font-medium">{p.name} <span className="text-xs text-muted">({p.code})</span></p>
-                  <p className="text-xs text-muted">Reports are posted to <code>/api/solution-feed/{p.code}</code></p>
-                  {!p.feedKey ? <Badge>Not configured</Badge> : !p.feedKey.lastReportAt ? <Badge tone="warning">Secret created, waiting for the first report</Badge> : stale ? <Badge tone="warning">Not reporting since {when(p.feedKey.lastReportAt)}</Badge> : <Badge tone="success">Reporting, last at {when(p.feedKey.lastReportAt)}</Badge>}
+              <li key={p.id} className="space-y-3 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-medium">{p.name}</p>
+                  {c ? (c.lastError ? <Badge tone="danger">Connected, last read failed</Badge> : c.lastOkAt && !isStale(c.lastOkAt, now) ? <Badge tone="success">Connected, read {when(c.lastOkAt)}</Badge> : <Badge tone="warning">Connected, not read recently</Badge>)
+                    : p.feedKey ? (p.feedKey.lastReportAt && !pushStale ? <Badge tone="success">Sending, last at {when(p.feedKey.lastReportAt)}</Badge> : <Badge tone="warning">Waiting for the Solution to send</Badge>)
+                    : <Badge>Not configured</Badge>}
                 </div>
+                {c && <p className="text-xs text-muted">{c.baseUrl} · key ends in <code>{c.hint}</code>{c.lastError && <> · <span className="text-brand">{c.lastError}</span></>}</p>}
                 {canKeys ? (
-                  <div className="space-y-2">
-                    <FeedKeyForm productId={p.id} hasKey={Boolean(p.feedKey)} />
-                    {p.feedKey && (
-                      <form action={removeFeedKeyAction}>
-                        <input type="hidden" name="productId" value={p.id} />
-                        <ConfirmButton title={`Switch off the ${p.name} feed?`} message="Reports from this Solution are refused until a new secret is created. Figures already received stay visible but go out of date." confirmLabel="Switch off">Switch off</ConfirmButton>
-                      </form>
+                  <div className="space-y-3">
+                    <form action={connectSolutionAction} className="flex flex-wrap items-end gap-3">
+                      <input type="hidden" name="productId" value={p.id} />
+                      <div className="min-w-56 flex-1"><label className="label" htmlFor={`u-${p.id}`}>Solution address</label>
+                        <input id={`u-${p.id}`} name="baseUrl" required defaultValue={c?.baseUrl ?? p.website ?? ""} placeholder="https://campusly.co" className="input" /></div>
+                      <div className="min-w-56 flex-1"><label className="label" htmlFor={`k-${p.id}`}>{c ? "New API key" : "API key"}</label>
+                        <input id={`k-${p.id}`} name="apiKey" type="password" autoComplete="off" spellCheck={false} required minLength={20} maxLength={400} placeholder="Paste the key" className="input font-mono" /></div>
+                      <SubmitButton pendingText="Connecting…">{c ? "Reconnect" : "Connect"}</SubmitButton>
+                    </form>
+                    {c && (
+                      <div className="flex flex-wrap gap-2">
+                        <form action={pullNowAction}><input type="hidden" name="productId" value={p.id} /><SubmitButton className="btn-ghost" pendingText="Reading…">Read now</SubmitButton></form>
+                        <form action={disconnectSolutionAction}>
+                          <input type="hidden" name="productId" value={p.id} />
+                          <ConfirmButton title={`Disconnect ${p.name}?`} message="Hifi One stops reading this Solution. Figures already read stay visible but go out of date." confirmLabel="Disconnect">Disconnect</ConfirmButton>
+                        </form>
+                      </div>
                     )}
+                    <details className="text-sm">
+                      <summary className="cursor-pointer text-muted">Other way: the Solution sends its figures to Hifi One</summary>
+                      <div className="mt-2 space-y-2">
+                        <p className="text-xs text-muted">For a Solution that cannot be read from outside. It posts signed reports to <code>/api/solution-feed/{p.code}</code> with this secret.</p>
+                        <FeedKeyForm productId={p.id} hasKey={Boolean(p.feedKey)} />
+                        {p.feedKey && (
+                          <form action={removeFeedKeyAction}>
+                            <input type="hidden" name="productId" value={p.id} />
+                            <ConfirmButton title={`Switch off sending for ${p.name}?`} message="Reports sent by this Solution are refused until a new secret is created." confirmLabel="Switch off">Switch off sending</ConfirmButton>
+                          </form>
+                        )}
+                      </div>
+                    </details>
                   </div>
-                ) : <p className="text-xs text-muted">Only a Super Admin manages secrets.</p>}
+                ) : <p className="text-xs text-muted">Only a Super Admin connects Solutions.</p>}
               </li>
             );
           })}

@@ -3,6 +3,20 @@
 Added 2026-11-17 on Asad's "go". Each Solution (Campusly, Velocity ERP, Pharmivo POS, Agentify ERP) reports its client workspaces to Hifi One,
 so partners and sales agents see live status and usage in their portals without asking anyone.
 
+## Connecting a Solution (the usual way, added 2026-11-17 on Asad's request)
+
+Asad wanted no settings in Vercel or any hosting panel: everything from the admin consoles.
+
+1. In the Solution's own admin console: Hifi One connection → Generate API key (shown once; the Solution keeps only its hash).
+2. In Hifi One: Partner Stack → Live Solutions → that Solution → enter its address and paste the key → Connect (Super Admin only).
+   Hifi One reads the summary at once, so a wrong address or key is reported immediately and nothing is saved.
+3. Hifi One reads `GET <address>/api/hifi-one/summary` with `Authorization: Bearer <key>` every 15 minutes (in-process timer,
+   `SOLUTION_PULL_AUTORUN=0` turns it off). The answer has the same `workspaces` list as below, plus an optional `next` cursor for the next
+   page (`?cursor=<next>`). Failures are shown on the screen with the reason. "Read now" reads at once; "Disconnect" stops reading.
+
+The key is sealed (AES-256-GCM from SESSION_SECRET) and only its last 4 characters are shown or audited.
+The push option below stays for a Solution that cannot be reached from outside.
+
 ## What is sent (counts only)
 
 Asad's decision (2026-11-17): status and usage counts only. No client records ever leave a Solution: no student, patient, customer or sale

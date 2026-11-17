@@ -3,7 +3,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { addPartner, ensurePartnerDefaults } from "./partner-stack";
-import { FeedError, createFeedKey, feedHealthAlerts, ingestReport, isStale, liveForAgent, liveForPartner, linkWorkspace, removeFeedKey, sign, signatureOk } from "./solution-feed";
+import { FeedError, cleanBaseUrl, connectSolution, createFeedKey, disconnectSolution, feedHealthAlerts, pullDue, pullSolution, type Fetcher, ingestReport, isStale, liveForAgent, liveForPartner, linkWorkspace, removeFeedKey, sign, signatureOk } from "./solution-feed";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
 const db = new PrismaClient({ datasourceUrl: url });
@@ -23,7 +23,7 @@ const report = (status = "LIVE", units = 420, reportedAt = NOW.toISOString()) =>
 ] });
 
 beforeAll(async () => {
-  await db.$executeRawUnsafe('TRUNCATE "SolutionWorkspace","SolutionFeedKey","ResaleSchool","Lead","PipelineStage","Client","PartnerCertificate","EarnerSolution","Earner","PartnerApplication","PartnerInquiry","PartnerSetting","EarnerType","SaasProduct","Notification","UserRole","Role","User","Organization" CASCADE');
+  await db.$executeRawUnsafe('TRUNCATE "SolutionConnection","SolutionWorkspace","SolutionFeedKey","ResaleSchool","Lead","PipelineStage","Client","PartnerCertificate","EarnerSolution","Earner","PartnerApplication","PartnerInquiry","PartnerSetting","EarnerType","SaasProduct","Notification","UserRole","Role","User","Organization" CASCADE');
   org = (await db.organization.create({ data: { name: "Hifi Test" } })).id;
   other = (await db.organization.create({ data: { name: "Elsewhere" } })).id;
   officer = (await db.user.create({ data: { organizationId: org, name: "Pat", email: "pat@hifi.test", passwordHash: "x" } })).id;
@@ -142,5 +142,70 @@ describe("who sees what", () => {
     expect(r).toBe("1 quiet, 1 unlinked"); // Velocity has gone quiet; Campusly was switched off and is not checked
     expect(sent).toEqual(["A Solution is not reporting|feed-quiet:" + org + ":2026-11-17", "1 Solution workspace to link|feed-unlinked:" + org + ":2026-11-17"]);
     expect(await feedHealthAlerts(db, other, later, "2026-11-17", async () => { throw new Error("no alerts for another organisation"); })).toBe("0 quiet, 0 unlinked");
+  });
+});
+
+describe("reading a Solution with its API key", () => {
+  const KEY = "pk_hifi_" + "a".repeat(40);
+  const calls: { url: string; auth: string }[] = [];
+  const pages: Record<string, unknown> = {
+    "": { workspaces: [{ id: "roots-g9", name: "Roots G-9", status: "LIVE", units: 900, unitLabel: "students", activeUsers: 60 }], next: "p2" },
+    p2: { workspaces: [{ id: "roots-f7", name: "Roots F-7", status: "TRIAL", units: 50, unitLabel: "students" }] },
+  };
+  const fake = (over: Partial<{ status: number; throws: boolean }> = {}): Fetcher => async (url, init) => {
+    calls.push({ url, auth: init.headers.authorization });
+    if (over.throws) throw new Error("ECONNREFUSED");
+    const status = over.status ?? (init.headers.authorization === `Bearer ${KEY}` ? 200 : 401);
+    const cursor = new URL(url).searchParams.get("cursor") ?? "";
+    return { ok: status === 200, status, json: async () => pages[cursor] };
+  };
+  let campus: string;
+  beforeAll(async () => {
+    campus = (await db.saasProduct.findFirstOrThrow({ where: { organizationId: org, code: "CAMPUSLY" } })).id;
+  });
+
+  it("cleans the address and refuses plain http, credentials and nonsense", () => {
+    expect(cleanBaseUrl("campusly.co/console/anything")).toBe("https://campusly.co");
+    expect(cleanBaseUrl(" https://app.campusly.co:8443/x ")).toBe("https://app.campusly.co:8443");
+    expect(cleanBaseUrl("http://localhost:3001")).toBe("http://localhost:3001");
+    expect(() => cleanBaseUrl("http://campusly.co")).toThrow(FeedError);
+    expect(() => cleanBaseUrl("https://me:pw@campusly.co")).toThrow(FeedError);
+    expect(() => cleanBaseUrl("ftp://campusly.co")).toThrow(FeedError);
+  });
+  it("saves nothing when the key is wrong or the address cannot be reached", async () => {
+    await expect(connectSolution(db, { productId: campus, baseUrl: "https://campusly.test", apiKey: "pk_wrong_" + "b".repeat(30), userId: officer, fetcher: fake(), appSecret: APP, now: NOW })).rejects.toThrow(/refused the API key/);
+    await expect(connectSolution(db, { productId: campus, baseUrl: "https://campusly.test", apiKey: KEY, userId: officer, fetcher: fake({ throws: true }), appSecret: APP, now: NOW })).rejects.toThrow(/could not be reached/);
+    await expect(connectSolution(db, { productId: campus, baseUrl: "https://campusly.test", apiKey: "short", userId: officer, fetcher: fake(), appSecret: APP })).rejects.toBeInstanceOf(FeedError);
+    expect(await db.solutionConnection.count()).toBe(0);
+  });
+  it("connects, reads every page with the key and stores the key sealed", async () => {
+    calls.length = 0;
+    const r = await connectSolution(db, { productId: campus, baseUrl: "campusly.test", apiKey: KEY, userId: officer, fetcher: fake(), appSecret: APP, now: NOW });
+    expect(r.result).toMatchObject({ accepted: 2, created: 2 });
+    expect(calls.map((c) => c.url)).toEqual(["https://campusly.test/api/hifi-one/summary", "https://campusly.test/api/hifi-one/summary?cursor=p2"]);
+    expect(calls.every((c) => c.auth === `Bearer ${KEY}`)).toBe(true);
+    const c = await db.solutionConnection.findUniqueOrThrow({ where: { productId: campus } });
+    expect(c.apiKeyEnc).not.toContain(KEY);
+    expect(c).toMatchObject({ hint: KEY.slice(-4), lastOkAt: NOW, lastError: null });
+    expect(await db.solutionWorkspace.findFirst({ where: { externalId: "roots-g9" } })).toMatchObject({ organizationId: org, units: 900, status: "LIVE" });
+  });
+  it("keeps the working connection when a reconnect fails", async () => {
+    await expect(connectSolution(db, { productId: campus, baseUrl: "https://elsewhere.test", apiKey: "pk_wrong_" + "c".repeat(30), userId: officer, fetcher: fake(), appSecret: APP, now: NOW })).rejects.toBeInstanceOf(FeedError);
+    expect((await db.solutionConnection.findUniqueOrThrow({ where: { productId: campus } })).baseUrl).toBe("https://campusly.test");
+  });
+  it("reads again only after 15 minutes and records a failure without throwing", async () => {
+    calls.length = 0;
+    expect(await pullDue(db, { fetcher: fake(), appSecret: APP, now: new Date(NOW.getTime() + 5 * 60_000) })).toEqual({ ok: 0, failed: 0 });
+    const later = new Date(NOW.getTime() + 16 * 60_000);
+    expect(await pullDue(db, { fetcher: fake({ status: 500 }), appSecret: APP, now: later })).toEqual({ ok: 0, failed: 1 });
+    const c = await db.solutionConnection.findUniqueOrThrow({ where: { productId: campus } });
+    expect(c.lastError).toMatch(/error \(500\)/);
+    expect(c.lastOkAt).toEqual(NOW);
+    await expect(pullSolution(db, campus, { fetcher: fake(), appSecret: APP, now: later })).resolves.toMatchObject({ updated: 2 });
+    expect((await db.solutionConnection.findUniqueOrThrow({ where: { productId: campus } })).lastError).toBeNull();
+  });
+  it("stops reading once disconnected", async () => {
+    expect(await disconnectSolution(db, campus)).toBe(1);
+    await expect(pullSolution(db, campus, { fetcher: fake(), appSecret: APP })).rejects.toMatchObject({ status: 404 });
   });
 });

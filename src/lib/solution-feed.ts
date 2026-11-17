@@ -74,6 +74,13 @@ export async function ingestReport(db: Db, p: { productCode: string; body: strin
   if (!secret || !signatureOk(secret, { timestamp: p.timestamp, body: p.body, signature: p.signature, now: now.getTime() })) throw new FeedError("Signature check failed.", 401);
   let json: unknown;
   try { json = JSON.parse(p.body); } catch { throw new FeedError("The report is not valid JSON."); }
+  const r = await storeReport(db, product, json, now);
+  await db.solutionFeedKey.update({ where: { productId: product.id }, data: { lastReportAt: now } });
+  return r;
+}
+
+// Validates a report (pushed or pulled) and stores the newest figures of each workspace. Unknown fields are dropped.
+export async function storeReport(db: Db, product: { id: string; organizationId: string }, json: unknown, now: Date): Promise<IngestResult> {
   const parsed = reportSchema.safeParse(json);
   if (!parsed.success) throw new FeedError(`The report is not in the expected shape: ${parsed.error.issues[0]?.path.join(".") || "body"}.`);
   const reportedDefault = new Date(parsed.data.reportedAt ?? now);
@@ -96,7 +103,6 @@ export async function ingestReport(db: Db, p: { productCode: string; body: strin
       updated++;
     }
   }
-  await db.solutionFeedKey.update({ where: { productId: product.id }, data: { lastReportAt: now } });
   return { accepted: parsed.data.workspaces.length, created, updated, skipped };
 }
 
@@ -137,10 +143,107 @@ export async function linkWorkspace(db: Db, p: { organizationId: string; workspa
 
 // Daily: tells the partner team about Solutions whose feed has gone quiet and workspaces still waiting to be linked.
 export async function feedHealthAlerts(db: Db, organizationId: string, now: Date, dayKey: string, notify: (title: string, body: string, dedupeKey: string) => Promise<void>) {
-  const keys = await db.solutionFeedKey.findMany({ where: { product: { organizationId, active: true } }, include: { product: { select: { name: true } } } });
-  const quiet = keys.filter((k) => (k.lastReportAt ? isStale(k.lastReportAt, now) : now.getTime() - (k.rotatedAt ?? k.createdAt).getTime() > 86_400_000));
+  const [keys, conns] = await Promise.all([
+    db.solutionFeedKey.findMany({ where: { product: { organizationId, active: true } }, include: { product: { select: { name: true } } } }),
+    db.solutionConnection.findMany({ where: { product: { organizationId, active: true } }, include: { product: { select: { name: true } } } }),
+  ]);
+  const quietKeys = keys.filter((k) => (k.lastReportAt ? isStale(k.lastReportAt, now) : now.getTime() - (k.rotatedAt ?? k.createdAt).getTime() > 86_400_000));
+  const quietConns = conns.filter((c) => !c.lastOkAt || isStale(c.lastOkAt, now));
+  const quiet = [...new Map([...quietKeys, ...quietConns].map((k) => [k.productId, k])).values()];
   const unlinked = await db.solutionWorkspace.count({ where: { organizationId, clientId: null } });
   if (quiet.length) await notify(`${quiet.length === 1 ? "A Solution is" : `${quiet.length} Solutions are`} not reporting`, `${quiet.map((k) => k.product.name).join(", ")}: partners and sales agents may see out-of-date figures.`, `feed-quiet:${organizationId}:${dayKey}`);
   if (unlinked) await notify(`${unlinked} Solution workspace${unlinked === 1 ? "" : "s"} to link`, "Link each workspace to its Hifi One client so partners and sales agents see it.", `feed-unlinked:${organizationId}:${dayKey}`);
   return `${quiet.length} quiet, ${unlinked} unlinked`;
+}
+
+// ---------- Pull: Hifi One reads the summary with the API key generated in the Solution's own console ----------
+
+export const PULL_EVERY_MS = 15 * 60_000;
+export const SUMMARY_PATH = "/api/hifi-one/summary";
+export type Fetcher = (url: string, init: { headers: Record<string, string>; signal: AbortSignal }) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>;
+
+// The Solution's address as a Super Admin typed it, reduced to https://host[:port]. Plain http is refused outside local testing.
+export function cleanBaseUrl(raw: string): string {
+  let u: URL;
+  try { u = new URL(raw.trim().includes("://") ? raw.trim() : `https://${raw.trim()}`); } catch { throw new FeedError("Enter the Solution's web address, for example https://campusly.co."); }
+  const local = u.hostname === "localhost" || u.hostname === "127.0.0.1";
+  if (u.protocol !== "https:" && !(local && u.protocol === "http:")) throw new FeedError("The address must start with https://.");
+  if (u.username || u.password) throw new FeedError("The address must not contain a user name or password.");
+  return `${u.protocol}//${u.host}`;
+}
+
+const MAX_PAGES = 20;
+
+// Reads every page of the summary and stores it. Records success or the reason it failed on the connection.
+export async function pullSolution(db: Db, productId: string, p: { fetcher?: Fetcher; now?: Date; appSecret?: string } = {}): Promise<IngestResult> {
+  const now = p.now ?? new Date();
+  const conn = await db.solutionConnection.findUnique({ where: { productId }, include: { product: { select: { id: true, organizationId: true } } } });
+  if (!conn) throw new FeedError("This Solution is not connected.", 404);
+  const key = unseal(conn.apiKeyEnc, p.appSecret ?? process.env.SESSION_SECRET ?? "");
+  const fetcher: Fetcher = p.fetcher ?? ((url, init) => fetch(url, init));
+  const total: IngestResult = { accepted: 0, created: 0, updated: 0, skipped: 0 };
+  try {
+    if (!key) throw new FeedError("The saved API key can no longer be read (the server's secret changed). Connect again.");
+    let cursor: string | null = null;
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const url = `${conn.baseUrl}${SUMMARY_PATH}${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`;
+      let res;
+      try { res = await fetcher(url, { headers: { authorization: `Bearer ${key}`, accept: "application/json" }, signal: AbortSignal.timeout(20_000) }); }
+      catch { throw new FeedError("The Solution could not be reached. Check the address."); }
+      if (res.status === 401 || res.status === 403) throw new FeedError("The Solution refused the API key. Generate a new key in the Solution's console and connect again.");
+      if (res.status === 404) throw new FeedError("This address has no Hifi One summary. Check the address, or the Solution may need updating.");
+      if (!res.ok) throw new FeedError(`The Solution answered with an error (${res.status}).`);
+      const json = await res.json().catch(() => null) as { workspaces?: unknown[]; next?: unknown } | null;
+      if (!json || !Array.isArray(json.workspaces)) throw new FeedError("The Solution's answer is not a summary.");
+      if (json.workspaces.length > 0) {
+        const r = await storeReport(db, conn.product, json, now);
+        total.accepted += r.accepted; total.created += r.created; total.updated += r.updated; total.skipped += r.skipped;
+      }
+      cursor = typeof json.next === "string" && json.next ? json.next : null;
+      if (!cursor) break;
+    }
+    await db.solutionConnection.update({ where: { productId }, data: { lastPullAt: now, lastOkAt: now, lastError: null } });
+    return total;
+  } catch (e) {
+    const msg = e instanceof FeedError ? e.message : "Reading the summary failed.";
+    await db.solutionConnection.update({ where: { productId }, data: { lastPullAt: now, lastError: msg } });
+    throw e instanceof FeedError ? e : new FeedError(msg, 502);
+  }
+}
+
+// Saves the address and key, then reads the summary once so a wrong address or key shows at once. Nothing is saved when that fails.
+export async function connectSolution(db: Db, p: { productId: string; baseUrl: string; apiKey: string; userId: string; fetcher?: Fetcher; now?: Date; appSecret?: string }) {
+  const baseUrl = cleanBaseUrl(p.baseUrl);
+  const key = p.apiKey.trim();
+  if (key.length < 20 || key.length > 400 || !/^[\x21-\x7e]+$/.test(key)) throw new FeedError("That does not look like an API key. Copy it again from the Solution's console.");
+  const sealed = seal(key, p.appSecret ?? process.env.SESSION_SECRET ?? "");
+  const before = await db.solutionConnection.findUnique({ where: { productId: p.productId } });
+  await db.solutionConnection.upsert({
+    where: { productId: p.productId },
+    create: { productId: p.productId, baseUrl, apiKeyEnc: sealed, hint: key.slice(-4), connectedById: p.userId },
+    update: { baseUrl, apiKeyEnc: sealed, hint: key.slice(-4), connectedById: p.userId, connectedAt: p.now ?? new Date(), lastError: null },
+  });
+  try {
+    return { baseUrl, hint: key.slice(-4), result: await pullSolution(db, p.productId, p) };
+  } catch (e) {
+    // Put back what was there (or nothing), so a typo never replaces a working connection
+    if (before) await db.solutionConnection.update({ where: { productId: p.productId }, data: { baseUrl: before.baseUrl, apiKeyEnc: before.apiKeyEnc, hint: before.hint, connectedById: before.connectedById, connectedAt: before.connectedAt, lastError: before.lastError } });
+    else await db.solutionConnection.delete({ where: { productId: p.productId } });
+    throw e;
+  }
+}
+
+export async function disconnectSolution(db: Db, productId: string) {
+  return (await db.solutionConnection.deleteMany({ where: { productId } })).count;
+}
+
+// Called every minute by the server: reads each connected Solution whose last read is 15 minutes old. Errors are recorded, never thrown.
+export async function pullDue(db: Db, p: { fetcher?: Fetcher; now?: Date; appSecret?: string } = {}) {
+  const now = p.now ?? new Date();
+  const due = await db.solutionConnection.findMany({ where: { product: { active: true }, OR: [{ lastPullAt: null }, { lastPullAt: { lt: new Date(now.getTime() - PULL_EVERY_MS) } }] }, select: { productId: true } });
+  let ok = 0, failed = 0;
+  for (const c of due) {
+    try { await pullSolution(db, c.productId, { ...p, now }); ok++; } catch { failed++; }
+  }
+  return { ok, failed };
 }
