@@ -169,6 +169,9 @@ describe("reading a Solution with its API key", () => {
     expect(cleanBaseUrl(" https://app.campusly.co:8443/x ")).toBe("https://app.campusly.co:8443");
     expect(cleanBaseUrl("http://localhost:3001")).toBe("http://localhost:3001");
     expect(() => cleanBaseUrl("http://campusly.co")).toThrow(FeedError);
+    expect(() => cleanBaseUrl("someone@gmail.com")).toThrow(/email address/);
+    expect(() => cleanBaseUrl("https://someone@campusly.co")).toThrow(/contains an "@"/);
+    expect(() => cleanBaseUrl("cmp_hifi_abcdefghijklmnopqrstuvwxyz")).toThrow(/That is the API key/);
     expect(() => cleanBaseUrl("https://me:pw@campusly.co")).toThrow(FeedError);
     expect(() => cleanBaseUrl("ftp://campusly.co")).toThrow(FeedError);
   });

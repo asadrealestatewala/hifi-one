@@ -50,9 +50,9 @@ export default async function LiveSolutions({ searchParams }: { searchParams: Pr
                     <form action={connectSolutionAction} className="flex flex-wrap items-end gap-3">
                       <input type="hidden" name="productId" value={p.id} />
                       <div className="min-w-56 flex-1"><label className="label" htmlFor={`u-${p.id}`}>Solution address</label>
-                        <input id={`u-${p.id}`} name="baseUrl" required defaultValue={c?.baseUrl ?? p.website ?? ""} placeholder="https://campusly.co" className="input" /></div>
+                        <input id={`u-${p.id}`} name="baseUrl" type="text" inputMode="url" autoComplete="off" data-1p-ignore data-lpignore="true" spellCheck={false} required defaultValue={c?.baseUrl ?? p.website ?? ""} placeholder="https://campusly.co" className="input" /></div>
                       <div className="min-w-56 flex-1"><label className="label" htmlFor={`k-${p.id}`}>{c ? "New API key" : "API key"}</label>
-                        <input id={`k-${p.id}`} name="apiKey" type="password" autoComplete="off" spellCheck={false} required minLength={20} maxLength={400} placeholder="Paste the key" className="input font-mono" /></div>
+                        <input id={`k-${p.id}`} name="apiKey" type="text" autoComplete="off" data-1p-ignore data-lpignore="true" spellCheck={false} required minLength={20} maxLength={400} placeholder="Paste the key" className="input font-mono" /></div>
                       <SubmitButton pendingText="Connecting…">{c ? "Reconnect" : "Connect"}</SubmitButton>
                     </form>
                     {c && (
