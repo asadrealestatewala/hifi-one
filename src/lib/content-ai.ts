@@ -6,6 +6,7 @@
 // - Dates, post types and platforms come from the client's quota and profile, decided here in code. Claude writes the words.
 // - Estimated cost of every AI action is stored, and a client's monthly cap stops further spending.
 import type { PrismaClient } from "@prisma/client";
+import { brandPromptLine, getKit } from "./brand-kit";
 import { ContentError, createContent, editContent } from "./content";
 import { CAPTION_LIMITS, PLATFORM_META, PLATFORMS, cleanPlatformCopy, isEditable } from "./content-rules";
 import { getKey } from "./integration-keys";
@@ -292,13 +293,14 @@ export async function undoPlan(db: Db, p: { organizationId: string; runId: strin
 // ---------------------------------------------------------------------------------------------------------------------------
 const ASPECT: Record<string, string> = { REEL: "9:16", STORY: "9:16", VIDEO: "16:9", LIVE: "16:9", STATIC: "4:5", CAROUSEL: "1:1" };
 
-export function imagePrompt(item: { title: string; copy: string; brief: string | null; postType: string }, profile: { visualStyle: string | null; avoid: string | null; about: string | null } | null, client: string | null, note?: string) {
+export function imagePrompt(item: { title: string; copy: string; brief: string | null; postType: string }, profile: { visualStyle: string | null; avoid: string | null; about: string | null } | null, client: string | null, note?: string, brandLine?: string | null) {
   return [
     `Create one social media image${client ? ` for the brand ${client}` : ""}.`,
     `Post: ${item.title}`,
     item.brief ? `What the designer was asked to make: ${item.brief}` : `Caption it will sit with: ${item.copy.slice(0, 600)}`,
     profile?.about ? `About the business: ${profile.about.slice(0, 600)}` : null,
     profile?.visualStyle ? `Visual style: ${profile.visualStyle}` : null,
+    brandLine ?? null,
     profile?.avoid ? `Never show: ${profile.avoid}` : null,
     note?.trim() ? `Changes asked for this version: ${note.trim()}` : null,
     "Professional, clean composition with room for a headline. Do not draw any words, letters, numbers, logos or watermarks: the team adds text and the logo afterwards. No real people's faces of public figures.",
@@ -323,7 +325,7 @@ export async function generateImage(db: Db, storage: StorageProvider, p: { organ
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: imagePrompt(item, profile, client?.name ?? null, p.note) }] }],
+        contents: [{ parts: [{ text: imagePrompt(item, profile, client?.name ?? null, p.note, brandPromptLine(await getKit(db, p.organizationId, item.clientId))) }] }],
         generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: ASPECT[item.postType] ?? "1:1" } },
       }),
       signal: AbortSignal.timeout(120_000),
