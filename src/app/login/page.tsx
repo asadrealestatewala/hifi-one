@@ -12,17 +12,18 @@ async function signIn(formData: FormData) {
   "use server";
   const identifier = String(formData.get("identifier") ?? "");
   const password = String(formData.get("password") ?? "");
+  const partner = formData.get("for") === "partner";
   const result = await login(identifier, password);
-  if (!result.ok) redirect(`/login?error=${encodeURIComponent(result.error)}`);
+  if (!result.ok) redirect(`/login?${partner ? "for=partner&" : ""}error=${encodeURIComponent(result.error)}`);
   if (result.mfa) redirect("/login/verify");
   redirect(homePathFor(result.userType));
 }
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string; for?: string }> }) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string; for?: string; identifier?: string }> }) {
   if (await needsSetup(db)) redirect("/setup");
   const current = await getSessionUser();
   if (current) redirect(homePathFor(current.userType));
-  const { error, notice, for: audience } = await searchParams;
+  const { error, notice, for: audience, identifier } = await searchParams;
   const partner = audience === "partner";
   const product = partner ? "Hifi Partner Stack" : "Hifi One";
   return (
@@ -43,7 +44,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <div className="space-y-1"><h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1><p className="text-sm text-muted">Sign in to continue.</p></div>
           {notice && <p className="rounded-lg bg-success/10 px-3 py-2 text-sm text-success">{notice}</p>}
           {error && <Notice kind="error">{error}</Notice>}
-          <div><label className="label" htmlFor="identifier">Email or phone number</label><input id="identifier" name="identifier" type="text" inputMode="email" required autoComplete="username" placeholder="you@company.com or +923001234567" className="input" /></div>
+          {partner && <input type="hidden" name="for" value="partner" />}
+          <div><label className="label" htmlFor="identifier">Email or phone number</label><input id="identifier" name="identifier" type="text" inputMode="email" required autoComplete="username" placeholder="you@company.com or +923001234567" defaultValue={identifier?.slice(0, 200) ?? ""} className="input" /></div>
           <div><label className="label" htmlFor="password">Password</label><PasswordInput id="password" name="password" required autoComplete="current-password" /></div>
           <button className="btn w-full !py-2.5">Sign in</button>
           <p className="text-center text-sm"><a href="/login/forgot" className="text-primary underline">Forgot your password?</a></p>

@@ -16,7 +16,7 @@ import ScreenTabs from "@/components/shell/ScreenTabs";
 import Drawer from "@/components/ui/Drawer";
 import SubmitButton from "@/components/ui/SubmitButton";
 import ConfirmButton from "@/components/ui/ConfirmButton";
-import { addPartnerAction, updateContactAction, approvePayoutAction, directAccessAction, issueCertificateAction, reviewIdentityAction, staffIdentityAction, staffRemovePayoutAction, updatePartnerAction } from "../actions";
+import { addPartnerAction, resendWelcomeAction, updateContactAction, approvePayoutAction, directAccessAction, issueCertificateAction, reviewIdentityAction, staffIdentityAction, staffRemovePayoutAction, updatePartnerAction } from "../actions";
 import { DurationFields } from "../_components/Fields";
 import { ResaleSection } from "../_components/ResaleSection";
 
@@ -48,12 +48,13 @@ export default async function Partners({ searchParams }: { searchParams: Promise
   ]);
   const officer = user.permissions.has("partners.view_identity");
   const now = new Date();
-  const [identity, docs, payouts, readiness, inquiry] = await Promise.all([
+  const [identity, docs, payouts, readiness, inquiry, login] = await Promise.all([
     open ? db.partnerIdentity.findUnique({ where: { earnerId: open.id } }) : null,
     open && officer ? documentsFor(db, org, open.id) : [],
     open ? db.partnerPayoutAccount.findMany({ where: { earnerId: open.id, organizationId: org }, orderBy: [{ removedAt: { sort: "desc", nulls: "first" } }, { createdAt: "asc" }], take: 20 }) : [],
     open ? payoutReadiness(db, { organizationId: org, earnerId: open.id, now }) : null,
     sp.new && sp.inquiry ? db.partnerInquiry.findFirst({ where: { id: sp.inquiry, organizationId: org } }) : null,
+    open?.userId ? db.user.findFirst({ where: { id: open.userId, organizationId: org }, select: { active: true, lastLoginAt: true } }) : null,
   ]);
   // Showing a full ID or account number is written to the audit log (without the number) at the moment it is shown
   let revealed: { key: string; value: string } | null = null;
@@ -109,6 +110,15 @@ export default async function Partners({ searchParams }: { searchParams: Promise
             {sp.saved && <Notice kind="ok">{sp.saved === "1" ? "Saved." : sp.saved}</Notice>}
             {sp.error && <Notice kind="error">{sp.error}</Notice>}
             <p className="text-sm text-muted">{open.email}{open.phone && ` · ${open.phone}`}{open.city && ` · ${open.city}, ${open.country}`} · referral code <code>{open.referralCode}</code></p>
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-muted">{!login ? "No sign-in yet." : login.lastLoginAt ? `Last signed in ${login.lastLoginAt.toLocaleDateString("en-GB", { dateStyle: "medium" })}.` : "Has not signed in yet."}</span>
+              {login?.active && open.status === "ACTIVE" && (
+                <form action={resendWelcomeAction}>
+                  <input type="hidden" name="id" value={open.id} />
+                  <ConfirmButton className="btn-ghost text-xs" title="Send the welcome email again?" message={<>{open.name} gets the welcome email at {open.email} with their sign-in email, the partner sign-in address and a new link to choose a password (it works for 3 days). Their current password keeps working until they choose a new one.</>} confirmLabel="Send email">Resend welcome email</ConfirmButton>
+                </form>
+              )}
+            </div>
             <details className="card">
               <summary className="cursor-pointer font-semibold">Edit contact details</summary>
               <form action={updateContactAction} className="mt-3 space-y-3">
@@ -120,7 +130,7 @@ export default async function Partners({ searchParams }: { searchParams: Promise
                   <div><label className="label" htmlFor="cd-city">City</label><input id="cd-city" name="city" maxLength={80} defaultValue={open.city ?? ""} className="input" /></div>
                   <div><label className="label" htmlFor="cd-country">Country</label><input id="cd-country" name="country" maxLength={80} defaultValue={open.country ?? ""} className="input" /></div>
                 </div>
-                <p className="text-xs text-muted">A new email becomes their sign-in email straight away; their password stays the same, and both the old and new addresses are told. Once the identity check is verified, the name follows it. To reset the password, use Create reset link in Administration → Users &amp; roles.</p>
+                <p className="text-xs text-muted">A new email becomes their sign-in email straight away; their password stays the same, and both the old and new addresses are told. Once the identity check is verified, the name follows it. To send a fresh link to choose a password, use Resend welcome email above.</p>
                 <SubmitButton>Save contact details</SubmitButton>
               </form>
             </details>
