@@ -412,6 +412,43 @@ export type AddPartnerInput = {
 };
 
 // Staff add a partner directly, for example after a phone call or meeting that started as an inquiry, with terms agreed with them.
+// Staff correct a partner's contact details. The email is also the sign-in email, so it changes on the User too, and both the
+// old and new addresses are told. A verified identity fixes the legal name: changing the name needs a new identity check first.
+// Issued certificates keep the name they were issued with.
+export async function updateContactDetails(db: Db, p: { organizationId: string; earnerId: string; actorId: string; name: string; email: string; phone: string; city: string; country: string }) {
+  const e = await db.earner.findFirst({ where: { id: p.earnerId, organizationId: p.organizationId }, include: { identity: { select: { status: true, legalName: true } } } });
+  if (!e) throw new PartnerError("Partner not found.", 404);
+  const name = cut(p.name, 120);
+  if (name.length < 2) throw new PartnerError("Enter the partner's name.", 400, "name");
+  const email = normalizeEmail(cut(p.email, 200));
+  if (!email) throw new PartnerError("Enter a valid email address. The partner signs in with it.", 400, "email");
+  const phone = normalizePhone(cut(p.phone, 40));
+  if (!phone) throw new PartnerError("Enter the partner's phone or WhatsApp number.", 400, "phone");
+  const city = cut(p.city, 80) || null;
+  const country = cut(p.country, 80) || null;
+  if (name !== e.name && e.identity?.status === "VERIFIED") {
+    throw new PartnerError(`The identity check is verified under "${e.identity.legalName}". To change the name, send the identity check back to the partner first, then verify it again.`, 400, "name");
+  }
+  const emailChanged = email !== e.email.toLowerCase();
+  if (emailChanged) {
+    if (await db.user.findFirst({ where: { email, ...(e.userId ? { id: { not: e.userId } } : {}) } })) throw new PartnerError("Someone else already has an account with this email address.", 400, "email");
+    if (await db.earner.findFirst({ where: { organizationId: p.organizationId, email, id: { not: e.id } } })) throw new PartnerError("Another partner already uses this email address.", 400, "email");
+  }
+  const before = { name: e.name, email: e.email, phone: e.phone, city: e.city, country: e.country };
+  const after = await db.$transaction(async (tx) => {
+    const row = await tx.earner.update({ where: { id: e.id }, data: { name, email, phone, city, country } });
+    if (e.userId) await tx.user.update({ where: { id: e.userId }, data: { name, email, ...(emailChanged ? { emailVerifiedAt: null } : {}) } });
+    // Hifi's invoices to the partner go to the new address; the billing name follows the identity check, not this form
+    if (e.billingClientId) await tx.client.update({ where: { id: e.billingClientId }, data: { email, phone } });
+    return row;
+  });
+  if (emailChanged) {
+    const vars = { first_name: firstName(name), old_email: e.email, new_email: email, link: `${appUrl()}/login?for=partner` };
+    for (const to of [e.email, email]) await sendTemplateQuietly(db, { organizationId: p.organizationId, key: "partner_email_changed", to, relatedType: "Earner", relatedId: e.id, vars });
+  }
+  return { before, after: { name: after.name, email: after.email, phone: after.phone, city: after.city, country: after.country }, emailChanged };
+}
+
 // The partner gets the same approval email with a link to set their own password. Nobody sets a password for them.
 export async function addPartner(db: Db, p: AddPartnerInput) {
   const now = p.now ?? new Date();

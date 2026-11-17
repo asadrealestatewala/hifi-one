@@ -447,6 +447,20 @@ export const SYSTEM_TEMPLATES: TemplateDef[] = [
     },
   },
   {
+    key: "partner_email_changed", name: "Partner Stack: sign-in email changed", audience: "Partners",
+    description: "Sent to both the old and the new address when staff change a partner's email, which is also their sign-in email.",
+    variables: { first_name: "Imran", company_name: "Hifi Marketing and Technologies", old_email: "old@example.com", new_email: "new@example.com", link: "https://hifimarketing.co/login?for=partner" },
+    blocks: { label: "Hifi Partner Stack", details: [["Old email", "{{old_email}}"], ["New email", "{{new_email}}"]] },
+    buttonUrlVar: "link",
+    defaults: {
+      subject: "Your Hifi Partner Stack sign-in email was changed",
+      preheader: "From now on you sign in with {{new_email}}.",
+      heading: "Your sign-in email changed",
+      body: "Hi {{first_name}},\n\nThe Hifi partner team changed the email on your partner account from {{old_email}} to {{new_email}}. From now on you sign in with {{new_email}}; your password stays the same.\n\nIf you did not ask for this, reply to this email or contact your partner manager straight away.",
+      buttonLabel: "Sign in",
+    },
+  },
+  {
     key: "partner_payment_result", name: "Partner Stack: payment confirmed or not found", audience: "Partners",
     description: "Sent when Finance confirms a payment a partner reported with \"I've paid\", or cannot match it yet (with the reason).",
     variables: { first_name: "Imran", company_name: "Hifi Marketing and Technologies", result: "received", invoice: "INV-000123", amount: "2000.00 PKR", note: "Thank you. We received your payment.", link: "https://hifimarketing.co/partner/invoices" },
