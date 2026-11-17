@@ -29,6 +29,8 @@ export type DesignInput = {
   label?: string | null; headline: string; sub?: string | null; cta?: string | null;
   photo?: Buffer | null; logo?: Buffer | null; logoLight?: Buffer | null;
   logoCorner?: string; logoSizePct?: number; contact?: string[];
+  // Carousel: which slide this is. A middle slide (not the first, not the last) is drawn as a numbered point.
+  slide?: { index: number; total: number };
 };
 
 const FONT_DIR = () => path.join(process.cwd(), "assets", "fonts");
@@ -110,7 +112,16 @@ export async function drawDesign(d: DesignInput): Promise<Buffer> {
   let darkBehindLogo = isDark(c.primary);
   const inner = { position: "absolute" as const, left: 0, top: 0, width: W, height: H - stripH };
 
-  if (layout === "OFFER" && usesPhoto) {
+  const point = d.slide && d.slide.index > 0 && d.slide.index < d.slide.total - 1;
+  if (point) {
+    // A middle carousel slide: big slide number, the point, and its explanation, on the brand's light background
+    darkBehindLogo = isDark(c.background);
+    body = h("div", { ...inner, background: c.background, flexDirection: "column", justifyContent: "center", padding: pad * 1.2, paddingTop: Math.max(top, pad * 1.2) },
+      h("div", { fontFamily: "Heading", fontWeight: 700, fontSize: Math.round(W * 0.16), lineHeight: 1, color: c.accent, marginBottom: Math.round(W * 0.03) }, String(d.slide!.index).padStart(2, "0")),
+      headline(c.text, 0.9), sub(c.text, { fontSize: Math.round(subSize * 1.2), opacity: 0.85 }),
+      h("div", { position: "absolute", left: 0, top: 0, width: Math.round(W * 0.025), height: H - stripH, background: c.primary }),
+    );
+  } else if (layout === "OFFER" && usesPhoto) {
     darkBehindLogo = true;
     body = h("div", { ...inner },
       img(await photoUrl(d.photo!, W, H - stripH), W, H - stripH, { position: "absolute", left: 0, top: 0 }),
@@ -187,7 +198,10 @@ export async function drawDesign(d: DesignInput): Promise<Buffer> {
     { name: "Heading", data: fontFile(d.headingFont, 700) ?? fontFile("Poppins", 700)!, weight: 700 as const, style: "normal" as const },
     { name: "Body", data: fontFile(d.bodyFont, 400) ?? fontFile("Inter", 400)!, weight: 400 as const, style: "normal" as const },
   ];
-  const tree = h("div", { width: W, height: H, position: "relative", background: c.background, overflow: "hidden" }, body, logoNode, strip);
+  // Carousel progress dots, bottom right above the contact strip
+  const dots = d.slide ? h("div", { position: "absolute", right: Math.round(W * 0.05), bottom: stripH + Math.round(W * 0.04), gap: 10, alignItems: "center" },
+    ...Array.from({ length: d.slide.total }, (_, i) => h("div", { width: i === d.slide!.index ? 34 : 12, height: 12, borderRadius: 6, background: i === d.slide!.index ? c.accent : "rgba(128,128,128,0.55)" }))) : null;
+  const tree = h("div", { width: W, height: H, position: "relative", background: c.background, overflow: "hidden" }, body, logoNode, dots, strip);
   const res = new ImageResponse(tree as never, { width: W, height: H, fonts: fonts.map((f) => ({ ...f, data: f.data.buffer.slice(f.data.byteOffset, f.data.byteOffset + f.data.byteLength) as ArrayBuffer })) });
   return Buffer.from(await res.arrayBuffer());
 }

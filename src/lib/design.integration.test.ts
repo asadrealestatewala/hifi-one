@@ -4,7 +4,8 @@ import sharp from "sharp";
 import { addMedia, saveKit, setLogo } from "./brand-kit";
 import type { FileActor } from "./file-access";
 import { MemoryStorage } from "./storage";
-import { designPhotos, makeDesign, writeDesignWords } from "./design";
+import { designPhotos, drawPlanDesigns, makeDesign, recentDesigns, writeDesignWords } from "./design";
+import { generatePlan, undoPlan } from "./content-ai";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
 const db = new PrismaClient({ datasourceUrl: url });
@@ -13,7 +14,7 @@ const NOW = "2026-11-17";
 let org: string, acme: string, beta: string, pm: string, item: string;
 let staff: FileActor;
 let photo: Buffer, logo: Buffer;
-const claude = (data: object) => async () => ({ ok: true, status: 200, json: async () => ({ stop_reason: "end_turn", usage: { input_tokens: 1500, output_tokens: 200 }, content: [{ type: "text", text: JSON.stringify(data) }] }) });
+const claude = (data: object) => async (_u?: string, _i?: unknown) => ({ ok: true, status: 200, json: async () => ({ stop_reason: "end_turn", usage: { input_tokens: 1500, output_tokens: 200 }, content: [{ type: "text", text: JSON.stringify(data) }] }) });
 
 beforeAll(async () => {
   await db.$executeRawUnsafe('TRUNCATE "ContentDesign","ContentAiRun","MediaItem","BrandKit","StoredFile","ContentItem","ClientContentProfile","Notification","Client","User","Organization" CASCADE');
@@ -71,4 +72,44 @@ describe("drawing a design", () => {
     await db.contentItem.update({ where: { id: item }, data: { status: "CLIENT_REVIEW" } });
     await expect(makeDesign(db, storage, { actor: staff, itemId: item, input: { layout: "BOLD", sizes: ["SQUARE"], headline: "Hi" } })).rejects.toThrow(/Withdraw/);
   }, 60000);
+});
+
+describe("carousels", () => {
+  it("Claude writes the slides; each is drawn in one size, saved in order; Story size is refused", async () => {
+    const post = (await db.contentItem.create({ data: { organizationId: org, clientId: acme, platform: "INSTAGRAM", platforms: ["INSTAGRAM"], title: "Boot care", copy: "Five tips", postType: "CAROUSEL", createdById: pm } })).id;
+    const slides = [{ headline: "Make boots last", sub: "" }, { headline: "Brush them dry", sub: "Mud comes off easier once it dries." }, { headline: "Use wax monthly", sub: "It keeps water out." }, { headline: "Shop boot care", sub: "" }];
+    const w = await writeDesignWords(db, { organizationId: org, itemId: post, actorId: pm, today: NOW, apiKey: "k", fetchImpl: claude({ layout: "BOLD", label: "3 tips", cta: "Shop now", slides }) });
+    expect([w.design.kind, w.design.headline, w.design.sizes, (w.design.slides as unknown[]).length]).toEqual(["CAROUSEL", "Make boots last", ["SQUARE"], 4]);
+    expect(await db.contentAiRun.count({ where: { itemId: post, kind: "DESIGN_CAROUSEL" } })).toBe(1);
+    await expect(makeDesign(db, storage, { actor: staff, itemId: post, input: { kind: "CAROUSEL", layout: "BOLD", sizes: ["STORY"], slides } })).rejects.toThrow(/one size/);
+    const r = await makeDesign(db, storage, { actor: staff, itemId: post, input: { kind: "CAROUSEL", layout: "BOLD", sizes: ["PORTRAIT"], slides, cta: "Shop now" } });
+    expect(r.files.map((f) => f.filename.slice(0, 17))).toEqual(["carousel-01-of-04", "carousel-02-of-04", "carousel-03-of-04", "carousel-04-of-04"]);
+    expect(r.design.outputFileIds).toEqual(r.files.map((f) => f.id));
+    expect((await sharp(await storage.get(r.files[2].storageKey)).metadata()).height).toBe(1350);
+  }, 60000);
+});
+
+describe("month planner designs and recent designs", () => {
+  it("planned static posts get a drawn draft design; videos do not; discarding the plan removes the designs", async () => {
+    await db.clientContentProfile.update({ where: { clientId: acme }, data: { about: "Acme sells winter boots and shoes in Lahore.", platforms: ["INSTAGRAM"] } });
+    const planClaude = async (_u: string, init: { body: string }) => {
+      const n = (JSON.parse(init.body).messages[0].content as string).match(/^Slot \d+:/gm)!.length;
+      const posts = Array.from({ length: n }, (_, i) => ({ slot: i, title: `Post ${i}`, caption: `Caption ${i}`, hashtags: "#a", brief: "b", onImage: { headline: i % 2 ? `Tip number ${i}` : "", sub: "", cta: "", label: "", layout: "TIP" } }));
+      return { ok: true, status: 200, json: async () => ({ stop_reason: "end_turn", usage: { input_tokens: 3000, output_tokens: 3000 }, content: [{ type: "text", text: JSON.stringify({ posts }) }] }) };
+    };
+    const plan = await generatePlan(db, { organizationId: org, clientId: acme, month: "2026-12", counts: { REEL: 1, LONG_VIDEO: 0, STATIC_CREATIVE: 4 }, actorId: pm, today: NOW, apiKey: "k", fetchImpl: planClaude, designs: true });
+    const posts = await db.contentItem.findMany({ where: { aiRunId: plan.runId }, select: { id: true, postType: true } });
+    const designs = await db.contentDesign.findMany({ where: { itemId: { in: posts.map((x) => x.id) } } });
+    expect(designs.every((d) => posts.find((x) => x.id === d.itemId)?.postType === "STATIC")).toBe(true);
+    expect(designs.length).toBeGreaterThan(0);
+    const drawn = await drawPlanDesigns(db, storage, { actor: staff, runId: plan.runId });
+    expect(drawn).toEqual({ drawn: designs.length, failed: 0 });
+    const recent = await recentDesigns(db, { organizationId: org, clientId: acme });
+    expect(recent.length).toBeGreaterThanOrEqual(designs.length);
+    expect(await recentDesigns(db, { organizationId: org, clientId: beta })).toEqual([]);
+    const out = (await db.contentDesign.findMany({ where: { itemId: { in: posts.map((x) => x.id) } } })).flatMap((d) => d.outputFileIds);
+    await undoPlan(db, { organizationId: org, runId: plan.runId });
+    expect(await db.contentDesign.count({ where: { itemId: { in: posts.map((x) => x.id) } } })).toBe(0);
+    expect(await db.storedFile.count({ where: { id: { in: out }, deletedAt: null } })).toBe(0);
+  }, 90000);
 });

@@ -216,8 +216,34 @@ export function mediaProblem(platform: string, postType: string, media: ReturnTy
   return null;
 }
 
-const itemFiles = (db: Db, itemId: string, organizationId: string) =>
-  db.storedFile.findMany({ where: { organizationId, ownerType: "CONTENT", ownerId: itemId, deletedAt: null }, orderBy: { createdAt: "asc" }, select: { id: true, contentType: true, filename: true } });
+// The files a post goes out with. A post with a drawn design sends the design, not every image on it:
+// a carousel's slides in order, or for a single design the one size that suits the post (story size for a story,
+// otherwise portrait, then square). A video on the post, or an image someone added after the last drawing, wins
+// over the design, so a creative the team uploaded by hand is never ignored.
+type DesignPick = { kind: string; sizes: string[]; outputFileIds: string[]; photoFileId: string | null };
+export function designFiles<F extends MediaFile & { createdAt?: Date }>(files: F[], design: DesignPick | null, postType: string): F[] {
+  const outs = design ? design.outputFileIds.map((id) => files.find((f) => f.id === id)).filter((f): f is F => Boolean(f)) : [];
+  if (!design || !outs.length || files.some((f) => VIDEO_TYPES.includes(f.contentType))) return files;
+  const drawnAt = Math.max(...outs.map((f) => f.createdAt?.getTime() ?? 0));
+  const byHand = files.filter((f) => !design.outputFileIds.includes(f.id) && f.id !== design.photoFileId && IMAGE_TYPES.includes(f.contentType) && (f.createdAt?.getTime() ?? 0) > drawnAt);
+  if (byHand.length) return byHand;
+  if (design.kind === "CAROUSEL") return outs;
+  const order = postType === "STORY" ? ["STORY", "PORTRAIT", "SQUARE"] : ["PORTRAIT", "SQUARE", "STORY"];
+  for (const size of order) {
+    const f = files.find((x) => x.id === design.outputFileIds[design.sizes.indexOf(size)]);
+    if (design.sizes.includes(size) && f) return [f];
+  }
+  return outs.slice(0, 1);
+}
+
+const itemFiles = async (db: Db, itemId: string, organizationId: string) => {
+  const [files, design, item] = await Promise.all([
+    db.storedFile.findMany({ where: { organizationId, ownerType: "CONTENT", ownerId: itemId, deletedAt: null }, orderBy: { createdAt: "asc" }, select: { id: true, contentType: true, filename: true, createdAt: true } }),
+    db.contentDesign.findFirst({ where: { organizationId, itemId } }),
+    db.contentItem.findFirst({ where: { organizationId, id: itemId }, select: { postType: true } }),
+  ]);
+  return designFiles(files, design, item?.postType ?? "STATIC");
+};
 
 // A public link Meta can fetch the file from for a day. "social-jpg" asks the media route for a JPEG (Instagram takes JPEG only).
 export function mediaUrl(fileId: string, jpeg: boolean, d?: MetaDeps) {

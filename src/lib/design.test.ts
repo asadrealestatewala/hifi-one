@@ -30,3 +30,35 @@ describe("design words and helpers", () => {
     expect(p).toMatch(/mention delivery/);
   });
 });
+
+import { cleanSlides } from "./design";
+import { designFiles } from "./social-meta";
+import { planDesignWords } from "./content-ai";
+
+describe("carousels, month designs and what gets posted", () => {
+  it("a carousel has 3 to 8 slides, each with a headline; empty rows are dropped", () => {
+    const rows = [{ headline: "Cover", sub: "" }, { headline: "", sub: "" }, { headline: "Point one", sub: "Why it matters" }, { headline: "Order now", sub: "" }];
+    expect(cleanSlides(rows)).toEqual([{ headline: "Cover", sub: null }, { headline: "Point one", sub: "Why it matters" }, { headline: "Order now", sub: null }]);
+    expect(() => cleanSlides(rows.slice(0, 2))).toThrow(/3 to 8/);
+    expect(() => cleanSlides([...rows, { headline: "", sub: "text only" }])).toThrow(/Slide 5 needs a headline/);
+    expect(() => cleanSlides(Array.from({ length: 9 }, () => ({ headline: "x", sub: "" })))).toThrow(/3 to 8/);
+  });
+  it("planner words become a text-layout design, or nothing when unusable", () => {
+    expect(planDesignWords({ headline: " Eid   offer ", sub: "", cta: "Order", label: "", layout: "OFFER" })).toEqual({ headline: "Eid offer", sub: null, cta: "Order", label: null, layout: "BOLD" });
+    expect(planDesignWords({ headline: "", sub: "x", cta: "", label: "", layout: "TIP" })).toBeNull();
+    expect(planDesignWords({ headline: "عید مبارک", sub: "", cta: "", label: "", layout: "TIP" })).toBeNull();
+  });
+  it("automatic posting sends the design: the right size, carousel slides in order, but a video or a later hand upload wins", () => {
+    const t = (m: number) => new Date(Date.UTC(2026, 10, 17, 10, m));
+    const f = (id: string, m: number, contentType = "image/png") => ({ id, contentType, filename: id, createdAt: t(m) });
+    const files = [f("photo", 1, "image/jpeg"), f("sq", 2), f("pt", 2), f("st", 2)];
+    const single = { kind: "SINGLE", sizes: ["SQUARE", "PORTRAIT", "STORY"], outputFileIds: ["sq", "pt", "st"], photoFileId: "photo" };
+    expect(designFiles(files, single, "STATIC").map((x) => x.id)).toEqual(["pt"]);
+    expect(designFiles(files, single, "STORY").map((x) => x.id)).toEqual(["st"]);
+    expect(designFiles(files, { ...single, sizes: ["SQUARE"], outputFileIds: ["sq"] }, "STATIC").map((x) => x.id)).toEqual(["sq"]);
+    expect(designFiles(files, { kind: "CAROUSEL", sizes: ["SQUARE"], outputFileIds: ["st", "sq", "pt"], photoFileId: null }, "CAROUSEL").map((x) => x.id)).toEqual(["st", "sq", "pt"]);
+    expect(designFiles([...files, f("mine", 9, "image/jpeg")], single, "STATIC").map((x) => x.id)).toEqual(["mine"]);
+    expect(designFiles([...files, f("clip", 0, "video/mp4")], single, "REEL")).toHaveLength(5);
+    expect(designFiles(files, null, "STATIC")).toHaveLength(4);
+  });
+});
