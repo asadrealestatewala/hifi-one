@@ -611,6 +611,7 @@ model Project {
   archivedAt     DateTime? // set when a closed project is archived: hidden from project lists until restored
   archivedById   String?
   templateId     String? // the project template it was started from, if any (for reference only)
+  sourceLeadId   String?   @unique // the won lead that created this project automatically (one project per lead)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -706,15 +707,18 @@ model ChecklistTemplate {
 // from the project start. `body` is validated by src/lib/project-templates.ts. Applying it copies everything into a new
 // project; later edits to the template never change projects already made from it.
 model ProjectTemplate {
-  id             String    @id @default(cuid())
-  organizationId String
-  name           String
-  description    String?
-  body           Json
-  archivedAt     DateTime?
-  createdById    String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id               String    @id @default(cuid())
+  organizationId   String
+  name             String
+  description      String?
+  body             Json
+  planIds          String[]  @default([]) // service plans whose won leads start a project from this template
+  defaultManagerId String? // project manager used when a won lead starts the project (else whoever approved the win)
+  roleDefaults     Json      @default("{}") // role name -> user id: preselected in New project and used for won leads
+  archivedAt       DateTime?
+  createdById      String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@unique([organizationId, name])
 }

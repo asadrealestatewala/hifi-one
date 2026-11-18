@@ -27,6 +27,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     const r = await changeTaskStatus(db, { projectId: task.projectId, taskId: id, status, actorId: user.id });
     await audit(user, { action: "task.move", entity: "Task", entityId: id, before: { status: task.status }, after: { status, nextOccurrence: r.next?.id ?? null, via: "mobile" } });
+    if (r.milestone) await audit(user, { action: r.milestone.kind === "completed" ? "milestone.auto_done" : "milestone.auto_reopened", entity: "Milestone", entityId: r.milestone.milestoneId, after: r.milestone.kind === "completed" ? { invoiceId: r.milestone.invoiceId, billingError: r.milestone.billingError ?? null, via: "mobile" } : { status: "IN_PROGRESS", via: "mobile" } });
     await taskMoved(db, { organizationId: user.organizationId, taskId: id, status, byUserId: user.id });
   } catch (e) {
     if (e instanceof TaskError) return json({ error: e.message }, 409);

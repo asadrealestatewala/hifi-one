@@ -1,5 +1,6 @@
 // Subtasks, checklists (rules in task-checklists.ts), dependencies, recurrence and comments on project tasks. Callers have already checked that the person may touch the project.
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient, Task } from "@prisma/client";
+import { milestoneAfterTaskMove, type MilestoneAutomation } from "./project-automations";
 import { RECURRENCES, nextDue, openBlockers, wouldCycle, type Recurrence } from "./task-rules";
 
 export class TaskError extends Error {}
@@ -42,11 +43,18 @@ export async function setRecurrence(db: Db, p: { projectId: string; taskId: stri
   return db.task.update({ where: { id: task.id }, data: { recurrence: p.recurrence } });
 }
 
-// Status change with the dependency rules. Returns the next occurrence when a recurring task was just completed.
-export async function changeTaskStatus(db: Db, p: { projectId: string; taskId: string; status: string; actorId: string; now?: Date }) {
+// Status change with the dependency rules. Returns the next occurrence when a recurring task was just completed, and what the
+// milestone automation did (milestone completed with its draft invoice, or reopened) so callers can audit it.
+export async function changeTaskStatus(db: Db, p: { projectId: string; taskId: string; status: string; actorId: string; now?: Date }): Promise<{ task: Task; next: Task | null; milestone: MilestoneAutomation | null }> {
+  const r = await moveInTransaction(db, p);
+  const milestone = r.changed ? await milestoneAfterTaskMove(db, { taskId: p.taskId, status: p.status, actorId: p.actorId }) : null;
+  return { task: r.task, next: r.next, milestone };
+}
+
+function moveInTransaction(db: Db, p: { projectId: string; taskId: string; status: string; actorId: string; now?: Date }) {
   return db.$transaction(async (tx) => {
     const task = await load(tx, p.projectId, p.taskId);
-    if (task.status === p.status) return { task, next: null };
+    if (task.status === p.status) return { task, next: null, changed: false };
     if (p.status !== "TODO") {
       const blockers = task.blockedBy.length ? await tx.task.findMany({ where: { id: { in: task.blockedBy } }, select: { id: true, title: true, status: true } }) : [];
       const open = openBlockers(task.blockedBy, new Map(blockers.map((b) => [b.id, b])));
@@ -59,7 +67,7 @@ export async function changeTaskStatus(db: Db, p: { projectId: string; taskId: s
       if (unticked) throw new TaskError(`${unticked} checklist item${unticked === 1 ? " is" : "s are"} not ticked yet.`);
     }
     const updated = await tx.task.update({ where: { id: task.id }, data: { status: p.status, completedAt: p.status === "DONE" ? (p.now ?? new Date()) : null } });
-    let next = null;
+    let next: Task | null = null;
     if (p.status === "DONE" && task.recurrence) {
       // The unique recurredFromId makes this safe if two people complete the task at the same moment
       const exists = await tx.task.findUnique({ where: { recurredFromId: task.id } });
@@ -76,7 +84,7 @@ export async function changeTaskStatus(db: Db, p: { projectId: string; taskId: s
         if (items.length) await tx.taskChecklistItem.createMany({ data: items.map((i) => ({ taskId: next!.id, text: i.text, sortOrder: i.sortOrder })) });
       }
     }
-    return { task: updated, next };
+    return { task: updated, next, changed: true };
   });
 }
 

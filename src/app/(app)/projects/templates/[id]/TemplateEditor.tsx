@@ -11,13 +11,19 @@ const blankTask = (): Task => ({ title: "", description: "", day: "", hours: "",
 const num = (v: number | undefined) => (v === undefined ? "" : String(v));
 
 // Edits a template as plain rows. Due dates are days after the project start (0 = the start day), so one plan fits any start.
-export default function TemplateEditor({ initial }: { initial: { id?: string; name: string; description: string; body: TemplateBody } }) {
+type Defaults = { planIds: string[]; defaultManagerId: string | null; roleDefaults: Record<string, string> };
+type Options = { staff: { id: string; name: string }[]; plans: { id: string; name: string; category: string }[] };
+
+export default function TemplateEditor({ initial, options }: { initial: { id?: string; name: string; description: string; body: TemplateBody; defaults: Defaults }; options: Options }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState("");
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
   const [roles, setRoles] = useState<string[]>(initial.body.roles);
+  const [planIds, setPlanIds] = useState<string[]>(initial.defaults.planIds);
+  const [managerId, setManagerId] = useState(initial.defaults.defaultManagerId ?? "");
+  const [people, setPeople] = useState<Record<string, string>>(initial.defaults.roleDefaults);
   const [newRole, setNewRole] = useState("");
   const [milestones, setMilestones] = useState<Milestone[]>(initial.body.milestones.map((m) => ({ name: m.name, day: num(m.day) })));
   const [tasks, setTasks] = useState<Task[]>(initial.body.tasks.map((t) => ({
@@ -28,7 +34,7 @@ export default function TemplateEditor({ initial }: { initial: { id?: string; na
   const setTask = (i: number, over: Partial<Task>) => setTasks((ts) => ts.map((t, j) => (j === i ? { ...t, ...over } : t)));
   const move = (i: number, d: number) => setTasks((ts) => { const n = [...ts]; const j = i + d; if (j < 0 || j >= n.length) return ts; [n[i], n[j]] = [n[j], n[i]]; return n; });
   const addRole = () => { const r = newRole.trim(); if (r && !roles.some((x) => x.toLowerCase() === r.toLowerCase())) setRoles([...roles, r]); setNewRole(""); };
-  const removeRole = (r: string) => { setRoles(roles.filter((x) => x !== r)); setTasks((ts) => ts.map((t) => (t.role === r ? { ...t, role: "" } : t))); };
+  const removeRole = (r: string) => { setRoles(roles.filter((x) => x !== r)); setPeople((p) => { const n = { ...p }; delete n[r]; return n; }); setTasks((ts) => ts.map((t) => (t.role === r ? { ...t, role: "" } : t))); };
   const renameMilestone = (i: number, value: string) => {
     const old = milestones[i].name;
     setMilestones(milestones.map((m, j) => (j === i ? { ...m, name: value } : m)));
@@ -48,7 +54,7 @@ export default function TemplateEditor({ initial }: { initial: { id?: string; na
         checklist: t.checklist.split("\n").map((l) => l.trim()).filter(Boolean),
       })),
     };
-    const r = await saveTemplateAction({ id: initial.id, name, description, body });
+    const r = await saveTemplateAction({ id: initial.id, name, description, body, defaults: { planIds, defaultManagerId: managerId || null, roleDefaults: Object.fromEntries(Object.entries(people).filter(([k, v]) => v && roles.includes(k))) } });
     if (!r.ok) { setError(r.error); return; }
     router.push(`/projects/templates/${r.id}?saved=1`);
     router.refresh();
@@ -70,6 +76,27 @@ export default function TemplateEditor({ initial }: { initial: { id?: string; na
           {roles.map((r) => <span key={r} className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1">{r}<button type="button" aria-label={`Remove role ${r}`} onClick={() => removeRole(r)} className="text-muted hover:text-brand">×</button></span>)}
         </div>
         <div className="flex gap-2"><input value={newRole} onChange={(e) => setNewRole(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addRole(); } }} maxLength={60} placeholder="e.g. Graphic designer" aria-label="New role" className="input max-w-xs" /><button type="button" className="btn-ghost" onClick={addRole} disabled={!newRole.trim() || roles.length >= 12}>Add role</button></div>
+      </section>
+
+      <section className="card space-y-3">
+        <div><h2 className="font-semibold">Usual people</h2><p className="text-xs text-muted">Picked in advance on New project (you can still change them there), and used when a won deal starts the project on its own.</p></div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div><label className="label" htmlFor="tpl-mgr">Project manager</label><select id="tpl-mgr" value={managerId} onChange={(e) => setManagerId(e.target.value)} className="input"><option value="">Whoever approves the win</option>{options.staff.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+          {roles.map((r) => (
+            <div key={r}><label className="label" htmlFor={`tpl-p-${r}`}>{r}</label><select id={`tpl-p-${r}`} value={people[r] ?? ""} onChange={(e) => setPeople({ ...people, [r]: e.target.value })} className="input"><option value="">Nobody yet (tasks unassigned)</option>{options.staff.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+          ))}
+        </div>
+      </section>
+
+      <section className="card space-y-3">
+        <div><h2 className="font-semibold">Start automatically when a deal is won</h2><p className="text-xs text-muted">When a lead for one of these services is marked Closed Won, its client gets a project made from this template, with the people above. Leave all unticked to only use the template by hand.</p></div>
+        {options.plans.length === 0 ? <p className="text-muted">No services yet. Add them under Services &amp; clients, then link them here.</p> : (
+          <div className="grid gap-1 sm:grid-cols-2">
+            {options.plans.map((pl) => (
+              <label key={pl.id} className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-hover"><input type="checkbox" checked={planIds.includes(pl.id)} onChange={(e) => setPlanIds(e.target.checked ? [...planIds, pl.id] : planIds.filter((x) => x !== pl.id))} /><span className="truncate">{pl.name} <span className="text-xs text-muted">{pl.category}</span></span></label>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="card space-y-3">

@@ -11,6 +11,24 @@ import { approveConversion, rejectConversion, requestConversion, type DecisionRe
 import { ensureContactForLead, mirrorLeadActivity } from "@/lib/crm-contacts";
 import { DuplicateLeadError, canonicalPhone, createLeadGuarded, presentDuplicate } from "@/lib/lead-duplicates";
 import { LedgerError } from "@/lib/ledger-math";
+import { projectForWonLead } from "@/lib/project-automations";
+import { dateInZone } from "@/lib/hr-rules";
+import type { SessionUser } from "@/lib/auth";
+
+// A won lead whose service plan has a project template starts the client's project from it. The win itself never fails
+// because of this step; a failure is written to the audit log so someone can create the project by hand.
+async function startWonProject(user: SessionUser, leadId: string): Promise<void> {
+  try {
+    const profile = await db.companyProfile.findFirst({ where: { organizationId: user.organizationId, isDefault: true }, select: { timezone: true } });
+    const r = await projectForWonLead(db, { organizationId: user.organizationId, leadId, actorId: user.id, today: dateInZone(new Date(), profile?.timezone ?? "UTC") });
+    if (r) {
+      await audit(user, { action: "project.create", entity: "Project", entityId: r.projectId, after: { number: r.number, name: r.name, managerId: r.managerId, template: r.template, fromLead: leadId, tasks: r.applied.tasks, milestones: r.applied.milestones, automatic: true } });
+      revalidatePath("/projects");
+    }
+  } catch (e) {
+    await audit(user, { action: "project.auto_create_failed", entity: "Lead", entityId: leadId, after: { error: e instanceof Error ? e.message.slice(0, 300) : "unknown" } });
+  }
+}
 
 const opt = z.string().trim().max(500).optional().transform((v) => (v ? v : null));
 
@@ -101,6 +119,7 @@ export async function moveLead(leadId: string, stageId: string): Promise<MoveRes
     try {
       const r = await convertLead(db, { organizationId: user.organizationId, leadId: lead.id, actorId: user.id, wonStageId: stage.id });
       await audit(user, { action: "lead.convert", entity: "Lead", entityId: lead.id, after: { clientId: r.clientId, invoiceId: r.invoiceId, alreadyConverted: r.alreadyConverted } });
+      if (!r.alreadyConverted) await startWonProject(user, lead.id);
     } catch (e) {
       if (e instanceof LedgerError) return { ok: false, error: e.message };
       throw e;
@@ -142,6 +161,10 @@ export async function approveConversionAction(requestId: string): Promise<Decisi
     throw e;
   });
   if (r.ok) await audit(user, { action: "lead.convert", entity: "LeadConversionRequest", entityId: requestId, after: { clientId: r.conversion?.clientId, invoiceId: r.conversion?.invoiceId } });
+  if (r.ok && r.conversion && !r.conversion.alreadyConverted) {
+    const req = await db.leadConversionRequest.findFirst({ where: { id: requestId, organizationId: user.organizationId }, select: { leadId: true } });
+    if (req) await startWonProject(user, req.leadId);
+  }
   revalidatePath("/leads/approvals");
   revalidatePath("/pipeline");
   revalidatePath("/leads");

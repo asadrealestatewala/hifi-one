@@ -105,14 +105,28 @@ export async function addStarterTemplates(db: Db, p: { organizationId: string; b
   return added;
 }
 
-export async function saveTemplate(db: Db, p: { organizationId: string; id?: string; name: string; description: string; body: unknown; byUserId: string }): Promise<TemplateResult<{ id: string; name: string }>> {
+// Who and what a template starts with: the service plans whose won leads use it, the default project manager, and a default
+// person per role. Unknown plans and anyone who isn't active staff in the organization are dropped, never kept.
+export type TemplateDefaults = { planIds: string[]; defaultManagerId: string | null; roleDefaults: Record<string, string> };
+export async function cleanDefaults(db: Db, organizationId: string, roles: string[], d: Partial<TemplateDefaults>): Promise<TemplateDefaults> {
+  const planIds = [...new Set((d.planIds ?? []).map(String).filter(Boolean))].slice(0, 50);
+  const plans = planIds.length ? new Set((await db.servicePlan.findMany({ where: { organizationId, id: { in: planIds } }, select: { id: true } })).map((x) => x.id)) : new Set<string>();
+  const people = [d.defaultManagerId ?? "", ...Object.values(d.roleDefaults ?? {})].map(String).filter(Boolean);
+  const staff = people.length ? new Set((await db.user.findMany({ where: { organizationId, id: { in: people }, active: true, userType: "EMPLOYEE" }, select: { id: true } })).map((u) => u.id)) : new Set<string>();
+  const roleDefaults: Record<string, string> = {};
+  for (const [role, uid] of Object.entries(d.roleDefaults ?? {})) if (roles.includes(role) && staff.has(String(uid))) roleDefaults[role] = String(uid);
+  return { planIds: planIds.filter((x) => plans.has(x)), defaultManagerId: d.defaultManagerId && staff.has(d.defaultManagerId) ? d.defaultManagerId : null, roleDefaults };
+}
+
+export async function saveTemplate(db: Db, p: { organizationId: string; id?: string; name: string; description: string; body: unknown; byUserId: string; defaults?: Partial<TemplateDefaults> }): Promise<TemplateResult<{ id: string; name: string }>> {
   const name = p.name.trim().slice(0, 80);
   if (name.length < 2) return { ok: false, error: "Give the template a name." };
   const body = parseTemplateBody(p.body);
   if (!body.ok) return body;
   const clash = await db.projectTemplate.findFirst({ where: { organizationId: p.organizationId, name: { equals: name, mode: "insensitive" }, ...(p.id ? { id: { not: p.id } } : {}) }, select: { id: true } });
   if (clash) return { ok: false, error: `There is already a template called ${name}.` };
-  const data = { name, description: p.description.trim().slice(0, 500) || null, body: body.value as unknown as Prisma.InputJsonValue };
+  const defaults = p.defaults ? await cleanDefaults(db, p.organizationId, body.value.roles, p.defaults) : null;
+  const data = { name, description: p.description.trim().slice(0, 500) || null, body: body.value as unknown as Prisma.InputJsonValue, ...(defaults ? { ...defaults, roleDefaults: defaults.roleDefaults as Prisma.InputJsonValue } : {}) };
   if (p.id) {
     const t = await db.projectTemplate.findFirst({ where: { id: p.id, organizationId: p.organizationId }, select: { id: true } });
     if (!t) return { ok: false, error: "Template not found." };

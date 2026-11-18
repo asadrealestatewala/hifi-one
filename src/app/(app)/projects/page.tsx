@@ -35,7 +35,7 @@ export default async function Projects({ searchParams }: { searchParams: Promise
     db.project.findMany({ where: projectScope(user), orderBy: { createdAt: "desc" }, include: { tasks: { select: { status: true, dueDate: true, parentId: true } } } }),
     db.client.findMany({ where: { organizationId: user.organizationId, active: true }, orderBy: { name: "asc" } }),
     canManage && sp.new ? db.user.findMany({ where: { organizationId: user.organizationId, active: true, userType: "EMPLOYEE" }, orderBy: { name: "asc" }, select: { id: true, name: true } }) : Promise.resolve([]),
-    canManage && sp.new ? db.projectTemplate.findMany({ where: { organizationId: user.organizationId, archivedAt: null }, orderBy: { name: "asc" }, select: { id: true, name: true, body: true } }) : Promise.resolve([]),
+    canManage && sp.new ? db.projectTemplate.findMany({ where: { organizationId: user.organizationId, archivedAt: null }, orderBy: { name: "asc" }, select: { id: true, name: true, body: true, roleDefaults: true, defaultManagerId: true } }) : Promise.resolve([]),
   ]);
   // New project can start from a template: ?template=<id> shows a person picker for each of its roles
   const chosen = templates.find((t) => t.id === sp.template);
@@ -109,7 +109,7 @@ export default async function Projects({ searchParams }: { searchParams: Promise
                 {chosenBody.value.roles.length > 0 && (
                   <div className="grid gap-3 sm:grid-cols-2">
                     {chosenBody.value.roles.map((r, i) => (
-                      <div key={r}><label className="label" htmlFor={`role${i}`}>{r}</label><select id={`role${i}`} name={`role${i}`} className="input" defaultValue=""><option value="">Fill later (tasks unassigned)</option>{staff.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+                      <div key={r}><label className="label" htmlFor={`role${i}`}>{r}</label><select id={`role${i}`} name={`role${i}`} className="input" defaultValue={((chosen.roleDefaults ?? {}) as Record<string, string>)[r] ?? ""}><option value="">Fill later (tasks unassigned)</option>{staff.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
                     ))}
                   </div>
                 )}
@@ -125,7 +125,7 @@ export default async function Projects({ searchParams }: { searchParams: Promise
               </div>
               <div>
                 <label className="label" htmlFor="managerId">Project manager</label>
-                <select id="managerId" name="managerId" className="input" defaultValue={user.id}>{staff.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
+                <select key={chosen?.id ?? "blank"} id="managerId" name="managerId" className="input" defaultValue={chosen?.defaultManagerId && staff.some((u) => u.id === chosen.defaultManagerId) ? chosen.defaultManagerId : user.id}>{staff.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
               </div>
               <div>
                 <label className="label" htmlFor="priority">Priority</label>
