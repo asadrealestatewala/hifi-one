@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { Notice, StatusBadge, SubmitButton } from "@/components/ui";
 import { deliverableAction } from "../deliverable-actions";
@@ -6,6 +7,13 @@ import { deliverableAction } from "../deliverable-actions";
 export default async function Deliverables({ projectId, organizationId, canManage, hasClient, closed, msg }: { projectId: string; organizationId: string; canManage: boolean; hasClient: boolean; closed: boolean; msg?: string }) {
   const rows = await db.deliverable.findMany({ where: { projectId, organizationId }, orderBy: [{ createdAt: "desc" }, { id: "asc" }] });
   if (rows.length === 0 && !canManage) return null;
+  // Proofs and open client comments on each deliverable's current version
+  const [files, open] = await Promise.all([
+    db.storedFile.findMany({ where: { ownerType: "DELIVERABLE", ownerId: { in: rows.map((d) => d.id) }, deletedAt: null }, select: { ownerId: true, category: true } }),
+    db.deliverableComment.groupBy({ by: ["deliverableId", "version"], where: { deliverableId: { in: rows.map((d) => d.id) }, fromClient: true, resolvedAt: null }, _count: { _all: true } }),
+  ]);
+  const hasProof = (d: (typeof rows)[number]) => files.some((f) => f.ownerId === d.id && f.category === `v${d.version}`);
+  const openFor = (d: (typeof rows)[number]) => open.find((o) => o.deliverableId === d.id && o.version === d.version)?._count._all ?? 0;
   return (
     <section id="deliverables" className="card space-y-3">
       <h2 className="font-semibold">Deliverables and client approval</h2>
@@ -19,6 +27,7 @@ export default async function Deliverables({ projectId, organizationId, canManag
                 <div><p className="font-medium">{d.title} <span className="text-xs font-normal text-muted">v{d.version}</span></p>{d.description && <p className="whitespace-pre-wrap text-muted">{d.description}</p>}{d.link && <a className="text-primary hover:underline" href={d.link} target="_blank" rel="noopener noreferrer">{d.link}</a>}</div>
                 <StatusBadge status={d.status} />
               </div>
+              <p className="text-xs"><Link href={`/projects/${projectId}/deliverables/${d.id}`} className="text-primary hover:underline">{hasProof(d) ? `Open the design${openFor(d) ? ` (${openFor(d)} client comment${openFor(d) === 1 ? "" : "s"} open)` : ""}` : canManage && d.status === "DRAFT" ? "Attach the design for the client to comment on" : "Proof and comments"}</Link></p>
               {d.decisionNote && <p className="rounded-lg bg-hover px-3 py-2 text-xs"><span className="font-medium">Client {d.status === "APPROVED" ? "comment" : "asked for"}:</span> {d.decisionNote}</p>}
               {canManage && !closed && (d.status === "DRAFT" || d.status === "CHANGES_REQUESTED") && (
                 <details>

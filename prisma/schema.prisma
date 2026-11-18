@@ -2731,9 +2731,35 @@ model Deliverable {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
+  comments DeliverableComment[]
+
   @@index([projectId, status])
   @@index([organizationId, status])
   @@index([campaignId])
+}
+
+// Proofing: a comment on one version of a deliverable. The proof itself is a StoredFile (ownerType DELIVERABLE, category "v<version>").
+// On an image, x and y place a numbered pin (percent of the width and height); on a PDF, page says which page. The client comments
+// while the version waits for them; the team replies and marks comments done.
+model DeliverableComment {
+  id             String    @id @default(cuid())
+  organizationId String
+  deliverableId  String
+  version        Int
+  fileId         String?
+  authorId       String
+  fromClient     Boolean   @default(false)
+  body           String
+  x              Float?
+  y              Float?
+  page           Int?
+  resolvedAt     DateTime?
+  resolvedById   String?
+  createdAt      DateTime  @default(now())
+
+  deliverable Deliverable @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+
+  @@index([deliverableId, version])
 }
 
 // ---------- Lead capture ----------
