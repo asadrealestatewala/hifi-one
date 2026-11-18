@@ -1,6 +1,7 @@
 // Who may see, add or remove files on each kind of record. The rule always follows the record the file belongs to,
 // so a file is only as visible as its expense, bill, content item or employee file.
 import type { PrismaClient } from "@prisma/client";
+import { canSeeContentClient, canSeeContentItem } from "./content-scope";
 
 export type FileActor = {
   id: string;
@@ -65,22 +66,25 @@ export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: 
     const c = await db.contentItem.findFirst({ where: { id: ownerId, organizationId: a.organizationId } });
     if (!c) return false;
     if (mode === "read") {
-      if (has("content.view")) return true;
+      // Staff: only posts for the clients they work for (or assigned to them), unless they see every project
+      if (has("content.view")) return canSeeContentItem(db, a, c);
       return a.userType === "CLIENT" && a.clientId !== null && a.clientId === c.clientId && CLIENT_VISIBLE.includes(c.status); // never drafts
     }
-    return has("content.manage") && CONTENT_EDITABLE.includes(c.status);
+    return has("content.manage") && CONTENT_EDITABLE.includes(c.status) && (await canSeeContentItem(db, a, c));
   }
 
   if (ownerType === "BRAND") {
     // A client's brand kit and media library (ownerId = the client's id, or "OWN" for our own posts). The content team sees and
     // manages all of it; the client's own users see theirs and may add files (and remove what they added themselves).
-    if (ownerId === "OWN") return mode === "read" ? has("content.view") : has("content.manage");
+    // Staff are limited to the clients they work for (the company's own kit: people who see every project)
+    if (ownerId === "OWN") return (mode === "read" ? has("content.view") : has("content.manage")) && (await canSeeContentClient(db, a, null));
     const cl = await db.client.findFirst({ where: { id: ownerId, organizationId: a.organizationId }, select: { id: true } });
     if (!cl) return false;
     const ownClient = a.userType === "CLIENT" && a.clientId !== null && a.clientId === cl.id;
-    if (mode === "read") return has("content.view") || ownClient;
-    if (mode === "upload") return has("content.manage") || ownClient;
-    return has("content.manage");
+    const team = async (perm: string) => has(perm) && (await canSeeContentClient(db, a, cl.id));
+    if (mode === "read") return ownClient || (await team("content.view"));
+    if (mode === "upload") return ownClient || (await team("content.manage"));
+    return team("content.manage");
   }
 
   if (ownerType === "CHAT_MESSAGE") {

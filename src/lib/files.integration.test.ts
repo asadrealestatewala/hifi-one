@@ -124,7 +124,7 @@ describe("vendor bills", () => {
 
 describe("content media", () => {
   it("clients see media only once content reaches client review, and only their own", async () => {
-    const staff = actor({ id: "designer", perms: ["content.manage", "content.view"] });
+    const staff = actor({ id: "designer", perms: ["content.manage", "content.view", "projects.view_all"] });
     const f = await saveFile(db, storage, { actor: staff, ownerType: "CONTENT", ownerId: draft, name: "reel.mp4", bytes: Buffer.concat([Buffer.alloc(4), Buffer.from("ftyp"), Buffer.alloc(30)]) });
     const g = await saveFile(db, storage, { actor: staff, ownerType: "CONTENT", ownerId: inReview, name: "post.png", bytes: Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"), Buffer.alloc(20)]) }).catch((e) => e);
     // in client review the copy is locked, so staff cannot add media either

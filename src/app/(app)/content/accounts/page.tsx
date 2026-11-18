@@ -1,5 +1,6 @@
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { contentClientIds } from "@/lib/content-scope";
 import { PLATFORM_META } from "@/lib/content-rules";
 import { callbackUrl, metaApp } from "@/lib/social-meta";
 import { ConfirmButton, Notice, PageHeader, SubmitButton } from "@/components/ui";
@@ -17,12 +18,15 @@ export default async function SocialAccounts({ searchParams }: { searchParams: P
   const user = await requirePermission("content.publish");
   const sp = await searchParams;
   const org = user.organizationId;
+  // People who work only for some clients see and connect only those clients' accounts, not the company's own
+  const clientIds = await contentClientIds(db, user);
+  const seesOwn = clientIds === null;
   const [app, clients, accounts] = await Promise.all([
     metaApp(db, org),
-    db.client.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    db.socialAccount.findMany({ where: { organizationId: org, status: { not: "DISCONNECTED" } }, orderBy: [{ platform: "asc" }, { name: "asc" }] }),
+    db.client.findMany({ where: { organizationId: org, active: true, ...(clientIds ? { id: { in: clientIds } } : {}) }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    db.socialAccount.findMany({ where: { organizationId: org, status: { not: "DISCONNECTED" }, ...(clientIds ? { clientId: { in: clientIds } } : {}) }, orderBy: [{ platform: "asc" }, { name: "asc" }] }),
   ]);
-  const groups = [{ id: null as string | null, name: "Our own accounts" }, ...clients].map((c) => ({ ...c, accounts: accounts.filter((a) => (a.clientId ?? null) === c.id) })).filter((g) => g.accounts.length > 0);
+  const groups = [...(seesOwn ? [{ id: null as string | null, name: "Our own accounts" }] : []), ...clients].map((c) => ({ ...c, accounts: accounts.filter((a) => (a.clientId ?? null) === c.id) })).filter((g) => g.accounts.length > 0);
   const isAdmin = user.permissions.has("integrations.manage");
 
   return (
@@ -41,7 +45,7 @@ export default async function SocialAccounts({ searchParams }: { searchParams: P
       ) : (
         <form method="get" action="/api/social/meta/connect" className="card flex flex-wrap items-end gap-3">
           <div className="min-w-56 flex-1"><label className="label" htmlFor="sa-client">Accounts for</label>
-            <select id="sa-client" name="client" className="input" defaultValue="own"><option value="own">Our own accounts</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+            <select id="sa-client" name="client" className="input" defaultValue={seesOwn ? "own" : clients[0]?.id}>{seesOwn && <option value="own">Our own accounts</option>}{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
           <button className="btn">Connect with Facebook</button>
           <p className="w-full text-xs text-muted">Facebook asks which Pages to share. Tick the client&rsquo;s Page; its Instagram account comes with it when the two are linked in Meta Business Suite. Instagram must be a Business or Creator account.</p>
         </form>

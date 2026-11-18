@@ -248,3 +248,7 @@ Built on Asad's "go" with the approved plan. Partner collects is the default; Hi
 ## 2026-11-17: Solution feed (live results for partners and agents)
 
 Solutions push signed reports (HMAC-SHA256 with a per-Solution secret, 5-minute window) instead of Hifi One reading their databases, so no Solution exposes a database or an admin login to Hifi One. Asad chose status and usage counts only: no client records leave a Solution. Workspaces are linked to clients by staff. Agent ownership follows the converted lead, as for commissions. See `docs/SOLUTION_FEED.md`.
+
+## 2026-11-18: Content is scoped to the clients a person works for
+
+Asad saw a Graphic Designer's view list every client and all 456 posts. He decided that anyone working on client projects (designers, editors and project managers alike) sees only the clients whose projects they are on. "Working for a client" means managing or belonging to a non-cancelled project for that client, the same membership `projectScope` uses, so there is no second assignment list to keep. `projects.view_all` (CEO, CMO, COO, Super Admin) still sees everything, including the company's own posts and brand kit. A post assigned directly to someone stays visible to them. Out-of-scope posts and clients answer "not found".

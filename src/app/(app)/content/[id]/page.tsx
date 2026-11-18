@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { audit, requirePermission, toFileActor, type SessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { canSeeContentId, canSeeContentItem } from "@/lib/content-scope";
 import { ContentError, editContent, transition } from "@/lib/content";
 import { ContentAiError, generateImage, redoPost } from "@/lib/content-ai";
 import { groupsFor, mergeTags } from "@/lib/content-hashtags";
@@ -21,12 +22,15 @@ export const dynamic = "force-dynamic";
 
 const LABEL = (s: string) => s.replace("_", " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
 const back = (id: string, m: string): never => redirect(`/content/${id}?error=${encodeURIComponent(m)}`);
+// Every action on this page: the post must be one this person may see (their clients, or assigned to them)
+const mustSee = async (user: SessionUser, id: string) => { if (!(await canSeeContentId(db, user, id))) notFound(); };
 
 async function move(formData: FormData) {
   "use server";
   const id = String(formData.get("id"));
   const to = String(formData.get("to"));
   const user = await requirePermission(to === "SCHEDULED" || to === "PUBLISHED" ? "content.publish" : "content.manage");
+  await mustSee(user, id);
   try {
     await transition(db, { organizationId: user.organizationId, id, actor: { id: user.id, type: "STAFF" }, to, comment: String(formData.get("comment") ?? "") });
     await audit(user, { action: `content.${to.toLowerCase()}`, entity: "ContentItem", entityId: id });
@@ -42,6 +46,7 @@ async function scheduleAuto(formData: FormData) {
   "use server";
   const user = await requirePermission("content.publish");
   const id = String(formData.get("id"));
+  await mustSee(user, id);
   let when = "";
   try {
     const accounts = Object.fromEntries(["FACEBOOK", "INSTAGRAM"].map((p) => [p, String(formData.get(`acct_${p}`) ?? "")]));
@@ -59,6 +64,7 @@ async function cancelAuto(formData: FormData) {
   "use server";
   const user = await requirePermission("content.publish");
   const id = String(formData.get("id"));
+  await mustSee(user, id);
   try {
     await cancelAutoPosting(db, { organizationId: user.organizationId, itemId: id, userId: user.id });
     await audit(user, { action: "content.auto_cancel", entity: "ContentItem", entityId: id });
@@ -73,7 +79,9 @@ async function retryAuto(formData: FormData) {
   "use server";
   const user = await requirePermission("content.publish");
   const id = String(formData.get("id"));
+  await mustSee(user, id);
   try {
+    if (!(await db.contentPublication.findFirst({ where: { id: String(formData.get("pub")), itemId: id, organizationId: user.organizationId }, select: { id: true } }))) notFound();
     const pub = await retryPublication(db, { organizationId: user.organizationId, publicationId: String(formData.get("pub")), userId: user.id });
     await audit(user, { action: "content.auto_retry", entity: "ContentPublication", entityId: pub.id });
   } catch (e) {
@@ -95,6 +103,7 @@ async function save(formData: FormData) {
   "use server";
   const user = await requirePermission("content.manage");
   const id = String(formData.get("id"));
+  await mustSee(user, id);
   try {
     const platformCopy = Object.fromEntries([...formData.entries()].filter(([k]) => k.startsWith("pc_")).map(([k, v]) => [k.slice(3), String(v)]));
     await editContent(db, { organizationId: user.organizationId, id, copy: String(formData.get("copy") ?? ""), hashtags: String(formData.get("hashtags") ?? ""), platformCopy, firstComment: String(formData.get("firstComment") ?? ""), title: String(formData.get("title") ?? ""), plannedDate: String(formData.get("plannedDate") ?? ""), plannedTime: String(formData.get("plannedTime") ?? ""), postType: String(formData.get("postType") ?? "") || undefined, platforms: formData.getAll("platforms").map(String) });
@@ -110,6 +119,7 @@ async function makeImage(formData: FormData) {
   "use server";
   const user = await requirePermission("content.manage");
   const id = String(formData.get("id"));
+  await mustSee(user, id);
   try {
     const f = await generateImage(db, defaultStorage(), { organizationId: user.organizationId, itemId: id, actor: toFileActor(user), note: String(formData.get("note") ?? "") });
     await audit(user, { action: "content.ai_image", entity: "ContentItem", entityId: id, after: { file: f.filename } });
@@ -123,6 +133,7 @@ async function makeImage(formData: FormData) {
 // The three redo buttons: each rewrites part of the post with Claude and saves it as a new version
 async function redo(user: SessionUser, formData: FormData, mode: "CAPTION" | "IDEA" | "PLATFORMS") {
   const id = String(formData.get("id"));
+  await mustSee(user, id);
   try {
     await redoPost(db, { organizationId: user.organizationId, itemId: id, mode, note: String(formData.get("note") ?? ""), actorId: user.id });
     await audit(user, { action: `content.ai_redo_${mode.toLowerCase()}`, entity: "ContentItem", entityId: id });
@@ -140,6 +151,7 @@ async function addHashtags(formData: FormData) {
   "use server";
   const user = await requirePermission("content.manage");
   const id = String(formData.get("id"));
+  await mustSee(user, id);
   try {
     const item = await db.contentItem.findFirst({ where: { id, organizationId: user.organizationId } });
     if (!item) back(id, "Post not found.");
@@ -161,7 +173,7 @@ export default async function ContentPage({ params, searchParams }: { params: Pr
   const { id } = await params;
   const { error, fileError, fileOk, created, redone, auto, design, designError, photo, style } = await searchParams;
   const item = await db.contentItem.findFirst({ where: { id, organizationId: user.organizationId }, include: { events: { orderBy: { createdAt: "desc" } }, versions: { orderBy: { version: "desc" } }, publications: { include: { account: { select: { name: true, username: true } } }, orderBy: { platform: "asc" } } } });
-  if (!item) notFound();
+  if (!item || !(await canSeeContentItem(db, user, item))) notFound();
   const [client, people, clientUsers] = await Promise.all([
     item.clientId ? db.client.findUnique({ where: { id: item.clientId } }) : Promise.resolve(null),
     db.user.findMany({ where: { organizationId: user.organizationId }, select: { id: true, name: true } }),

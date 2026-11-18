@@ -3,6 +3,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { buildIncomeStatement, groupByCurrency, loadBalances, loadReceivablesAging } from "./statements";
 import { type Calendar, isWorkingDate } from "./working-calendar";
+import { contentWhere } from "./content-scope";
 
 export const PERIODS = { month: "This month", last: "Last month", quarter: "This quarter", year: "This year" } as const;
 export type Period = keyof typeof PERIODS;
@@ -86,7 +87,7 @@ export async function loadAttention(
     // Only people with an active HR record, and never the reader: an owner is not "staff who did not mark attendance".
     has("attendance.view_all") ? db.user.findMany({ where: { organizationId, active: true, userType: "EMPLOYEE", id: { not: user.id }, employeeProfile: { is: { organizationId, status: "ACTIVE", archivedAt: null } } }, select: { id: true, name: true } }) : [],
     has("attendance.view_all") ? db.attendanceRecord.findMany({ where: { workDate: today }, select: { userId: true } }) : [],
-    has("content.view") ? db.contentItem.findMany({ where: { organizationId, plannedDate: today, status: { in: ["APPROVED", "SCHEDULED"] } }, orderBy: { plannedTime: "asc" }, take: 5, select: { id: true, title: true, plannedTime: true } }) : [],
+    has("content.view") ? db.contentItem.findMany({ where: { ...(await contentWhere(db, { id: user.id, organizationId, permissions: user.permissions })), plannedDate: today, status: { in: ["APPROVED", "SCHEDULED"] } }, orderBy: { plannedTime: "asc" }, take: 5, select: { id: true, title: true, plannedTime: true } }) : [],
     has("leave.approve") ? db.leaveRequest.count({ where: { status: "PENDING", leaveType: { organizationId } } }) : 0,
     has("attendance.view_all") ? db.leaveRequest.findMany({ where: { status: "APPROVED", startDate: { lte: today }, endDate: { gte: today }, leaveType: { organizationId } }, select: { userId: true } }) : [],
     db.task.count({ where: { assigneeId: user.id, status: { not: "DONE" }, dueDate: { lt: startOfDay(today) }, project: { organizationId } } }),

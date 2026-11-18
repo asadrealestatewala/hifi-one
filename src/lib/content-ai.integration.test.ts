@@ -9,7 +9,7 @@ let org: string, ann: string, pm: string, client: string;
 const NOW = "2026-11-16";
 
 const claude = (n: number) => async () => ({ ok: true, status: 200, json: async () => ({ stop_reason: "end_turn", usage: { input_tokens: 3000, output_tokens: 6000 }, content: [{ type: "text", text: JSON.stringify({ posts: Array.from({ length: n }, (_, i) => ({ slot: i, title: `Post ${i}`, caption: `Caption ${i}`, hashtags: "#a #b", brief: "Make it" })) }) }] }) });
-const actor = () => ({ id: ann, organizationId: org, userType: "EMPLOYEE", clientId: null, vendorId: null, permissions: new Set(["content.manage", "content.view"]) as ReadonlySet<string> });
+const actor = () => ({ id: ann, organizationId: org, userType: "EMPLOYEE", clientId: null, vendorId: null, permissions: new Set(["content.manage", "content.view", "projects.view_all"]) as ReadonlySet<string> });
 
 beforeAll(async () => {
   await db.$executeRawUnsafe('TRUNCATE "ContentAiRun","ClientContentProfile","EngagementQuota","Engagement","StoredFile","ContentEvent","ContentVersion","ContentItem","Notification","Client","User","Organization" CASCADE');

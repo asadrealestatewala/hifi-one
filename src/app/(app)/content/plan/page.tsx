@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { contentClientIds } from "@/lib/content-scope";
 import { PLATFORMS, PLATFORM_META } from "@/lib/content-rules";
 import { PLAN_TYPES, aiSpend, isMonth, monthNeeds } from "@/lib/content-ai";
 import { isConfigured } from "@/lib/integration-keys";
@@ -19,7 +20,8 @@ export default async function PlanTheMonth({ searchParams }: { searchParams: Pro
   const sp = await searchParams;
   const org = user.organizationId;
   const month = isMonth(sp.m ?? "") ? sp.m! : nextMonth();
-  const clients = await db.client.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } });
+  const clientIds = await contentClientIds(db, user);
+  const clients = await db.client.findMany({ where: { organizationId: org, active: true, ...(clientIds ? { id: { in: clientIds } } : {}) }, orderBy: { name: "asc" }, select: { id: true, name: true } });
   const client = clients.find((c) => c.id === sp.client);
   const [profile, needs, claudeOn, imagesOn, runs] = client ? await Promise.all([
     db.clientContentProfile.findUnique({ where: { clientId: client.id } }),
