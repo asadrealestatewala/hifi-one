@@ -10,7 +10,7 @@ import { projectProfitability } from "@/lib/project-finance";
 import { projectFeed, KIND_LABEL, PHASE_LABEL, type ProjectPhase, type UpdateKind } from "@/lib/project-updates";
 import { projectAssetRights } from "@/lib/file-access";
 import { listAssets } from "@/lib/project-assets";
-import { addMember, changeProjectManager, createTask, removeMember, setProjectStatus, updateMemberRole } from "../actions";
+import { addMember, approveClientRequestAction, changeProjectManager, createTask, declineClientRequestAction, removeMember, setProjectStatus, updateMemberRole } from "../actions";
 import ProjectDepth from "./ProjectDepth";
 import ProjectMeetings from "./ProjectMeetings";
 import Deliverables from "./Deliverables";
@@ -26,6 +26,7 @@ import { listChecklist, listSavedChecklists } from "@/lib/task-checklists";
 import Drawer from "@/components/ui/Drawer";
 import Avatar from "@/components/ui/Avatar";
 import ConfirmButton from "@/components/ui/ConfirmButton";
+import { projectRequests } from "@/lib/client-requests";
 import FilesPanel from "@/components/FilesPanel";
 import PhaseTracker from "@/components/PhaseTracker";
 import { openBlockers } from "@/lib/task-rules";
@@ -47,10 +48,10 @@ const SCOPE_PREVIEW = 260;
 export default async function ProjectPage({
   params,
   searchParams,
-}: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; msg?: string; removed?: string; task?: string; new?: string; tab?: string; fileError?: string; fileOk?: string; folder?: string; assetError?: string; assetOk?: string }> }) {
+}: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; msg?: string; req?: string; removed?: string; task?: string; new?: string; tab?: string; fileError?: string; fileOk?: string; folder?: string; assetError?: string; assetOk?: string }> }) {
   const user = await requirePermission("projects.view");
   const { id } = await params;
-  const { error, msg, removed, task: taskId, new: newPanel, tab, fileError, fileOk, folder, assetError, assetOk } = await searchParams;
+  const { error, msg, req, removed, task: taskId, new: newPanel, tab, fileError, fileOk, folder, assetError, assetOk } = await searchParams;
   const project = await db.project.findFirst({
     where: { id, ...projectScope(user) },
     include: { members: true, tasks: { orderBy: { createdAt: "asc" } } },
@@ -79,10 +80,12 @@ export default async function ProjectPage({
     projectAssetRights(db, toFileActor(user), project.id),
   ]);
   const labels = await listLabels(db, user.organizationId);
-  const [fin, fileCount, removalBlockers] = await Promise.all([
+  const canDecide = canManage || project.managerId === user.id;
+  const [fin, fileCount, removalBlockers, requests] = await Promise.all([
     canCosts ? projectProfitability(db, org, project.id) : null,
     assetRights.read ? listAssets(db, org, project.id).then((a) => a.length) : 0,
     canRemove ? projectDeleteBlockers(db, project.id) : [],
+    project.clientId ? projectRequests(db, { organizationId: org, projectId: project.id }) : null,
   ]);
 
   const nameOf = new Map(orgUsers.map((u) => [u.id, u.name]));
@@ -170,6 +173,50 @@ export default async function ProjectPage({
           )}
           {overdue.length > attention.filter(isOverdue).length && <p className="text-xs text-muted">More on the <a href="#tasks" className="underline">Tasks</a> tab.</p>}
         </section>
+        {requests && (requests.waiting.length > 0 || requests.answered.length > 0) && (
+          <section id="requests" className="card space-y-3" aria-labelledby="req-h">
+            <div className="flex flex-wrap items-center justify-between gap-2"><h2 id="req-h" className="font-semibold">Client requests</h2>{requests.waiting.length > 0 && <Badge tone="warning">{requests.waiting.length} waiting</Badge>}</div>
+            {req === "accepted" && <Notice kind="ok">Request accepted. It is now a task the client can follow on their portal.</Notice>}
+            {req === "declined" && <Notice kind="ok">Request declined. The client has your reason.</Notice>}
+            {requests.waiting.length === 0 && <p className="text-sm text-muted">Nothing waiting. New requests from the client portal appear here for {canDecide ? "you" : "the project manager"} to accept or decline.</p>}
+            <ul className="divide-y divide-border text-sm">
+              {requests.waiting.map((r) => (
+                <li key={r.id} className="space-y-2 py-3 first:pt-0">
+                  <div><p className="font-medium">{r.title}</p><p className="text-xs text-muted">{r.askedBy} · {r.createdAt.toLocaleDateString()}{r.wantedBy ? ` · wanted by ${r.wantedBy}` : ""}</p></div>
+                  {r.details && <p className="whitespace-pre-wrap text-muted">{r.details}</p>}
+                  {canDecide && !closed && (
+                    <div className="flex flex-wrap items-end gap-2">
+                      <form action={approveClientRequestAction} className="flex flex-wrap items-end gap-2">
+                        <input type="hidden" name="projectId" value={project.id} /><input type="hidden" name="requestId" value={r.id} />
+                        <div><label className="label" htmlFor={`ra-${r.id}`}>Give to</label><select id={`ra-${r.id}`} name="assigneeId" className="input w-44"><option value="">Unassigned</option>{project.members.map((m) => <option key={m.userId} value={m.userId}>{nameOf.get(m.userId) ?? "Unknown"}</option>)}</select></div>
+                        <div><label className="label" htmlFor={`rd-${r.id}`}>Due</label><input id={`rd-${r.id}`} name="dueDate" type="date" defaultValue={r.wantedBy ?? ""} className="input w-40" /></div>
+                        <div><label className="label" htmlFor={`rp-${r.id}`}>Priority</label><select id={`rp-${r.id}`} name="priority" defaultValue="MEDIUM" className="input w-28">{["LOW", "MEDIUM", "HIGH"].map((c) => <option key={c} value={c}>{c.charAt(0) + c.slice(1).toLowerCase()}</option>)}</select></div>
+                        <SubmitButton pendingText="Accepting…">Accept as task</SubmitButton>
+                      </form>
+                      <form action={declineClientRequestAction}>
+                        <input type="hidden" name="projectId" value={project.id} /><input type="hidden" name="requestId" value={r.id} />
+                        <ConfirmButton title="Decline this request?" message={<>The client sees your reason on their portal and gets a notice. Say what they can do instead.</>} confirmLabel="Decline" reason>Decline</ConfirmButton>
+                      </form>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {requests.answered.length > 0 && (
+              <details className="text-sm">
+                <summary className="cursor-pointer text-muted">Answered ({requests.answered.length})</summary>
+                <ul className="mt-2 divide-y divide-border">
+                  {requests.answered.map((r) => (
+                    <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                      <span>{r.taskId ? <Link href={taskHref(r.taskId)} className="hover:underline">{r.title}</Link> : r.title}{r.declineReason && <span className="block text-xs text-muted">Reason: {r.declineReason}</span>}</span>
+                      <span className="text-xs text-muted"><StatusBadge status={r.status} />{r.decidedBy ? ` ${r.decidedBy}` : ""}{r.decidedAt ? ` · ${r.decidedAt.toLocaleDateString()}` : ""}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </section>
+        )}
         <section className="card space-y-3">
           <div className="flex items-center justify-between gap-2"><h2 className="font-semibold">Latest update</h2><a href="#updates" className="text-xs text-primary hover:underline">All updates</a></div>
           <PhaseTracker phase={project.phase} />
