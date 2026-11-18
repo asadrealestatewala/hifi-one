@@ -12,6 +12,7 @@ import { removeProjectMember, setProjectManager, setProjectMemberRole, type Hand
 import { TaskError, addComment, addSubtask, changeTaskStatus, setBlockers, setRecurrence } from "@/lib/tasks";
 import { parseEstimate } from "@/lib/task-rules";
 import { validLabelIds } from "@/lib/task-labels";
+import { applyTemplate, parseTemplateBody } from "@/lib/project-templates";
 import { BULK_LIMIT, bulkEditTasks, type BulkChange, type BulkSkip } from "@/lib/task-bulk";
 import { notify } from "@/lib/notifications";
 
@@ -31,36 +32,58 @@ const projectSchema = z.object({
 
 export async function createProject(formData: FormData) {
   const user = await requirePermission("projects.manage");
+  // A failed form goes back to the same template choice
+  const tq = formData.get("templateId") ? `&template=${encodeURIComponent(String(formData.get("templateId")))}` : "";
   const parsed = projectSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) redirect(`/projects?new=1&error=${encodeURIComponent(parsed.error.issues[0].message)}`);
+  if (!parsed.success) redirect(`/projects?new=1&error=${encodeURIComponent(parsed.error.issues[0].message)}${tq}`);
   const { managerId: chosenManager, ...d } = parsed.data;
   const managerId = chosenManager ?? user.id;
   if (managerId !== user.id && !(await db.user.findFirst({ where: { id: managerId, organizationId: user.organizationId, active: true, userType: "EMPLOYEE" } }))) {
-    redirect(`/projects?new=1&error=${encodeURIComponent("Choose an active staff member as project manager")}`);
+    redirect(`/projects?new=1&error=${encodeURIComponent("Choose an active staff member as project manager")}${tq}`);
   }
   if (d.budgetAmount !== null && !/^\d{1,12}(\.\d{1,2})?$/.test(d.budgetAmount)) {
-    redirect(`/projects?new=1&error=${encodeURIComponent("Budget must be a positive number")}`);
+    redirect(`/projects?new=1&error=${encodeURIComponent("Budget must be a positive number")}${tq}`);
   }
   if (d.clientId && !(await db.client.findFirst({ where: { id: d.clientId, organizationId: user.organizationId } }))) {
-    redirect(`/projects?new=1&error=${encodeURIComponent("Unknown client")}`);
+    redirect(`/projects?new=1&error=${encodeURIComponent("Unknown client")}${tq}`);
   }
+  // Starting from a template: its plan is copied in, and each role is filled by the person picked for it
+  const templateId = String(formData.get("templateId") ?? "");
+  const template = templateId ? await db.projectTemplate.findFirst({ where: { id: templateId, organizationId: user.organizationId, archivedAt: null } }) : null;
+  if (templateId && !template) redirect(`/projects?new=1&error=${encodeURIComponent("That template is no longer available")}`);
+  const body = template ? parseTemplateBody(template.body) : null;
+  if (body && !body.ok) redirect(`/projects?new=1&error=${encodeURIComponent(`The template needs fixing first: ${body.error}`)}${tq}`);
+  const roleAssignees: Record<string, string> = {};
+  if (body?.ok) for (const [i, role] of body.value.roles.entries()) { const v = String(formData.get(`role${i}`) ?? ""); if (v) roleAssignees[role] = v; }
+  const today = new Date().toISOString().slice(0, 10);
+  const start = d.startDate ? d.startDate.toISOString().slice(0, 10) : today;
+  let applied: Awaited<ReturnType<typeof applyTemplate>> | null = null;
   const project = await db.$transaction(async (tx) => {
     const seq = await tx.numberSequence.upsert({
       where: { organizationId_key: { organizationId: user.organizationId, key: "PRJ" } },
       create: { organizationId: user.organizationId, key: "PRJ", next: 2 },
       update: { next: { increment: 1 } },
     });
-    return tx.project.create({
+    const created = await tx.project.create({
       data: {
         ...d, organizationId: user.organizationId, managerId,
         number: `PRJ-${String(seq.next - 1).padStart(4, "0")}`,
         // The manager joins as "Project manager"; whoever created it for someone else stays on the team so they can still follow it
         members: { create: managerId === user.id ? [{ userId: managerId, role: "Project manager" }] : [{ userId: managerId, role: "Project manager" }, { userId: user.id }] },
+        ...(template ? { templateId: template.id, startDate: d.startDate ?? new Date(`${start}T00:00:00.000Z`) } : {}),
       },
     });
+    if (template && body?.ok) applied = await applyTemplate(tx, { organizationId: user.organizationId, projectId: created.id, body: body.value, start, roleAssignees, byUserId: user.id });
+    return created;
   });
-  await audit(user, { action: "project.create", entity: "Project", entityId: project.id, after: { number: project.number, name: project.name, managerId } });
+  const done = applied as Awaited<ReturnType<typeof applyTemplate>> | null;
+  await audit(user, { action: "project.create", entity: "Project", entityId: project.id, after: { number: project.number, name: project.name, managerId, ...(template ? { template: template.name, tasks: done?.tasks ?? 0, milestones: done?.milestones ?? 0, labelsCreated: done?.labelsCreated ?? [] } : {}) } });
   if (managerId !== user.id) await projectMemberAdded(db, { organizationId: user.organizationId, projectId: project.id, userId: managerId, byUserId: user.id, role: "Project manager" });
+  if (done && body?.ok) {
+    // Everyone who filled a role hears once: they are on the team, and how many tasks are theirs
+    for (const [uid, role] of done.joined) await projectMemberAdded(db, { organizationId: user.organizationId, projectId: project.id, userId: uid, byUserId: user.id, role });
+    for (const [uid, n] of done.assigned) if (uid !== user.id) await notify(db, uid, { kind: "task.assigned", title: `${n} task${n === 1 ? "" : "s"} assigned to you in ${project.name}`, body: project.number, link: "/me/tasks" });
+  }
   redirect(`/projects/${project.id}`);
 }
 

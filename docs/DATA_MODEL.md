@@ -61,3 +61,4 @@ Brands under a client, deliverables as their own entity (campaign deliverables a
 - The time zone is not duplicated here: it stays on `CompanyProfile.timezone`.
 
 - `TaskLabel` (2026-11-18): an organization's shared task labels (name unique per organization, colour is a token tone). Tasks hold label ids in `Task.labelIds` (no foreign key, like `blockedBy`); `deleteLabel` removes the id from every task of the organization.
+- `ProjectTemplate` (2026-11-18): a reusable project plan per organization (name unique per organization). `body` is JSON validated by `templateBodySchema` (roles, milestones with a due day, tasks with day/hours/role/milestone/labels by name/subtasks). `Project.templateId` records which template a project started from (no foreign key needed for history; archived templates keep the link).

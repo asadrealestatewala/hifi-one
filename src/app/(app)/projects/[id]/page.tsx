@@ -32,6 +32,8 @@ import RemoveRecordPanel from "@/components/RemoveRecordPanel";
 import { projectDeleteBlockers } from "@/lib/record-removal";
 import { listLabels } from "@/lib/task-labels";
 import { archiveProjectAction, deleteProjectAction, restoreProjectAction } from "../removal-actions";
+import { saveProjectAsTemplateAction } from "../template-actions";
+import SubmitButton from "@/components/ui/SubmitButton";
 
 export const dynamic = "force-dynamic";
 
@@ -318,6 +320,16 @@ export default async function ProjectPage({
         </div>
       )}
       <ProjectDepth user={user} projectId={project.id} closed={closed} part="rates" />
+      {user.permissions.has("projects.manage") && (
+        <section className="card space-y-3">
+          <div><h2 className="font-semibold">Save as template</h2><p className="text-sm text-muted">Copies this project&apos;s team roles, milestones and tasks (with subtasks, estimates, labels and due days) into a template for the next project like it. Clients, money and files are not copied.</p></div>
+          <form action={saveProjectAsTemplateAction} className="flex flex-wrap items-end gap-2">
+            <input type="hidden" name="projectId" value={project.id} />
+            <div><label className="label" htmlFor="tplName">Template name</label><input id="tplName" name="name" required minLength={2} maxLength={80} defaultValue={project.name} className="input w-64" /></div>
+            <SubmitButton className="btn-ghost" pendingText="Saving…">Save as template</SubmitButton>
+          </form>
+        </section>
+      )}
       {canRemove && (project.status === "CANCELLED" || project.archivedAt) && (
         <details className="text-sm" open={Boolean(project.archivedAt)}>
           <summary className="cursor-pointer text-muted hover:text-foreground">{project.archivedAt ? "Restore this project" : "Remove this project"}</summary>
