@@ -22,6 +22,7 @@ export const templateTaskSchema = z.object({
   repeat: z.enum(RECURRENCES).optional(),
   labels: z.array(z.string().trim().min(1).max(24)).max(6).default([]),
   subtasks: z.array(text(200)).max(20).default([]),
+  checklist: z.array(text(200)).max(50).default([]), // steps ticked off inside the task
 });
 export const templateBodySchema = z.object({
   roles: z.array(text(60)).max(12).default([]),
@@ -58,15 +59,15 @@ export const STARTER_TEMPLATES: { name: string; description: string; body: Templ
       roles: ["Account manager", "Content writer", "Graphic designer"],
       milestones: [{ name: "Month plan approved", day: 5 }, { name: "First posts live", day: 10 }, { name: "Monthly report sent", day: 30 }],
       tasks: [
-        { title: "Kick-off call with the client", description: "Goals for the month, offers to push, tone of voice.", day: 1, hours: 1, priority: "HIGH", role: "Account manager", milestone: "", clientVisible: true, labels: [], subtasks: [] },
-        { title: "Collect brand assets and page access", description: "", day: 2, hours: 1, priority: "HIGH", role: "Account manager", milestone: "", clientVisible: true, labels: [], subtasks: ["Logo, fonts and brand colours", "Facebook and Instagram page access", "Posts that worked well before"] },
-        { title: "Prepare the month's content calendar", description: "", day: 4, hours: 4, priority: "HIGH", role: "Content writer", milestone: "Month plan approved", clientVisible: false, labels: ["Copy"], subtasks: [] },
-        { title: "Client approves the content calendar", description: "", day: 5, hours: 0.5, priority: "HIGH", role: "Account manager", milestone: "Month plan approved", clientVisible: true, labels: [], subtasks: [] },
-        { title: "Write captions for the month", description: "", day: 7, hours: 6, priority: "MEDIUM", role: "Content writer", milestone: "", clientVisible: false, labels: ["Copy"], subtasks: [] },
-        { title: "Design the month's posts", description: "", day: 9, hours: 12, priority: "MEDIUM", role: "Graphic designer", milestone: "", clientVisible: false, labels: ["Design"], subtasks: [] },
-        { title: "Schedule the posts", description: "", day: 10, hours: 2, priority: "MEDIUM", role: "Account manager", milestone: "First posts live", clientVisible: false, labels: [], subtasks: [] },
-        { title: "Reply to comments and messages", description: "", day: 11, hours: 2, priority: "MEDIUM", role: "Account manager", milestone: "", clientVisible: false, repeat: "WEEKLY", labels: [], subtasks: [] },
-        { title: "Monthly performance report", description: "Reach, engagement, best posts and next month's ideas.", day: 29, hours: 3, priority: "HIGH", role: "Account manager", milestone: "Monthly report sent", clientVisible: true, labels: [], subtasks: [] },
+        { title: "Kick-off call with the client", description: "Goals for the month, offers to push, tone of voice.", day: 1, hours: 1, priority: "HIGH", role: "Account manager", milestone: "", clientVisible: true, labels: [], subtasks: [], checklist: [] },
+        { title: "Collect brand assets and page access", description: "", day: 2, hours: 1, priority: "HIGH", role: "Account manager", milestone: "", clientVisible: true, labels: [], subtasks: ["Logo, fonts and brand colours", "Facebook and Instagram page access", "Posts that worked well before"], checklist: [] },
+        { title: "Prepare the month's content calendar", description: "", day: 4, hours: 4, priority: "HIGH", role: "Content writer", milestone: "Month plan approved", clientVisible: false, labels: ["Copy"], subtasks: [], checklist: [] },
+        { title: "Client approves the content calendar", description: "", day: 5, hours: 0.5, priority: "HIGH", role: "Account manager", milestone: "Month plan approved", clientVisible: true, labels: [], subtasks: [], checklist: [] },
+        { title: "Write captions for the month", description: "", day: 7, hours: 6, priority: "MEDIUM", role: "Content writer", milestone: "", clientVisible: false, labels: ["Copy"], subtasks: [], checklist: [] },
+        { title: "Design the month's posts", description: "", day: 9, hours: 12, priority: "MEDIUM", role: "Graphic designer", milestone: "", clientVisible: false, labels: ["Design"], subtasks: [], checklist: ["Brand colours and fonts used", "Logo placed", "Feed and story sizes exported", "Spelling checked against the captions"] },
+        { title: "Schedule the posts", description: "", day: 10, hours: 2, priority: "MEDIUM", role: "Account manager", milestone: "First posts live", clientVisible: false, labels: [], subtasks: [], checklist: ["Only client-approved posts scheduled", "Dates and times match the calendar", "Links and tags checked"] },
+        { title: "Reply to comments and messages", description: "", day: 11, hours: 2, priority: "MEDIUM", role: "Account manager", milestone: "", clientVisible: false, repeat: "WEEKLY", labels: [], subtasks: [], checklist: [] },
+        { title: "Monthly performance report", description: "Reach, engagement, best posts and next month's ideas.", day: 29, hours: 3, priority: "HIGH", role: "Account manager", milestone: "Monthly report sent", clientVisible: true, labels: [], subtasks: [], checklist: [] },
       ],
     },
   },
@@ -77,17 +78,17 @@ export const STARTER_TEMPLATES: { name: string; description: string; body: Templ
       roles: ["Account manager", "Ads specialist", "Content writer", "Graphic designer"],
       milestones: [{ name: "Campaign plan approved", day: 4 }, { name: "Ads live", day: 8 }, { name: "Final report", day: 21 }],
       tasks: [
-        { title: "Kick-off: goals, offer and budget", description: "", day: 1, hours: 1, priority: "HIGH", role: "Account manager", milestone: "", clientVisible: true, labels: [], subtasks: [] },
-        { title: "Ad account and tracking access", description: "", day: 2, hours: 2, priority: "HIGH", role: "Ads specialist", milestone: "", clientVisible: true, labels: ["Ads"], subtasks: ["Business Manager access", "Pixel and Conversions API check", "Payment method on the ad account"] },
-        { title: "Audience and budget plan", description: "", day: 3, hours: 3, priority: "HIGH", role: "Ads specialist", milestone: "Campaign plan approved", clientVisible: false, labels: ["Ads"], subtasks: [] },
-        { title: "Client approves the campaign plan", description: "", day: 4, hours: 0.5, priority: "HIGH", role: "Account manager", milestone: "Campaign plan approved", clientVisible: true, labels: [], subtasks: [] },
-        { title: "Write ad copy variations", description: "", day: 5, hours: 3, priority: "MEDIUM", role: "Content writer", milestone: "", clientVisible: false, labels: ["Copy"], subtasks: [] },
-        { title: "Design ad creatives", description: "", day: 6, hours: 6, priority: "MEDIUM", role: "Graphic designer", milestone: "", clientVisible: false, labels: ["Design"], subtasks: [] },
-        { title: "Build the campaigns", description: "", day: 7, hours: 4, priority: "HIGH", role: "Ads specialist", milestone: "", clientVisible: false, labels: ["Ads"], subtasks: [] },
-        { title: "Launch and check delivery", description: "", day: 8, hours: 1, priority: "HIGH", role: "Ads specialist", milestone: "Ads live", clientVisible: false, labels: ["Ads"], subtasks: [] },
-        { title: "Optimise the campaigns", description: "Budgets, audiences, pause losers, scale winners.", day: 10, hours: 2, priority: "MEDIUM", role: "Ads specialist", milestone: "", clientVisible: false, repeat: "WEEKLY", labels: ["Ads"], subtasks: [] },
-        { title: "Mid-campaign update to the client", description: "", day: 14, hours: 1, priority: "MEDIUM", role: "Account manager", milestone: "", clientVisible: true, labels: [], subtasks: [] },
-        { title: "Final results report", description: "", day: 21, hours: 3, priority: "HIGH", role: "Account manager", milestone: "Final report", clientVisible: true, labels: [], subtasks: [] },
+        { title: "Kick-off: goals, offer and budget", description: "", day: 1, hours: 1, priority: "HIGH", role: "Account manager", milestone: "", clientVisible: true, labels: [], subtasks: [], checklist: [] },
+        { title: "Ad account and tracking access", description: "", day: 2, hours: 2, priority: "HIGH", role: "Ads specialist", milestone: "", clientVisible: true, labels: ["Ads"], subtasks: ["Business Manager access", "Pixel and Conversions API check", "Payment method on the ad account"], checklist: [] },
+        { title: "Audience and budget plan", description: "", day: 3, hours: 3, priority: "HIGH", role: "Ads specialist", milestone: "Campaign plan approved", clientVisible: false, labels: ["Ads"], subtasks: [], checklist: [] },
+        { title: "Client approves the campaign plan", description: "", day: 4, hours: 0.5, priority: "HIGH", role: "Account manager", milestone: "Campaign plan approved", clientVisible: true, labels: [], subtasks: [], checklist: [] },
+        { title: "Write ad copy variations", description: "", day: 5, hours: 3, priority: "MEDIUM", role: "Content writer", milestone: "", clientVisible: false, labels: ["Copy"], subtasks: [], checklist: [] },
+        { title: "Design ad creatives", description: "", day: 6, hours: 6, priority: "MEDIUM", role: "Graphic designer", milestone: "", clientVisible: false, labels: ["Design"], subtasks: [], checklist: [] },
+        { title: "Build the campaigns", description: "", day: 7, hours: 4, priority: "HIGH", role: "Ads specialist", milestone: "", clientVisible: false, labels: ["Ads"], subtasks: [], checklist: [] },
+        { title: "Launch and check delivery", description: "", day: 8, hours: 1, priority: "HIGH", role: "Ads specialist", milestone: "Ads live", clientVisible: false, labels: ["Ads"], subtasks: [], checklist: ["Ads approved by Meta", "Pixel and conversions firing", "Budgets and schedule match the plan", "Links and UTM tags work"] },
+        { title: "Optimise the campaigns", description: "Budgets, audiences, pause losers, scale winners.", day: 10, hours: 2, priority: "MEDIUM", role: "Ads specialist", milestone: "", clientVisible: false, repeat: "WEEKLY", labels: ["Ads"], subtasks: [], checklist: [] },
+        { title: "Mid-campaign update to the client", description: "", day: 14, hours: 1, priority: "MEDIUM", role: "Account manager", milestone: "", clientVisible: true, labels: [], subtasks: [], checklist: [] },
+        { title: "Final results report", description: "", day: 21, hours: 3, priority: "HIGH", role: "Account manager", milestone: "Final report", clientVisible: true, labels: [], subtasks: [], checklist: [] },
       ],
     },
   },
@@ -126,7 +127,7 @@ export async function saveTemplate(db: Db, p: { organizationId: string; id?: str
 // days from the project start (or from the earliest date in it), estimates, labels and repeat settings. Assignees become roles
 // only where the person has a role on the team; nothing about clients, money or files is copied.
 export async function templateFromProject(db: Db, p: { organizationId: string; projectId: string }): Promise<TemplateResult<TemplateBody>> {
-  const project = await db.project.findFirst({ where: { id: p.projectId, organizationId: p.organizationId }, include: { members: true, milestones: { orderBy: { sortOrder: "asc" } }, tasks: { orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }] } } });
+  const project = await db.project.findFirst({ where: { id: p.projectId, organizationId: p.organizationId }, include: { members: true, milestones: { orderBy: { sortOrder: "asc" } }, tasks: { orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }], include: { checklist: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }], select: { text: true } } } } } });
   if (!project) return { ok: false, error: "Project not found." };
   const labels = new Map((await db.taskLabel.findMany({ where: { organizationId: p.organizationId }, select: { id: true, name: true } })).map((l) => [l.id, l.name]));
   const dates = [project.startDate?.toISOString().slice(0, 10), ...project.tasks.map((t) => t.dueDate?.toISOString().slice(0, 10)), ...project.milestones.map((m) => m.dueDate ?? undefined)].filter(Boolean) as string[];
@@ -143,6 +144,7 @@ export async function templateFromProject(db: Db, p: { organizationId: string; p
       priority: t.priority, role: t.assigneeId ? roleOf.get(t.assigneeId) ?? "" : "", milestone: t.milestoneId ? milestoneName.get(t.milestoneId) ?? "" : "",
       clientVisible: t.clientVisible, repeat: t.recurrence ?? undefined, labels: t.labelIds.map((id) => labels.get(id)).filter(Boolean).slice(0, 6) as string[],
       subtasks: project.tasks.filter((s) => s.parentId === t.id).map((s) => s.title).slice(0, 20),
+      checklist: [...new Set(t.checklist.map((c) => c.text.slice(0, 200)))].slice(0, 50),
     })),
   };
   return parseTemplateBody(body);
@@ -191,6 +193,7 @@ export async function applyTemplate(tx: Tx, p: { organizationId: string; project
       milestoneId: t.milestone ? milestoneId.get(t.milestone) ?? null : null, labelIds: t.labels.map((n) => existing.get(n.toLowerCase())!).filter(Boolean), createdById: p.byUserId,
     } });
     count++;
+    if (t.checklist.length) await tx.taskChecklistItem.createMany({ data: t.checklist.map((text, i) => ({ taskId: task.id, text, sortOrder: i })) });
     for (const s of t.subtasks) { await tx.task.create({ data: { projectId: p.projectId, parentId: task.id, title: s, assigneeId, dueDate: due, priority: t.priority, createdById: p.byUserId } }); count++; }
     if (assigneeId) assigned.set(assigneeId, (assigned.get(assigneeId) ?? 0) + 1 + t.subtasks.length);
   }

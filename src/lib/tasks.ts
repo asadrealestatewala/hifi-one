@@ -1,4 +1,4 @@
-// Subtasks, dependencies, recurrence and comments on project tasks. Callers have already checked that the person may touch the project.
+// Subtasks, checklists (rules in task-checklists.ts), dependencies, recurrence and comments on project tasks. Callers have already checked that the person may touch the project.
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { RECURRENCES, nextDue, openBlockers, wouldCycle, type Recurrence } from "./task-rules";
 
@@ -55,6 +55,8 @@ export async function changeTaskStatus(db: Db, p: { projectId: string; taskId: s
     if (p.status === "DONE") {
       const subs = await tx.task.count({ where: { parentId: task.id, status: { not: "DONE" } } });
       if (subs) throw new TaskError(`${subs} subtask${subs === 1 ? " is" : "s are"} not done yet.`);
+      const unticked = await tx.taskChecklistItem.count({ where: { taskId: task.id, done: false } });
+      if (unticked) throw new TaskError(`${unticked} checklist item${unticked === 1 ? " is" : "s are"} not ticked yet.`);
     }
     const updated = await tx.task.update({ where: { id: task.id }, data: { status: p.status, completedAt: p.status === "DONE" ? (p.now ?? new Date()) : null } });
     let next = null;
@@ -66,8 +68,12 @@ export async function changeTaskStatus(db: Db, p: { projectId: string; taskId: s
           data: {
             projectId: task.projectId, title: task.title, description: task.description, priority: task.priority, assigneeId: task.assigneeId, clientVisible: task.clientVisible, milestoneId: task.milestoneId,
             estimatedHours: task.estimatedHours, recurrence: task.recurrence, recurredFromId: task.id, createdById: p.actorId, dueDate: nextDue(task.dueDate, task.recurrence as Recurrence, p.now),
+            labelIds: task.labelIds,
           },
         });
+        // The next occurrence starts with the same checklist, all unticked
+        const items = await tx.taskChecklistItem.findMany({ where: { taskId: task.id }, orderBy: { sortOrder: "asc" }, select: { text: true, sortOrder: true } });
+        if (items.length) await tx.taskChecklistItem.createMany({ data: items.map((i) => ({ taskId: next!.id, text: i.text, sortOrder: i.sortOrder })) });
       }
     }
     return { task: updated, next };

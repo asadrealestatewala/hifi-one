@@ -21,6 +21,8 @@ import ProjectTabs, { type ProjectTab } from "./ProjectTabs";
 import { resolveTab } from "./tabs";
 import TaskBoard from "./TaskBoard";
 import TaskDetail from "./TaskDetail";
+import TaskChecklist from "./TaskChecklist";
+import { listChecklist, listSavedChecklists } from "@/lib/task-checklists";
 import Drawer from "@/components/ui/Drawer";
 import Avatar from "@/components/ui/Avatar";
 import ConfirmButton from "@/components/ui/ConfirmButton";
@@ -87,6 +89,15 @@ export default async function ProjectPage({
   const progress = projectProgress(project.tasks);
   const open = taskId ? project.tasks.find((t) => t.id === taskId) ?? null : null;
   const comments = open ? await db.taskComment.findMany({ where: { taskId: open.id }, orderBy: { createdAt: "asc" }, take: 100 }) : [];
+  // Checklist progress for the board, and the open task's own checklist with the organization's saved checklists
+  const [checkRows, checkDoneRows, checklist, savedChecklists] = await Promise.all([
+    db.taskChecklistItem.groupBy({ by: ["taskId"], where: { task: { projectId: project.id } }, _count: { _all: true } }),
+    db.taskChecklistItem.groupBy({ by: ["taskId"], where: { task: { projectId: project.id }, done: true }, _count: { _all: true } }),
+    open ? listChecklist(db, open.id) : Promise.resolve([]),
+    open ? listSavedChecklists(db, user.organizationId) : Promise.resolve([]),
+  ]);
+  const checkTotal = new Map(checkRows.map((r) => [r.taskId, r._count._all]));
+  const checkDone = new Map(checkDoneRows.map((r) => [r.taskId, r._count._all]));
   // Comment authors can also be the client's portal users, who are not in the staff list
   const outsiders = new Map((await db.user.findMany({ where: { id: { in: comments.map((c) => c.authorId).filter((a) => !nameOf.has(a)) } }, select: { id: true, name: true, clientId: true } })).map((u) => [u.id, u]));
   const top = project.tasks.filter((t) => !t.parentId);
@@ -208,7 +219,7 @@ export default async function ProjectPage({
   const tasks = (
     <div key="tasks" className="space-y-6">
       <TaskBoard
-        key={project.tasks.map((t) => `${t.id}:${t.status}:${t.blockedBy.join("")}:${t.labelIds.join("")}`).join(",") + labels.map((l) => l.name + l.color).join("")}
+        key={project.tasks.map((t) => `${t.id}:${t.status}:${t.blockedBy.join("")}:${t.labelIds.join("")}:${checkDone.get(t.id) ?? 0}/${checkTotal.get(t.id) ?? 0}`).join(",") + labels.map((l) => l.name + l.color).join("")}
         canMove={canMove && !closed}
         userId={user.id}
         isManager={canManage || project.managerId === user.id}
@@ -218,6 +229,7 @@ export default async function ProjectPage({
           due: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
           overdue: isOverdue(t),
           subDone: project.tasks.filter((x) => x.parentId === t.id && x.status === "DONE").length, subTotal: project.tasks.filter((x) => x.parentId === t.id).length,
+          checkDone: checkDone.get(t.id) ?? 0, checkTotal: checkTotal.get(t.id) ?? 0,
           waitingFor: openBlockers(t.blockedBy, byId).map((x) => x.title), recurrence: t.recurrence, href: taskHref(t.id), labelIds: t.labelIds,
         }))}
         labels={labels}
@@ -401,6 +413,10 @@ export default async function ProjectPage({
             members={project.members.map((m) => ({ id: m.userId, name: nameOf.get(m.userId) ?? "Unknown" }))}
             labels={labels} canManageLabels={canManage}
             comments={comments.map((c) => ({ id: c.id, authorId: c.authorId, author: nameOf.get(c.authorId) ?? outsiders.get(c.authorId)?.name ?? "Former staff", body: c.body, at: c.createdAt.toLocaleString(), shared: !c.internal, fromClient: Boolean(outsiders.get(c.authorId)?.clientId) }))}
+            checklist={<TaskChecklist taskId={open.id} taskDone={open.status === "DONE"} canSave={canManage}
+              canWork={canMove && !closed && (canManage || project.managerId === user.id || open.assigneeId === user.id)}
+              items={checklist.map((i) => ({ id: i.id, text: i.text, done: i.done, by: i.doneById ? nameOf.get(i.doneById) ?? outsiders.get(i.doneById)?.name ?? "Former staff" : null, at: i.doneAt ? i.doneAt.toLocaleString() : null }))}
+              saved={savedChecklists.map((c) => ({ id: c.id, name: c.name, count: c.items.length }))} />}
             canManage={(canManage || project.managerId === user.id) && !closed} canMoveSubtasks={canMove && !closed && (canManage || project.managerId === user.id || open.assigneeId === user.id)} canComment={canMove}
           >
             <FilesPanel user={user} ownerType="TASK" ownerId={open.id} returnTo={`${base}?task=${open.id}`} title="Files" flash={{ fileError, fileOk }} />

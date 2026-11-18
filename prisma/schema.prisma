@@ -428,9 +428,9 @@ model Client {
   createdAt        DateTime @default(now())
 
   contactId        String?
-  clientType       String             @default("MARKETING") // MARKETING | SOFTWARE | INCORPORATION | SELLER_SERVICES | SAAS
+  clientType       String              @default("MARKETING") // MARKETING | SOFTWARE | INCORPORATION | SELLER_SERVICES | SAAS
   projectManagerId String? // the staff member allocated to run this client's work (shown in the client portal)
-  reviewAreas      String[]           @default([]) // what the client rates in the weekly review form; empty means the default list for the client type
+  reviewAreas      String[]            @default([]) // what the client rates in the weekly review form; empty means the default list for the client type
   supportManagerId String? // dedicated support manager for a SaaS customer; the project manager covers support when empty
   engagements      Engagement[]
   invoices         Invoice[]
@@ -662,13 +662,44 @@ model Task {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  project   Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  milestone Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  project   Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestone Milestone?          @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
   comments  TaskComment[]
+  checklist TaskChecklistItem[]
 
   @@index([parentId])
   @@index([projectId, status])
   @@index([assigneeId])
+}
+
+// A step inside one task ("Spelling checked", "Pixel firing"). Lighter than a subtask: no assignee or date. A task can't be
+// marked Done while any item is unticked. Recurring tasks copy their items, unticked, to the next occurrence.
+model TaskChecklistItem {
+  id        String    @id @default(cuid())
+  taskId    String
+  text      String
+  done      Boolean   @default(false)
+  doneById  String?
+  doneAt    DateTime?
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, sortOrder])
+}
+
+// A saved checklist the organization reuses on many tasks (QA before posting, ad launch checks…).
+model ChecklistTemplate {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  items          String[]
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, name])
 }
 
 // A reusable project plan (Social media retainer, Ads campaign…): team roles, milestones and tasks with due-date offsets
@@ -1361,18 +1392,18 @@ model ClientContentProfile {
 
 // One AI action for a client: a monthly plan or one image. Estimated cost is kept so the monthly cap can be enforced and shown.
 model ContentAiRun {
-  id             String   @id @default(cuid())
-  organizationId String
-  clientId       String
-  month          String // YYYY-MM the cost counts toward
-  kind           String // PLAN | IMAGE
-  planMonth      String? // PLAN: the calendar month that was planned
-  itemId         String? // IMAGE: the post
-  postCount      Int      @default(0)
-  estimatedCostUsd Decimal @default(0) @db.Decimal(8, 4)
-  createdById    String
-  createdAt      DateTime @default(now())
-  undoneAt       DateTime?
+  id               String    @id @default(cuid())
+  organizationId   String
+  clientId         String
+  month            String // YYYY-MM the cost counts toward
+  kind             String // PLAN | IMAGE
+  planMonth        String? // PLAN: the calendar month that was planned
+  itemId           String? // IMAGE: the post
+  postCount        Int       @default(0)
+  estimatedCostUsd Decimal   @default(0) @db.Decimal(8, 4)
+  createdById      String
+  createdAt        DateTime  @default(now())
+  undoneAt         DateTime?
 
   @@index([clientId, month])
   @@index([organizationId, createdAt])
@@ -1524,14 +1555,14 @@ model ContentDesign {
 }
 
 model ContentVersion {
-  id        String   @id @default(cuid())
-  itemId    String
-  version   Int
-  copy      String
-  hashtags  String?
+  id           String   @id @default(cuid())
+  itemId       String
+  version      Int
+  copy         String
+  hashtags     String?
   platformCopy Json?
   firstComment String?
-  createdAt DateTime @default(now())
+  createdAt    DateTime @default(now())
 
   item ContentItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
@@ -1827,22 +1858,22 @@ model SubscriptionInvoice {
 }
 
 model Contract {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   organizationId    String
   clientId          String
   title             String
-  status            String   @default("DRAFT") // DRAFT | ACTIVE | EXPIRED | TERMINATED
+  status            String    @default("DRAFT") // DRAFT | ACTIVE | EXPIRED | TERMINATED
   startDate         String?
   endDate           String?
-  renewalNoticeDays Int      @default(30)
+  renewalNoticeDays Int       @default(30)
   currency          String?
-  value             Decimal? @db.Decimal(14, 2)
+  value             Decimal?  @db.Decimal(14, 2)
   notes             String?
-  sharedWithClient  Boolean  @default(false) // shown, with its files, on the client's portal Agreements page
+  sharedWithClient  Boolean   @default(false) // shown, with its files, on the client's portal Agreements page
   sharedAt          DateTime?
   createdById       String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   client Client @relation(fields: [clientId], references: [id])
 
@@ -3905,24 +3936,24 @@ model PartnerIdentity {
 // A new account can be used only after `usableFrom` (a 48-hour hold) and, when its title does not match the partner's
 // verified name, only after staff approve it. All payments are made by hand until an integration exists.
 model PartnerPayoutAccount {
-  id               String    @id @default(cuid())
-  organizationId   String
-  earnerId         String
-  method           String // BANK | EASYPAISA | JAZZCASH | SADAPAY | NAYAPAY | PAYPAL | STRIPE | OTHER
-  otherName        String? // the service's name when method is OTHER
-  bankName         String?
-  accountTitle     String
-  accountEnc       String // IBAN, wallet number, email or account id; encrypted
-  accountLast4     String
-  isDefault        Boolean   @default(false)
-  titleMatches     Boolean
-  approvedById     String? // staff approval, needed when the title does not match
-  approvedAt       DateTime?
-  usableFrom       DateTime
-  removedAt        DateTime?
-  removedById      String?
-  createdById      String
-  createdAt        DateTime  @default(now())
+  id             String    @id @default(cuid())
+  organizationId String
+  earnerId       String
+  method         String // BANK | EASYPAISA | JAZZCASH | SADAPAY | NAYAPAY | PAYPAL | STRIPE | OTHER
+  otherName      String? // the service's name when method is OTHER
+  bankName       String?
+  accountTitle   String
+  accountEnc     String // IBAN, wallet number, email or account id; encrypted
+  accountLast4   String
+  isDefault      Boolean   @default(false)
+  titleMatches   Boolean
+  approvedById   String? // staff approval, needed when the title does not match
+  approvedAt     DateTime?
+  usableFrom     DateTime
+  removedAt      DateTime?
+  removedById    String?
+  createdById    String
+  createdAt      DateTime  @default(now())
 
   earner Earner @relation(fields: [earnerId], references: [id], onDelete: Cascade)
 
