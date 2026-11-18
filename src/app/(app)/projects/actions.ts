@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { projectScope } from "@/lib/projects";
 import { commentSharedWithClient, projectMemberAdded, projectStatusChanged, taskAssigned, taskCommented, taskMoved } from "@/lib/events";
 import { TASK_STATUSES, canCompleteProject } from "@/lib/project-rules";
-import { setProjectManager } from "@/lib/project-manager";
+import { removeProjectMember, setProjectManager, setProjectMemberRole } from "@/lib/project-manager";
 import { TaskError, addComment, addSubtask, changeTaskStatus, setBlockers, setRecurrence } from "@/lib/tasks";
 
 const optDate = z.string().optional().transform((v) => (v ? new Date(v) : null));
@@ -77,6 +77,34 @@ export async function addMember(formData: FormData) {
   });
   await audit(user, { action: "project.add_member", entity: "Project", entityId: projectId, after: { userId, role } });
   await projectMemberAdded(db, { organizationId: user.organizationId, projectId, userId, byUserId: user.id, role });
+  revalidatePath(`/projects/${projectId}`);
+}
+
+// Takes someone off the team (not the manager). Their open tasks here become unassigned; time and history stay.
+export async function removeMember(formData: FormData): Promise<void> {
+  const user = await requirePermission("projects.manage");
+  const projectId = String(formData.get("projectId") ?? "");
+  const userId = String(formData.get("userId") ?? "");
+  const project = await loadProject(projectId, user);
+  if (!project) redirect("/projects");
+  const r = await removeProjectMember(db, { organizationId: user.organizationId, projectId, userId, byUserId: user.id });
+  if (!r.ok) redirect(`/projects/${projectId}?error=${encodeURIComponent(r.error)}&tab=settings`);
+  await audit(user, { action: "project.remove_member", entity: "Project", entityId: projectId, before: { userId }, after: { unassignedTasks: r.unassigned } });
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/projects");
+  redirect(`/projects/${projectId}?removed=${encodeURIComponent(r.unassigned ? `Removed from the team. ${r.unassigned} open task${r.unassigned === 1 ? " is" : "s are"} now unassigned on the Tasks tab.` : "Removed from the team.")}&tab=settings`);
+}
+
+export async function updateMemberRole(formData: FormData): Promise<void> {
+  const user = await requirePermission("projects.manage");
+  const projectId = String(formData.get("projectId") ?? "");
+  const userId = String(formData.get("userId") ?? "");
+  const project = await loadProject(projectId, user);
+  if (!project) redirect("/projects");
+  const before = await db.projectMember.findUnique({ where: { projectId_userId: { projectId, userId } }, select: { role: true } });
+  const r = await setProjectMemberRole(db, { organizationId: user.organizationId, projectId, userId, role: String(formData.get("role") ?? "") });
+  if (!r.ok) redirect(`/projects/${projectId}?error=${encodeURIComponent(r.error)}&tab=settings`);
+  await audit(user, { action: "project.member_role", entity: "Project", entityId: projectId, before: { userId, role: before?.role ?? null }, after: { userId, role: r.role } });
   revalidatePath(`/projects/${projectId}`);
 }
 

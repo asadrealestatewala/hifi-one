@@ -10,7 +10,7 @@ import { projectProfitability } from "@/lib/project-finance";
 import { projectFeed, KIND_LABEL, PHASE_LABEL, type ProjectPhase, type UpdateKind } from "@/lib/project-updates";
 import { projectAssetRights } from "@/lib/file-access";
 import { listAssets } from "@/lib/project-assets";
-import { addMember, changeProjectManager, createTask, setProjectStatus } from "../actions";
+import { addMember, changeProjectManager, createTask, removeMember, setProjectStatus, updateMemberRole } from "../actions";
 import ProjectDepth from "./ProjectDepth";
 import ProjectMeetings from "./ProjectMeetings";
 import Deliverables from "./Deliverables";
@@ -23,6 +23,7 @@ import TaskBoard from "./TaskBoard";
 import TaskDetail from "./TaskDetail";
 import Drawer from "@/components/ui/Drawer";
 import Avatar from "@/components/ui/Avatar";
+import ConfirmButton from "@/components/ui/ConfirmButton";
 import FilesPanel from "@/components/FilesPanel";
 import PhaseTracker from "@/components/PhaseTracker";
 import { openBlockers } from "@/lib/task-rules";
@@ -254,9 +255,36 @@ export default async function ProjectPage({
           </section>
           <section className="card space-y-3">
             <h2 className="font-semibold">Team</h2>
-            <ul className="space-y-1.5 text-sm">
-              {project.members.map((m) => <li key={m.userId} className="flex items-center gap-2"><Avatar name={nameOf.get(m.userId) ?? "Unknown"} userId={m.userId} size={28} /><span>{nameOf.get(m.userId) ?? "Unknown"}{m.role && <span className="text-muted"> · {m.role}</span>}</span></li>)}
+            <ul className="divide-y divide-border text-sm">
+              {project.members.map((m) => {
+                const who = nameOf.get(m.userId) ?? "Unknown";
+                const isPm = m.userId === project.managerId;
+                const openCount = openTasks.filter((t) => t.assigneeId === m.userId).length;
+                return (
+                  <li key={m.userId} className="flex flex-wrap items-center gap-2 py-2">
+                    <Avatar name={who} userId={m.userId} size={28} />
+                    <span className="min-w-32 flex-1">{who}{closed && m.role && <span className="text-muted"> · {m.role}</span>}{isPm && <span className="text-xs text-muted"> · manages the project</span>}</span>
+                    {!closed && (
+                      <form key={`${m.userId}:${m.role ?? ""}`} action={updateMemberRole} className="flex items-center gap-1">
+                        <input type="hidden" name="projectId" value={project.id} /><input type="hidden" name="userId" value={m.userId} />
+                        <input name="role" defaultValue={m.role ?? ""} maxLength={80} placeholder="Role" aria-label={`Role of ${who}`} className="input !w-40 !py-1 text-xs" />
+                        <button className="btn-ghost !px-2 !py-1 text-xs">Save</button>
+                      </form>
+                    )}
+                    {!closed && !isPm && (
+                      <form action={removeMember}>
+                        <input type="hidden" name="projectId" value={project.id} /><input type="hidden" name="userId" value={m.userId} />
+                        <ConfirmButton className="btn-ghost !px-2 !py-1 text-xs !text-danger" title={`Remove ${who} from the team?`} confirmLabel="Remove from team"
+                          message={`${who} will no longer see this project unless their role lets them see all projects.${openCount ? ` Their ${openCount} open task${openCount === 1 ? "" : "s"} here will become unassigned.` : ""} Logged time, finished tasks and comments keep their name.`}>
+                          Remove
+                        </ConfirmButton>
+                      </form>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
+            {!closed && <p className="text-xs text-muted">To remove the project manager, choose a new manager first.</p>}
             {!closed && (
               <form action={addMember} className="flex flex-wrap gap-2 border-t border-border pt-3">
                 <input type="hidden" name="projectId" value={project.id} />
