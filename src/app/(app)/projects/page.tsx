@@ -10,11 +10,13 @@ import Drawer from "@/components/ui/Drawer";
 import { isOverdue } from "@/lib/project-rules";
 import TasksView from "./TasksView";
 import WorkloadView from "./WorkloadView";
+import TemplatesView from "./TemplatesView";
+import { parseTemplateBody } from "@/lib/project-templates";
 
 export const dynamic = "force-dynamic";
 
 const STATUSES = ["ACTIVE", "ON_HOLD", "COMPLETED", "CANCELLED"];
-type SP = { deleted?: string; error?: string; status?: string; q?: string; new?: string; client?: string; campaign?: string; from?: string; view?: string; who?: string; tstatus?: string; priority?: string; project?: string; due?: string; page?: string; person?: string };
+type SP = { deleted?: string; error?: string; status?: string; q?: string; new?: string; client?: string; campaign?: string; from?: string; view?: string; who?: string; tstatus?: string; priority?: string; project?: string; due?: string; page?: string; person?: string; template?: string; ok?: string };
 
 export default async function Projects({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requirePermission("projects.view");
@@ -22,17 +24,22 @@ export default async function Projects({ searchParams }: { searchParams: Promise
   const canManage = user.permissions.has("projects.manage");
   // Workload is for whoever assigns work: project management rights, or the manager of at least one project
   const canWorkload = canManage || (await db.project.count({ where: { organizationId: user.organizationId, managerId: user.id } })) > 0;
-  const view = sp.view === "tasks" ? "tasks" : sp.view === "workload" && canWorkload ? "workload" : "projects";
-  const tabs = <Tabs current={view} items={[{ key: "projects", label: "Projects", href: "/projects" }, { key: "tasks", label: "Tasks", href: "/projects?view=tasks" }, ...(canWorkload ? [{ key: "workload", label: "Workload", href: "/projects?view=workload" }] : [])]} />;
+  const view = sp.view === "tasks" ? "tasks" : sp.view === "workload" && canWorkload ? "workload" : sp.view === "templates" && canManage ? "templates" : "projects";
+  const tabs = <Tabs current={view} items={[{ key: "projects", label: "Projects", href: "/projects" }, { key: "tasks", label: "Tasks", href: "/projects?view=tasks" }, ...(canWorkload ? [{ key: "workload", label: "Workload", href: "/projects?view=workload" }] : []), ...(canManage ? [{ key: "templates", label: "Templates", href: "/projects?view=templates" }] : [])]} />;
   if (view === "tasks") return <TasksView user={user} sp={sp} tabs={tabs} />;
   if (view === "workload") return <WorkloadView user={user} sp={{ person: sp.person, page: sp.page }} tabs={tabs} />;
+  if (view === "templates") return <TemplatesView user={user} sp={{ ok: sp.ok, status: sp.status }} tabs={tabs} />;
   const status = STATUSES.includes(sp.status ?? "") || sp.status === "ARCHIVED" ? sp.status! : "all";
   const q = sp.q?.trim();
-  const [rows, clients, staff] = await Promise.all([
+  const [rows, clients, staff, templates] = await Promise.all([
     db.project.findMany({ where: projectScope(user), orderBy: { createdAt: "desc" }, include: { tasks: { select: { status: true, dueDate: true, parentId: true } } } }),
     db.client.findMany({ where: { organizationId: user.organizationId, active: true }, orderBy: { name: "asc" } }),
     canManage && sp.new ? db.user.findMany({ where: { organizationId: user.organizationId, active: true, userType: "EMPLOYEE" }, orderBy: { name: "asc" }, select: { id: true, name: true } }) : Promise.resolve([]),
+    canManage && sp.new ? db.projectTemplate.findMany({ where: { organizationId: user.organizationId, archivedAt: null }, orderBy: { name: "asc" }, select: { id: true, name: true, body: true } }) : Promise.resolve([]),
   ]);
+  // New project can start from a template: ?template=<id> shows a person picker for each of its roles
+  const chosen = templates.find((t) => t.id === sp.template);
+  const chosenBody = chosen ? parseTemplateBody(chosen.body) : null;
   const clientName = new Map(clients.map((c) => [c.id, c.name]));
   // Archived projects (closed ones put away) only show under their own chip
   const archived = rows.filter((p) => p.archivedAt);
@@ -84,6 +91,32 @@ export default async function Projects({ searchParams }: { searchParams: Promise
       {canManage && sp.new && (
         <Drawer title="New project" closeTo={href({ new: undefined })}>
           <PanelForm action={createProject} closeTo={href({ new: undefined })} submit="Create project" error={sp.error}>
+            {templates.length > 0 && (
+              <nav aria-label="Start from" className="space-y-1.5">
+                <p className="label">Start from</p>
+                <div className="flex flex-wrap gap-2">
+                  {[{ id: "", name: "Blank project" }, ...templates].map((t) => {
+                    const on = (sp.template ?? "") === t.id || (!chosen && !t.id);
+                    return <Link key={t.id || "blank"} href={href({ new: "1", client: sp.client, template: t.id || undefined })} aria-current={on ? "true" : undefined} className={`rounded-full border px-3 py-1 text-sm transition ${on ? "border-primary bg-primary/10 font-medium text-primary" : "border-border hover:bg-hover"}`}>{t.name}</Link>;
+                  })}
+                </div>
+              </nav>
+            )}
+            {chosen && chosenBody?.ok && (
+              <div className="space-y-3 rounded-xl border border-border p-3">
+                <input type="hidden" name="templateId" value={chosen.id} />
+                <p className="text-sm">Creates {chosenBody.value.milestones.length} milestones and {chosenBody.value.tasks.length} tasks from <span className="font-medium">{chosen.name}</span>, with due dates counted from the start date (today if empty).</p>
+                {chosenBody.value.roles.length > 0 && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {chosenBody.value.roles.map((r, i) => (
+                      <div key={r}><label className="label" htmlFor={`role${i}`}>{r}</label><select id={`role${i}`} name={`role${i}`} className="input" defaultValue=""><option value="">Fill later (tasks unassigned)</option>{staff.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-muted">Each person joins the team with that role and gets one notice listing their tasks.</p>
+              </div>
+            )}
+            {chosen && chosenBody && !chosenBody.ok && <Notice kind="error">{chosen.name} needs fixing before it can be used: {chosenBody.error}</Notice>}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="sm:col-span-2"><label className="label" htmlFor="name">Project name</label><input id="name" name="name" required className="input" /></div>
               <div>

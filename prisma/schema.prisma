@@ -610,6 +610,7 @@ model Project {
   phase          String? // current delivery phase for software projects: DISCOVERY | DESIGN | DEVELOPMENT | TESTING | CLIENT_REVIEW | LAUNCHED
   archivedAt     DateTime? // set when a closed project is archived: hidden from project lists until restored
   archivedById   String?
+  templateId     String? // the project template it was started from, if any (for reference only)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -668,6 +669,23 @@ model Task {
   @@index([parentId])
   @@index([projectId, status])
   @@index([assigneeId])
+}
+
+// A reusable project plan (Social media retainer, Ads campaign…): team roles, milestones and tasks with due-date offsets
+// from the project start. `body` is validated by src/lib/project-templates.ts. Applying it copies everything into a new
+// project; later edits to the template never change projects already made from it.
+model ProjectTemplate {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  body           Json
+  archivedAt     DateTime?
+  createdById    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([organizationId, name])
 }
 
 // A label a team puts on tasks (Copy, Design, Ads…), shared across the organization's projects. Tasks keep the ids in labelIds.
