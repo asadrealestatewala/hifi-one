@@ -7,6 +7,7 @@ import { audit, requirePermission, toActor } from "@/lib/auth";
 import { AccountError, createResetLink } from "@/lib/accounts";
 import { db } from "@/lib/db";
 import { onboardingNotice, startOnboarding } from "@/lib/onboarding";
+import { handOverWork } from "@/lib/offboarding";
 import { StaffError, createStaff, ensureStaffProfile, markVerified, setStaffArchived, setStaffStatus, updateStaff, type StaffInput, type StaffStatus } from "@/lib/staff";
 
 export type StaffFormState = { error?: string; sameName?: boolean; values?: Record<string, string>; roleKeys?: string[]; n?: number; created?: { id: string; name: string; employeeNo: string; link?: string; onboarding?: string }; saved?: boolean };
@@ -95,6 +96,25 @@ export async function staffStatusAction(formData: FormData): Promise<void> {
   }
   revalidatePath("/hr/employees");
   back(id, "msg", "Saved.");
+}
+
+// Offboarding: hand a person's open projects and tasks to a successor (or leave the tasks unassigned) in one step.
+export async function handOverWorkAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("hr.manage");
+  const id = str(formData, "id");
+  const prof = await db.employeeProfile.findFirst({ where: { id, organizationId: user.organizationId }, select: { id: true, userId: true } });
+  if (!prof) back(id, "error", "Staff record not found.");
+  const mode = str(formData, "mode") === "unassign" ? "unassign" : "reassign";
+  const r = await handOverWork(db, { organizationId: user.organizationId, userId: prof!.userId, byUserId: user.id, mode, toUserId: str(formData, "toUserId") || null });
+  if (!r.ok) back(id, "error", r.error);
+  if (r.ok) {
+    await audit(user, { action: "staff.handover", entity: "EmployeeProfile", entityId: id, after: { userId: prof!.userId, mode, toUserId: r.toUserId, projectsManaged: r.managed, teamsLeft: r.left, tasksReassigned: r.reassigned, tasksUnassigned: r.unassigned, errors: r.errors } });
+    revalidatePath(`/hr/employees/${id}`);
+    revalidatePath("/projects");
+    const parts = [r.managed.length ? `${r.managed.length} project${r.managed.length === 1 ? "" : "s"} handed over` : "", r.reassigned ? `${r.reassigned} open task${r.reassigned === 1 ? "" : "s"} reassigned` : "", r.unassigned ? `${r.unassigned} left unassigned for their managers` : ""].filter(Boolean);
+    if (r.errors.length) back(id, "error", `Done, except: ${r.errors.map((e) => `${e.project} (${e.error})`).join("; ")}`);
+    back(id, "msg", `Work handed over: ${parts.join(", ") || `taken off ${r.left.length} team${r.left.length === 1 ? "" : "s"}`}.`);
+  }
 }
 
 export async function setupLinkAction(_prev: LinkState, formData: FormData): Promise<LinkState> {

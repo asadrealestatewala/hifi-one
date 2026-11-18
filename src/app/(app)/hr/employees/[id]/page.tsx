@@ -10,7 +10,8 @@ import { Badge, ConfirmButton, Notice, StatusBadge, SubmitButton } from "@/compo
 import Avatar from "@/components/ui/Avatar";
 import StaffForm from "../StaffForm";
 import SetupLink from "./SetupLink";
-import { staffStatusAction } from "../actions";
+import { handOverWorkAction, staffStatusAction } from "../actions";
+import { workHeldBy } from "@/lib/offboarding";
 import { cancelDocumentRequestAction, requestDocumentAction } from "../../documents/actions";
 import { EMPLOYEE_DOC_CATEGORIES } from "@/lib/employee-docs";
 
@@ -64,6 +65,8 @@ export default async function EmployeePage({ params, searchParams }: { params: P
     sensitive ? db.documentRequest.findMany({ where: { organizationId: org, userId: p.userId, status: { not: "CANCELLED" } }, orderBy: { createdAt: "desc" }, take: 20 }) : Promise.resolve([]),
   ]);
   const op = (value: string) => <><input type="hidden" name="id" value={p.id} /><input type="hidden" name="op" value={value} /></>;
+  // Work still held on open projects, for the hand-over when someone leaves
+  const held = canManage ? await workHeldBy(db, { organizationId: org, userId: p.userId }) : null;
   return (
     <div className="space-y-5">
       <Link href="/hr/employees" className="text-sm text-muted hover:underline">← Staff directory</Link>
@@ -146,6 +149,45 @@ export default async function EmployeePage({ params, searchParams }: { params: P
               </>
             )}
           </div>
+        </section>
+      )}
+      {held && held.projects.length > 0 && (
+        <section className="card space-y-3">
+          <div>
+            <h2 className="font-semibold">Hand over work</h2>
+            <p className="text-sm text-muted">{u.name} holds {held.openTasks} open task{held.openTasks === 1 ? "" : "s"} on {held.projects.length} open project{held.projects.length === 1 ? "" : "s"}{held.projects.some((x) => x.manages) ? `, and manages ${held.projects.filter((x) => x.manages).length}` : ""}. Closed projects, finished tasks, logged time and comments keep their name.</p>
+          </div>
+          <ul className="divide-y divide-border text-sm">
+            {held.projects.map((x) => (
+              <li key={x.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <Link href={`/projects/${x.id}`} className="hover:underline">{x.name} <span className="text-xs text-muted">{x.number}</span></Link>
+                <span className="flex items-center gap-2 text-xs text-muted">{x.manages && <Badge tone="primary">manages</Badge>}{!x.manages && x.role && <span>{x.role}</span>}<span>{x.openTasks} open task{x.openTasks === 1 ? "" : "s"}</span></span>
+              </li>
+            ))}
+          </ul>
+          {p.status === "ACTIVE" && !p.archivedAt ? (
+            <p className="text-sm text-muted">Deactivate {u.name} or mark them as exited first, then hand over their work here.</p>
+          ) : (
+            <form action={handOverWorkAction} className="grid gap-3 border-t border-border pt-3 sm:grid-cols-2">
+              <input type="hidden" name="id" value={p.id} />
+              <div>
+                <label className="label" htmlFor="toUserId">Who takes over</label>
+                <select id="toUserId" name="toUserId" className="input" defaultValue={u.managerId && u.managerId !== p.userId ? u.managerId : ""}>
+                  <option value="">Choose a person…</option>
+                  {managers.filter((m) => m.id !== p.userId).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </div>
+              <fieldset className="space-y-1 text-sm">
+                <legend className="label">Their open tasks</legend>
+                <label className="flex items-center gap-2"><input type="radio" name="mode" value="reassign" defaultChecked /> Give them to the person taking over</label>
+                <label className="flex items-center gap-2"><input type="radio" name="mode" value="unassign" /> Leave them unassigned for each project manager</label>
+              </fieldset>
+              <p className="text-xs text-muted sm:col-span-2">Projects {u.name} manages always go to the person taking over. They are taken off every open project&apos;s team; anyone who gets work is told once.</p>
+              <div className="sm:col-span-2">
+                <ConfirmButton className="btn" title={`Hand over ${u.name}'s work?`} message={`${held.projects.length} open project${held.projects.length === 1 ? "" : "s"} and ${held.openTasks} open task${held.openTasks === 1 ? "" : "s"} move now. Project managers can change task owners afterwards.`} confirmLabel="Hand over">Hand over work</ConfirmButton>
+              </div>
+            </form>
+          )}
         </section>
       )}
       {sensitive && (
