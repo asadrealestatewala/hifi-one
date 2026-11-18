@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
+import type { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { limiter } from "./rate-limit";
 import { checkSecondFactor } from "./mfa";
@@ -11,7 +12,7 @@ import { needsMfaSetup } from "./mfa-policy";
 import { parseLoginIdentifier } from "./login-identifier";
 import { signInBlock } from "./onboarding";
 import { ALL_PERMISSIONS, type PermissionKey } from "./permissions";
-import { VIEW_AS_COOKIE, canPreviewRole, previewPermissions } from "./view-as";
+import { VIEW_AS_COOKIE, VIEW_AS_USER_COOKIE, canPreviewRole, canViewAsUser, previewPermissions } from "./view-as";
 
 const COOKIE = "hifi_session";
 const SESSION_HOURS = 12;
@@ -43,6 +44,8 @@ export type SessionUser = {
   realSuperAdmin: boolean;
   // Set while a Super Admin previews another role
   viewAs: { roleKey: string; roleName: string } | null;
+  // Set while a Super Admin looks at one person's own view (read-only). Everything above then belongs to that person; the Super Admin is named here.
+  viewAsPerson: { adminId: string; adminName: string; userId: string; userName: string; userType: string } | null;
 };
 
 const MFA_COOKIE = "hifi_mfa_pending";
@@ -156,6 +159,7 @@ export async function logout() {
   }
   jar.delete(COOKIE);
   jar.delete(VIEW_AS_COOKIE);
+  jar.delete(VIEW_AS_USER_COOKIE);
 }
 
 // Resolves a session token (cookie value or mobile bearer token) to the signed-in user, or null if it is invalid, revoked or expired.
@@ -169,41 +173,38 @@ export async function userFromToken(token: string | undefined | null): Promise<S
   }
   // One round trip: the session, the person, their roles and every permission come back from a single joined query
   // (the default loader made six sequential queries on every page view and server action).
-  const session = await db.session.findUnique({
-    relationLoadStrategy: "join",
-    where: { id: sid },
-    include: {
-      user: {
-        include: {
-          roles: { include: { role: { include: { permissions: { include: { permission: true } } } } } },
-        },
-      },
-    },
-  });
+  const session = await db.session.findUnique({ relationLoadStrategy: "join", where: { id: sid }, include: { user: { include: USER_INCLUDE } } });
   if (!session || session.revokedAt || session.expiresAt < new Date() || !session.user.active) return null;
+  return toSessionUser(session.user);
+}
+
+const USER_INCLUDE = { roles: { include: { role: { include: { permissions: { include: { permission: true } } } } } } } satisfies Prisma.UserInclude;
+
+function toSessionUser(user: Prisma.UserGetPayload<{ include: typeof USER_INCLUDE }>): SessionUser {
   const now = new Date();
-  const activeRoles = session.user.roles.filter((r) => !r.expiresAt || r.expiresAt > now);
+  const activeRoles = user.roles.filter((r) => !r.expiresAt || r.expiresAt > now);
   const permissions = new Set<PermissionKey>();
   for (const ur of activeRoles) {
     for (const rp of ur.role.permissions) permissions.add(rp.permission.key as PermissionKey);
   }
   return {
-    id: session.user.id,
-    name: session.user.name,
-    email: session.user.email,
-    phone: session.user.phone,
-    organizationId: session.user.organizationId,
-    userType: session.user.userType,
-    mustChangePassword: session.user.mustChangePassword,
-    clientId: session.user.clientId,
-    vendorId: session.user.vendorId,
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    organizationId: user.organizationId,
+    userType: user.userType,
+    mustChangePassword: user.mustChangePassword,
+    clientId: user.clientId,
+    vendorId: user.vendorId,
     permissions,
     roles: activeRoles.map((r) => r.role.name),
     roleKeys: activeRoles.map((r) => r.role.key),
-    totpEnabled: session.user.totpEnabled,
+    totpEnabled: user.totpEnabled,
     mfaRequired: activeRoles.some((r) => r.role.requireMfa),
     realSuperAdmin: activeRoles.some((r) => r.role.key === "SUPER_ADMIN"),
     viewAs: null,
+    viewAsPerson: null,
   };
 }
 
@@ -212,8 +213,14 @@ export async function userFromToken(token: string | undefined | null): Promise<S
 async function loadSessionUser(): Promise<SessionUser | null> {
   const jar = await cookies();
   const base = await userFromToken(jar.get(COOKIE)?.value);
+  if (!base || !base.realSuperAdmin) return base;
+  const person = jar.get(VIEW_AS_USER_COOKIE)?.value;
+  if (person) {
+    const seen = await personView(base, person);
+    if (seen) return seen;
+  }
   const view = jar.get(VIEW_AS_COOKIE)?.value;
-  if (!base || !base.realSuperAdmin || !view) return base;
+  if (!view) return base;
   try {
     const { payload } = await jwtVerify(view, secret());
     if (payload.purpose !== "view-as" || payload.uid !== base.id || typeof payload.roleKey !== "string" || !canPreviewRole(payload.roleKey)) return base;
@@ -229,6 +236,27 @@ async function loadSessionUser(): Promise<SessionUser | null> {
   } catch {
     return base;
   }
+}
+
+// One person's own view, for a real Super Admin who chose to look at it. The result is that person's session as they have it (their roles, permissions,
+// client or vendor record), except that their pending password change and two-step set-up are not applied (the Super Admin cannot and must not act on them).
+// Nothing here can write: middleware refuses every request that changes data while the cookie is present, and audit entries are filed under the Super Admin.
+async function personView(admin: SessionUser, token: string): Promise<SessionUser | null> {
+  try {
+    const { payload } = await jwtVerify(token, secret());
+    if (payload.purpose !== "view-as-user" || payload.uid !== admin.id || typeof payload.targetId !== "string") return null;
+    const target = await db.user.findFirst({ where: { id: payload.targetId, organizationId: admin.organizationId }, include: USER_INCLUDE });
+    if (!target) return null;
+    const seen = toSessionUser(target);
+    if (!canViewAsUser(admin.id, { id: target.id, active: target.active, isSuperAdmin: seen.realSuperAdmin })) return null;
+    return { ...seen, mustChangePassword: false, mfaRequired: false, realSuperAdmin: false, viewAsPerson: { adminId: admin.id, adminName: admin.name, userId: target.id, userName: target.name, userType: target.userType } };
+  } catch {
+    return null;
+  }
+}
+
+export async function viewAsUserToken(adminId: string, targetId: string, expiresAt: Date) {
+  return new SignJWT({ uid: adminId, targetId, purpose: "view-as-user" }).setProtectedHeader({ alg: "HS256" }).setExpirationTime(expiresAt).sign(secret());
 }
 
 // The preview cookie proves which role a Super Admin chose; it is only honoured for that same signed-in Super Admin.
@@ -325,15 +353,18 @@ export async function audit(
   user: SessionUser,
   entry: { action: string; entity: string; entityId?: string; before?: unknown; after?: unknown },
 ) {
+  // While a Super Admin looks at someone's view, whatever is logged belongs to the Super Admin, with the person named
+  const v = user.viewAsPerson;
+  const after = v ? { viewingAs: { userId: v.userId, name: v.userName }, ...(entry.after && typeof entry.after === "object" && !Array.isArray(entry.after) ? entry.after : { value: entry.after ?? null }) } : entry.after;
   await db.auditLog.create({
     data: {
       organizationId: user.organizationId,
-      actorId: user.id,
+      actorId: v ? v.adminId : user.id,
       action: entry.action,
       entity: entry.entity,
       entityId: entry.entityId,
       before: entry.before as never,
-      after: entry.after as never,
+      after: after as never,
     },
   });
 }

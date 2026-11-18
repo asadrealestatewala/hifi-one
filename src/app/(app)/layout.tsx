@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { unreadCount } from "@/lib/notifications";
 import { totalUnread } from "@/lib/chat";
 import { loadNavStats } from "@/lib/nav-stats";
+import ViewAsPersonBanner from "@/components/shell/ViewAsPersonBanner";
 import Shell from "@/components/shell/Shell";
 import { QUICK_CREATE, visibleNav } from "@/components/shell/nav";
 import { startViewAs, stopViewAs } from "./view-as/actions";
@@ -30,9 +31,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const groups = applyMenu(allGroups, prefs);
   const quick = QUICK_CREATE.filter((q) => user.permissions.has(q.permission)).map(({ href, label, icon }) => ({ href, label, icon }));
   return (
+    <>
+    {user.viewAsPerson && <ViewAsPersonBanner name={user.viewAsPerson.userName} adminName={user.viewAsPerson.adminName} typeLabel="staff" />}
     <Shell groups={groups} allGroups={allGroups} menuPrefs={prefs} quick={quick} name={user.name} roles={user.roles.join(", ")} userId={user.id} unread={unread} chatUnread={chatUnread} callerId={chatUnread !== null && user.permissions.has("meetings.use") ? user.id : null} stats={stats} canSearch={user.permissions.has("dashboard.view")} canAsk={user.permissions.has("assistant.use")} signOut={signOut}
       viewAs={switchRoles ? { roles: switchRoles.filter((r) => canPreviewRole(r.key)), active: user.viewAs ? { key: user.viewAs.roleKey, name: user.viewAs.roleName } : null, start: startViewAs, stop: stopViewAs } : null}>
       {children}
     </Shell>
+    </>
   );
 }

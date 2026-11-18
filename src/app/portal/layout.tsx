@@ -3,6 +3,7 @@ import PortalNav, { type PortalNavItem } from "@/components/portal/PortalNav";
 import { redirect } from "next/navigation";
 import { logout, requireClientUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import ViewAsPersonBanner from "@/components/shell/ViewAsPersonBanner";
 
 async function signOut() {
   "use server";
@@ -35,6 +36,7 @@ export default async function PortalLayout({ children }: { children: React.React
   ];
   return (
     <div className="min-h-screen">
+      {user.viewAsPerson && <ViewAsPersonBanner name={user.viewAsPerson.userName} adminName={user.viewAsPerson.adminName} typeLabel={user.userType.toLowerCase()} />}
       <PortalHeader title="Client portal" person={user.name} company={client?.name} signOut={signOut} />
       <PortalNav items={items} home="/portal" label="Client portal" />
       <main className="mx-auto max-w-5xl space-y-6 p-4 md:py-8">
