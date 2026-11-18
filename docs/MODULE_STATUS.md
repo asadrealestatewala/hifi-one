@@ -260,3 +260,7 @@ Done: the Ask button opens a floating chat window on any screen (`src/components
 ## Live Solution results (added 2026-11-17, see `docs/SOLUTION_FEED.md`)
 
 Done on the Hifi One side: signed feed endpoint, per-Solution secrets, Live Solutions staff screen, partner My schools live column, agents My clients live, daily feed check. Not done: the Solutions sending reports (Campusly first), automatic linking. Not checked in a browser.
+
+## View as a person (Super Admin)
+
+Built: Users & roles → View as (Super Admin only) opens one person's own view for two hours: staff, clients, vendors and partners (investors have no portal yet). Read-only: `src/middleware.ts` refuses every request that is not a plain read while the `hifi_view_as_user` cookie is present. Passwords, two-step set-up and private chats (`/account/password`, `/account/security`, `/chat`, `/api/chat`) stay closed. A banner with "End view" shows in the staff shell and in every portal. Start and end are in the audit log under the Super Admin, and anything else logged during the view is filed under the Super Admin with the person named. "Tell them" sends the person an in-app notice. Not built: pages that record "last seen" or mark-as-read on open still do so as a side effect of reading. Not checked in a browser.

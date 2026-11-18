@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { logout, requirePartnerUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import ViewAsPersonBanner from "@/components/shell/ViewAsPersonBanner";
 
 async function signOut() {
   "use server";
@@ -12,10 +13,11 @@ async function signOut() {
 
 // The Hifi Partner Stack portal. Everything in it is read for the one earner bound to the signed-in partner.
 export default async function PartnerLayout({ children }: { children: React.ReactNode }) {
-  const { earner } = await requirePartnerUser();
+  const { user, earner } = await requirePartnerUser();
   const resale = (await db.partnerResaleTerm.count({ where: { earnerId: earner.id, model: "RESALE" } })) > 0;
   return (
     <div className="min-h-screen">
+      {user.viewAsPerson && <ViewAsPersonBanner name={user.viewAsPerson.userName} adminName={user.viewAsPerson.adminName} typeLabel="partner" />}
       <header className="bg-navy text-white">
         <div className="mx-auto max-w-5xl flex flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-3">
