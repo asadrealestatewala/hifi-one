@@ -37,3 +37,38 @@ export async function setProjectManager(db: Db, p: { organizationId: string; pro
   }
   return { ok: true, changed: true, fromId: project.managerId, toId: next.id };
 }
+
+export type TeamChange = { ok: true; unassigned: number } | { ok: false; error: string };
+
+// Takes someone off a project's team. The manager can't be removed (hand the project over first). Their open tasks in this
+// project become unassigned so the manager can give them to someone else; finished tasks, logged time and comments keep their name.
+// Their project chat room closes for them the next time chat syncs. Closed projects keep the team they finished with.
+export async function removeProjectMember(db: Db, p: { organizationId: string; projectId: string; userId: string; byUserId: string }): Promise<TeamChange> {
+  const project = await db.project.findFirst({ where: { id: p.projectId, organizationId: p.organizationId }, select: { id: true, name: true, number: true, managerId: true, status: true } });
+  if (!project) return { ok: false, error: "Project not found" };
+  if (project.status === "COMPLETED" || project.status === "CANCELLED") return { ok: false, error: "This project is closed, so its team cannot change" };
+  if (project.managerId === p.userId) return { ok: false, error: "This person manages the project. Choose a new project manager first, then remove them" };
+  const member = await db.projectMember.findUnique({ where: { projectId_userId: { projectId: project.id, userId: p.userId } } });
+  if (!member) return { ok: false, error: "This person is not on the team" };
+  const unassigned = await db.$transaction(async (tx) => {
+    const r = await tx.task.updateMany({ where: { projectId: project.id, assigneeId: p.userId, status: { not: "DONE" } }, data: { assigneeId: null } });
+    await tx.projectMember.delete({ where: { projectId_userId: { projectId: project.id, userId: p.userId } } });
+    return r.count;
+  });
+  if (p.userId !== p.byUserId) {
+    await notify(db, p.userId, { kind: "project.member_removed", title: `You were taken off the project ${project.name}`, body: project.number });
+  }
+  return { ok: true, unassigned };
+}
+
+// Changes what someone does on the project ("Designer", "Ads campaign manager"). Empty clears it.
+export async function setProjectMemberRole(db: Db, p: { organizationId: string; projectId: string; userId: string; role: string }): Promise<{ ok: true; role: string | null } | { ok: false; error: string }> {
+  const project = await db.project.findFirst({ where: { id: p.projectId, organizationId: p.organizationId }, select: { id: true, status: true } });
+  if (!project) return { ok: false, error: "Project not found" };
+  if (project.status === "COMPLETED" || project.status === "CANCELLED") return { ok: false, error: "This project is closed, so its team cannot change" };
+  const member = await db.projectMember.findUnique({ where: { projectId_userId: { projectId: project.id, userId: p.userId } } });
+  if (!member) return { ok: false, error: "This person is not on the team" };
+  const role = p.role.trim().slice(0, 80) || null;
+  await db.projectMember.update({ where: { projectId_userId: { projectId: project.id, userId: p.userId } }, data: { role } });
+  return { ok: true, role };
+}
