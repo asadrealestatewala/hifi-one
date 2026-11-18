@@ -38,27 +38,72 @@ export async function setProjectManager(db: Db, p: { organizationId: string; pro
   return { ok: true, changed: true, fromId: project.managerId, toId: next.id };
 }
 
-export type TeamChange = { ok: true; unassigned: number } | { ok: false; error: string };
+// What happens to the open tasks of someone leaving a project's team.
+// "reassign": they go to another team member. "unassign": they wait, unassigned, for the manager.
+// "delete": they are deleted with their subtasks, except tasks with logged time, work sessions, files or a linked content post,
+// which are kept (unassigned) so no history is lost.
+export type Handover = { mode: "reassign"; toUserId: string } | { mode: "unassign" } | { mode: "delete" };
+export type TeamChange = { ok: true; reassigned: string[]; toUserId: string | null; unassigned: number; deleted: number } | { ok: false; error: string };
 
-// Takes someone off a project's team. The manager can't be removed (hand the project over first). Their open tasks in this
-// project become unassigned so the manager can give them to someone else; finished tasks, logged time and comments keep their name.
-// Their project chat room closes for them the next time chat syncs. Closed projects keep the team they finished with.
-export async function removeProjectMember(db: Db, p: { organizationId: string; projectId: string; userId: string; byUserId: string }): Promise<TeamChange> {
+// Takes someone off a project's team. The manager can't be removed (hand the project over first). Finished tasks, logged time
+// and comments keep their name. Their project chat room closes for them the next time chat syncs. Closed projects keep their team.
+export async function removeProjectMember(db: Db, p: { organizationId: string; projectId: string; userId: string; byUserId: string; handover?: Handover }): Promise<TeamChange> {
+  const handover: Handover = p.handover ?? { mode: "unassign" };
   const project = await db.project.findFirst({ where: { id: p.projectId, organizationId: p.organizationId }, select: { id: true, name: true, number: true, managerId: true, status: true } });
   if (!project) return { ok: false, error: "Project not found" };
   if (project.status === "COMPLETED" || project.status === "CANCELLED") return { ok: false, error: "This project is closed, so its team cannot change" };
   if (project.managerId === p.userId) return { ok: false, error: "This person manages the project. Choose a new project manager first, then remove them" };
   const member = await db.projectMember.findUnique({ where: { projectId_userId: { projectId: project.id, userId: p.userId } } });
   if (!member) return { ok: false, error: "This person is not on the team" };
-  const unassigned = await db.$transaction(async (tx) => {
-    const r = await tx.task.updateMany({ where: { projectId: project.id, assigneeId: p.userId, status: { not: "DONE" } }, data: { assigneeId: null } });
+  if (handover.mode === "reassign") {
+    if (handover.toUserId === p.userId) return { ok: false, error: "Choose someone else to take over the tasks" };
+    const to = await db.projectMember.findUnique({ where: { projectId_userId: { projectId: project.id, userId: handover.toUserId } }, select: { userId: true } });
+    const active = to && (await db.user.findFirst({ where: { id: to.userId, organizationId: p.organizationId, active: true, userType: "EMPLOYEE" }, select: { id: true } }));
+    if (!active) return { ok: false, error: "The person taking over must be an active member of this team" };
+  }
+  const result = await db.$transaction(async (tx) => {
+    const open = await tx.task.findMany({ where: { projectId: project.id, assigneeId: p.userId, status: { not: "DONE" } }, select: { id: true } });
+    const ids = open.map((t) => t.id);
+    let reassigned: string[] = [], unassigned = 0, deleted = 0;
+    if (handover.mode === "reassign") {
+      await tx.task.updateMany({ where: { id: { in: ids } }, data: { assigneeId: handover.toUserId } });
+      reassigned = ids;
+    } else if (handover.mode === "delete" && ids.length) {
+      // A task (with its subtasks) is only deleted when nothing worth keeping hangs off it
+      const family = await tx.task.findMany({ where: { projectId: project.id, OR: [{ id: { in: ids } }, { parentId: { in: ids } }] }, select: { id: true, parentId: true } });
+      const famIds = family.map((t) => t.id);
+      const [time, sessions, content, files] = await Promise.all([
+        tx.timeEntry.findMany({ where: { taskId: { in: famIds } }, select: { taskId: true } }),
+        tx.workSession.findMany({ where: { taskId: { in: famIds } }, select: { taskId: true } }),
+        tx.contentItem.findMany({ where: { taskId: { in: famIds } }, select: { taskId: true } }),
+        tx.storedFile.findMany({ where: { ownerType: "TASK", ownerId: { in: famIds } }, select: { ownerId: true } }),
+      ]);
+      const busy = new Set<string>([...time.map((x) => x.taskId), ...sessions.map((x) => x.taskId), ...content.map((x) => x.taskId), ...files.map((x) => x.ownerId)].filter((x): x is string => Boolean(x)));
+      const rootOf = (t: { id: string; parentId: string | null }) => (t.parentId && ids.includes(t.parentId) ? t.parentId : t.id);
+      const keepRoots = new Set(family.filter((t) => busy.has(t.id)).map(rootOf));
+      const drop = ids.filter((id) => !keepRoots.has(id));
+      const dropAll = family.filter((t) => drop.includes(rootOf(t))).map((t) => t.id);
+      const keep = ids.filter((id) => keepRoots.has(id));
+      if (keep.length) await tx.task.updateMany({ where: { id: { in: keep } }, data: { assigneeId: null } });
+      if (dropAll.length) {
+        // Other tasks that waited on a deleted one stop waiting
+        const waiting = await tx.task.findMany({ where: { projectId: project.id, blockedBy: { hasSome: dropAll } }, select: { id: true, blockedBy: true } });
+        for (const w of waiting) await tx.task.update({ where: { id: w.id }, data: { blockedBy: w.blockedBy.filter((b) => !dropAll.includes(b)) } });
+        await tx.task.deleteMany({ where: { id: { in: dropAll } } });
+      }
+      unassigned = keep.length;
+      deleted = drop.length;
+    } else {
+      await tx.task.updateMany({ where: { id: { in: ids } }, data: { assigneeId: null } });
+      unassigned = ids.length;
+    }
     await tx.projectMember.delete({ where: { projectId_userId: { projectId: project.id, userId: p.userId } } });
-    return r.count;
+    return { reassigned, unassigned, deleted };
   });
   if (p.userId !== p.byUserId) {
     await notify(db, p.userId, { kind: "project.member_removed", title: `You were taken off the project ${project.name}`, body: project.number });
   }
-  return { ok: true, unassigned };
+  return { ok: true, toUserId: handover.mode === "reassign" ? handover.toUserId : null, ...result };
 }
 
 // Changes what someone does on the project ("Designer", "Ads campaign manager"). Empty clears it.

@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { projectScope } from "@/lib/projects";
 import { commentSharedWithClient, projectMemberAdded, projectStatusChanged, taskAssigned, taskCommented, taskMoved } from "@/lib/events";
 import { TASK_STATUSES, canCompleteProject } from "@/lib/project-rules";
-import { removeProjectMember, setProjectManager, setProjectMemberRole } from "@/lib/project-manager";
+import { removeProjectMember, setProjectManager, setProjectMemberRole, type Handover } from "@/lib/project-manager";
 import { TaskError, addComment, addSubtask, changeTaskStatus, setBlockers, setRecurrence } from "@/lib/tasks";
 
 const optDate = z.string().optional().transform((v) => (v ? new Date(v) : null));
@@ -80,19 +80,29 @@ export async function addMember(formData: FormData) {
   revalidatePath(`/projects/${projectId}`);
 }
 
-// Takes someone off the team (not the manager). Their open tasks here become unassigned; time and history stay.
+// Takes someone off the team (not the manager). Their open tasks here go to another member, wait unassigned, or are deleted
+// (tasks with logged time, files or a content post are kept). Finished tasks, time and history stay.
 export async function removeMember(formData: FormData): Promise<void> {
   const user = await requirePermission("projects.manage");
   const projectId = String(formData.get("projectId") ?? "");
   const userId = String(formData.get("userId") ?? "");
   const project = await loadProject(projectId, user);
   if (!project) redirect("/projects");
-  const r = await removeProjectMember(db, { organizationId: user.organizationId, projectId, userId, byUserId: user.id });
+  const h = String(formData.get("handover") ?? "unassign");
+  const handover: Handover = h.startsWith("to:") ? { mode: "reassign", toUserId: h.slice(3) } : h === "delete" ? { mode: "delete" } : { mode: "unassign" };
+  const r = await removeProjectMember(db, { organizationId: user.organizationId, projectId, userId, byUserId: user.id, handover });
   if (!r.ok) redirect(`/projects/${projectId}?error=${encodeURIComponent(r.error)}&tab=settings`);
-  await audit(user, { action: "project.remove_member", entity: "Project", entityId: projectId, before: { userId }, after: { unassignedTasks: r.unassigned } });
+  await audit(user, { action: "project.remove_member", entity: "Project", entityId: projectId, before: { userId }, after: { handover: handover.mode, toUserId: r.toUserId, reassigned: r.reassigned.length, unassigned: r.unassigned, deleted: r.deleted } });
+  for (const taskId of r.reassigned) await taskAssigned(db, { organizationId: user.organizationId, taskId, toUserId: r.toUserId, byUserId: user.id });
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/projects");
-  redirect(`/projects/${projectId}?removed=${encodeURIComponent(r.unassigned ? `Removed from the team. ${r.unassigned} open task${r.unassigned === 1 ? " is" : "s are"} now unassigned on the Tasks tab.` : "Removed from the team.")}&tab=settings`);
+  const n = (k: number) => `${k} open task${k === 1 ? "" : "s"}`;
+  const parts = [
+    r.reassigned.length ? `${n(r.reassigned.length)} handed over` : "",
+    r.deleted ? `${n(r.deleted)} deleted` : "",
+    r.unassigned ? `${n(r.unassigned)} now unassigned${handover.mode === "delete" ? " (kept because they have logged time, files or a content post)" : ""}` : "",
+  ].filter(Boolean);
+  redirect(`/projects/${projectId}?removed=${encodeURIComponent(`Removed from the team.${parts.length ? ` ${parts.join(", ")}.` : ""}`)}&tab=settings`);
 }
 
 export async function updateMemberRole(formData: FormData): Promise<void> {
