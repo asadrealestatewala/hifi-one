@@ -100,6 +100,8 @@ export async function createTask(formData: FormData) {
   await audit(user, { action: "task.create", entity: "Task", entityId: task.id, after: { title, projectId, assigneeId } });
   await taskAssigned(db, { organizationId: user.organizationId, taskId: task.id, toUserId: assigneeId, byUserId: user.id });
   revalidatePath(`/projects/${projectId}`);
+  // The form sits in a side panel on the Tasks tab; close it and show the board with the new task
+  redirect(`/projects/${projectId}?tab=tasks`);
 }
 
 export type MoveResult = { ok: true } | { ok: false; error: string };
@@ -136,7 +138,7 @@ export async function changeProjectManager(formData: FormData): Promise<void> {
   const project = await loadProject(projectId, user);
   if (!project) return;
   const r = await setProjectManager(db, { organizationId: user.organizationId, projectId, managerId: String(formData.get("managerId") ?? ""), byUserId: user.id });
-  if (!r.ok) redirect(`/projects/${projectId}?error=${encodeURIComponent(r.error)}`);
+  if (!r.ok) redirect(`/projects/${projectId}?error=${encodeURIComponent(r.error)}&tab=settings`);
   if (r.changed) await audit(user, { action: "project.manager", entity: "Project", entityId: projectId, before: { managerId: r.fromId }, after: { managerId: r.toId } });
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/projects");
@@ -151,7 +153,7 @@ export async function setProjectStatus(formData: FormData) {
   if (status.data === "COMPLETED") {
     const tasks = await db.task.findMany({ where: { projectId }, select: { status: true } });
     const check = canCompleteProject(tasks);
-    if (!check.ok) redirect(`/projects/${projectId}?error=${encodeURIComponent(check.reason)}`);
+    if (!check.ok) redirect(`/projects/${projectId}?error=${encodeURIComponent(check.reason)}&tab=settings`);
   }
   await db.project.update({ where: { id: projectId }, data: { status: status.data } });
   await audit(user, { action: "project.status", entity: "Project", entityId: projectId, before: { status: project.status }, after: { status: status.data } });

@@ -10,7 +10,7 @@ const s = (f: FormData, k: string) => String(f.get(k) ?? "");
 // Same-site paths only; a form cannot send the person to another site.
 const safeReturn = (v: string | null | undefined, fallback: string) => (v && /^\/[^/\\]/.test(v) ? v : fallback);
 const where = (f: FormData, projectId: string) => safeReturn(s(f, "returnTo"), `/projects/${projectId}`);
-const back = (path: string, kind: "assetError" | "assetOk", m: string) => redirect(`${path}${path.includes("?") ? "&" : "?"}${kind}=${encodeURIComponent(m)}#assets`);
+const back = (path: string, kind: "assetError" | "assetOk", m: string) => redirect(`${path}${path.includes("?") ? "&" : "?"}${kind}=${encodeURIComponent(m)}&tab=files#assets`);
 
 // All four actions check the caller against the project inside the library service (only the project manager or people who manage projects).
 export async function updateAssetAction(formData: FormData): Promise<void> {

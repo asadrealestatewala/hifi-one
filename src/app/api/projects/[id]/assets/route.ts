@@ -16,7 +16,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   let path: string | null = null; // a caller-given same-site page (the product details page), else the project page
   const back = (kind: "assetError" | "assetOk", m: string) => {
     if (path) return new NextResponse(null, { status: 303, headers: { Location: `${path}${path.includes("?") ? "&" : "?"}${kind}=${encodeURIComponent(m)}#assets` } });
-    return new NextResponse(null, { status: 303, headers: { Location: `/projects/${encodeURIComponent(id)}?${kind}=${encodeURIComponent(m)}#assets` } });
+    return new NextResponse(null, { status: 303, headers: { Location: `/projects/${encodeURIComponent(id)}?${kind}=${encodeURIComponent(m)}&tab=files#assets` } });
   };
   // Same-site posts only: a form on another site cannot upload on someone's behalf
   const origin = req.headers.get("origin");

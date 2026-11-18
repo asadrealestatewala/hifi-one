@@ -8,7 +8,7 @@ import { DeliverableError, createDeliverable, editDeliverable, submitForApproval
 import { projectScope } from "@/lib/projects";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "");
-const back = (projectId: string, kind: "error" | "msg", m: string) => redirect(`/projects/${projectId}?${kind}=${encodeURIComponent(m)}#deliverables`);
+const back = (projectId: string, kind: "error" | "msg", m: string) => redirect(`/projects/${projectId}?${kind}=${encodeURIComponent(m)}&tab=deliverables#deliverables`);
 
 export async function deliverableAction(formData: FormData): Promise<void> {
   const user = await requirePermission("projects.manage");

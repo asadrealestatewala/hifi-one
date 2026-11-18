@@ -1,10 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requirePermission } from "@/lib/auth";
+import { requirePermission, toFileActor } from "@/lib/auth";
 import { db } from "@/lib/db";
+import type { PermissionKey } from "@/lib/permissions";
 import { formatMoney } from "@/lib/money";
 import { projectScope } from "@/lib/projects";
 import { projectProgress } from "@/lib/project-rules";
+import { projectProfitability } from "@/lib/project-finance";
+import { projectFeed, KIND_LABEL, PHASE_LABEL, type ProjectPhase, type UpdateKind } from "@/lib/project-updates";
+import { projectAssetRights } from "@/lib/file-access";
+import { listAssets } from "@/lib/project-assets";
 import { addMember, changeProjectManager, createTask, setProjectStatus } from "../actions";
 import ProjectDepth from "./ProjectDepth";
 import ProjectMeetings from "./ProjectMeetings";
@@ -12,41 +17,68 @@ import Deliverables from "./Deliverables";
 import ProjectAssets from "./ProjectAssets";
 import ProjectUpdates from "./ProjectUpdates";
 import ProjectTimeline from "./ProjectTimeline";
+import ProjectTabs, { type ProjectTab } from "./ProjectTabs";
+import { resolveTab } from "./tabs";
 import TaskBoard from "./TaskBoard";
 import TaskDetail from "./TaskDetail";
 import Drawer from "@/components/ui/Drawer";
 import Avatar from "@/components/ui/Avatar";
 import FilesPanel from "@/components/FilesPanel";
+import PhaseTracker from "@/components/PhaseTracker";
 import { openBlockers } from "@/lib/task-rules";
-import { Notice } from "@/components/ui";
+import { Badge, Notice, PageHeader, PanelForm, Stat, StatusBadge } from "@/components/ui";
 import RemoveRecordPanel from "@/components/RemoveRecordPanel";
 import { projectDeleteBlockers } from "@/lib/record-removal";
 import { archiveProjectAction, deleteProjectAction, restoreProjectAction } from "../removal-actions";
 
 export const dynamic = "force-dynamic";
 
+const day = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+const SCOPE_PREVIEW = 260;
+
+// One project: a header with the key facts and figures, then tabs (Overview, Tasks, Updates, Files, Meetings,
+// Time & money, Settings). Each tab only appears for people who can use it; every action keeps its own server-side check.
 export default async function ProjectPage({
   params,
   searchParams,
-}: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; msg?: string; removed?: string; task?: string; fileError?: string; fileOk?: string; folder?: string; assetError?: string; assetOk?: string }> }) {
+}: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; msg?: string; removed?: string; task?: string; new?: string; tab?: string; fileError?: string; fileOk?: string; folder?: string; assetError?: string; assetOk?: string }> }) {
   const user = await requirePermission("projects.view");
   const { id } = await params;
-  const { error, msg, removed, task: taskId, fileError, fileOk, folder, assetError, assetOk } = await searchParams;
+  const { error, msg, removed, task: taskId, new: newPanel, tab, fileError, fileOk, folder, assetError, assetOk } = await searchParams;
   const project = await db.project.findFirst({
     where: { id, ...projectScope(user) },
     include: { members: true, tasks: { orderBy: { createdAt: "asc" } } },
   });
   if (!project) notFound();
-  const projectCampaign = project.campaignId ? await db.campaign.findFirst({ where: { id: project.campaignId, organizationId: user.organizationId }, select: { id: true, name: true } }) : null;
-  const canManage = user.permissions.has("projects.manage");
-  const canMove = user.permissions.has("tasks.edit");
-  const orgUsers = await db.user.findMany({
-    where: { organizationId: user.organizationId, active: true, userType: "EMPLOYEE" },
-    orderBy: { name: "asc" },
-    select: { id: true, name: true },
-  });
+  const org = user.organizationId;
+  const can = (p: PermissionKey) => user.permissions.has(p);
+  const canManage = can("projects.manage");
+  const canMove = can("tasks.edit");
+  const canCosts = can("projects.costs");
+  const canMeet = can("meetings.use");
+  const canRemove = can("records.delete");
+  const closed = project.status === "COMPLETED" || project.status === "CANCELLED";
+  const base = `/projects/${project.id}`;
+  const now = new Date();
+  const todayIso = now.toISOString().slice(0, 10);
+
+  const [projectCampaign, orgUsers, client, milestonesRaw, latest, waitingOnClient, nextMeeting, assetRights] = await Promise.all([
+    project.campaignId ? db.campaign.findFirst({ where: { id: project.campaignId, organizationId: org }, select: { id: true, name: true } }) : null,
+    db.user.findMany({ where: { organizationId: org, active: true, userType: "EMPLOYEE" }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    project.clientId ? db.client.findUnique({ where: { id: project.clientId } }) : null,
+    db.milestone.findMany({ where: { projectId: project.id }, orderBy: { sortOrder: "asc" }, select: { name: true, dueDate: true, status: true } }),
+    projectFeed(db, { organizationId: org, projectId: project.id, take: 1 }),
+    db.deliverable.count({ where: { projectId: project.id, organizationId: org, status: "PENDING" } }),
+    canMeet ? db.meeting.findFirst({ where: { organizationId: org, projectId: project.id, status: { in: ["SCHEDULED", "LIVE"] }, OR: [{ scheduledAt: null }, { scheduledAt: { gte: now } }] }, orderBy: { scheduledAt: "asc" }, select: { id: true, title: true, scheduledAt: true, status: true } }) : null,
+    projectAssetRights(db, toFileActor(user), project.id),
+  ]);
+  const [fin, fileCount, removalBlockers] = await Promise.all([
+    canCosts ? projectProfitability(db, org, project.id) : null,
+    assetRights.read ? listAssets(db, org, project.id).then((a) => a.length) : 0,
+    canRemove ? projectDeleteBlockers(db, project.id) : [],
+  ]);
+
   const nameOf = new Map(orgUsers.map((u) => [u.id, u.name]));
-  const client = project.clientId ? await db.client.findUnique({ where: { id: project.clientId } }) : null;
   const progress = projectProgress(project.tasks);
   const open = taskId ? project.tasks.find((t) => t.id === taskId) ?? null : null;
   const comments = open ? await db.taskComment.findMany({ where: { taskId: open.id }, orderBy: { createdAt: "asc" }, take: 100 }) : [];
@@ -54,54 +86,122 @@ export default async function ProjectPage({
   const outsiders = new Map((await db.user.findMany({ where: { id: { in: comments.map((c) => c.authorId).filter((a) => !nameOf.has(a)) } }, select: { id: true, name: true, clientId: true } })).map((u) => [u.id, u]));
   const top = project.tasks.filter((t) => !t.parentId);
   const byId = new Map(project.tasks.map((t) => [t.id, t]));
-  const milestones = (await db.milestone.findMany({ where: { projectId: project.id }, select: { name: true, dueDate: true } })).map((m) => ({ name: m.name, dueDate: m.dueDate ? String(m.dueDate).slice(0, 10) : null }));
-  const closed = project.status === "COMPLETED" || project.status === "CANCELLED";
-  const canRemove = user.permissions.has("records.delete");
-  const removalBlockers = canRemove ? await projectDeleteBlockers(db, project.id) : [];
-  return (
-    <div className="space-y-6">
-      <Link href="/projects" className="text-sm text-muted hover:underline">← All projects</Link>
-      {error && <Notice kind="error">{error}</Notice>}
-      {removed && <Notice kind="ok">{removed}</Notice>}
-      {project.archivedAt && <Notice kind="ok">This project is archived, so it is hidden from project lists.{canRemove ? " Restore it at the bottom of this page." : ""}</Notice>}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{project.name} <span className="text-muted text-base font-normal">{project.number}</span></h1>
-          {projectCampaign && <p className="text-sm text-muted">Campaign: {user.permissions.has("campaigns.view") ? <Link className="hover:underline" href={`/campaigns/${projectCampaign.id}`}>{projectCampaign.name}</Link> : projectCampaign.name}</p>}
-          <p className="text-sm text-muted">
-            {client ? client.name : "Internal project"} · {project.status.replace("_", " ")} · Manager: {nameOf.get(project.managerId) ?? "Unknown"}
-            {project.deadline && ` · Due ${project.deadline.toLocaleDateString()}`}
-            {project.budgetAmount && ` · Budget ${formatMoney(project.budgetAmount, project.currency)}`}
-          </p>
+  const milestones = milestonesRaw.map((m) => ({ name: m.name, dueDate: m.dueDate ? String(m.dueDate).slice(0, 10) : null }));
+  const nextMilestone = milestonesRaw.filter((m) => m.status !== "DONE").sort((a, b) => String(a.dueDate ?? "9999").localeCompare(String(b.dueDate ?? "9999")))[0] ?? null;
+  const openTasks = top.filter((t) => t.status !== "DONE");
+  const isOverdue = (t: (typeof top)[number]) => t.status !== "DONE" && t.dueDate !== null && t.dueDate < now;
+  const overdue = openTasks.filter(isOverdue);
+  const soon = new Date(now.getTime() + 7 * 86_400_000);
+  const attention = openTasks.filter((t) => t.dueDate && t.dueDate <= soon).sort((a, b) => a.dueDate!.getTime() - b.dueDate!.getTime()).slice(0, 6);
+  const taskHref = (tid: string) => `${base}?task=${tid}`;
+  const update = latest[0] ?? null;
+  const showSettings = canManage || canCosts || (canRemove && (project.status === "CANCELLED" || Boolean(project.archivedAt)));
+
+  const header = (
+    <PageHeader
+      back={{ href: "/projects", label: "All projects" }}
+      title={project.name}
+      subtitle={
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span>{project.number}</span><StatusBadge status={project.status} />
+          <span>· {client ? client.name : "Internal project"}</span>
+          <span>· Manager: {nameOf.get(project.managerId) ?? "Unknown"}</span>
+          {(project.startDate || project.deadline) && <span>· {project.startDate ? day(project.startDate) : "Start not set"} to {project.deadline ? day(project.deadline) : "no due date"}</span>}
+          <span>· Phase: {project.phase ? PHASE_LABEL[project.phase as ProjectPhase] ?? project.phase : "not set"}</span>
+          {projectCampaign && <span>· Campaign: {can("campaigns.view") ? <Link className="hover:underline" href={`/campaigns/${projectCampaign.id}`}>{projectCampaign.name}</Link> : projectCampaign.name}</span>}
+        </span>
+      }
+      actions={!closed && (
+        <div className="flex flex-wrap items-center gap-2">
+          {canMove && <a href="#time" className="btn-ghost">Log time</a>}
+          {canMove && <a href="#updates" className="btn-ghost">Post update</a>}
+          {canManage && <Link href={`${base}?new=task`} className="btn">+ New task</Link>}
         </div>
-        {canManage && (
-          <form action={setProjectStatus} className="flex gap-2 items-end">
-            <input type="hidden" name="projectId" value={project.id} />
-            <div>
-              <label className="label" htmlFor="status">Project status</label>
-              <select id="status" name="status" defaultValue={project.status} className="input">
-                {["ACTIVE", "ON_HOLD", "COMPLETED", "CANCELLED"].map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
-              </select>
+      )}
+    />
+  );
+
+  const figures = (
+    <div className={`grid grid-cols-2 gap-3 ${fin ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
+      <div className={`card !p-4 ${fin ? "col-span-2 lg:col-span-1" : ""}`}>
+        <p className="text-xs font-medium text-muted">Progress (tasks done)</p>
+        <p className="mt-0.5 text-2xl font-semibold tracking-tight">{progress}%</p>
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-hover" role="progressbar" aria-label="Progress" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
+          <div className={`h-full rounded-full ${progress >= 100 ? "bg-success" : "bg-primary"}`} style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+      <Stat label="Open tasks" href="#tasks" value={openTasks.length} hint={overdue.length > 0 ? <span className="text-brand font-medium">{overdue.length} overdue</span> : "None overdue"} />
+      <Stat label="Next milestone" href="#milestones" value={<span className="text-base">{nextMilestone ? nextMilestone.name : "None set"}</span>} hint={nextMilestone?.dueDate ? `Due ${nextMilestone.dueDate}` : undefined} />
+      <Stat label="Waiting on client" href="#deliverables" value={waitingOnClient} hint={waitingOnClient === 1 ? "deliverable to approve" : "deliverables to approve"} />
+      {fin && <Stat label="Profit to date" href="#money" value={<span className="text-xl">{formatMoney(fin.profit.toString(), fin.currency)}</span>} hint={fin.budgetUsedPct !== null ? `${fin.budgetUsedPct.toString()}% of budget used` : "Restricted"} />}
+    </div>
+  );
+
+  const overview = (
+    <div key="overview" className="grid gap-6 lg:grid-cols-3">
+      <div className="space-y-6 lg:col-span-2">
+        <section className="card space-y-2">
+          <h2 className="font-semibold">Needs attention</h2>
+          {attention.length === 0 ? <p className="text-sm text-muted">Nothing overdue or due in the next 7 days.</p> : (
+            <ul className="divide-y divide-border text-sm">
+              {attention.map((t) => (
+                <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <Link href={taskHref(t.id)} className="hover:underline">{t.title}<span className="text-muted"> · {t.assigneeId ? nameOf.get(t.assigneeId) ?? "Unknown" : "Unassigned"}</span></Link>
+                  <span className={isOverdue(t) ? "text-brand font-medium" : "text-muted"}>{isOverdue(t) ? "Overdue" : "Due"} {t.dueDate!.toISOString().slice(0, 10)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {overdue.length > attention.filter(isOverdue).length && <p className="text-xs text-muted">More on the <a href="#tasks" className="underline">Tasks</a> tab.</p>}
+        </section>
+        <section className="card space-y-3">
+          <div className="flex items-center justify-between gap-2"><h2 className="font-semibold">Latest update</h2><a href="#updates" className="text-xs text-primary hover:underline">All updates</a></div>
+          <PhaseTracker phase={project.phase} />
+          {update ? (
+            <div className="space-y-1 text-sm">
+              <p className="flex flex-wrap items-center gap-2 font-medium">{update.title}<Badge>{KIND_LABEL[update.kind as UpdateKind] ?? update.kind}</Badge></p>
+              {update.body && <p className="line-clamp-3 whitespace-pre-wrap text-muted">{update.body}</p>}
+              <p className="text-xs text-muted">{update.author} · {update.createdAt.toLocaleString()}</p>
             </div>
-            <button className="btn-ghost">Update</button>
-          </form>
+          ) : <p className="text-sm text-muted">No updates yet. The team posts what changed, what was tested and what is blocked.</p>}
+        </section>
+        {project.scope && (
+          <section className="card space-y-2 text-sm">
+            <h2 className="font-semibold">Scope</h2>
+            {project.scope.length <= SCOPE_PREVIEW ? <p className="whitespace-pre-line">{project.scope}</p> : (
+              <details className="group">
+                <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                  <span className="group-open:hidden">{project.scope.slice(0, SCOPE_PREVIEW).trimEnd()}… <span className="text-primary">Show all</span></span>
+                  <span className="hidden text-primary group-open:inline">Show less</span>
+                </summary>
+                <p className="mt-2 whitespace-pre-line">{project.scope}</p>
+              </details>
+            )}
+          </section>
         )}
       </div>
-      <div>
-        <div className="flex justify-between text-xs text-muted mb-1"><span>Progress (tasks done)</span><span>{progress}%</span></div>
-        <div className="h-2 rounded-full bg-border overflow-hidden"><div className={`h-full transition-all duration-700 ${progress >= 100 ? "bg-success" : "bg-primary"}`} style={{ width: `${progress}%` }} /></div>
+      <div className="space-y-6">
+        <section className="card space-y-3">
+          <div className="flex items-center justify-between gap-2"><h2 className="font-semibold">Team</h2>{canManage && !closed && <a href="#settings" className="text-xs text-primary hover:underline">Manage</a>}</div>
+          {project.members.length === 0 ? <p className="text-sm text-muted">Nobody on the team yet.</p> : (
+            <ul className="space-y-1.5 text-sm">
+              {project.members.map((m) => <li key={m.userId} className="flex items-center gap-2"><Avatar name={nameOf.get(m.userId) ?? "Unknown"} userId={m.userId} size={28} /><span>{nameOf.get(m.userId) ?? "Unknown"}{m.role && <span className="text-muted"> · {m.role}</span>}</span></li>)}
+            </ul>
+          )}
+        </section>
+        <section className="card space-y-1 text-sm">
+          <h2 className="mb-1 font-semibold">Coming up</h2>
+          {canMeet && <div className="flex justify-between gap-2 border-t border-border py-2"><span>Next meeting</span>{nextMeeting ? <Link href={`/meetings/${nextMeeting.id}`} className="text-right hover:underline">{nextMeeting.title}<span className="block text-xs text-muted">{nextMeeting.status === "LIVE" ? "Live now" : nextMeeting.scheduledAt ? nextMeeting.scheduledAt.toLocaleString() : "Instant"}</span></Link> : <span className="text-muted">None booked</span>}</div>}
+          <div className="flex justify-between gap-2 border-t border-border py-2"><span>Next milestone</span><span className="text-right text-muted">{nextMilestone ? `${nextMilestone.name}${nextMilestone.dueDate ? ` · ${nextMilestone.dueDate}` : ""}` : "None set"}</span></div>
+          <div className="flex justify-between gap-2 border-t border-border py-2"><span>Deliverables with the client</span><a href="#deliverables" className="text-muted hover:underline">{waitingOnClient}</a></div>
+          {assetRights.read && <div className="flex justify-between gap-2 border-t border-border py-2"><span>Files</span><a href="#files" className="text-muted hover:underline">{fileCount}</a></div>}
+        </section>
       </div>
-      {project.scope && <section className="card text-sm whitespace-pre-line">{project.scope}</section>}
+    </div>
+  );
 
-      <ProjectDepth user={user} projectId={project.id} closed={closed} />
-      <ProjectUpdates projectId={project.id} organizationId={user.organizationId} phase={project.phase} hasClient={Boolean(project.clientId)} canPost={canMove} canSetPhase={canManage} closed={closed} msg={msg} />
-      <Deliverables projectId={project.id} organizationId={user.organizationId} canManage={canManage} hasClient={Boolean(project.clientId)} closed={closed} msg={msg} />
-      <ProjectAssets user={user} projectId={project.id} folder={folder} flash={{ assetError, assetOk }} />
-      {user.permissions.has("meetings.use") && <ProjectMeetings projectId={project.id} organizationId={user.organizationId} closed={closed} />}
-
-      <ProjectTimeline projectId={project.id} today={new Date().toISOString().slice(0, 10)} projectStart={project.startDate} deadline={project.deadline} milestones={milestones}
-        tasks={top.map((t) => ({ id: t.id, title: t.title, status: t.status, createdAt: t.createdAt, dueDate: t.dueDate, completedAt: t.completedAt, assignee: t.assigneeId ? nameOf.get(t.assigneeId) ?? null : null }))} />
-
+  const tasks = (
+    <div key="tasks" className="space-y-6">
       <TaskBoard
         key={project.tasks.map((t) => `${t.id}:${t.status}:${t.blockedBy.join("")}`).join(",")}
         canMove={canMove && !closed}
@@ -111,65 +211,129 @@ export default async function ProjectPage({
           id: t.id, title: t.title, status: t.status, priority: t.priority,
           assignee: t.assigneeId ? nameOf.get(t.assigneeId) ?? "Unknown" : null, assigneeId: t.assigneeId,
           due: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
-          overdue: t.status !== "DONE" && t.dueDate !== null && t.dueDate < new Date(),
+          overdue: isOverdue(t),
           subDone: project.tasks.filter((x) => x.parentId === t.id && x.status === "DONE").length, subTotal: project.tasks.filter((x) => x.parentId === t.id).length,
-          waitingFor: openBlockers(t.blockedBy, byId).map((x) => x.title), recurrence: t.recurrence, href: `/projects/${project.id}?task=${t.id}`,
+          waitingFor: openBlockers(t.blockedBy, byId).map((x) => x.title), recurrence: t.recurrence, href: taskHref(t.id),
         }))}
       />
+      <ProjectTimeline projectId={project.id} today={todayIso} projectStart={project.startDate} deadline={project.deadline} milestones={milestones}
+        tasks={top.map((t) => ({ id: t.id, title: t.title, status: t.status, createdAt: t.createdAt, dueDate: t.dueDate, completedAt: t.completedAt, assignee: t.assigneeId ? nameOf.get(t.assigneeId) ?? null : null }))} />
+      <ProjectDepth user={user} projectId={project.id} closed={closed} part="milestones" />
+    </div>
+  );
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="card space-y-3">
-          <h2 className="font-semibold">Team</h2>
-          <ul className="text-sm space-y-1">
-            {project.members.map((m) => <li key={m.userId} className="flex items-center gap-2"><Avatar name={nameOf.get(m.userId) ?? "Unknown"} userId={m.userId} size={28} /><span>{nameOf.get(m.userId) ?? "Unknown"}{m.role && <span className="text-muted"> · {m.role}</span>}</span></li>)}
-          </ul>
-          {canManage && !closed && (
-            <form action={addMember} className="flex gap-2 flex-wrap">
-              <input type="hidden" name="projectId" value={project.id} />
-              <select name="userId" required aria-label="Team member" className="input w-48">
-                <option value="">Add member…</option>
-                {orgUsers.filter((u) => !project.members.some((m) => m.userId === u.id)).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-              </select>
-              <input name="role" placeholder="Role (e.g. Designer)" aria-label="Role" className="input w-44" />
-              <button className="btn-ghost">Add</button>
-            </form>
-          )}
-          {canManage && !closed && (
-            <form action={changeProjectManager} className="flex gap-2 flex-wrap items-end border-t border-border pt-3">
+  const settings = (
+    <div key="settings" className="space-y-6">
+      {canManage && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <section className="card space-y-3">
+            <h2 className="font-semibold">Status and manager</h2>
+            <form key={project.status} action={setProjectStatus} className="flex flex-wrap items-end gap-2">
               <input type="hidden" name="projectId" value={project.id} />
               <div>
-                <label className="label" htmlFor="managerId">Project manager</label>
-                <select id="managerId" name="managerId" required defaultValue={project.managerId} className="input w-48">
-                  {orgUsers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                <label className="label" htmlFor="status">Project status</label>
+                <select id="status" name="status" defaultValue={project.status} className="input w-48">
+                  {["ACTIVE", "ON_HOLD", "COMPLETED", "CANCELLED"].map((s) => <option key={s} value={s}>{s.replace("_", " ").toLowerCase().replace(/^./, (c) => c.toUpperCase())}</option>)}
                 </select>
               </div>
-              <button className="btn-ghost">Change manager</button>
-              <p className="w-full text-xs text-muted">The previous manager stays on the team.</p>
+              <button className="btn-ghost">Save status</button>
             </form>
-          )}
-        </section>
-        {canManage && !closed && (
-          <form action={createTask} className="card space-y-3">
-            <h2 className="font-semibold">New task</h2>
+            {!closed && (
+              <form action={changeProjectManager} className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
+                <input type="hidden" name="projectId" value={project.id} />
+                <div>
+                  <label className="label" htmlFor="managerId">Project manager</label>
+                  <select id="managerId" name="managerId" required defaultValue={project.managerId} className="input w-48">
+                    {orgUsers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  </select>
+                </div>
+                <button className="btn-ghost">Change manager</button>
+                <p className="w-full text-xs text-muted">The previous manager stays on the team.</p>
+              </form>
+            )}
+          </section>
+          <section className="card space-y-3">
+            <h2 className="font-semibold">Team</h2>
+            <ul className="space-y-1.5 text-sm">
+              {project.members.map((m) => <li key={m.userId} className="flex items-center gap-2"><Avatar name={nameOf.get(m.userId) ?? "Unknown"} userId={m.userId} size={28} /><span>{nameOf.get(m.userId) ?? "Unknown"}{m.role && <span className="text-muted"> · {m.role}</span>}</span></li>)}
+            </ul>
+            {!closed && (
+              <form action={addMember} className="flex flex-wrap gap-2 border-t border-border pt-3">
+                <input type="hidden" name="projectId" value={project.id} />
+                <select name="userId" required aria-label="Team member" className="input w-48">
+                  <option value="">Add a person…</option>
+                  {orgUsers.filter((u) => !project.members.some((m) => m.userId === u.id)).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+                <input name="role" placeholder="Role (e.g. Designer)" aria-label="Role" className="input w-44" />
+                <button className="btn-ghost">Add to team</button>
+              </form>
+            )}
+          </section>
+        </div>
+      )}
+      <ProjectDepth user={user} projectId={project.id} closed={closed} part="rates" />
+      {canRemove && (project.status === "CANCELLED" || project.archivedAt) && (
+        <details className="text-sm" open={Boolean(project.archivedAt)}>
+          <summary className="cursor-pointer text-muted hover:text-foreground">{project.archivedAt ? "Restore this project" : "Remove this project"}</summary>
+          <div className="mt-3">
+            <RemoveRecordPanel kind="project" name={project.name} idField="projectId" id={project.id} archived={Boolean(project.archivedAt)} canArchive={project.status === "CANCELLED"}
+              archiveHint="To archive it, set the project status to Cancelled first." blockers={removalBlockers}
+              deleteBlockedReason={project.status === "CANCELLED" ? undefined : "To delete it, set the project status to Cancelled first."}
+              archiveAction={archiveProjectAction} restoreAction={restoreProjectAction} deleteAction={deleteProjectAction} archiveLabel="Archive project" restoreLabel="Restore project" />
+          </div>
+        </details>
+      )}
+    </div>
+  );
+
+  const tabs: ProjectTab[] = [
+    { key: "overview", label: "Overview", panel: overview },
+    { key: "tasks", label: "Tasks", count: openTasks.length, panel: tasks },
+    {
+      key: "updates", label: "Updates", panel: (
+        <div key="updates" className="space-y-6">
+          <ProjectUpdates projectId={project.id} organizationId={org} phase={project.phase} hasClient={Boolean(project.clientId)} canPost={canMove} canSetPhase={canManage} closed={closed} msg={msg} />
+          <Deliverables projectId={project.id} organizationId={org} canManage={canManage} hasClient={Boolean(project.clientId)} closed={closed} msg={msg} />
+        </div>
+      ),
+    },
+    ...(assetRights.read ? [{ key: "files", label: "Files", count: fileCount, panel: <ProjectAssets key="files" user={user} projectId={project.id} folder={folder} flash={{ assetError, assetOk }} /> }] : []),
+    ...(canMeet ? [{ key: "meetings", label: "Meetings", panel: <ProjectMeetings key="meetings" projectId={project.id} organizationId={org} closed={closed} /> }] : []),
+    {
+      key: "time", label: canCosts ? "Time & money" : "Time", panel: (
+        <div key="time" className="space-y-6">
+          <ProjectDepth user={user} projectId={project.id} closed={closed} part="time" />
+          {canCosts && <ProjectDepth user={user} projectId={project.id} closed={closed} part="money" />}
+        </div>
+      ),
+    },
+    ...(showSettings ? [{ key: "settings", label: "Settings", panel: settings }] : []),
+  ];
+
+  return (
+    <div className="space-y-5">
+      {error && <Notice kind="error">{error}</Notice>}
+      {removed && <Notice kind="ok">{removed}</Notice>}
+      {project.archivedAt && <Notice kind="ok">This project is archived, so it is hidden from project lists.{canRemove ? " Restore it from the Settings tab." : ""}</Notice>}
+      <ProjectTabs initial={open || newPanel === "task" ? "tasks" : resolveTab(tab, tabs.map((t) => t.key)) ?? "overview"} tabs={tabs} header={<div key="header" className="space-y-4">{header}{figures}</div>} />
+      {canManage && !closed && newPanel === "task" && (
+        <Drawer title="New task" closeTo={`${base}?tab=tasks`}>
+          <PanelForm action={createTask} closeTo={`${base}?tab=tasks`} submit="Add task" hint="Only people on the team can be assigned.">
             <input type="hidden" name="projectId" value={project.id} />
-            <input name="title" required placeholder="Task title" aria-label="Task title" className="input" />
-            <div className="grid grid-cols-3 gap-2">
-              <select name="assigneeId" aria-label="Assignee" className="input">
-                <option value="">Unassigned</option>
-                {project.members.map((m) => <option key={m.userId} value={m.userId}>{nameOf.get(m.userId)}</option>)}
-              </select>
-              <select name="priority" aria-label="Priority" defaultValue="MEDIUM" className="input">
-                {["LOW", "MEDIUM", "HIGH"].map((c) => <option key={c}>{c}</option>)}
-              </select>
-              <input name="dueDate" type="date" aria-label="Due date" className="input" />
+            <div><label className="label" htmlFor="nt-title">Task title</label><input id="nt-title" name="title" required minLength={2} maxLength={200} autoFocus className="input" /></div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div><label className="label" htmlFor="nt-as">Assignee</label>
+                <select id="nt-as" name="assigneeId" className="input"><option value="">Unassigned</option>{project.members.map((m) => <option key={m.userId} value={m.userId}>{nameOf.get(m.userId) ?? "Unknown"}</option>)}</select></div>
+              <div><label className="label" htmlFor="nt-pr">Priority</label>
+                <select id="nt-pr" name="priority" defaultValue="MEDIUM" className="input">{["LOW", "MEDIUM", "HIGH"].map((c) => <option key={c} value={c}>{c.charAt(0) + c.slice(1).toLowerCase()}</option>)}</select></div>
+              <div><label className="label" htmlFor="nt-due">Due date</label><input id="nt-due" name="dueDate" type="date" className="input" /></div>
             </div>
-            <label className="text-sm flex items-center gap-2"><input type="checkbox" name="clientVisible" /> Visible to the client</label>
-            <button className="btn">Add task</button>
-          </form>
-        )}
-      </div>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="clientVisible" /> Visible to the client in their portal</label>
+          </PanelForm>
+        </Drawer>
+      )}
       {open && (
-        <Drawer title={open.title} closeTo={`/projects/${project.id}`}>
+        <Drawer title={open.title} closeTo={`${base}?tab=tasks`}>
           <TaskDetail
             key={`${open.id}:${open.status}:${project.tasks.length}:${comments.length}`}
             task={{ id: open.id, title: open.title, status: open.status, description: open.description ?? "", priority: open.priority, assigneeId: open.assigneeId ?? "", due: open.dueDate ? open.dueDate.toISOString().slice(0, 10) : "", clientVisible: open.clientVisible, recurrence: open.recurrence ?? "", blockedBy: open.blockedBy, parentTitle: open.parentId ? byId.get(open.parentId)?.title ?? "another task" : null }}
@@ -179,14 +343,9 @@ export default async function ProjectPage({
             comments={comments.map((c) => ({ id: c.id, authorId: c.authorId, author: nameOf.get(c.authorId) ?? outsiders.get(c.authorId)?.name ?? "Former staff", body: c.body, at: c.createdAt.toLocaleString(), shared: !c.internal, fromClient: Boolean(outsiders.get(c.authorId)?.clientId) }))}
             canManage={(canManage || project.managerId === user.id) && !closed} canMoveSubtasks={canMove && !closed && (canManage || project.managerId === user.id || open.assigneeId === user.id)} canComment={canMove}
           >
-            <FilesPanel user={user} ownerType="TASK" ownerId={open.id} returnTo={`/projects/${project.id}?task=${open.id}`} title="Files" flash={{ fileError, fileOk }} />
+            <FilesPanel user={user} ownerType="TASK" ownerId={open.id} returnTo={`${base}?task=${open.id}`} title="Files" flash={{ fileError, fileOk }} />
           </TaskDetail>
         </Drawer>
-      )}
-      {canRemove && (
-        <RemoveRecordPanel kind="project" name={project.name} idField="projectId" id={project.id} archived={Boolean(project.archivedAt)} canArchive={closed}
-          archiveHint="To archive it, set the project status to Completed or Cancelled first." blockers={removalBlockers}
-          archiveAction={archiveProjectAction} restoreAction={restoreProjectAction} deleteAction={deleteProjectAction} archiveLabel="Archive project" restoreLabel="Restore project" />
       )}
     </div>
   );

@@ -2,15 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { audit, requirePermission } from "@/lib/auth";
+import { audit, requirePermission, type SessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { projectScope } from "@/lib/projects";
 import { RemovalError, archiveProject, deleteProject, nameMatches, restoreProject } from "@/lib/record-removal";
 
 // Archive, restore and permanent delete of a project. Only people with "records.delete" (Super Admin has it).
-const back = (id: string, key: "error" | "removed", text: string): never => redirect(`/projects/${id}?${key}=${encodeURIComponent(text)}`);
+const back = (id: string, key: "error" | "removed", text: string): never => redirect(`/projects/${id}?${key}=${encodeURIComponent(text)}&tab=settings`);
 
-const load = (user: Awaited<ReturnType<typeof requirePermission>>, projectId: string) => db.project.findFirst({ where: { id: projectId, ...projectScope(user) } });
+const load = (user: SessionUser, projectId: string) => db.project.findFirst({ where: { id: projectId, ...projectScope(user) } });
 
 export async function archiveProjectAction(formData: FormData): Promise<void> {
   const projectId = String(formData.get("projectId") ?? "");

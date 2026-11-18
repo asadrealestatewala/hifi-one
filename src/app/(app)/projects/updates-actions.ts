@@ -8,7 +8,7 @@ import { projectScope } from "@/lib/projects";
 import { UpdateError, postUpdate, setUpdateVisibility } from "@/lib/project-updates";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "");
-const back = (projectId: string, kind: "error" | "msg", m: string) => redirect(`/projects/${projectId}?${kind}=${encodeURIComponent(m)}#updates`);
+const back = (projectId: string, kind: "error" | "msg", m: string) => redirect(`/projects/${projectId}?${kind}=${encodeURIComponent(m)}&tab=updates#updates`);
 
 // Posts to a project's updates feed (anyone who can edit tasks on a project they belong to); only a project manager changes the phase.
 export async function postUpdateAction(formData: FormData): Promise<void> {
