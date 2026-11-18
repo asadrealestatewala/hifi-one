@@ -3,7 +3,8 @@ import type { SessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { paging } from "@/lib/paging";
 import { projectScope } from "@/lib/projects";
-import TaskListTable, { type ListRow } from "./TaskListTable";
+import TaskListTable from "./TaskListTable";
+import { buildTaskRows } from "./task-rows";
 import { AppliedFilters, Chips, Empty, PageHeader, Pager, SearchBox, Stat, ListToolbar } from "@/components/ui";
 
 export type TaskSP = { view?: string; who?: string; tstatus?: string; priority?: string; project?: string; due?: string; q?: string; page?: string; from?: string };
@@ -43,24 +44,7 @@ export default async function TasksView({ user, sp, tabs }: { user: SessionUser;
     db.task.count({ where: { ...scope, status: "REVIEW" } }),
     db.project.findMany({ where: { ...projectScope(user), status: { not: "CANCELLED" } }, orderBy: { number: "asc" }, select: { id: true, name: true, number: true } }),
   ]);
-  const people = new Map((await db.user.findMany({ where: { id: { in: [...new Set(rows.map((r) => r.assigneeId).filter(Boolean) as string[])] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
-  // Inline edits: the manager of a row's project (or anyone with projects.manage) edits details; assignees move their own tasks
-  const canEdit = user.permissions.has("tasks.edit");
-  const isManager = (p: { managerId: string }) => user.permissions.has("projects.manage") || p.managerId === user.id;
-  const closed = (s: string) => s === "COMPLETED" || s === "CANCELLED";
-  const managed = [...new Set(rows.filter((r) => canEdit && isManager(r.project) && !closed(r.project.status)).map((r) => r.projectId))];
-  const team = managed.length ? await db.projectMember.findMany({ where: { projectId: { in: managed } }, select: { projectId: true, userId: true } }) : [];
-  const staff = new Map((team.length ? await db.user.findMany({ where: { id: { in: [...new Set(team.map((m) => m.userId))] }, organizationId: user.organizationId, active: true, userType: "EMPLOYEE" }, select: { id: true, name: true }, orderBy: { name: "asc" } }) : []).map((u) => [u.id, u]));
-  const members: Record<string, { id: string; name: string }[]> = {};
-  for (const m of team) { const u = staff.get(m.userId); if (u) (members[m.projectId] ??= []).push(u); }
-  for (const list of Object.values(members)) list.sort((a, b) => a.name.localeCompare(b.name));
-  const everyone = [...staff.values()];
-  const listRows: ListRow[] = rows.map((t) => ({
-    id: t.id, title: t.title, projectId: t.project.id, projectName: t.project.name, assigneeId: t.assigneeId, assigneeName: t.assigneeId ? people.get(t.assigneeId) ?? null : null,
-    priority: t.priority, status: t.status, due: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null, late: Boolean(t.status !== "DONE" && t.dueDate && t.dueDate < dayStart),
-    canManage: canEdit && isManager(t.project) && !closed(t.project.status),
-    canMove: canEdit && !closed(t.project.status) && (isManager(t.project) || t.assigneeId === user.id),
-  }));
+  const list = await buildTaskRows(user, rows, dayStart.toISOString().slice(0, 10));
   const cur: Record<string, string | undefined> = { view: "tasks", who: who === "me" ? undefined : "all", tstatus: tstatus === "open" ? undefined : tstatus, priority, project: sp.project, due, q, from: sp.from };
   const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ ...cur, ...over })) if (v) p.set(k, v); return `/projects?${p}`; };
   const pname = projects.find((p) => p.id === sp.project);
@@ -94,7 +78,7 @@ export default async function TasksView({ user, sp, tabs }: { user: SessionUser;
       </ListToolbar>
       {rows.length === 0 ? <Empty title="No tasks match">{who === "me" && !applied.length && tstatus === "open" ? "Nothing is assigned to you right now. Try Everyone to see the team's tasks." : <Link className="underline" href="/projects?view=tasks">Clear the filters</Link>}</Empty> : (
         <>
-          <TaskListTable rows={listRows} members={members} people={everyone} selectable={canEdit} />
+          <TaskListTable {...list} />
           <div className="card !p-0"><Pager page={pg.page} size={pg.size} total={matched} href={(n) => href({ page: n > 1 ? String(n) : undefined })} /></div>
         </>
       )}

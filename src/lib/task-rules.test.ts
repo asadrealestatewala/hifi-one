@@ -34,3 +34,16 @@ describe("nextDue", () => {
     expect(nextDue(null, "WEEKLY", d("2026-05-01")).toISOString().slice(0, 10)).toBe("2026-05-08");
   });
 });
+
+describe("parseEstimate", () => {
+  it("reads hours as typed and refuses nonsense", async () => {
+    const { parseEstimate } = await import("./task-rules");
+    expect(parseEstimate("")).toEqual({ ok: true, value: null });
+    expect(parseEstimate(" 3 ")).toEqual({ ok: true, value: "3" });
+    expect(parseEstimate("1,5")).toEqual({ ok: true, value: "1.5" });
+    expect(parseEstimate("0")).toEqual({ ok: false });
+    expect(parseEstimate("-2")).toEqual({ ok: false });
+    expect(parseEstimate("1000")).toEqual({ ok: false });
+    expect(parseEstimate("two")).toEqual({ ok: false });
+  });
+});

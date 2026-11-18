@@ -37,3 +37,12 @@ export function nextDue(from: Date | null, recurrence: Recurrence, today = new D
   }
   return d;
 }
+
+// Hours a task is expected to take, as typed: empty clears it; otherwise a number above 0 and below 1000 with up to two
+// decimals ("1.5", "1,5"). Feeds the Workload tab's planned hours.
+export function parseEstimate(raw: unknown): { ok: true; value: string | null } | { ok: false } {
+  const v = String(raw ?? "").trim().replace(",", ".");
+  if (!v) return { ok: true, value: null };
+  if (!/^\d{1,3}(\.\d{1,2})?$/.test(v) || Number(v) <= 0) return { ok: false };
+  return { ok: true, value: v };
+}
