@@ -86,6 +86,7 @@ export const PERMISSIONS = {
   "finance.refund": "Refund money held on account to a client",
   "clients.view": "View client accounts",
   "clients.edit": "Create and edit client accounts",
+  "records.delete": "Archive and permanently delete test projects and clients that have nothing real attached",
   "finance.view": "View ledgers, invoices, payments and reports",
   "finance.post": "Create and issue invoices, record payments",
   "campaigns.view": "View campaigns, their teams, clients and linked projects",

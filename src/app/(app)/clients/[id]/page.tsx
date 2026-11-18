@@ -5,6 +5,9 @@ import Link from "next/link";
 import { Avatar, Badge, Empty, Notice, PanelForm, StatusBadge } from "@/components/ui";
 import Drawer from "@/components/ui/Drawer";
 import { saveClientDetails } from "./actions";
+import { deleteClientAction, setClientActiveAction } from "./removal-actions";
+import RemoveRecordPanel from "@/components/RemoveRecordPanel";
+import { clientDeleteBlockers } from "@/lib/record-removal";
 import { projectProgress } from "@/lib/project-rules";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
@@ -20,7 +23,7 @@ import { CLIENT_TYPE_LABEL, supportHandler } from "@/lib/engagements";
 
 export const dynamic = "force-dynamic";
 
-export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; mailOk?: string; mailError?: string; tab?: string; edit?: string; detailsSaved?: string; saved?: string; shared?: string; pool?: string }> }) {
+export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; removed?: string; mailOk?: string; mailError?: string; tab?: string; edit?: string; detailsSaved?: string; saved?: string; shared?: string; pool?: string }> }) {
   const user = await requirePermission("clients.view");
   const { id } = await params;
   const sp = await searchParams;
@@ -73,6 +76,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
           {has("finance.post") && <Link href={`/finance/invoices/new?client=${client.id}`} className="btn"><Icon name="plus" className="h-4 w-4" />New invoice</Link>}
         </div>
       </header>
+      {sp.removed && <Notice kind="ok">{sp.removed}</Notice>}
       {sp.detailsSaved && <Notice kind="ok">Client details saved. New payment terms apply to invoices created from now on.</Notice>}
       <Tabs current={tab} items={TABS.map(([k, l]) => ({ key: k, label: l, href: tabHref(k) }))} />
       {tab === "overview" && <section className="card text-sm grid grid-cols-3 gap-y-2 max-w-2xl">
@@ -169,6 +173,11 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
             </p>
           )}
         </section>
+      )}
+      {has("records.delete") && (
+        <RemoveRecordPanel kind="client" name={client.name} idField="clientId" id={client.id} archived={!client.active} canArchive
+          blockers={await clientDeleteBlockers(db, user.organizationId, client.id)}
+          archiveAction={setClientActiveAction} restoreAction={setClientActiveAction} deleteAction={deleteClientAction} archiveLabel="Mark inactive" restoreLabel="Make active again" />
       )}
     </div>
   );

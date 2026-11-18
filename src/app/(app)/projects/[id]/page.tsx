@@ -19,16 +19,19 @@ import Avatar from "@/components/ui/Avatar";
 import FilesPanel from "@/components/FilesPanel";
 import { openBlockers } from "@/lib/task-rules";
 import { Notice } from "@/components/ui";
+import RemoveRecordPanel from "@/components/RemoveRecordPanel";
+import { projectDeleteBlockers } from "@/lib/record-removal";
+import { archiveProjectAction, deleteProjectAction, restoreProjectAction } from "../removal-actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProjectPage({
   params,
   searchParams,
-}: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; msg?: string; task?: string; fileError?: string; fileOk?: string; folder?: string; assetError?: string; assetOk?: string }> }) {
+}: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; msg?: string; removed?: string; task?: string; fileError?: string; fileOk?: string; folder?: string; assetError?: string; assetOk?: string }> }) {
   const user = await requirePermission("projects.view");
   const { id } = await params;
-  const { error, msg, task: taskId, fileError, fileOk, folder, assetError, assetOk } = await searchParams;
+  const { error, msg, removed, task: taskId, fileError, fileOk, folder, assetError, assetOk } = await searchParams;
   const project = await db.project.findFirst({
     where: { id, ...projectScope(user) },
     include: { members: true, tasks: { orderBy: { createdAt: "asc" } } },
@@ -53,10 +56,14 @@ export default async function ProjectPage({
   const byId = new Map(project.tasks.map((t) => [t.id, t]));
   const milestones = (await db.milestone.findMany({ where: { projectId: project.id }, select: { name: true, dueDate: true } })).map((m) => ({ name: m.name, dueDate: m.dueDate ? String(m.dueDate).slice(0, 10) : null }));
   const closed = project.status === "COMPLETED" || project.status === "CANCELLED";
+  const canRemove = user.permissions.has("records.delete");
+  const removalBlockers = canRemove ? await projectDeleteBlockers(db, project.id) : [];
   return (
     <div className="space-y-6">
       <Link href="/projects" className="text-sm text-muted hover:underline">← All projects</Link>
       {error && <Notice kind="error">{error}</Notice>}
+      {removed && <Notice kind="ok">{removed}</Notice>}
+      {project.archivedAt && <Notice kind="ok">This project is archived, so it is hidden from project lists.{canRemove ? " Restore it at the bottom of this page." : ""}</Notice>}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{project.name} <span className="text-muted text-base font-normal">{project.number}</span></h1>
@@ -175,6 +182,11 @@ export default async function ProjectPage({
             <FilesPanel user={user} ownerType="TASK" ownerId={open.id} returnTo={`/projects/${project.id}?task=${open.id}`} title="Files" flash={{ fileError, fileOk }} />
           </TaskDetail>
         </Drawer>
+      )}
+      {canRemove && (
+        <RemoveRecordPanel kind="project" name={project.name} idField="projectId" id={project.id} archived={Boolean(project.archivedAt)} canArchive={closed}
+          archiveHint="To archive it, set the project status to Completed or Cancelled first." blockers={removalBlockers}
+          archiveAction={archiveProjectAction} restoreAction={restoreProjectAction} deleteAction={deleteProjectAction} archiveLabel="Archive project" restoreLabel="Restore project" />
       )}
     </div>
   );

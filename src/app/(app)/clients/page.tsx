@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { audit, requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { Avatar, Chips, ListToolbar, Empty, NewButton, PageHeader, Pager, PanelForm, SearchBox, SortTh, Stat, StatusBadge } from "@/components/ui";
+import { Avatar, Chips, ListToolbar, Empty, NewButton, Notice, PageHeader, Pager, PanelForm, SearchBox, SortTh, Stat, StatusBadge } from "@/components/ui";
 import { paging } from "@/lib/paging";
 import { orderFor, parseSort } from "@/lib/sort";
 import Drawer from "@/components/ui/Drawer";
@@ -47,7 +47,7 @@ async function createClient(formData: FormData) {
   redirect(`/clients/${client.id}`);
 }
 
-type SP = { error?: string; q?: string; show?: string; new?: string; page?: string; sort?: string; dir?: string; viewError?: string };
+type SP = { deleted?: string; error?: string; q?: string; show?: string; new?: string; page?: string; sort?: string; dir?: string; viewError?: string };
 const SORTS = { name: { field: "name" }, country: { field: "country", nullable: true }, currency: { field: "currency" } };
 
 export default async function Clients({ searchParams }: { searchParams: Promise<SP> }) {
@@ -72,6 +72,7 @@ export default async function Clients({ searchParams }: { searchParams: Promise<
   return (
     <div className="space-y-5">
       <PageHeader title="Clients" subtitle="Who you bill, in which currency and on what terms." actions={canEdit ? <NewButton href={href({ new: "1" })}>Add client</NewButton> : undefined} />
+      {sp.deleted && <Notice kind="ok">Deleted client {sp.deleted}. The audit log keeps a record of it.</Notice>}
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Active clients" value={active} />
         <Stat label="Inactive" value={inactive} />

@@ -608,6 +608,8 @@ model Project {
   scope          String?
   campaignId     String? // the campaign this project delivers, if any
   phase          String? // current delivery phase for software projects: DISCOVERY | DESIGN | DEVELOPMENT | TESTING | CLIENT_REVIEW | LAUNCHED
+  archivedAt     DateTime? // set when a closed project is archived: hidden from project lists until restored
+  archivedById   String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
