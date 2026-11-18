@@ -189,6 +189,7 @@ export async function moveTask(taskId: string, status: string): Promise<MoveResu
   try {
     const r = await changeTaskStatus(db, { projectId: task.projectId, taskId, status, actorId: user.id });
     await audit(user, { action: "task.move", entity: "Task", entityId: taskId, before: { status: task.status }, after: { status, nextOccurrence: r.next?.id ?? null } });
+    if (r.milestone) await audit(user, { action: r.milestone.kind === "completed" ? "milestone.auto_done" : "milestone.auto_reopened", entity: "Milestone", entityId: r.milestone.milestoneId, after: r.milestone.kind === "completed" ? { invoiceId: r.milestone.invoiceId, billingError: r.milestone.billingError ?? null } : { status: "IN_PROGRESS" } });
     await taskMoved(db, { organizationId: user.organizationId, taskId, status, byUserId: user.id });
   } catch (e) {
     if (e instanceof TaskError) return { ok: false, error: e.message };
@@ -322,6 +323,7 @@ export async function bulkTasksAction(taskIds: string[], change: BulkChange): Pr
   }
   const after = change.kind === "assign" ? { assigneeId: change.userId } : change.kind === "due" ? { dueDate: change.date } : change.kind === "estimate" ? { estimatedHours: change.hours } : change.kind === "label" ? { labelId: change.labelId, added: change.add } : change.kind === "priority" || change.kind === "status" ? { [change.kind]: change.value } : { deleted: true };
   for (const t of r.changed) await audit(user, { action: change.kind === "delete" ? "task.delete" : `task.bulk_${change.kind}`, entity: "Task", entityId: t.id, before: t.before, after });
+  for (const m of r.milestones) await audit(user, { action: m.kind === "completed" ? "milestone.auto_done" : "milestone.auto_reopened", entity: "Milestone", entityId: m.milestoneId, after: m.kind === "completed" ? { invoiceId: m.invoiceId, billingError: m.billingError ?? null } : { status: "IN_PROGRESS" } });
   if (change.kind === "assign" && change.userId && change.userId !== user.id && r.changed.length) {
     if (r.changed.length === 1) await taskAssigned(db, { organizationId: user.organizationId, taskId: r.changed[0].id, toUserId: change.userId, byUserId: user.id });
     else await notify(db, change.userId, { kind: "task.assigned", title: `${user.name} assigned ${r.changed.length} tasks to you`, body: "They are in My tasks.", link: "/me/tasks" });

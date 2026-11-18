@@ -10,9 +10,11 @@ import { addStarterTemplates, saveTemplate, templateFromProject } from "@/lib/pr
 // Project templates, managed by people with projects.manage under Projects → Templates.
 export type TemplateSaveResult = { ok: true; id: string } | { ok: false; error: string };
 
-export async function saveTemplateAction(input: { id?: string; name: string; description: string; body: unknown }): Promise<TemplateSaveResult> {
+export async function saveTemplateAction(input: { id?: string; name: string; description: string; body: unknown; defaults?: { planIds?: string[]; defaultManagerId?: string | null; roleDefaults?: Record<string, string> } }): Promise<TemplateSaveResult> {
   const user = await requirePermission("projects.manage");
-  const r = await saveTemplate(db, { organizationId: user.organizationId, id: input.id || undefined, name: String(input.name ?? ""), description: String(input.description ?? ""), body: input.body, byUserId: user.id });
+  const d = input.defaults;
+  const r = await saveTemplate(db, { organizationId: user.organizationId, id: input.id || undefined, name: String(input.name ?? ""), description: String(input.description ?? ""), body: input.body, byUserId: user.id,
+    defaults: d ? { planIds: Array.isArray(d.planIds) ? d.planIds.map(String) : [], defaultManagerId: d.defaultManagerId ? String(d.defaultManagerId) : null, roleDefaults: d.roleDefaults && typeof d.roleDefaults === "object" ? Object.fromEntries(Object.entries(d.roleDefaults).map(([k, v]) => [String(k), String(v)])) : {} } : undefined });
   if (!r.ok) return r;
   await audit(user, { action: input.id ? "project_template.update" : "project_template.create", entity: "ProjectTemplate", entityId: r.value.id, after: { name: r.value.name } });
   revalidatePath("/projects");

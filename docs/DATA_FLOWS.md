@@ -36,6 +36,7 @@ Field prospects (decision 71 and 73) take a longer road to the same conversion. 
 ### Lead to cash
 1. Lead created → `ensureContactForLead` links or creates the `Contact`.
 2. `convertLead` (`conversion.ts`) links or creates the `Client`, marks contact and organization as customers, keeps history, creates one draft invoice.
+   - Then, if a project template is linked to the lead's service plan, `projectForWonLead` (`project-automations.ts`) creates the client's project from it once (`Project.sourceLeadId`).
 3. Quote (`sales.ts createQuote`) → `decideQuote` (staff or portal) → `convertQuoteToInvoice` once (`Quote.invoiceId`).
 4. `issueInvoice` posts Dr receivable / Cr revenue (`sourceType INVOICE`); `cancelInvoice` posts a reversal.
 5. `recordPayment` allocates FIFO (`PaymentAllocation`), excess becomes an advance; row locks and idempotency key.

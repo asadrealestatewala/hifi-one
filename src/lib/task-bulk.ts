@@ -4,6 +4,7 @@
 // Free of Next.js imports so it can be tested against the database.
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { TaskError, changeTaskStatus } from "./tasks";
+import type { MilestoneAutomation } from "./project-automations";
 import { TASK_STATUSES } from "./project-rules";
 import { parseEstimate } from "./task-rules";
 import { MAX_LABELS_PER_TASK } from "./task-labels";
@@ -28,6 +29,7 @@ export type BulkResult = {
   deleted: number;
   kept: number; // asked to delete, but kept because of logged time, work sessions, files or a content post
   nextOccurrences: string[]; // recurring tasks completed in this batch create their next one
+  milestones: MilestoneAutomation[]; // milestones completed (with any draft invoice) or reopened by this batch
 };
 
 // Deletes tasks (with their subtasks) unless something worth keeping hangs off them: logged time, work sessions,
@@ -57,7 +59,7 @@ export async function deleteTaskFamilies(tx: Tx, projectId: string, ids: string[
 
 export async function bulkEditTasks(db: Db, p: { actor: BulkActor; taskIds: string[]; change: BulkChange }): Promise<BulkResult> {
   const ids = [...new Set(p.taskIds)].slice(0, BULK_LIMIT);
-  const res: BulkResult = { changed: [], skipped: [], deleted: 0, kept: 0, nextOccurrences: [] };
+  const res: BulkResult = { changed: [], skipped: [], deleted: 0, kept: 0, nextOccurrences: [], milestones: [] };
   const c = p.change;
   if (c.kind === "priority" && !["LOW", "MEDIUM", "HIGH"].includes(c.value)) throw new TaskError("Choose a priority.");
   if (c.kind === "status" && !(TASK_STATUSES as readonly string[]).includes(c.value)) throw new TaskError("Choose a status.");
@@ -92,6 +94,7 @@ export async function bulkEditTasks(db: Db, p: { actor: BulkActor; taskIds: stri
         const r = await changeTaskStatus(db, { projectId: t.projectId, taskId: t.id, status: c.value, actorId: p.actor.id });
         res.changed.push({ id: t.id, projectId: t.projectId, before: { status: t.status } });
         if (r.next) res.nextOccurrences.push(r.next.id);
+        if (r.milestone) res.milestones.push(r.milestone);
       } catch (e) {
         if (e instanceof TaskError) { skip(e.message); continue; }
         throw e;

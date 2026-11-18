@@ -17,6 +17,7 @@ export default async function TemplatesView({ user, sp, tabs }: { user: SessionU
     db.project.groupBy({ by: ["templateId"], where: { organizationId: user.organizationId, templateId: { not: null } }, _count: { _all: true } }),
     listSavedChecklists(db, user.organizationId),
   ]);
+  const planName = new Map((await db.servicePlan.findMany({ where: { organizationId: user.organizationId, id: { in: rows.flatMap((t) => t.planIds) } }, select: { id: true, name: true } })).map((x) => [x.id, x.name]));
   const usedBy = new Map(used.map((u) => [u.templateId, u._count._all]));
   const live = rows.filter((t) => !t.archivedAt), archived = rows.filter((t) => t.archivedAt);
   const list = showArchived ? archived : live;
@@ -28,6 +29,14 @@ export default async function TemplatesView({ user, sp, tabs }: { user: SessionU
       {tabs}
       {sp.ok && <Notice kind="ok">{sp.ok}</Notice>}
       <p className="text-sm text-muted">A template is a ready plan: team roles, milestones and tasks with due days, estimates and labels. Choose one under New project and the whole plan is created in one step, with tasks given to the people you pick for each role.</p>
+      <details className="card text-sm">
+        <summary className="cursor-pointer font-medium">What happens automatically</summary>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
+          <li>A task sent to Review tells the project manager (and whoever created the task).</li>
+          <li>When the last task of a milestone is done, the milestone is marked done and the project manager is told. If the milestone has a billing amount and the project has a client, a draft invoice is made and finance is asked to check and issue it. Nothing is issued or posted on its own. Reopening one of its tasks puts the milestone back in progress, until it is invoiced.</li>
+          <li>When a deal is won for a service linked to a template (open the template, &quot;Start automatically when a deal is won&quot;), the client&apos;s project is made from it with the template&apos;s usual people, once per deal.</li>
+        </ul>
+      </details>
       {starterMissing && (
         <form action={addStarterTemplatesAction} className="card flex flex-wrap items-center justify-between gap-3">
           <div><p className="font-medium">Starter templates</p><p className="text-sm text-muted">Social media retainer and Ads campaign, ready to change to fit how your team works.</p></div>
@@ -47,7 +56,7 @@ export default async function TemplatesView({ user, sp, tabs }: { user: SessionU
                 const tasks = b.ok ? b.value.tasks.length + b.value.tasks.reduce((n, x) => n + x.subtasks.length, 0) : 0;
                 return (
                   <tr key={t.id} className="border-t border-border align-top transition hover:bg-hover/50">
-                    <td className="px-4 py-3"><Link href={`/projects/templates/${t.id}`} className="font-medium hover:underline">{t.name}</Link>{t.description && <p className="max-w-md text-xs text-muted">{t.description}</p>}{!b.ok && <p className="mt-1"><Badge tone="danger">needs fixing</Badge></p>}</td>
+                    <td className="px-4 py-3"><Link href={`/projects/templates/${t.id}`} className="font-medium hover:underline">{t.name}</Link>{t.description && <p className="max-w-md text-xs text-muted">{t.description}</p>}{!b.ok && <p className="mt-1"><Badge tone="danger">needs fixing</Badge></p>}{t.planIds.some((x) => planName.has(x)) && <p className="mt-1 text-xs text-primary">Starts automatically when a deal is won for {t.planIds.map((x) => planName.get(x)).filter(Boolean).join(", ")}</p>}</td>
                     <td className="py-3 pr-4 text-muted">{b.ok ? b.value.roles.join(", ") || "None" : ""}</td>
                     <td className="py-3 pr-4">{b.ok ? b.value.milestones.length : ""}</td>
                     <td className="py-3 pr-4">{b.ok ? tasks : ""}</td>
