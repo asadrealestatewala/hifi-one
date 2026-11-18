@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon";
+import { openSearch } from "./CommandPalette";
 import { BACKGROUNDS, DEFAULT_BACKGROUND, STORAGE, isBackground, type BackgroundKey } from "@/lib/appearance";
 import { loadBell, readBellAll, readBellItem, type BellItem } from "@/app/(app)/notifications/actions";
 
@@ -84,15 +85,15 @@ export default function Topbar({ unread, chatUnread, quick, canSearch, onMenu, e
     <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-surface/90 px-4 backdrop-blur md:px-6">
       <button type="button" onClick={onMenu} className="rounded-lg p-2 text-muted hover:bg-hover md:hidden" aria-label="Open menu"><Icon name="menu" /></button>
 
-      {canSearch && (
-        <form action="/search" role="search" className="relative hidden max-w-md flex-1 sm:block">
-          <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-          <input name="q" aria-label="Search everything" placeholder="Search clients, leads, invoices…" autoComplete="off"
-            className="h-9 w-full rounded-lg border border-transparent bg-hover pl-9 pr-14 text-sm outline-none transition focus:border-primary focus:bg-surface focus:ring-2 focus:ring-primary/20" />
-          <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-border bg-surface px-1.5 py-0.5 text-[10px] text-muted">Ctrl K</kbd>
-        </form>
-      )}
+      {/* Not a form: the box opens the one search (CommandPalette), which finds screens, tabs and records as you type */}
+      <button type="button" onClick={openSearch} aria-label="Search screens and records (Ctrl K)"
+        className="relative hidden h-9 max-w-md flex-1 items-center rounded-lg border border-transparent bg-hover pl-9 pr-14 text-left text-sm text-muted transition hover:border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 sm:flex">
+        <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+        <span className="truncate">{canSearch ? "Search screens, settings, clients, invoices…" : "Go to a screen or setting…"}</span>
+        <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-border bg-surface px-1.5 py-0.5 text-[10px] text-muted">Ctrl K</kbd>
+      </button>
       <div className="flex-1 sm:hidden" />
+      <button type="button" onClick={openSearch} className="rounded-lg p-2 text-muted hover:bg-hover sm:hidden" aria-label="Search"><Icon name="search" /></button>
 
       <div ref={box} className="flex items-center gap-1.5">
         {quick.length > 0 && (
