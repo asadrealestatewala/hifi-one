@@ -13,6 +13,7 @@ Feature reference for the staff directory, sign-in by email or phone, the agency
 | CNIC | `EmployeeProfile.identityNumber` | Stored as `12345-1234567-1`. Read and written only with `hr.view_sensitive`; never in lists, exports or audit entries. |
 | Department, reporting manager | `User.departmentId`, `User.managerId` | `EmployeeProfile.departmentId` is kept equal. |
 | Status | `EmployeeProfile.status` ACTIVE / INACTIVE / EXITED, plus `archivedAt` | Anything but ACTIVE sets `User.active = false` and ends sessions. Nothing is deleted. |
+| Hand over work | `src/lib/offboarding.ts` | When someone is no longer active, "Hand over work" on their page moves the open projects they manage and their open tasks to a successor (or leaves tasks unassigned) in one step. See `docs/PORTALS_AND_PROJECTS.md`. |
 | Campaign | `Campaign` | Code `CMP-0001` (`NumberSequence` key `CAMPAIGN`), name unique regardless of capitals, `categoryId`, `description`, `objectives`, `ownerId`, dates, optional `budget` + `currency`, `status` PLANNED / ACTIVE / PAUSED / DONE, `archivedAt`. |
 | Campaign team | `CampaignMember (campaignId, userId)` | The owner is always on the team. Appears in each member's My tasks. |
 | Campaign clients | `CampaignClient (campaignId, clientId)` | Links to the canonical `Client`. |
