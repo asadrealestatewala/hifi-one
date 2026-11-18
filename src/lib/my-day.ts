@@ -77,9 +77,9 @@ export async function loadMyDay(
     db.dailyReport.findUnique({ where: { userId_workDate: { userId: p.userId, workDate: p.date } }, select: { late: true } }),
     db.leaveRequest.findFirst({ where: { userId: p.userId, status: "APPROVED", startDate: { lte: p.date }, endDate: { gte: p.date } }, select: { leaveType: { select: { name: true } } } }),
     db.circularRecipient.count({ where: { userId: p.userId, ackAt: null, circular: { organizationId: p.organizationId } } }),
-    db.task.count({ where: { assigneeId: p.userId, status: { not: "DONE" }, dueDate: { lt: bounds.gte }, project: { organizationId: p.organizationId } } }),
-    db.task.count({ where: { assigneeId: p.userId, status: { not: "DONE" }, dueDate: { gte: bounds.gte, lt: bounds.lt }, project: { organizationId: p.organizationId } } }),
-    db.task.count({ where: { assigneeId: p.userId, status: { not: "DONE" }, project: { organizationId: p.organizationId } } }),
+    db.task.count({ where: { assigneeId: p.userId, status: { not: "DONE" }, dueDate: { lt: bounds.gte }, project: { organizationId: p.organizationId, status: { not: "CANCELLED" }, archivedAt: null } } }),
+    db.task.count({ where: { assigneeId: p.userId, status: { not: "DONE" }, dueDate: { gte: bounds.gte, lt: bounds.lt }, project: { organizationId: p.organizationId, status: { not: "CANCELLED" }, archivedAt: null } } }),
+    db.task.count({ where: { assigneeId: p.userId, status: { not: "DONE" }, project: { organizationId: p.organizationId, status: { not: "CANCELLED" }, archivedAt: null } } }),
     has("meetings.use")
       ? db.meeting.findMany({
           where: { organizationId: p.organizationId, purpose: { not: "CALL" }, status: { in: ["SCHEDULED", "LIVE"] }, scheduledAt: { gte: bounds.gte, lt: bounds.lt }, OR: [{ hostId: p.userId }, { participants: { some: { userId: p.userId } } }] },
