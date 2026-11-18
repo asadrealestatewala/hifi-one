@@ -2,6 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
+import Link from "next/link";
+import type { Label } from "@/lib/task-labels";
+import LabelChip from "../LabelChip";
 import { StatusBadge } from "@/components/ui";
 import Avatar from "@/components/ui/Avatar";
 import { addSubtaskAction, addTaskCommentAction, moveTask, saveTaskDetailAction } from "../actions";
@@ -9,13 +12,13 @@ import { addSubtaskAction, addTaskCommentAction, moveTask, saveTaskDetailAction 
 type Sub = { id: string; title: string; status: string };
 type Comment = { id: string; authorId: string; author: string; body: string; at: string; shared: boolean; fromClient: boolean };
 export type TaskDetailData = {
-  id: string; title: string; status: string; description: string; priority: string; assigneeId: string; due: string; estimate: string; clientVisible: boolean; recurrence: string;
+  id: string; title: string; status: string; description: string; priority: string; assigneeId: string; due: string; estimate: string; clientVisible: boolean; recurrence: string; labelIds: string[];
   blockedBy: string[]; parentTitle: string | null;
 };
 
 // The panel for one task: details, what it waits for, whether it repeats, subtasks, comments and files (files arrive as children from the server).
-export default function TaskDetail({ task, subtasks, candidates, members, comments, canManage, canMoveSubtasks, canComment, children }: {
-  task: TaskDetailData; subtasks: Sub[]; candidates: { id: string; title: string }[]; members: { id: string; name: string }[]; comments: Comment[];
+export default function TaskDetail({ task, subtasks, candidates, members, labels, canManageLabels, comments, canManage, canMoveSubtasks, canComment, children }: {
+  task: TaskDetailData; subtasks: Sub[]; candidates: { id: string; title: string }[]; members: { id: string; name: string }[]; labels: Label[]; canManageLabels: boolean; comments: Comment[];
   canManage: boolean; canMoveSubtasks: boolean; canComment: boolean; children: ReactNode;
 }) {
   const router = useRouter();
@@ -53,6 +56,12 @@ export default function TaskDetail({ task, subtasks, candidates, members, commen
               <div className="grid max-h-40 gap-1 overflow-y-auto rounded-xl border border-border p-2 sm:grid-cols-2">{candidates.map((c) => <label key={c.id} className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-hover"><input type="checkbox" name="blockedBy" value={c.id} defaultChecked={task.blockedBy.includes(c.id)} /><span className="truncate">{c.title}</span></label>)}</div>
             )}
             <p className="mt-1 text-xs text-muted">This task cannot be started or finished until the ones ticked here are Done.</p>
+          </div>
+          <div className="sm:col-span-2">
+            <p className="label">Labels</p>
+            {labels.length === 0 ? <p className="text-xs text-muted">No labels yet.{canManageLabels && <> <Link className="underline" href="/projects?view=tasks&labels=1">Create labels</Link> such as Copy, Design or Ads.</>}</p> : (
+              <div className="flex flex-wrap gap-2">{labels.map((l) => <label key={l.id} className="flex items-center gap-1.5 rounded-full border border-border px-2 py-1 hover:bg-hover"><input type="checkbox" name="labelIds" value={l.id} defaultChecked={task.labelIds.includes(l.id)} /><LabelChip label={l} /></label>)}</div>
+            )}
           </div>
           <label className="flex items-center gap-2 sm:col-span-2"><input type="checkbox" name="clientVisible" defaultChecked={task.clientVisible} /> Visible to the client</label>
         </fieldset>

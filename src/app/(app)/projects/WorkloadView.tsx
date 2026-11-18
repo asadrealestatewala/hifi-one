@@ -9,6 +9,7 @@ import { loadWorkload, type LoadLevel, type PersonLoad } from "@/lib/workload";
 import { Badge, Empty, PageHeader, Pager, Stat } from "@/components/ui";
 import TaskListTable from "./TaskListTable";
 import { buildTaskRows } from "./task-rows";
+import { listLabels } from "@/lib/task-labels";
 
 const LEVEL: Record<LoadLevel, { label: string; tone: "danger" | "warning" | "success" | "neutral"; bar: string }> = {
   OVER: { label: "Over capacity", tone: "danger", bar: "bg-brand" },
@@ -38,7 +39,7 @@ export default async function WorkloadView({ user, sp, tabs }: { user: SessionUs
         db.task.count({ where: openWhere }),
       ])
     : [[], 0];
-  const list = person ? await buildTaskRows(user, tasks, today) : null;
+  const list = person ? await buildTaskRows(user, tasks, today, await listLabels(db, user.organizationId)) : null;
   const over = wl.people.filter((p) => p.level === "OVER").length;
   const overdue = wl.people.reduce((n, p) => n + p.overdue, 0);
   const logged = Math.round(wl.people.reduce((n, p) => n + p.loggedHours, 0) * 10) / 10;

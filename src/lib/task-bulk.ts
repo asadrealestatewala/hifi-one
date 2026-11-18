@@ -6,6 +6,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { TaskError, changeTaskStatus } from "./tasks";
 import { TASK_STATUSES } from "./project-rules";
 import { parseEstimate } from "./task-rules";
+import { MAX_LABELS_PER_TASK } from "./task-labels";
 
 type Db = PrismaClient;
 type Tx = Prisma.TransactionClient;
@@ -16,6 +17,7 @@ export type BulkChange =
   | { kind: "due"; date: string | null }
   | { kind: "priority"; value: string }
   | { kind: "estimate"; hours: string | null }
+  | { kind: "label"; labelId: string; add: boolean }
   | { kind: "status"; value: string }
   | { kind: "delete" };
 export type BulkActor = { id: string; organizationId: string; permissions: ReadonlySet<string> };
@@ -63,10 +65,11 @@ export async function bulkEditTasks(db: Db, p: { actor: BulkActor; taskIds: stri
 
   const est = c.kind === "estimate" ? parseEstimate(c.hours) : null;
   if (est && !est.ok) throw new TaskError("Write the estimate in hours, for example 2 or 1.5.");
+  if (c.kind === "label" && !(await db.taskLabel.findFirst({ where: { id: c.labelId, organizationId: p.actor.organizationId }, select: { id: true } }))) throw new TaskError("Label not found.");
   const viewAll = p.actor.permissions.has("projects.view_all");
   const tasks = await db.task.findMany({
     where: { id: { in: ids }, project: { organizationId: p.actor.organizationId, ...(viewAll ? {} : { OR: [{ managerId: p.actor.id }, { members: { some: { userId: p.actor.id } } }] }) } },
-    select: { id: true, title: true, projectId: true, assigneeId: true, dueDate: true, priority: true, status: true, estimatedHours: true, project: { select: { managerId: true, status: true } } },
+    select: { id: true, title: true, projectId: true, assigneeId: true, dueDate: true, priority: true, status: true, estimatedHours: true, labelIds: true, project: { select: { managerId: true, status: true } } },
   });
   const found = new Set(tasks.map((t) => t.id));
   for (const id of ids) if (!found.has(id)) res.skipped.push({ id, title: "", reason: "Task not found." });
@@ -110,6 +113,12 @@ export async function bulkEditTasks(db: Db, p: { actor: BulkActor; taskIds: stri
       if (t.priority === c.value) continue;
       await db.task.update({ where: { id: t.id }, data: { priority: c.value } });
       res.changed.push({ id: t.id, projectId: t.projectId, before: { priority: t.priority } });
+    } else if (c.kind === "label") {
+      const has = t.labelIds.includes(c.labelId);
+      if (has === c.add) continue;
+      if (c.add && t.labelIds.length >= MAX_LABELS_PER_TASK) { skip(`A task can carry at most ${MAX_LABELS_PER_TASK} labels.`); continue; }
+      await db.task.update({ where: { id: t.id }, data: { labelIds: c.add ? [...t.labelIds, c.labelId] : t.labelIds.filter((x) => x !== c.labelId) } });
+      res.changed.push({ id: t.id, projectId: t.projectId, before: { labelIds: t.labelIds } });
     } else if (c.kind === "estimate") {
       const value = est && est.ok ? est.value : null;
       if ((t.estimatedHours?.toString() ?? null) === value || (t.estimatedHours && value && Number(t.estimatedHours) === Number(value))) continue;

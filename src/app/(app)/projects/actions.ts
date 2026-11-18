@@ -11,6 +11,7 @@ import { TASK_STATUSES, canCompleteProject } from "@/lib/project-rules";
 import { removeProjectMember, setProjectManager, setProjectMemberRole, type Handover } from "@/lib/project-manager";
 import { TaskError, addComment, addSubtask, changeTaskStatus, setBlockers, setRecurrence } from "@/lib/tasks";
 import { parseEstimate } from "@/lib/task-rules";
+import { validLabelIds } from "@/lib/task-labels";
 import { BULK_LIMIT, bulkEditTasks, type BulkChange, type BulkSkip } from "@/lib/task-bulk";
 import { notify } from "@/lib/notifications";
 
@@ -246,13 +247,14 @@ export async function saveTaskDetailAction(taskId: string, formData: FormData): 
   const assigneeId = String(formData.get("assigneeId") ?? "") || null;
   const priority = z.enum(["LOW", "MEDIUM", "HIGH"]).safeParse(formData.get("priority"));
   if (due && Number.isNaN(Date.parse(due))) return { ok: false, error: "Enter a valid due date." };
+  const labelIds = await validLabelIds(db, user.organizationId, formData.getAll("labelIds").map(String));
   const estimate = parseEstimate(formData.get("estimatedHours"));
   if (!estimate.ok) return { ok: false, error: "Write the estimate in hours, for example 2 or 1.5." };
   if (assigneeId && !(await db.projectMember.findUnique({ where: { projectId_userId: { projectId: c.task.projectId, userId: assigneeId } } }))) return { ok: false, error: "Assign tasks to project members." };
   try {
     await setBlockers(db, { projectId: c.task.projectId, taskId, blockerIds: blockers });
     await setRecurrence(db, { projectId: c.task.projectId, taskId, recurrence });
-    await db.task.update({ where: { id: taskId }, data: { dueDate: due ? new Date(due) : null, estimatedHours: estimate.value, assigneeId, description: String(formData.get("description") ?? "").trim().slice(0, 4000) || null, ...(priority.success ? { priority: priority.data } : {}), clientVisible: formData.get("clientVisible") === "on" } });
+    await db.task.update({ where: { id: taskId }, data: { dueDate: due ? new Date(due) : null, estimatedHours: estimate.value, labelIds, assigneeId, description: String(formData.get("description") ?? "").trim().slice(0, 4000) || null, ...(priority.success ? { priority: priority.data } : {}), clientVisible: formData.get("clientVisible") === "on" } });
     await audit(c.user, { action: "task.update", entity: "Task", entityId: taskId, after: { blockers: blockers.length, recurrence, assigneeId } });
     if (assigneeId !== c.task.assigneeId) await taskAssigned(db, { organizationId: c.user.organizationId, taskId, toUserId: assigneeId, byUserId: c.user.id });
   } catch (e) {
@@ -295,7 +297,7 @@ export async function bulkTasksAction(taskIds: string[], change: BulkChange): Pr
     if (e instanceof TaskError) return { ok: false, error: e.message };
     throw e;
   }
-  const after = change.kind === "assign" ? { assigneeId: change.userId } : change.kind === "due" ? { dueDate: change.date } : change.kind === "estimate" ? { estimatedHours: change.hours } : change.kind === "priority" || change.kind === "status" ? { [change.kind]: change.value } : { deleted: true };
+  const after = change.kind === "assign" ? { assigneeId: change.userId } : change.kind === "due" ? { dueDate: change.date } : change.kind === "estimate" ? { estimatedHours: change.hours } : change.kind === "label" ? { labelId: change.labelId, added: change.add } : change.kind === "priority" || change.kind === "status" ? { [change.kind]: change.value } : { deleted: true };
   for (const t of r.changed) await audit(user, { action: change.kind === "delete" ? "task.delete" : `task.bulk_${change.kind}`, entity: "Task", entityId: t.id, before: t.before, after });
   if (change.kind === "assign" && change.userId && change.userId !== user.id && r.changed.length) {
     if (r.changed.length === 1) await taskAssigned(db, { organizationId: user.organizationId, taskId: r.changed[0].id, toUserId: change.userId, byUserId: user.id });
