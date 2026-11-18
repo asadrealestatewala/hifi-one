@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { projectScope } from "@/lib/projects";
 import { projectProgress } from "@/lib/project-rules";
 import { createProject } from "./actions";
-import { AppliedFilters, Avatar, Chips, Empty, NewButton, PageHeader, PanelForm, SearchBox, Stat, StatusBadge, ListToolbar } from "@/components/ui";
+import { AppliedFilters, Avatar, Chips, Empty, NewButton, Notice, PageHeader, PanelForm, SearchBox, Stat, StatusBadge, ListToolbar } from "@/components/ui";
 import Drawer from "@/components/ui/Drawer";
 import { isOverdue } from "@/lib/project-rules";
 import TasksView from "./TasksView";
@@ -13,7 +13,7 @@ import TasksView from "./TasksView";
 export const dynamic = "force-dynamic";
 
 const STATUSES = ["ACTIVE", "ON_HOLD", "COMPLETED", "CANCELLED"];
-type SP = { error?: string; status?: string; q?: string; new?: string; client?: string; campaign?: string; from?: string; view?: string; who?: string; tstatus?: string; priority?: string; project?: string; due?: string; page?: string };
+type SP = { deleted?: string; error?: string; status?: string; q?: string; new?: string; client?: string; campaign?: string; from?: string; view?: string; who?: string; tstatus?: string; priority?: string; project?: string; due?: string; page?: string };
 
 export default async function Projects({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requirePermission("projects.view");
@@ -21,25 +21,29 @@ export default async function Projects({ searchParams }: { searchParams: Promise
   const canManage = user.permissions.has("projects.manage");
   const tabs = <Tabs current={sp.view === "tasks" ? "tasks" : "projects"} items={[{ key: "projects", label: "Projects", href: "/projects" }, { key: "tasks", label: "Tasks", href: "/projects?view=tasks" }]} />;
   if (sp.view === "tasks") return <TasksView user={user} sp={sp} tabs={tabs} />;
-  const status = STATUSES.includes(sp.status ?? "") ? sp.status! : "all";
+  const status = STATUSES.includes(sp.status ?? "") || sp.status === "ARCHIVED" ? sp.status! : "all";
   const q = sp.q?.trim();
-  const [all, clients, staff] = await Promise.all([
+  const [rows, clients, staff] = await Promise.all([
     db.project.findMany({ where: projectScope(user), orderBy: { createdAt: "desc" }, include: { tasks: { select: { status: true, dueDate: true, parentId: true } } } }),
     db.client.findMany({ where: { organizationId: user.organizationId, active: true }, orderBy: { name: "asc" } }),
     canManage && sp.new ? db.user.findMany({ where: { organizationId: user.organizationId, active: true, userType: "EMPLOYEE" }, orderBy: { name: "asc" }, select: { id: true, name: true } }) : Promise.resolve([]),
   ]);
   const clientName = new Map(clients.map((c) => [c.id, c.name]));
+  // Archived projects (closed ones put away) only show under their own chip
+  const archived = rows.filter((p) => p.archivedAt);
+  const all = rows.filter((p) => !p.archivedAt);
   const count = (s: string) => all.filter((p) => p.status === s).length;
   const lateTasks = all.filter((p) => p.status === "ACTIVE").reduce((n, p) => n + p.tasks.filter((t) => isOverdue(t)).length, 0);
   // ?campaign=linked shows projects that belong to any campaign; ?campaign=<id> one campaign's projects
   const camp = sp.campaign;
   const campaignName = camp && camp !== "linked" ? (await db.campaign.findFirst({ where: { id: camp, organizationId: user.organizationId }, select: { name: true } }))?.name ?? "unknown" : null;
-  const projects = all.filter((p) => (!camp || (camp === "linked" ? p.campaignId !== null : p.campaignId === camp)) && (status === "all" || p.status === status) && (!q || `${p.name} ${p.number} ${p.clientId ? clientName.get(p.clientId) ?? "" : "internal"}`.toLowerCase().includes(q.toLowerCase())));
+  const projects = (status === "ARCHIVED" ? archived : all).filter((p) => (!camp || (camp === "linked" ? p.campaignId !== null : p.campaignId === camp)) && (status === "all" || status === "ARCHIVED" || p.status === status) && (!q || `${p.name} ${p.number} ${p.clientId ? clientName.get(p.clientId) ?? "" : "internal"}`.toLowerCase().includes(q.toLowerCase())));
   const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ status: status === "all" ? undefined : status, q, campaign: camp, from: sp.from, ...over })) if (v) p.set(k, v); const t = p.toString(); return `/projects${t ? `?${t}` : ""}`; };
   return (
     <div className="space-y-5">
       <PageHeader title="Projects" subtitle="Delivery work, progress and deadlines in one place." actions={canManage ? <NewButton href={href({ new: "1" })}>New project</NewButton> : undefined} />
       {tabs}
+      {sp.deleted && <Notice kind="ok">Deleted {sp.deleted}. The audit log keeps a record of it.</Notice>}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Active" value={count("ACTIVE")} href={href({ status: "ACTIVE" })} />
         <Stat label="On hold" value={count("ON_HOLD")} href={href({ status: "ON_HOLD" })} />
@@ -49,7 +53,7 @@ export default async function Projects({ searchParams }: { searchParams: Promise
       <AppliedFilters items={camp ? [{ label: camp === "linked" ? "Linked to a campaign" : `Campaign: ${campaignName}`, removeHref: href({ campaign: undefined }) }] : []} clearHref="/projects" backHref={sp.from === "dashboard" ? "/dashboard?tab=campaigns" : undefined} />
       <ListToolbar>
         <SearchBox q={q} placeholder="Search project, number or client" hidden={{ status: status === "all" ? undefined : status, campaign: camp, from: sp.from }} />
-        <Chips current={status} items={[{ key: "all", label: "All", count: all.length, href: href({ status: undefined }) }, ...STATUSES.map((s) => ({ key: s, label: s.toLowerCase().replace("_", " ").replace(/^./, (c) => c.toUpperCase()), count: count(s), href: href({ status: s }) }))]} />
+        <Chips current={status} items={[{ key: "all", label: "All", count: all.length, href: href({ status: undefined }) }, ...STATUSES.map((s) => ({ key: s, label: s.toLowerCase().replace("_", " ").replace(/^./, (c) => c.toUpperCase()), count: count(s), href: href({ status: s }) })), ...(archived.length ? [{ key: "ARCHIVED", label: "Archived", count: archived.length, href: href({ status: "ARCHIVED" }) }] : [])]} />
       </ListToolbar>
       {projects.length === 0 ? <Empty title={q || status !== "all" ? "No projects match" : "No projects yet"}>{canManage ? "Start one with New project." : "Projects you work on will appear here."}</Empty> : (
         <div className="card overflow-x-auto !p-0">
