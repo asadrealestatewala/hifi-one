@@ -370,6 +370,7 @@ export default async function ProjectPage({
               <div><label className="label" htmlFor="nt-pr">Priority</label>
                 <select id="nt-pr" name="priority" defaultValue="MEDIUM" className="input">{["LOW", "MEDIUM", "HIGH"].map((c) => <option key={c} value={c}>{c.charAt(0) + c.slice(1).toLowerCase()}</option>)}</select></div>
               <div><label className="label" htmlFor="nt-due">Due date</label><input id="nt-due" name="dueDate" type="date" className="input" /></div>
+              <div><label className="label" htmlFor="nt-est">Estimate (hours)</label><input id="nt-est" name="estimatedHours" inputMode="decimal" placeholder="e.g. 3" className="input" /></div>
             </div>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="clientVisible" /> Visible to the client in their portal</label>
           </PanelForm>
@@ -379,7 +380,7 @@ export default async function ProjectPage({
         <Drawer title={open.title} closeTo={`${base}?tab=tasks`}>
           <TaskDetail
             key={`${open.id}:${open.status}:${project.tasks.length}:${comments.length}`}
-            task={{ id: open.id, title: open.title, status: open.status, description: open.description ?? "", priority: open.priority, assigneeId: open.assigneeId ?? "", due: open.dueDate ? open.dueDate.toISOString().slice(0, 10) : "", clientVisible: open.clientVisible, recurrence: open.recurrence ?? "", blockedBy: open.blockedBy, parentTitle: open.parentId ? byId.get(open.parentId)?.title ?? "another task" : null }}
+            task={{ id: open.id, title: open.title, status: open.status, description: open.description ?? "", priority: open.priority, assigneeId: open.assigneeId ?? "", due: open.dueDate ? open.dueDate.toISOString().slice(0, 10) : "", estimate: open.estimatedHours ? String(open.estimatedHours) : "", clientVisible: open.clientVisible, recurrence: open.recurrence ?? "", blockedBy: open.blockedBy, parentTitle: open.parentId ? byId.get(open.parentId)?.title ?? "another task" : null }}
             subtasks={project.tasks.filter((t) => t.parentId === open.id).map((t) => ({ id: t.id, title: t.title, status: t.status }))}
             candidates={project.tasks.filter((t) => t.id !== open.id && t.parentId !== open.id && open.parentId !== t.id).map((t) => ({ id: t.id, title: t.title }))}
             members={project.members.map((m) => ({ id: m.userId, name: nameOf.get(m.userId) ?? "Unknown" }))}

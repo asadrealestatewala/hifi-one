@@ -10,7 +10,7 @@ import type { BulkChange } from "@/lib/task-bulk";
 
 export type ListRow = {
   id: string; title: string; projectId: string; projectName: string; assigneeId: string | null; assigneeName: string | null;
-  priority: string; status: string; due: string | null; late: boolean; canManage: boolean; canMove: boolean;
+  priority: string; status: string; due: string | null; estimate: string | null; late: boolean; canManage: boolean; canMove: boolean;
 };
 type Person = { id: string; name: string };
 
@@ -91,11 +91,11 @@ export default function TaskListTable({ rows, members, people, selectable }: { r
         </div>
       )}
       <div className="card overflow-x-auto !p-0">
-        <table className="w-full min-w-[860px] text-sm">
+        <table className="w-full min-w-[940px] text-sm">
           <thead className="bg-hover/60 text-left text-xs text-muted">
             <tr>
               {selectable && <th className="w-10 px-4 py-2.5"><input type="checkbox" className="h-4 w-4 accent-primary" aria-label="Select all tasks on this page" checked={all} onChange={() => setPicked(all ? [] : rows.map((r) => r.id))} /></th>}
-              <th className={`${selectable ? "" : "px-4"} py-2.5 pr-4`}>Task</th><th className="pr-4">Project</th><th className="pr-4">Assignee</th><th className="pr-4">Priority</th><th className="pr-4">Due</th><th className="pr-4">Status</th>
+              <th className={`${selectable ? "" : "px-4"} py-2.5 pr-4`}>Task</th><th className="pr-4">Project</th><th className="pr-4">Assignee</th><th className="pr-4">Priority</th><th className="pr-4">Due</th><th className="pr-4">Hours</th><th className="pr-4">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -127,6 +127,12 @@ export default function TaskListTable({ rows, members, people, selectable }: { r
                     <input type="date" aria-label={`Due date of ${t.title}`} className={`input !w-36 !py-1 !text-xs ${t.late ? "!border-brand/50 text-brand" : ""}`} disabled={pending} defaultValue={t.due ?? ""} key={t.due ?? "none"}
                       onBlur={(e) => { const v = e.target.value || null; if (v !== t.due) applyOne(t.id, { kind: "due", date: v }); }} />
                   ) : <>{t.due ? shortDate(t.due) : ""}{t.late ? " · overdue" : ""}</>}
+                </td>
+                <td className="pr-4">
+                  {t.canManage ? (
+                    <input inputMode="decimal" aria-label={`Estimated hours for ${t.title}`} placeholder="–" className="input !w-16 !py-1 !text-xs" disabled={pending} defaultValue={t.estimate ?? ""} key={t.estimate ?? "none"}
+                      onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== t.estimate) applyOne(t.id, { kind: "estimate", hours: v }); }} />
+                  ) : <span className="text-muted">{t.estimate ?? ""}</span>}
                 </td>
                 <td className="pr-4">
                   {t.canMove ? (

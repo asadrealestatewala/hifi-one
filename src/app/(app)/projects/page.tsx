@@ -9,18 +9,23 @@ import { AppliedFilters, Avatar, Chips, Empty, NewButton, Notice, PageHeader, Pa
 import Drawer from "@/components/ui/Drawer";
 import { isOverdue } from "@/lib/project-rules";
 import TasksView from "./TasksView";
+import WorkloadView from "./WorkloadView";
 
 export const dynamic = "force-dynamic";
 
 const STATUSES = ["ACTIVE", "ON_HOLD", "COMPLETED", "CANCELLED"];
-type SP = { deleted?: string; error?: string; status?: string; q?: string; new?: string; client?: string; campaign?: string; from?: string; view?: string; who?: string; tstatus?: string; priority?: string; project?: string; due?: string; page?: string };
+type SP = { deleted?: string; error?: string; status?: string; q?: string; new?: string; client?: string; campaign?: string; from?: string; view?: string; who?: string; tstatus?: string; priority?: string; project?: string; due?: string; page?: string; person?: string };
 
 export default async function Projects({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requirePermission("projects.view");
   const sp = await searchParams;
   const canManage = user.permissions.has("projects.manage");
-  const tabs = <Tabs current={sp.view === "tasks" ? "tasks" : "projects"} items={[{ key: "projects", label: "Projects", href: "/projects" }, { key: "tasks", label: "Tasks", href: "/projects?view=tasks" }]} />;
-  if (sp.view === "tasks") return <TasksView user={user} sp={sp} tabs={tabs} />;
+  // Workload is for whoever assigns work: project management rights, or the manager of at least one project
+  const canWorkload = canManage || (await db.project.count({ where: { organizationId: user.organizationId, managerId: user.id } })) > 0;
+  const view = sp.view === "tasks" ? "tasks" : sp.view === "workload" && canWorkload ? "workload" : "projects";
+  const tabs = <Tabs current={view} items={[{ key: "projects", label: "Projects", href: "/projects" }, { key: "tasks", label: "Tasks", href: "/projects?view=tasks" }, ...(canWorkload ? [{ key: "workload", label: "Workload", href: "/projects?view=workload" }] : [])]} />;
+  if (view === "tasks") return <TasksView user={user} sp={sp} tabs={tabs} />;
+  if (view === "workload") return <WorkloadView user={user} sp={{ person: sp.person, page: sp.page }} tabs={tabs} />;
   const status = STATUSES.includes(sp.status ?? "") || sp.status === "ARCHIVED" ? sp.status! : "all";
   const q = sp.q?.trim();
   const [rows, clients, staff] = await Promise.all([

@@ -91,6 +91,18 @@ describe("bulkEditTasks", () => {
     expect(denied.skipped[0].reason).toBe("Only the project manager can change this task.");
   });
 
+  it("sets and clears estimates for the manager only", async () => {
+    const a = await task(mine, "a");
+    const r = await bulkEditTasks(db, { actor: actor(manager), taskIds: [a], change: { kind: "estimate", hours: "2,5" } });
+    expect(r.changed).toHaveLength(1);
+    expect(String((await db.task.findUnique({ where: { id: a } }))!.estimatedHours)).toBe("2.5");
+    expect((await bulkEditTasks(db, { actor: actor(manager), taskIds: [a], change: { kind: "estimate", hours: "2.50" } })).changed).toHaveLength(0);
+    expect((await bulkEditTasks(db, { actor: actor(member), taskIds: [a], change: { kind: "estimate", hours: null } })).skipped[0].reason).toBe("Only the project manager can change this task.");
+    await bulkEditTasks(db, { actor: actor(manager), taskIds: [a], change: { kind: "estimate", hours: null } });
+    expect((await db.task.findUnique({ where: { id: a } }))!.estimatedHours).toBeNull();
+    await expect(bulkEditTasks(db, { actor: actor(manager), taskIds: [a], change: { kind: "estimate", hours: "lots" } })).rejects.toThrow("estimate");
+  });
+
   it("rejects a bad value before touching anything", async () => {
     const a = await task(mine, "a");
     await expect(bulkEditTasks(db, { actor: actor(manager), taskIds: [a], change: { kind: "priority", value: "URGENT" } })).rejects.toThrow();
