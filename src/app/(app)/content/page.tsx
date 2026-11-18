@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { contentClientIds, contentWhere } from "@/lib/content-scope";
 import { PLATFORM_META, POST_TYPE_LABEL } from "@/lib/content-rules";
 import { SubmitButton } from "@/components/ui";
 import { bulkToClientAction, bulkToInternalAction } from "./actions";
@@ -35,9 +36,11 @@ export default async function ContentCalendar({ searchParams }: { searchParams: 
   const all = view === "sheet" && sp.m === "all";
   const month = isMonth(sp.m) ? sp.m! : today.slice(0, 7);
 
+  // Only the clients this person works for, unless they may see every project
+  const [scope, clientIds] = await Promise.all([contentWhere(db, user), contentClientIds(db, user)]);
   const [rows, clients, people] = await Promise.all([
-    db.contentItem.findMany({ where: { organizationId: org, ...(view === "week" ? { plannedDate: { gte: weekDays[0], lte: weekDays[6] } } : all ? {} : { plannedDate: { startsWith: month } }) }, orderBy: [{ plannedDate: "asc" }, { plannedTime: "asc" }, { createdAt: "asc" }], take: 1500 }),
-    db.client.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    db.contentItem.findMany({ where: { ...scope, ...(view === "week" ? { plannedDate: { gte: weekDays[0], lte: weekDays[6] } } : all ? {} : { plannedDate: { startsWith: month } }) }, orderBy: [{ plannedDate: "asc" }, { plannedTime: "asc" }, { createdAt: "asc" }], take: 1500 }),
+    db.client.findMany({ where: { organizationId: org, active: true, ...(clientIds ? { id: { in: clientIds } } : {}) }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     db.user.findMany({ where: { organizationId: org, active: true, userType: "EMPLOYEE" }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
   const clientName = new Map(clients.map((c) => [c.id, c.name]));
@@ -182,7 +185,7 @@ export default async function ContentCalendar({ searchParams }: { searchParams: 
 
       {canManage && sp.new && (
         <Drawer title="Plan a post" closeTo={qs({ new: undefined, date: undefined, error: undefined })}>
-          <PostForm clients={clients} people={people} defaultDate={/^\d{4}-\d{2}-\d{2}$/.test(sp.date ?? "") ? sp.date! : today} closeTo={qs({ new: undefined, date: undefined, error: undefined })} error={sp.error} />
+          <PostForm clients={clients} people={people} allowOwn={clientIds === null} defaultDate={/^\d{4}-\d{2}-\d{2}$/.test(sp.date ?? "") ? sp.date! : today} closeTo={qs({ new: undefined, date: undefined, error: undefined })} error={sp.error} />
         </Drawer>
       )}
     </div>

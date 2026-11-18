@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { audit, requirePermission, type SessionUser } from "@/lib/auth";
 import { ContentError, bulkTransition, createContent, reschedule } from "@/lib/content";
 import { db } from "@/lib/db";
+import { canSeeContentClient, canSeeContentId, visibleContentIds } from "@/lib/content-scope";
 
 export type RescheduleResult = { ok: boolean; error?: string };
 
@@ -15,6 +16,8 @@ export async function createPostAction(formData: FormData): Promise<void> {
   const user = await requirePermission("content.manage");
   let id: string;
   try {
+    // Someone who works only for some clients may plan posts only for those clients
+    if (!(await canSeeContentClient(db, user, s(formData, "clientId") || null))) throw new ContentError("Choose one of the clients you work for.");
     const item = await createContent(db, {
       organizationId: user.organizationId, createdById: user.id, title: s(formData, "title"), copy: String(formData.get("copy") ?? ""), hashtags: s(formData, "hashtags"),
       platforms: formData.getAll("platforms").map(String), postType: s(formData, "postType"), plannedDate: s(formData, "plannedDate") || undefined, plannedTime: s(formData, "plannedTime") || undefined,
@@ -32,6 +35,7 @@ export async function createPostAction(formData: FormData): Promise<void> {
 // Dragging a post to another day on the calendar.
 export async function reschedulePostAction(id: string, plannedDate: string): Promise<RescheduleResult> {
   const user = await requirePermission("content.manage");
+  if (!(await canSeeContentId(db, user, id))) return { ok: false, error: "Post not found." };
   try {
     await reschedule(db, { organizationId: user.organizationId, id, plannedDate });
     await audit(user, { action: "content.reschedule", entity: "ContentItem", entityId: id, after: { plannedDate } });
@@ -52,7 +56,8 @@ async function bulkMove(user: SessionUser, formData: FormData, to: "INTERNAL_REV
   const safeBack = back.startsWith("/content") ? back : "/content";
   let msg: string;
   try {
-    const r = await bulkTransition(db, { organizationId: user.organizationId, ids: formData.getAll("ids").map(String), actor: { id: user.id, type: "STAFF" }, to });
+    const ids = await visibleContentIds(db, user, formData.getAll("ids").map(String));
+    const r = await bulkTransition(db, { organizationId: user.organizationId, ids, actor: { id: user.id, type: "STAFF" }, to });
     await audit(user, { action: `content.bulk_${to.toLowerCase()}`, entity: "ContentItem", entityId: "bulk", after: { moved: r.moved, failed: r.failed.length } });
     msg = `${r.moved} post${r.moved === 1 ? "" : "s"} moved to ${to === "CLIENT_REVIEW" ? "client review" : "internal review"}.` + (r.failed.length ? ` ${r.failed.length} could not move: ${r.failed.slice(0, 3).map((f) => `“${f.title}” (${f.reason})`).join("; ")}${r.failed.length > 3 ? " and more" : ""}.` : "");
   } catch (e) {

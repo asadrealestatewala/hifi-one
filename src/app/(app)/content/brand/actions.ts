@@ -1,8 +1,9 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { audit, requirePermission, toFileActor, type SessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { canSeeContentClient } from "@/lib/content-scope";
 import { BrandError, COLOR_ROLES, LOGO_SLOTS, addMedia, applySuggestion, dismissSuggestion, removeMedia, saveKit, setLogo, suggestFromWebsite, updateMedia, type LogoSlot } from "@/lib/brand-kit";
 import { defaultStorage } from "@/lib/storage";
 
@@ -11,6 +12,13 @@ const clientOf = (f: FormData) => { const c = s(f, "client"); return c && c !== 
 const page = (f: FormData, tab: string, q: string): never => redirect(`/content/brand?client=${encodeURIComponent(s(f, "client") || "own")}&tab=${tab}&${q}`);
 
 async function run(user: SessionUser, f: FormData, tab: string, work: () => Promise<string>) {
+  // The brand (and, for a library item, the item's own brand) must be one this person works for
+  if (!(await canSeeContentClient(db, user, clientOf(f)))) notFound();
+  const mediaId = s(f, "id");
+  if (mediaId) {
+    const m = await db.mediaItem.findFirst({ where: { id: mediaId, organizationId: user.organizationId }, select: { clientId: true } });
+    if (m && !(await canSeeContentClient(db, user, m.clientId))) notFound();
+  }
   let msg: string;
   try { msg = await work(); }
   catch (e) { if (e instanceof BrandError) page(f, tab, `error=${encodeURIComponent(e.message)}`); throw e; }

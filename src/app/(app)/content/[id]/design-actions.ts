@@ -1,8 +1,9 @@
 "use server";
 // The Design panel on a post: AI words, an AI photo, and drawing the branded design
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { audit, requirePermission, toFileActor } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { canSeeContentId } from "@/lib/content-scope";
 import { ContentAiError, generateImage } from "@/lib/content-ai";
 import { DesignError, makeDesign, writeDesignWords } from "@/lib/design";
 import { defaultStorage } from "@/lib/storage";
@@ -13,6 +14,7 @@ const s = (f: FormData, k: string) => String(f.get(k) ?? "");
 export async function designWords(formData: FormData) {
   const user = await requirePermission("content.manage");
   const id = s(formData, "id");
+  if (!(await canSeeContentId(db, user, id))) notFound();
   try {
     await writeDesignWords(db, { organizationId: user.organizationId, itemId: id, actorId: user.id, note: s(formData, "designNote"), kind: s(formData, "kind") });
   } catch (e) {
@@ -26,6 +28,7 @@ export async function designWords(formData: FormData) {
 export async function designAiPhoto(formData: FormData) {
   const user = await requirePermission("content.manage");
   const id = s(formData, "id");
+  if (!(await canSeeContentId(db, user, id))) notFound();
   let fileId: string;
   try {
     const f = await generateImage(db, defaultStorage(), { organizationId: user.organizationId, itemId: id, actor: toFileActor(user), note: s(formData, "designNote") });
@@ -41,6 +44,7 @@ export async function designAiPhoto(formData: FormData) {
 export async function drawPostDesign(formData: FormData) {
   const user = await requirePermission("content.manage");
   const id = s(formData, "id");
+  if (!(await canSeeContentId(db, user, id))) notFound();
   try {
     const r = await makeDesign(db, defaultStorage(), {
       actor: toFileActor(user), itemId: id,

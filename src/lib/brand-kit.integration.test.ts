@@ -21,8 +21,8 @@ beforeAll(async () => {
   beta = (await db.client.create({ data: { organizationId: org, name: "Beta" } })).id;
   const au = await mk("a@acme.test", { userType: "CLIENT", clientId: acme }), bu = await mk("b@beta.test", { userType: "CLIENT", clientId: beta });
   const base = { organizationId: org, vendorId: null };
-  staff = { ...base, id: pm, userType: "EMPLOYEE", clientId: null, permissions: new Set(["content.view", "content.manage"]) };
-  viewer = { ...base, id: pm, userType: "EMPLOYEE", clientId: null, permissions: new Set(["content.view"]) };
+  staff = { ...base, id: pm, userType: "EMPLOYEE", clientId: null, permissions: new Set(["content.view", "content.manage", "projects.view_all"]) };
+  viewer = { ...base, id: pm, userType: "EMPLOYEE", clientId: null, permissions: new Set(["content.view", "projects.view_all"]) };
   acmeUser = { ...base, id: au, userType: "CLIENT", clientId: acme, permissions: new Set() };
   betaUser = { ...base, id: bu, userType: "CLIENT", clientId: beta, permissions: new Set() };
 });

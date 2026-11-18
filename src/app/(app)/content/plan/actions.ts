@@ -1,15 +1,18 @@
 "use server";
 
-import { redirect } from "next/navigation";
-import { audit, requirePermission, toFileActor } from "@/lib/auth";
+import { notFound, redirect } from "next/navigation";
+import { audit, requirePermission, toFileActor, type SessionUser } from "@/lib/auth";
 import { drawPlanDesigns } from "@/lib/design";
 import { defaultStorage } from "@/lib/storage";
 import { ContentAiError, generatePlan, saveProfile, undoPlan } from "@/lib/content-ai";
 import { db } from "@/lib/db";
+import { canSeeContentClient } from "@/lib/content-scope";
 import { ContentError } from "@/lib/content";
 import { deleteHashtagGroup, saveHashtagGroup } from "@/lib/content-hashtags";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
+// The client must be one this person works for (or anyone, for people who see every project)
+const mustSeeClient = async (user: SessionUser, clientId: string | null) => { if (!(await canSeeContentClient(db, user, clientId))) notFound(); };
 const num = (f: FormData, k: string) => (s(f, k) === "" ? 0 : Number(s(f, k)));
 const to = (client: string, month: string, key: "ok" | "error", msg: string): never =>
   redirect(`/content/plan?client=${encodeURIComponent(client)}&m=${encodeURIComponent(month)}&${key}=${encodeURIComponent(msg)}`);
@@ -17,6 +20,7 @@ const to = (client: string, month: string, key: "ok" | "error", msg: string): ne
 export async function saveProfileAction(formData: FormData): Promise<void> {
   const user = await requirePermission("content.manage");
   const clientId = s(formData, "clientId"), month = s(formData, "month");
+  await mustSeeClient(user, clientId || null);
   try {
     await saveProfile(db, {
       organizationId: user.organizationId, clientId, actorId: user.id,
@@ -34,6 +38,7 @@ export async function saveProfileAction(formData: FormData): Promise<void> {
 export async function generatePlanAction(formData: FormData): Promise<void> {
   const user = await requirePermission("content.manage");
   const clientId = s(formData, "clientId"), month = s(formData, "month");
+  await mustSeeClient(user, clientId || null);
   let msg: string;
   try {
     const r = await generatePlan(db, {
@@ -54,8 +59,11 @@ export async function generatePlanAction(formData: FormData): Promise<void> {
 export async function undoPlanAction(formData: FormData): Promise<void> {
   const user = await requirePermission("content.manage");
   const clientId = s(formData, "clientId"), month = s(formData, "month");
+  await mustSeeClient(user, clientId || null);
   let msg: string;
   try {
+    const run = await db.contentAiRun.findFirst({ where: { id: s(formData, "runId"), organizationId: user.organizationId }, select: { clientId: true } });
+    if (run) await mustSeeClient(user, run.clientId);
     const r = await undoPlan(db, { organizationId: user.organizationId, runId: s(formData, "runId") });
     await audit(user, { action: "content.ai_plan_discard", entity: "Client", entityId: clientId, after: { removed: r.removed, kept: r.kept } });
     msg = `${r.removed} untouched draft${r.removed === 1 ? "" : "s"} removed${r.kept ? `; ${r.kept} that were edited or sent on were kept` : ""}.`;
@@ -69,6 +77,7 @@ export async function undoPlanAction(formData: FormData): Promise<void> {
 export async function saveHashtagGroupAction(formData: FormData): Promise<void> {
   const user = await requirePermission("content.manage");
   const clientId = s(formData, "clientId"), month = s(formData, "month");
+  await mustSeeClient(user, clientId || null);
   try {
     const g = await saveHashtagGroup(db, { organizationId: user.organizationId, clientId: clientId || null, name: s(formData, "name"), tags: s(formData, "tags"), actorId: user.id });
     await audit(user, { action: "content.hashtag_group_save", entity: "HashtagGroup", entityId: g.id, after: { name: g.name } });
@@ -82,6 +91,8 @@ export async function saveHashtagGroupAction(formData: FormData): Promise<void> 
 export async function deleteHashtagGroupAction(formData: FormData): Promise<void> {
   const user = await requirePermission("content.manage");
   const clientId = s(formData, "clientId"), month = s(formData, "month"), id = s(formData, "id");
+  const group = await db.hashtagGroup.findFirst({ where: { id, organizationId: user.organizationId }, select: { clientId: true } });
+  await mustSeeClient(user, group ? group.clientId : clientId || null);
   try {
     await deleteHashtagGroup(db, { organizationId: user.organizationId, id });
     await audit(user, { action: "content.hashtag_group_delete", entity: "HashtagGroup", entityId: id });

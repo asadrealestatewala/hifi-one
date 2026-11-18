@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { canSeeContentClient } from "@/lib/content-scope";
 import { loginUrl, metaApp, signState } from "@/lib/social-meta";
 
 export const dynamic = "force-dynamic";
@@ -19,5 +20,6 @@ export async function GET(req: Request) {
     if (!client) return back("Client not found.");
     clientId = client.id;
   }
+  if (!(await canSeeContentClient(db, user, clientId))) return back("You can connect accounts only for the clients you work for.");
   return NextResponse.redirect(loginUrl(app.appId, signState({ userId: user.id, organizationId: user.organizationId, clientId }, process.env.SESSION_SECRET ?? "")));
 }

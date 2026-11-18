@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { contentClientIds } from "@/lib/content-scope";
 import { signDownload } from "@/lib/files";
 import { COLOR_LABEL, COLOR_ROLES, FONTS, LOGO_CORNERS, LOGO_SLOTS, LOGO_SLOT_LABEL, MEDIA_FOLDERS, cleanColors, getKit, listMedia, postCreatives, type LogoSlot, type Suggestion } from "@/lib/brand-kit";
-import { ConfirmButton, Notice, PageHeader, SubmitButton } from "@/components/ui";
+import { ConfirmButton, Empty, Notice, PageHeader, SubmitButton } from "@/components/ui";
 import { applySuggestionAction, dismissSuggestionAction, removeMediaAction, saveKitAction, suggestAction, updateMediaAction, uploadMediaAction, useAsLogoAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -17,8 +18,18 @@ export default async function BrandKitPage({ searchParams }: { searchParams: Pro
   const sp = await searchParams;
   const org = user.organizationId;
   const canEdit = user.permissions.has("content.manage");
-  const clients = await db.client.findMany({ where: { organizationId: org, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } });
-  const clientId = sp.client && sp.client !== "own" ? clients.find((c) => c.id === sp.client)?.id ?? null : null;
+  // People who work only for some clients see only those clients' kits, and not the company's own
+  const clientIds = await contentClientIds(db, user);
+  const seesOwn = clientIds === null;
+  const clients = await db.client.findMany({ where: { organizationId: org, active: true, ...(clientIds ? { id: { in: clientIds } } : {}) }, orderBy: { name: "asc" }, select: { id: true, name: true } });
+  if (!seesOwn && clients.length === 0) return (
+    <div className="max-w-4xl space-y-5">
+      <PageHeader back={{ href: "/content", label: "Content calendar" }} title="Brand kits" />
+      <Empty title="No clients yet">Brand kits appear here for the clients whose projects you are on. Ask your manager to add you to the client&apos;s project.</Empty>
+    </div>
+  );
+  const picked = sp.client && sp.client !== "own" ? clients.find((c) => c.id === sp.client)?.id ?? null : null;
+  const clientId = picked ?? (seesOwn ? null : clients[0].id);
   const key = clientId ?? "own";
   const tab = sp.tab === "media" ? "media" : "kit";
   const [kit, media, creatives] = await Promise.all([
@@ -43,7 +54,7 @@ export default async function BrandKitPage({ searchParams }: { searchParams: Pro
       <form method="get" className="card flex flex-wrap items-end gap-3">
         <input type="hidden" name="tab" value={tab} />
         <div className="min-w-56 flex-1"><label className="label" htmlFor="bk-client">Brand</label>
-          <select id="bk-client" name="client" defaultValue={key} className="input"><option value="own">Our own posts</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+          <select id="bk-client" name="client" defaultValue={key} className="input">{seesOwn && <option value="own">Our own posts</option>}{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
         <button className="btn-ghost">Open</button>
       </form>
       {sp.ok && <Notice kind="ok">{sp.ok}</Notice>}

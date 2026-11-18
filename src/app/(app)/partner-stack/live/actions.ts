@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { audit, requirePermission } from "@/lib/auth";
+import { audit, requirePermission, type SessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { FeedError, connectSolution, createFeedKey, disconnectSolution, linkWorkspace, pullSolution, removeFeedKey } from "@/lib/solution-feed";
 
@@ -51,7 +51,7 @@ export async function linkWorkspaceAction(formData: FormData): Promise<void> {
   return flash("ok", clientId ? "Workspace linked." : "Workspace unlinked.");
 }
 
-type Staff = Awaited<ReturnType<typeof requirePermission>>;
+type Staff = SessionUser;
 const superAdminProduct = async (user: Staff, formData: FormData) => {
   if (!user.roleKeys.includes("SUPER_ADMIN")) redirect("/forbidden");
   const product = await db.saasProduct.findFirst({ where: { id: String(formData.get("productId") ?? ""), organizationId: user.organizationId }, select: { id: true, code: true, name: true } });

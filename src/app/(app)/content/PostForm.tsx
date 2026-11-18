@@ -12,7 +12,7 @@ export function PlatformDot({ code, color, size = 22 }: { code: string; color: s
 }
 
 // "Plan a post": type, caption, platforms (tap to select), date and time, client and owner. Saved as a draft.
-export default function PostForm({ clients, people, defaultDate, closeTo, error }: { clients: Opt[]; people: Opt[]; defaultDate: string; closeTo: string; error?: string }) {
+export default function PostForm({ clients, people, defaultDate, closeTo, error, allowOwn = true }: { clients: Opt[]; people: Opt[]; defaultDate: string; closeTo: string; error?: string; allowOwn?: boolean }) {
   const [type, setType] = useState<string>("STATIC");
   const [platforms, setPlatforms] = useState<string[]>([]);
   const [caption, setCaption] = useState("");
@@ -53,7 +53,7 @@ export default function PostForm({ clients, people, defaultDate, closeTo, error 
         <div className="grid gap-3 sm:grid-cols-2">
           <div><label className="label" htmlFor="pf-date">Posting date <span className="text-brand">*</span></label><input id="pf-date" name="plannedDate" type="date" required defaultValue={defaultDate} className="input" /></div>
           <div><label className="label" htmlFor="pf-time">Posting time</label><input id="pf-time" name="plannedTime" type="time" defaultValue="18:00" className="input" /></div>
-          <div><label className="label" htmlFor="pf-client">Client</label><select id="pf-client" name="clientId" className="input" defaultValue=""><option value="">Our own account (no client)</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+          <div><label className="label" htmlFor="pf-client">Client</label><select id="pf-client" name="clientId" className="input" defaultValue={allowOwn ? "" : clients[0]?.id ?? ""}>{allowOwn && <option value="">Our own account (no client)</option>}{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
           <div><label className="label" htmlFor="pf-as">Assigned to</label><select id="pf-as" name="assignedToId" className="input" defaultValue=""><option value="">Nobody yet</option>{people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
           <div className="sm:col-span-2"><label className="label" htmlFor="pf-tags">Hashtags</label><input id="pf-tags" name="hashtags" maxLength={500} className="input" /></div>
         </div>

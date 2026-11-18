@@ -4,6 +4,7 @@
 // their own tasks, leave and follow-ups, projects they manage, and contract or content dates if their role can view those.
 import crypto from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
+import { contentWhere } from "./content-scope";
 import { VISIT_KIND_LABEL, type VisitKind } from "./site-visits";
 
 type Db = PrismaClient;
@@ -70,7 +71,7 @@ export async function eventsForToken(db: Db, token: string, now = new Date()): P
     }
   }
   if (perms.has("content.view")) {
-    for (const c of await db.contentItem.findMany({ where: { organizationId: org, status: { in: ["APPROVED", "SCHEDULED", "CLIENT_REVIEW"] }, plannedDate: { gte: iso(from), lte: iso(to) } } })) {
+    for (const c of await db.contentItem.findMany({ where: { ...(await contentWhere(db, { id: user.id, organizationId: org, permissions: perms })), status: { in: ["APPROVED", "SCHEDULED", "CLIENT_REVIEW"] }, plannedDate: { gte: iso(from), lte: iso(to) } } })) {
       ev.push({ uid: `content-${c.id}`, date: c.plannedDate!, title: `${c.platform.toLowerCase()} post: ${c.title}` });
     }
   }
