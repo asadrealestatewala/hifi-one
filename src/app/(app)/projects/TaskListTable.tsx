@@ -7,10 +7,12 @@ import { StatusBadge } from "@/components/ui";
 import { STATUS_LABEL, TASK_STATUSES } from "@/lib/project-rules";
 import { bulkTasksAction, type BulkActionResult } from "./actions";
 import type { BulkChange } from "@/lib/task-bulk";
+import type { Label } from "@/lib/task-labels";
+import LabelChip from "./LabelChip";
 
 export type ListRow = {
   id: string; title: string; projectId: string; projectName: string; assigneeId: string | null; assigneeName: string | null;
-  priority: string; status: string; due: string | null; estimate: string | null; late: boolean; canManage: boolean; canMove: boolean;
+  priority: string; status: string; due: string | null; estimate: string | null; labels: Label[]; late: boolean; canManage: boolean; canMove: boolean;
 };
 type Person = { id: string; name: string };
 
@@ -20,7 +22,7 @@ const shortDate = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString(u
 
 // The cross-project task list. Managers edit assignee, priority and due date in place; anyone who may move a task
 // changes its status in place. Ticking rows opens a bar that applies one change to all of them, and says which were skipped.
-export default function TaskListTable({ rows, members, people, selectable }: { rows: ListRow[]; members: Record<string, Person[]>; people: Person[]; selectable: boolean }) {
+export default function TaskListTable({ rows, members, people, selectable, labels = [] }: { rows: ListRow[]; members: Record<string, Person[]>; people: Person[]; selectable: boolean; labels?: Label[] }) {
   const router = useRouter();
   const [chosen, setPicked] = useState<string[]>([]);
   // Rows that leave the list after a change (finished, deleted, filtered out) drop out of the selection too
@@ -61,6 +63,16 @@ export default function TaskListTable({ rows, members, people, selectable }: { r
                 <input type="date" aria-label="Due date for selected tasks" className="input !w-auto !py-1 !text-xs" disabled={pending} onChange={(e) => e.target.value && applyBulk({ kind: "due", date: e.target.value })} />
               </label>
               <button type="button" className="btn-ghost !px-2 !py-1 text-xs" disabled={pending} onClick={() => applyBulk({ kind: "due", date: null })}>Clear due date</button>
+              {labels.length > 0 && (
+                <>
+                  <select aria-label="Add a label to selected tasks" className="input !w-auto !py-1 !text-xs" disabled={pending} value="" onChange={(e) => e.target.value && applyBulk({ kind: "label", labelId: e.target.value, add: true })}>
+                    <option value="">Add label…</option>{labels.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                  </select>
+                  <select aria-label="Remove a label from selected tasks" className="input !w-auto !py-1 !text-xs" disabled={pending} value="" onChange={(e) => e.target.value && applyBulk({ kind: "label", labelId: e.target.value, add: false })}>
+                    <option value="">Remove label…</option>{labels.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                  </select>
+                </>
+              )}
               <select aria-label="Priority for selected tasks" className="input !w-auto !py-1 !text-xs" disabled={pending} value="" onChange={(e) => e.target.value && applyBulk({ kind: "priority", value: e.target.value })}>
                 <option value="">Priority…</option>{PRIORITIES.map((p) => <option key={p} value={p}>{label(p)}</option>)}
               </select>
@@ -104,6 +116,7 @@ export default function TaskListTable({ rows, members, people, selectable }: { r
                 {selectable && <td className="px-4 py-2"><input type="checkbox" className="h-4 w-4 accent-primary" aria-label={`Select ${t.title}`} checked={picked.includes(t.id)} onChange={() => toggle(t.id)} /></td>}
                 <td className={`${selectable ? "" : "px-4"} py-2 pr-4`}>
                   <Link href={`/projects/${t.projectId}?task=${t.id}`} className="font-medium hover:underline">{t.title}</Link>
+                  {t.labels.length > 0 && <span className="mt-1 flex flex-wrap gap-1">{t.labels.map((l) => <LabelChip key={l.id} label={l} />)}</span>}
                   {rowError[t.id] && <p role="alert" className="mt-0.5 text-[11px] text-brand">{rowError[t.id]}</p>}
                 </td>
                 <td className="max-w-48 truncate pr-4 text-muted"><Link className="hover:underline" href={`/projects/${t.projectId}`} title={t.projectName}>{t.projectName}</Link></td>

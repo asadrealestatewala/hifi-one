@@ -657,6 +657,7 @@ model Task {
   blockedBy      String[]  @default([]) // ids of tasks in the same project that must be Done first
   recurrence     String? // DAILY | WEEKLY | MONTHLY: completing the task creates the next one
   recurredFromId String?   @unique // the completed task that created this one, so it is created once
+  labelIds       String[]  @default([]) // TaskLabel ids (the organization's shared labels, such as Copy, Design, Ads)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -667,6 +668,17 @@ model Task {
   @@index([parentId])
   @@index([projectId, status])
   @@index([assigneeId])
+}
+
+// A label a team puts on tasks (Copy, Design, Ads…), shared across the organization's projects. Tasks keep the ids in labelIds.
+model TaskLabel {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  color          String   @default("primary") // a tone from the design tokens: primary | success | warning | danger | info | discovery | neutral
+  createdAt      DateTime @default(now())
+
+  @@unique([organizationId, name])
 }
 
 model TaskComment {

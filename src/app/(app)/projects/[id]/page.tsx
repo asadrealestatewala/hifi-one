@@ -30,6 +30,7 @@ import { openBlockers } from "@/lib/task-rules";
 import { Badge, Notice, PageHeader, PanelForm, Stat, StatusBadge } from "@/components/ui";
 import RemoveRecordPanel from "@/components/RemoveRecordPanel";
 import { projectDeleteBlockers } from "@/lib/record-removal";
+import { listLabels } from "@/lib/task-labels";
 import { archiveProjectAction, deleteProjectAction, restoreProjectAction } from "../removal-actions";
 
 export const dynamic = "force-dynamic";
@@ -73,6 +74,7 @@ export default async function ProjectPage({
     canMeet ? db.meeting.findFirst({ where: { organizationId: org, projectId: project.id, status: { in: ["SCHEDULED", "LIVE"] }, OR: [{ scheduledAt: null }, { scheduledAt: { gte: now } }] }, orderBy: { scheduledAt: "asc" }, select: { id: true, title: true, scheduledAt: true, status: true } }) : null,
     projectAssetRights(db, toFileActor(user), project.id),
   ]);
+  const labels = await listLabels(db, user.organizationId);
   const [fin, fileCount, removalBlockers] = await Promise.all([
     canCosts ? projectProfitability(db, org, project.id) : null,
     assetRights.read ? listAssets(db, org, project.id).then((a) => a.length) : 0,
@@ -204,7 +206,7 @@ export default async function ProjectPage({
   const tasks = (
     <div key="tasks" className="space-y-6">
       <TaskBoard
-        key={project.tasks.map((t) => `${t.id}:${t.status}:${t.blockedBy.join("")}`).join(",")}
+        key={project.tasks.map((t) => `${t.id}:${t.status}:${t.blockedBy.join("")}:${t.labelIds.join("")}`).join(",") + labels.map((l) => l.name + l.color).join("")}
         canMove={canMove && !closed}
         userId={user.id}
         isManager={canManage || project.managerId === user.id}
@@ -214,8 +216,9 @@ export default async function ProjectPage({
           due: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
           overdue: isOverdue(t),
           subDone: project.tasks.filter((x) => x.parentId === t.id && x.status === "DONE").length, subTotal: project.tasks.filter((x) => x.parentId === t.id).length,
-          waitingFor: openBlockers(t.blockedBy, byId).map((x) => x.title), recurrence: t.recurrence, href: taskHref(t.id),
+          waitingFor: openBlockers(t.blockedBy, byId).map((x) => x.title), recurrence: t.recurrence, href: taskHref(t.id), labelIds: t.labelIds,
         }))}
+        labels={labels}
       />
       <ProjectTimeline projectId={project.id} today={todayIso} projectStart={project.startDate} deadline={project.deadline} milestones={milestones}
         tasks={top.map((t) => ({ id: t.id, title: t.title, status: t.status, createdAt: t.createdAt, dueDate: t.dueDate, completedAt: t.completedAt, assignee: t.assigneeId ? nameOf.get(t.assigneeId) ?? null : null }))} />
@@ -380,10 +383,11 @@ export default async function ProjectPage({
         <Drawer title={open.title} closeTo={`${base}?tab=tasks`}>
           <TaskDetail
             key={`${open.id}:${open.status}:${project.tasks.length}:${comments.length}`}
-            task={{ id: open.id, title: open.title, status: open.status, description: open.description ?? "", priority: open.priority, assigneeId: open.assigneeId ?? "", due: open.dueDate ? open.dueDate.toISOString().slice(0, 10) : "", estimate: open.estimatedHours ? String(open.estimatedHours) : "", clientVisible: open.clientVisible, recurrence: open.recurrence ?? "", blockedBy: open.blockedBy, parentTitle: open.parentId ? byId.get(open.parentId)?.title ?? "another task" : null }}
+            task={{ id: open.id, title: open.title, status: open.status, description: open.description ?? "", priority: open.priority, assigneeId: open.assigneeId ?? "", due: open.dueDate ? open.dueDate.toISOString().slice(0, 10) : "", estimate: open.estimatedHours ? String(open.estimatedHours) : "", clientVisible: open.clientVisible, recurrence: open.recurrence ?? "", blockedBy: open.blockedBy, labelIds: open.labelIds, parentTitle: open.parentId ? byId.get(open.parentId)?.title ?? "another task" : null }}
             subtasks={project.tasks.filter((t) => t.parentId === open.id).map((t) => ({ id: t.id, title: t.title, status: t.status }))}
             candidates={project.tasks.filter((t) => t.id !== open.id && t.parentId !== open.id && open.parentId !== t.id).map((t) => ({ id: t.id, title: t.title }))}
             members={project.members.map((m) => ({ id: m.userId, name: nameOf.get(m.userId) ?? "Unknown" }))}
+            labels={labels} canManageLabels={canManage}
             comments={comments.map((c) => ({ id: c.id, authorId: c.authorId, author: nameOf.get(c.authorId) ?? outsiders.get(c.authorId)?.name ?? "Former staff", body: c.body, at: c.createdAt.toLocaleString(), shared: !c.internal, fromClient: Boolean(outsiders.get(c.authorId)?.clientId) }))}
             canManage={(canManage || project.managerId === user.id) && !closed} canMoveSubtasks={canMove && !closed && (canManage || project.managerId === user.id || open.assigneeId === user.id)} canComment={canMove}
           >
