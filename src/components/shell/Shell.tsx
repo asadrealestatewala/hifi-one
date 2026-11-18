@@ -8,6 +8,7 @@ import NavProgress from "./NavProgress";
 import type { NavStats } from "@/lib/nav-stats";
 import type { MenuPrefs } from "@/lib/menu-layout";
 import CommandPalette from "./CommandPalette";
+import type { Destination } from "@/lib/go-to";
 import Icon from "./Icon";
 import RowClick from "./RowClick";
 import KeyboardShortcuts from "./KeyboardShortcuts";
@@ -23,8 +24,8 @@ type ViewAs = { roles: { key: string; name: string }[]; active: { key: string; n
 type Group = { id: string; title: string; icon: string; items: { href: string; label: string }[] };
 
 // The signed-in frame: sidebar, top bar and the page. Only layout state lives here; every permission decision was made on the server.
-export default function Shell({ groups, allGroups, menuPrefs, quick, name, roles, userId, unread, chatUnread, stats, canSearch, canAsk, callerId, signOut, viewAs, children }: {
-  groups: Group[]; allGroups: Group[]; menuPrefs: MenuPrefs; quick: { href: string; label: string; icon: string }[]; name: string; roles: string; userId: string; unread: number; chatUnread: number | null; stats: NavStats; canSearch: boolean; canAsk: boolean; callerId: string | null; signOut: () => Promise<void>; viewAs: ViewAs | null; children: React.ReactNode;
+export default function Shell({ groups, allGroups, destinations, menuPrefs, quick, name, roles, userId, unread, chatUnread, stats, canSearch, canAsk, callerId, signOut, viewAs, children }: {
+  groups: Group[]; allGroups: Group[]; destinations: Destination[]; menuPrefs: MenuPrefs; quick: { href: string; label: string; icon: string }[]; name: string; roles: string; userId: string; unread: number; chatUnread: number | null; stats: NavStats; canSearch: boolean; canAsk: boolean; callerId: string | null; signOut: () => Promise<void>; viewAs: ViewAs | null; children: React.ReactNode;
 }) {
   const [mobile, setMobile] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
@@ -32,7 +33,7 @@ export default function Shell({ groups, allGroups, menuPrefs, quick, name, roles
   return (
     <div className="min-h-screen md:flex">
       <Suspense fallback={null}><NavProgress /></Suspense>
-      <CommandPalette groups={allGroups} quick={quick} canSearch={canSearch} />
+      <CommandPalette destinations={destinations} quick={quick} canSearch={canSearch} />
       <Sidebar stats={stats} groups={groups} allGroups={allGroups} menuPrefs={menuPrefs} name={name} roles={roles} userId={userId} signOut={signOut} mobileOpen={mobile} onClose={() => setMobile(false)} />
       <div className="min-w-0 flex-1">
         {viewAs?.active && <ViewAsBanner roleName={viewAs.active.name} stop={viewAs.stop} />}
