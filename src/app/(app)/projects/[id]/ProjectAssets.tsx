@@ -127,8 +127,8 @@ export default async function ProjectAssets({ user, projectId, folder, flash, ba
       )}
 
       {rights.manage && (
-        <div className="space-y-3">
-          <h3 className="text-sm font-medium">Preview links for people without a login</h3>
+        <details className="space-y-3 [&[open]>summary]:mb-3">
+          <summary className="cursor-pointer text-sm font-medium text-primary">Share with people who have no login{shares.length > 0 && <span className="font-normal text-muted"> · {shares.filter((sh) => !sh.revokedAt && (!sh.expiresAt || sh.expiresAt > now)).length} live links</span>}</summary>
           <form action={createShareAction} className="grid gap-2 rounded-xl bg-hover/50 p-3 sm:grid-cols-5 sm:items-end">
             <input type="hidden" name="projectId" value={projectId} /><input type="hidden" name="returnTo" value={base} />
             <div className="sm:col-span-2"><label className="label" htmlFor="share-label">Who is it for?</label><input id="share-label" name="label" placeholder="e.g. Brand manager at Acme" className="input" /></div>
@@ -158,7 +158,7 @@ export default async function ProjectAssets({ user, projectId, folder, flash, ba
               })}
             </ul>
           )}
-        </div>
+        </details>
       )}
     </section>
   );

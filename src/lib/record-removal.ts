@@ -59,13 +59,15 @@ export async function restoreProject(db: Db, organizationId: string, projectId: 
   return db.project.update({ where: { id: p.id }, data: { archivedAt: null, archivedById: null } });
 }
 
-// Deletes the project with its tasks, comments, milestones, updates and members. Refuses when anything in projectDeleteBlockers exists.
+// Deletes the project with its tasks, comments, milestones, updates and members. Refuses when anything in projectDeleteBlockers exists,
+// and until the project has been set to Cancelled (so a live project is never one click from deletion).
 export async function deleteProject(db: PrismaClient, organizationId: string, projectId: string) {
   return db.$transaction(async (tx) => {
     const p = await tx.project.findFirst({ where: { id: projectId, organizationId } });
     if (!p) throw new RemovalError("Project not found.");
     const blockers = await projectDeleteBlockers(tx, p.id);
     if (blockers.length) throw new RemovalError(`This project has ${describeBlockers(blockers)}, so it can't be deleted. Archive it instead.`);
+    if (p.status !== "CANCELLED") throw new RemovalError("Set the project to Cancelled before deleting it.");
     const taskIds = (await tx.task.findMany({ where: { projectId: p.id }, select: { id: true } })).map((t) => t.id);
     await tx.chatRoom.deleteMany({ where: { projectId: p.id } }); // empty, or it would have blocked
     await tx.task.updateMany({ where: { projectId: p.id }, data: { parentId: null } });

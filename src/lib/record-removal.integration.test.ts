@@ -20,7 +20,7 @@ const mkProject = async (number: string, extra: object = {}) => (await db.projec
 
 describe("deleting a test project", () => {
   it("removes a project with only tasks, comments, milestones, updates and members", async () => {
-    const id = await mkProject("PRJ-T1", { members: { create: { userId: pm } } });
+    const id = await mkProject("PRJ-T1", { status: "CANCELLED", members: { create: { userId: pm } } });
     const parent = await db.task.create({ data: { projectId: id, title: "Parent" } });
     await db.task.create({ data: { projectId: id, title: "Child", parentId: parent.id } });
     await db.taskComment.create({ data: { taskId: parent.id, authorId: pm, body: "hello" } });
@@ -47,6 +47,14 @@ describe("deleting a test project", () => {
     const id = await mkProject("PRJ-T3", { clientId: client.id });
     await db.invoice.create({ data: { organizationId: org, clientId: client.id, projectId: id, currency: "USD" } });
     await expect(deleteProject(db, org, id)).rejects.toBeInstanceOf(RemovalError);
+  });
+
+  it("refuses a project that is not Cancelled, even with nothing attached", async () => {
+    const id = await mkProject("PRJ-T5");
+    await expect(deleteProject(db, org, id)).rejects.toThrow("Set the project to Cancelled before deleting it.");
+    await db.project.update({ where: { id }, data: { status: "COMPLETED" } });
+    await expect(deleteProject(db, org, id)).rejects.toThrow(/Cancelled/);
+    expect(await db.project.count({ where: { id } })).toBe(1);
   });
 
   it("cannot reach a project in another organization", async () => {
@@ -82,7 +90,7 @@ describe("deleting a test client", () => {
 
   it("refuses while the client still has a project, then allows it once the project is gone", async () => {
     const c = await db.client.create({ data: { organizationId: org, name: "Umair Testing" } });
-    const p = await mkProject("PRJ-C1", { clientId: c.id });
+    const p = await mkProject("PRJ-C1", { clientId: c.id, status: "CANCELLED" });
     await expect(deleteClient(db, org, c.id)).rejects.toThrow(/1 project.*Mark it inactive/);
     await deleteProject(db, org, p);
     await deleteClient(db, org, c.id);

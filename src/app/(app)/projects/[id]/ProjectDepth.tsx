@@ -8,7 +8,7 @@ import { ProjectError, addMilestone, assignTaskToMilestone, billMilestone, decid
 import { projectScope } from "@/lib/projects";
 
 const today = () => new Date().toISOString().slice(0, 10);
-const bounce = (id: string, m: string, kind: "error" | "msg" = "error") => redirect(`/projects/${id}?${kind}=${encodeURIComponent(m)}`);
+const bounce = (id: string, m: string, tab: "milestones" | "time" | "settings") => redirect(`/projects/${id}?error=${encodeURIComponent(m)}&tab=${tab}`);
 
 async function inScope(user: SessionUser, projectId: string) {
   const p = await db.project.findFirst({ where: { id: projectId, ...projectScope(user) } });
@@ -30,7 +30,7 @@ async function milestoneAction(formData: FormData) {
       await audit(user, { action: "milestone.create", entity: "Milestone", entityId: m.id, after: { name: m.name } });
     } else if (op === "status") {
       const to = s("to") as "PENDING" | "IN_PROGRESS" | "DONE";
-      if (!["PENDING", "IN_PROGRESS", "DONE"].includes(to)) return bounce(projectId, "Unknown status.");
+      if (!["PENDING", "IN_PROGRESS", "DONE"].includes(to)) return bounce(projectId, "Unknown status.", "milestones");
       await setMilestoneStatus(db, { organizationId: org, milestoneId: s("milestoneId"), to });
       await audit(user, { action: "milestone.status", entity: "Milestone", entityId: s("milestoneId"), after: { status: to } });
     } else if (op === "assign") {
@@ -42,10 +42,10 @@ async function milestoneAction(formData: FormData) {
       redirect(`/finance/invoices/${r.invoiceId}`);
     }
   } catch (e) {
-    if (e instanceof ProjectError) return bounce(projectId, e.message);
+    if (e instanceof ProjectError) return bounce(projectId, e.message, "milestones");
     throw e;
   }
-  redirect(`/projects/${projectId}`);
+  redirect(`/projects/${projectId}?tab=milestones`);
 }
 
 async function timeAction(formData: FormData) {
@@ -68,10 +68,10 @@ async function timeAction(formData: FormData) {
       await audit(user, { action: "time.delete", entity: "TimeEntry", entityId: s("entryId") });
     }
   } catch (e) {
-    if (e instanceof ProjectError) return bounce(projectId, e.message);
+    if (e instanceof ProjectError) return bounce(projectId, e.message, "time");
     throw e;
   }
-  redirect(`/projects/${projectId}`);
+  redirect(`/projects/${projectId}?tab=time`);
 }
 
 async function rateAction(formData: FormData) {
@@ -85,13 +85,17 @@ async function rateAction(formData: FormData) {
     await setMemberRate(db, { organizationId: user.organizationId, projectId, userId: String(formData.get("userId") ?? ""), hourlyCost: rate || null });
     await audit(user, { action: "project.member_rate", entity: "Project", entityId: projectId, after: { userId: String(formData.get("userId") ?? ""), hourlyCost: rate || null } });
   } catch (e) {
-    if (e instanceof ProjectError) return bounce(projectId, e.message);
+    if (e instanceof ProjectError) return bounce(projectId, e.message, "settings");
     throw e;
   }
-  redirect(`/projects/${projectId}`);
+  redirect(`/projects/${projectId}?tab=settings`);
 }
 
-export default async function ProjectDepth({ user, projectId, closed }: { user: SessionUser; projectId: string; closed: boolean }) {
+// One part of the project's plan and money, so the project page can put each in its own tab:
+// "milestones" (Tasks tab), "time" and "money" (Time & money tab), "rates" (Settings tab, people with projects.costs).
+export type DepthPart = "milestones" | "time" | "money" | "rates";
+
+export default async function ProjectDepth({ user, projectId, closed, part }: { user: SessionUser; projectId: string; closed: boolean; part: DepthPart }) {
   const org = user.organizationId;
   const canManage = user.permissions.has("projects.manage");
   const canLog = user.permissions.has("tasks.edit") && !closed;
@@ -104,14 +108,39 @@ export default async function ProjectDepth({ user, projectId, closed }: { user: 
     db.user.findMany({ where: { organizationId: org }, select: { id: true, name: true } }),
   ]);
   const nameOf = new Map(people.map((u) => [u.id, u.name]));
-  const fin = canCosts ? await projectProfitability(db, org, projectId) : null;
+  const fin = canCosts && part === "money" ? await projectProfitability(db, org, projectId) : null;
   // Cost rates are never sent to people without projects.costs; everyone sees hours.
   const myEntries = user.permissions.has("projects.manage") ? entries : entries.filter((e) => e.userId === user.id);
   const cur = project.currency;
 
+  if (part === "rates") {
+    if (!canCosts) return null;
+    return (
+      <section className="card space-y-3">
+        <div><h2 className="font-semibold">Team cost rates</h2><p className="text-xs text-muted">{cur} per hour, used for labour cost in Time &amp; money. A rate applies to time logged from then on. Restricted.</p></div>
+        {project.members.length === 0 ? <p className="text-sm text-muted">Add people to the team first.</p> : (
+          <ul className="space-y-2 text-sm">
+            {project.members.map((m) => (
+              <li key={m.userId} className="flex flex-wrap items-center justify-between gap-2">
+                <span>{nameOf.get(m.userId) ?? "Unknown"}</span>
+                {canManage ? (
+                  <form action={rateAction} className="flex gap-2">
+                    <input type="hidden" name="projectId" value={projectId} /><input type="hidden" name="userId" value={m.userId} />
+                    <input name="hourlyCost" inputMode="decimal" defaultValue={m.hourlyCost?.toString() ?? ""} placeholder="Not set" aria-label={`Hourly cost for ${nameOf.get(m.userId)}`} className="input !w-28" />
+                    <button className="btn-ghost">Save</button>
+                  </form>
+                ) : <span>{m.hourlyCost ? formatMoney(m.hourlyCost, cur) : "Not set"}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    );
+  }
+
   return (
     <>
-      <section className="card space-y-3">
+      {part === "milestones" && <section id="milestones" className="card space-y-3">
         <h2 className="font-semibold">Milestones</h2>
         {milestones.length === 0 && <p className="text-sm text-muted">No milestones yet.</p>}
         <ul className="text-sm space-y-3">
@@ -156,9 +185,9 @@ export default async function ProjectDepth({ user, projectId, closed }: { user: 
             )}
           </>
         )}
-      </section>
+      </section>}
 
-      <section className="card space-y-3">
+      {part === "time" && <section className="card space-y-3">
         <h2 className="font-semibold">Time</h2>
         {canLog && (
           <form action={timeAction} className="grid gap-2 sm:grid-cols-[9rem_6rem_1fr_1fr_auto]">
@@ -193,7 +222,7 @@ export default async function ProjectDepth({ user, projectId, closed }: { user: 
             </tbody>
           </table>
         )}
-      </section>
+      </section>}
 
       {fin && (
         <section className="card space-y-3">
@@ -208,25 +237,8 @@ export default async function ProjectDepth({ user, projectId, closed }: { user: 
             <div className="flex justify-between text-muted"><dt>Committed to vendors, not yet billed</dt><dd>{formatMoney(fin.committed.toString(), fin.currency)}</dd></div>
             {fin.budgetUsedPct !== null && <div className="flex justify-between text-muted"><dt>Budget used (cost + commitments)</dt><dd className={fin.budgetUsedPct.gt(100) ? "text-brand font-semibold" : ""}>{fin.budgetUsedPct.toString()}% of {formatMoney(fin.budget!.toString(), fin.currency)}</dd></div>}
           </dl>
-          {fin.entriesWithoutRate > 0 && <p className="text-xs text-brand">{fin.entriesWithoutRate} time entr{fin.entriesWithoutRate === 1 ? "y has" : "ies have"} no cost rate, so labour cost is understated. Set rates below; they apply to time logged from then on.</p>}
+          {fin.entriesWithoutRate > 0 && <p className="text-xs text-brand">{fin.entriesWithoutRate} time entr{fin.entriesWithoutRate === 1 ? "y has" : "ies have"} no cost rate, so labour cost is understated. {canManage ? <a href="#settings" className="underline">Set rates in Settings</a> : "A project manager sets rates"}; they apply to time logged from then on.</p>}
           {fin.excluded.length > 0 && <p className="text-xs text-muted">Not included (different currency): {fin.excluded.map((x) => `${x.count} in ${x.currency}`).join(", ")}.</p>}
-          <details>
-            <summary className="text-sm cursor-pointer">Team cost rates ({cur} per hour)</summary>
-            <ul className="mt-2 space-y-2 text-sm">
-              {project.members.map((m) => (
-                <li key={m.userId} className="flex flex-wrap items-center justify-between gap-2">
-                  <span>{nameOf.get(m.userId) ?? "Unknown"}</span>
-                  {canManage ? (
-                    <form action={rateAction} className="flex gap-2">
-                      <input type="hidden" name="projectId" value={projectId} /><input type="hidden" name="userId" value={m.userId} />
-                      <input name="hourlyCost" inputMode="decimal" defaultValue={m.hourlyCost?.toString() ?? ""} placeholder="Not set" aria-label={`Hourly cost for ${nameOf.get(m.userId)}`} className="input !w-28" />
-                      <button className="btn-ghost">Save</button>
-                    </form>
-                  ) : <span>{m.hourlyCost ? formatMoney(m.hourlyCost, cur) : "Not set"}</span>}
-                </li>
-              ))}
-            </ul>
-          </details>
         </section>
       )}
     </>
