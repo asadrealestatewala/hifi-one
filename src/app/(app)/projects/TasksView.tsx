@@ -3,7 +3,8 @@ import type { SessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { paging } from "@/lib/paging";
 import { projectScope } from "@/lib/projects";
-import { AppliedFilters, Chips, Empty, PageHeader, Pager, SearchBox, Stat, StatusBadge, ListToolbar } from "@/components/ui";
+import TaskListTable, { type ListRow } from "./TaskListTable";
+import { AppliedFilters, Chips, Empty, PageHeader, Pager, SearchBox, Stat, ListToolbar } from "@/components/ui";
 
 export type TaskSP = { view?: string; who?: string; tstatus?: string; priority?: string; project?: string; due?: string; q?: string; page?: string; from?: string };
 const TS = ["TODO", "IN_PROGRESS", "REVIEW", "DONE"];
@@ -34,7 +35,7 @@ export default async function TasksView({ user, sp, tabs }: { user: SessionUser;
   const pg = paging(sp.page);
   const mine = { ...scope, assigneeId: user.id, status: { not: "DONE" } };
   const [rows, matched, open, overdue, week, review, projects] = await Promise.all([
-    db.task.findMany({ where, include: { project: { select: { id: true, name: true, number: true } } }, orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }, { id: "asc" }], skip: pg.skip, take: pg.take }),
+    db.task.findMany({ where, include: { project: { select: { id: true, name: true, number: true, managerId: true, status: true } } }, orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }, { id: "asc" }], skip: pg.skip, take: pg.take }),
     db.task.count({ where }),
     db.task.count({ where: mine }),
     db.task.count({ where: { ...mine, dueDate: { lt: dayStart } } }),
@@ -43,6 +44,23 @@ export default async function TasksView({ user, sp, tabs }: { user: SessionUser;
     db.project.findMany({ where: { ...projectScope(user), status: { not: "CANCELLED" } }, orderBy: { number: "asc" }, select: { id: true, name: true, number: true } }),
   ]);
   const people = new Map((await db.user.findMany({ where: { id: { in: [...new Set(rows.map((r) => r.assigneeId).filter(Boolean) as string[])] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
+  // Inline edits: the manager of a row's project (or anyone with projects.manage) edits details; assignees move their own tasks
+  const canEdit = user.permissions.has("tasks.edit");
+  const isManager = (p: { managerId: string }) => user.permissions.has("projects.manage") || p.managerId === user.id;
+  const closed = (s: string) => s === "COMPLETED" || s === "CANCELLED";
+  const managed = [...new Set(rows.filter((r) => canEdit && isManager(r.project) && !closed(r.project.status)).map((r) => r.projectId))];
+  const team = managed.length ? await db.projectMember.findMany({ where: { projectId: { in: managed } }, select: { projectId: true, userId: true } }) : [];
+  const staff = new Map((team.length ? await db.user.findMany({ where: { id: { in: [...new Set(team.map((m) => m.userId))] }, organizationId: user.organizationId, active: true, userType: "EMPLOYEE" }, select: { id: true, name: true }, orderBy: { name: "asc" } }) : []).map((u) => [u.id, u]));
+  const members: Record<string, { id: string; name: string }[]> = {};
+  for (const m of team) { const u = staff.get(m.userId); if (u) (members[m.projectId] ??= []).push(u); }
+  for (const list of Object.values(members)) list.sort((a, b) => a.name.localeCompare(b.name));
+  const everyone = [...staff.values()];
+  const listRows: ListRow[] = rows.map((t) => ({
+    id: t.id, title: t.title, projectId: t.project.id, projectName: t.project.name, assigneeId: t.assigneeId, assigneeName: t.assigneeId ? people.get(t.assigneeId) ?? null : null,
+    priority: t.priority, status: t.status, due: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null, late: Boolean(t.status !== "DONE" && t.dueDate && t.dueDate < dayStart),
+    canManage: canEdit && isManager(t.project) && !closed(t.project.status),
+    canMove: canEdit && !closed(t.project.status) && (isManager(t.project) || t.assigneeId === user.id),
+  }));
   const cur: Record<string, string | undefined> = { view: "tasks", who: who === "me" ? undefined : "all", tstatus: tstatus === "open" ? undefined : tstatus, priority, project: sp.project, due, q, from: sp.from };
   const href = (over: Record<string, string | undefined>) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries({ ...cur, ...over })) if (v) p.set(k, v); return `/projects?${p}`; };
   const pname = projects.find((p) => p.id === sp.project);
@@ -75,27 +93,10 @@ export default async function TasksView({ user, sp, tabs }: { user: SessionUser;
         </form>
       </ListToolbar>
       {rows.length === 0 ? <Empty title="No tasks match">{who === "me" && !applied.length && tstatus === "open" ? "Nothing is assigned to you right now. Try Everyone to see the team's tasks." : <Link className="underline" href="/projects?view=tasks">Clear the filters</Link>}</Empty> : (
-        <div className="card overflow-x-auto !p-0">
-          <table className="w-full text-sm">
-            <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="px-4 py-2.5">Task</th><th className="pr-4">Project</th><th className="pr-4">Assignee</th><th className="pr-4">Priority</th><th className="pr-4">Due</th><th className="pr-4">Status</th></tr></thead>
-            <tbody>
-              {rows.map((t) => {
-                const late = t.status !== "DONE" && t.dueDate && t.dueDate < dayStart;
-                return (
-                  <tr key={t.id} className="border-t border-border transition hover:bg-hover/50">
-                    <td className="px-4 py-2.5"><Link href={`/projects/${t.project.id}?task=${t.id}`} className="font-medium hover:underline">{t.title}</Link></td>
-                    <td className="pr-4 text-muted"><Link className="hover:underline" href={`/projects/${t.project.id}`}>{t.project.name}</Link></td>
-                    <td className="pr-4">{t.assigneeId ? people.get(t.assigneeId) : <span className="text-muted">Unassigned</span>}</td>
-                    <td className="pr-4"><span className={t.priority === "HIGH" ? "font-medium text-brand" : "text-muted"}>{label(t.priority)}</span></td>
-                    <td className={`pr-4 ${late ? "font-medium text-brand" : "text-muted"}`}>{t.dueDate ? t.dueDate.toISOString().slice(0, 10) : ""}{late ? " · overdue" : ""}</td>
-                    <td className="pr-4"><StatusBadge status={t.status} /></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <Pager page={pg.page} size={pg.size} total={matched} href={(n) => href({ page: n > 1 ? String(n) : undefined })} />
-        </div>
+        <>
+          <TaskListTable rows={listRows} members={members} people={everyone} selectable={canEdit} />
+          <div className="card !p-0"><Pager page={pg.page} size={pg.size} total={matched} href={(n) => href({ page: n > 1 ? String(n) : undefined })} /></div>
+        </>
       )}
     </div>
   );

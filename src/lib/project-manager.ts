@@ -1,6 +1,7 @@
 // Who manages a project. Free of Next.js imports so it can be tested against the test database.
 import type { PrismaClient } from "@prisma/client";
 import { notify } from "./notifications";
+import { deleteTaskFamilies } from "./task-bulk";
 
 type Db = PrismaClient;
 
@@ -69,28 +70,9 @@ export async function removeProjectMember(db: Db, p: { organizationId: string; p
       await tx.task.updateMany({ where: { id: { in: ids } }, data: { assigneeId: handover.toUserId } });
       reassigned = ids;
     } else if (handover.mode === "delete" && ids.length) {
-      // A task (with its subtasks) is only deleted when nothing worth keeping hangs off it
-      const family = await tx.task.findMany({ where: { projectId: project.id, OR: [{ id: { in: ids } }, { parentId: { in: ids } }] }, select: { id: true, parentId: true } });
-      const famIds = family.map((t) => t.id);
-      const [time, sessions, content, files] = await Promise.all([
-        tx.timeEntry.findMany({ where: { taskId: { in: famIds } }, select: { taskId: true } }),
-        tx.workSession.findMany({ where: { taskId: { in: famIds } }, select: { taskId: true } }),
-        tx.contentItem.findMany({ where: { taskId: { in: famIds } }, select: { taskId: true } }),
-        tx.storedFile.findMany({ where: { ownerType: "TASK", ownerId: { in: famIds } }, select: { ownerId: true } }),
-      ]);
-      const busy = new Set<string>([...time.map((x) => x.taskId), ...sessions.map((x) => x.taskId), ...content.map((x) => x.taskId), ...files.map((x) => x.ownerId)].filter((x): x is string => Boolean(x)));
-      const rootOf = (t: { id: string; parentId: string | null }) => (t.parentId && ids.includes(t.parentId) ? t.parentId : t.id);
-      const keepRoots = new Set(family.filter((t) => busy.has(t.id)).map(rootOf));
-      const drop = ids.filter((id) => !keepRoots.has(id));
-      const dropAll = family.filter((t) => drop.includes(rootOf(t))).map((t) => t.id);
-      const keep = ids.filter((id) => keepRoots.has(id));
+      // A task (with its subtasks) is only deleted when nothing worth keeping hangs off it; the rest wait, unassigned
+      const { deleted: drop, kept: keep } = await deleteTaskFamilies(tx, project.id, ids);
       if (keep.length) await tx.task.updateMany({ where: { id: { in: keep } }, data: { assigneeId: null } });
-      if (dropAll.length) {
-        // Other tasks that waited on a deleted one stop waiting
-        const waiting = await tx.task.findMany({ where: { projectId: project.id, blockedBy: { hasSome: dropAll } }, select: { id: true, blockedBy: true } });
-        for (const w of waiting) await tx.task.update({ where: { id: w.id }, data: { blockedBy: w.blockedBy.filter((b) => !dropAll.includes(b)) } });
-        await tx.task.deleteMany({ where: { id: { in: dropAll } } });
-      }
       unassigned = keep.length;
       deleted = drop.length;
     } else {
