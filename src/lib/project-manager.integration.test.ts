@@ -11,7 +11,7 @@ const members = async (projectId: string) =>
   Object.fromEntries((await db.projectMember.findMany({ where: { projectId } })).map((m) => [m.userId, m.role]));
 
 beforeAll(async () => {
-  await db.$executeRawUnsafe('TRUNCATE "Notification","TimeEntry","Task","ProjectMember","Project","User","Client","Organization" CASCADE');
+  await db.$executeRawUnsafe('TRUNCATE "Notification","TimeEntry","TaskComment","Task","ProjectMember","Project","User","Client","Organization" CASCADE');
   org = (await db.organization.create({ data: { name: "PM Org" } })).id;
   other = (await db.organization.create({ data: { name: "Other Org" } })).id;
   owner = await user(org, "Owner Account");
@@ -68,7 +68,7 @@ describe("removing someone from a project's team", () => {
     const done = await db.task.create({ data: { projectId: p, title: "Finished work", assigneeId: tahira, status: "DONE" } });
     await db.timeEntry.create({ data: { organizationId: org, projectId: p, userId: tahira, workDate: "2026-11-18", hours: "2" } });
     const r = await removeProjectMember(db, { organizationId: org, projectId: p, userId: tahira, byUserId: owner });
-    expect(r).toEqual({ ok: true, unassigned: 1 });
+    expect(r).toMatchObject({ ok: true, unassigned: 1, deleted: 0, reassigned: [] });
     expect(await members(p)).toEqual({ [owner]: PM_ROLE });
     expect((await db.task.findUniqueOrThrow({ where: { id: open.id } })).assigneeId).toBeNull();
     expect((await db.task.findUniqueOrThrow({ where: { id: done.id } })).assigneeId).toBe(tahira);
@@ -92,5 +92,47 @@ describe("removing someone from a project's team", () => {
     expect(await setProjectMemberRole(db, { organizationId: org, projectId: p, userId: naghma, role: "" })).toEqual({ ok: true, role: null });
     expect(await setProjectMemberRole(db, { organizationId: org, projectId: p, userId: tahira, role: "X" })).toMatchObject({ ok: false });
     expect(await setProjectMemberRole(db, { organizationId: other, projectId: p, userId: naghma, role: "X" })).toMatchObject({ ok: false, error: "Project not found" });
+  });
+});
+
+describe("handing over a leaver's open tasks", () => {
+  const setup = async (number: string) => {
+    const p = (await db.project.create({ data: { organizationId: org, number, name: `Handover ${number}`, managerId: owner, members: { create: [{ userId: owner, role: PM_ROLE }, { userId: naghma }, { userId: tahira }] } } })).id;
+    const a = await db.task.create({ data: { projectId: p, title: "A", assigneeId: tahira } });
+    const b = await db.task.create({ data: { projectId: p, title: "B (time logged)", assigneeId: tahira } });
+    const sub = await db.task.create({ data: { projectId: p, title: "A child", parentId: a.id } });
+    const done = await db.task.create({ data: { projectId: p, title: "Done", assigneeId: tahira, status: "DONE" } });
+    const waiter = await db.task.create({ data: { projectId: p, title: "Waits on A", assigneeId: naghma, blockedBy: [a.id] } });
+    await db.timeEntry.create({ data: { organizationId: org, projectId: p, taskId: b.id, userId: tahira, workDate: "2026-11-18", hours: "1" } });
+    return { p, a: a.id, b: b.id, sub: sub.id, done: done.id, waiter: waiter.id };
+  };
+  const assignee = async (id: string) => (await db.task.findUnique({ where: { id } }))?.assigneeId;
+
+  it("gives every open task to another team member, leaving finished work alone", async () => {
+    const t = await setup("PRJ-H1");
+    const r = await removeProjectMember(db, { organizationId: org, projectId: t.p, userId: tahira, byUserId: owner, handover: { mode: "reassign", toUserId: naghma } });
+    expect(r).toMatchObject({ ok: true, toUserId: naghma, unassigned: 0, deleted: 0 });
+    expect(r.ok && r.reassigned.sort()).toEqual([t.a, t.b].sort());
+    expect(await assignee(t.a)).toBe(naghma);
+    expect(await assignee(t.b)).toBe(naghma);
+    expect(await assignee(t.done)).toBe(tahira);
+  });
+
+  it("refuses to hand over to someone outside the team or to the leaver", async () => {
+    const t = await setup("PRJ-H2");
+    expect(await removeProjectMember(db, { organizationId: org, projectId: t.p, userId: tahira, byUserId: owner, handover: { mode: "reassign", toUserId: outsider } })).toMatchObject({ ok: false });
+    expect(await removeProjectMember(db, { organizationId: org, projectId: t.p, userId: tahira, byUserId: owner, handover: { mode: "reassign", toUserId: tahira } })).toMatchObject({ ok: false });
+    expect(await assignee(t.a)).toBe(tahira);
+    expect(Object.keys(await members(t.p))).toContain(tahira);
+  });
+
+  it("deletes open tasks with their subtasks, but keeps (unassigned) a task with logged time", async () => {
+    const t = await setup("PRJ-H3");
+    const r = await removeProjectMember(db, { organizationId: org, projectId: t.p, userId: tahira, byUserId: owner, handover: { mode: "delete" } });
+    expect(r).toMatchObject({ ok: true, deleted: 1, unassigned: 1 });
+    expect(await db.task.count({ where: { id: { in: [t.a, t.sub] } } })).toBe(0);
+    expect(await assignee(t.b)).toBeNull();
+    expect(await assignee(t.done)).toBe(tahira);
+    expect((await db.task.findUniqueOrThrow({ where: { id: t.waiter } })).blockedBy).toEqual([]);
   });
 });

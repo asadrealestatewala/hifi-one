@@ -275,7 +275,22 @@ export default async function ProjectPage({
                       <form action={removeMember}>
                         <input type="hidden" name="projectId" value={project.id} /><input type="hidden" name="userId" value={m.userId} />
                         <ConfirmButton className="btn-ghost !px-2 !py-1 text-xs !text-danger" title={`Remove ${who} from the team?`} confirmLabel="Remove from team"
-                          message={`${who} will no longer see this project unless their role lets them see all projects.${openCount ? ` Their ${openCount} open task${openCount === 1 ? "" : "s"} here will become unassigned.` : ""} Logged time, finished tasks and comments keep their name.`}>
+                          message={
+                            <div className="space-y-3">
+                              <p>{who} will no longer see this project unless their role lets them see all projects. Logged time, finished tasks and comments keep their name.</p>
+                              {openCount > 0 && (
+                                <div>
+                                  <label className="label" htmlFor={`handover-${m.userId}`}>Their {openCount} open task{openCount === 1 ? "" : "s"} here</label>
+                                  <select id={`handover-${m.userId}`} name="handover" defaultValue={project.members.some((x) => x.userId === project.managerId) ? `to:${project.managerId}` : "unassign"} className="input">
+                                    {project.members.filter((x) => x.userId !== m.userId).map((x) => <option key={x.userId} value={`to:${x.userId}`}>Give to {nameOf.get(x.userId) ?? "Unknown"}{x.userId === project.managerId ? " (manager)" : ""}</option>)}
+                                    <option value="unassign">Leave unassigned</option>
+                                    <option value="delete">Delete them</option>
+                                  </select>
+                                  <p className="mt-1 text-xs">Deleting keeps any task with logged time, files or a content post; those become unassigned instead.</p>
+                                </div>
+                              )}
+                            </div>
+                          }>
                           Remove
                         </ConfirmButton>
                       </form>
