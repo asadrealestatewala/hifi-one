@@ -5,9 +5,9 @@ import { useState, useTransition } from "react";
 import type { TemplateBody } from "@/lib/project-templates";
 import { saveTemplateAction } from "../../template-actions";
 
-type Task = { title: string; description: string; day: string; hours: string; priority: string; role: string; milestone: string; clientVisible: boolean; repeat: string; labels: string; subtasks: string };
+type Task = { title: string; description: string; day: string; hours: string; priority: string; role: string; milestone: string; clientVisible: boolean; repeat: string; labels: string; subtasks: string; checklist: string };
 type Milestone = { name: string; day: string };
-const blankTask = (): Task => ({ title: "", description: "", day: "", hours: "", priority: "MEDIUM", role: "", milestone: "", clientVisible: false, repeat: "", labels: "", subtasks: "" });
+const blankTask = (): Task => ({ title: "", description: "", day: "", hours: "", priority: "MEDIUM", role: "", milestone: "", clientVisible: false, repeat: "", labels: "", subtasks: "", checklist: "" });
 const num = (v: number | undefined) => (v === undefined ? "" : String(v));
 
 // Edits a template as plain rows. Due dates are days after the project start (0 = the start day), so one plan fits any start.
@@ -22,7 +22,7 @@ export default function TemplateEditor({ initial }: { initial: { id?: string; na
   const [milestones, setMilestones] = useState<Milestone[]>(initial.body.milestones.map((m) => ({ name: m.name, day: num(m.day) })));
   const [tasks, setTasks] = useState<Task[]>(initial.body.tasks.map((t) => ({
     title: t.title, description: t.description, day: num(t.day), hours: num(t.hours), priority: t.priority, role: t.role, milestone: t.milestone,
-    clientVisible: t.clientVisible, repeat: t.repeat ?? "", labels: t.labels.join(", "), subtasks: t.subtasks.join("\n"),
+    clientVisible: t.clientVisible, repeat: t.repeat ?? "", labels: t.labels.join(", "), subtasks: t.subtasks.join("\n"), checklist: t.checklist.join("\n"),
   })));
 
   const setTask = (i: number, over: Partial<Task>) => setTasks((ts) => ts.map((t, j) => (j === i ? { ...t, ...over } : t)));
@@ -45,6 +45,7 @@ export default function TemplateEditor({ initial }: { initial: { id?: string; na
         title: t.title.trim(), description: t.description, priority: t.priority, role: t.role, milestone: t.milestone.trim(), clientVisible: t.clientVisible,
         ...(t.day.trim() ? { day: t.day.trim() } : {}), ...(t.hours.trim() ? { hours: t.hours.trim().replace(",", ".") } : {}), ...(t.repeat ? { repeat: t.repeat } : {}),
         labels: t.labels.split(",").map((l) => l.trim()).filter(Boolean), subtasks: t.subtasks.split("\n").map((l) => l.trim()).filter(Boolean),
+        checklist: t.checklist.split("\n").map((l) => l.trim()).filter(Boolean),
       })),
     };
     const r = await saveTemplateAction({ id: initial.id, name, description, body });
@@ -99,9 +100,10 @@ export default function TemplateEditor({ initial }: { initial: { id?: string; na
                 <div className="min-w-0 flex-[1_1_10rem]"><label className="label" htmlFor={`tm-${i}`}>Milestone</label><select id={`tm-${i}`} value={t.milestone} onChange={(e) => setTask(i, { milestone: e.target.value })} className="input"><option value="">None</option>{names.map((n) => <option key={n}>{n}</option>)}</select></div>
               </div>
               <details className="text-sm">
-                <summary className="cursor-pointer text-xs text-muted">More: description, subtasks, labels, repeat, client view</summary>
+                <summary className="cursor-pointer text-xs text-muted">More: description, checklist, subtasks, labels, repeat, client view{(t.checklist.trim() || t.subtasks.trim()) ? " ·" : ""}{t.checklist.trim() ? ` ${t.checklist.split("\n").filter((l) => l.trim()).length} checklist items` : ""}{t.subtasks.trim() ? ` ${t.subtasks.split("\n").filter((l) => l.trim()).length} subtasks` : ""}</summary>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   <div className="sm:col-span-2"><label className="label" htmlFor={`tde-${i}`}>Description</label><textarea id={`tde-${i}`} value={t.description} onChange={(e) => setTask(i, { description: e.target.value })} rows={2} maxLength={2000} className="input" /></div>
+                  <div><label className="label" htmlFor={`tc-${i}`}>Checklist (one item per line)</label><textarea id={`tc-${i}`} value={t.checklist} onChange={(e) => setTask(i, { checklist: e.target.value })} rows={3} placeholder="Spelling checked" className="input" /></div>
                   <div><label className="label" htmlFor={`ts-${i}`}>Subtasks (one per line)</label><textarea id={`ts-${i}`} value={t.subtasks} onChange={(e) => setTask(i, { subtasks: e.target.value })} rows={3} className="input" /></div>
                   <div className="space-y-2">
                     <div><label className="label" htmlFor={`tl-${i}`}>Labels (comma separated)</label><input id={`tl-${i}`} value={t.labels} onChange={(e) => setTask(i, { labels: e.target.value })} placeholder="Copy, Design" className="input" /></div>

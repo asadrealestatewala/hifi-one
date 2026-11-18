@@ -16,10 +16,10 @@ export type TaskDetailData = {
   blockedBy: string[]; parentTitle: string | null;
 };
 
-// The panel for one task: details, what it waits for, whether it repeats, subtasks, comments and files (files arrive as children from the server).
-export default function TaskDetail({ task, subtasks, candidates, members, labels, canManageLabels, comments, canManage, canMoveSubtasks, canComment, children }: {
+// The panel for one task: details, what it waits for, whether it repeats, checklist, subtasks, comments and files (files arrive as children from the server).
+export default function TaskDetail({ task, subtasks, candidates, members, labels, canManageLabels, comments, canManage, canMoveSubtasks, canComment, checklist, children }: {
   task: TaskDetailData; subtasks: Sub[]; candidates: { id: string; title: string }[]; members: { id: string; name: string }[]; labels: Label[]; canManageLabels: boolean; comments: Comment[];
-  canManage: boolean; canMoveSubtasks: boolean; canComment: boolean; children: ReactNode;
+  canManage: boolean; canMoveSubtasks: boolean; canComment: boolean; checklist?: ReactNode; children: ReactNode;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -67,6 +67,8 @@ export default function TaskDetail({ task, subtasks, candidates, members, labels
         </fieldset>
         {canManage && <div className="flex justify-end"><button className="btn" disabled={pending}>{pending ? "Saving…" : "Save details"}</button></div>}
       </form>
+
+      {checklist}
 
       {!task.parentTitle && (
         <section className="space-y-2">

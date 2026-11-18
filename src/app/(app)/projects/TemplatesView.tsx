@@ -6,13 +6,16 @@ import { Badge, Chips, Empty, NewButton, Notice, PageHeader } from "@/components
 import SubmitButton from "@/components/ui/SubmitButton";
 import ConfirmButton from "@/components/ui/ConfirmButton";
 import { addStarterTemplatesAction, archiveTemplateAction } from "./template-actions";
+import { deleteSavedChecklistAction } from "./checklist-actions";
+import { listSavedChecklists } from "@/lib/task-checklists";
 
 // Projects → Templates: reusable plans (roles, milestones, tasks) that New project can start from. Managers only.
 export default async function TemplatesView({ user, sp, tabs }: { user: SessionUser; sp: { ok?: string; status?: string }; tabs: React.ReactNode }) {
   const showArchived = sp.status === "ARCHIVED";
-  const [rows, used] = await Promise.all([
+  const [rows, used, checklists] = await Promise.all([
     db.projectTemplate.findMany({ where: { organizationId: user.organizationId }, orderBy: { name: "asc" } }),
     db.project.groupBy({ by: ["templateId"], where: { organizationId: user.organizationId, templateId: { not: null } }, _count: { _all: true } }),
+    listSavedChecklists(db, user.organizationId),
   ]);
   const usedBy = new Map(used.map((u) => [u.templateId, u._count._all]));
   const live = rows.filter((t) => !t.archivedAt), archived = rows.filter((t) => t.archivedAt);
@@ -67,6 +70,22 @@ export default async function TemplatesView({ user, sp, tabs }: { user: SessionU
           </table>
         </div>
       )}
+      <section className="space-y-3">
+        <div><h2 className="font-semibold">Saved checklists</h2><p className="text-sm text-muted">Checklists anyone working a task can add in one step (QA before posting, ad launch checks…). Save one from a task&apos;s checklist in its task panel.</p></div>
+        {checklists.length === 0 ? <Empty title="No saved checklists yet">Open a task, add its checklist items, then use &quot;Save this checklist for other tasks&quot;.</Empty> : (
+          <ul className="card divide-y divide-border !p-0 text-sm">
+            {checklists.map((c) => (
+              <li key={c.id} className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
+                <div className="min-w-0"><p className="font-medium">{c.name} <span className="text-xs font-normal text-muted">{c.items.length} items</span></p><p className="text-xs text-muted">{c.items.slice(0, 4).join(" · ")}{c.items.length > 4 ? " · …" : ""}</p></div>
+                <form action={deleteSavedChecklistAction}>
+                  <input type="hidden" name="id" value={c.id} />
+                  <ConfirmButton title={`Delete ${c.name}?`} message="It stops being offered on tasks. Tasks that already have its items keep them.">Delete</ConfirmButton>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
