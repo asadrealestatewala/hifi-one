@@ -1,7 +1,7 @@
 // Task dates from the Timeline drag against hifi_one_test: who may change them, the start/due rule, and the clash warnings.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { scheduleError, scheduleTask } from "./task-schedule";
+import { planFollowers, scheduleError, scheduleTask, shiftFollowers } from "./task-schedule";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
 const db = new PrismaClient({ datasourceUrl: url });
@@ -72,5 +72,48 @@ describe("scheduleTask", () => {
     await expect(scheduleTask(db, { actor: bossActor(), taskId: done, start: null, due: "2026-12-05" })).rejects.toThrow("done");
     await expect(scheduleTask(db, { actor: bossActor(), taskId: shut, start: null, due: "2026-12-05" })).rejects.toThrow("closed");
     await expect(scheduleTask(db, { actor: bossActor(), taskId: build, start: "2026-12-22", due: "2026-12-21" })).rejects.toThrow("can't be after");
+  });
+});
+
+describe("followers: tasks that wait for a moved task", () => {
+  let a: string, b: string, c: string, side: string, fin: string;
+  const ymd = (x: Date | null) => x?.toISOString().slice(0, 10) ?? null;
+  beforeAll(async () => {
+    a = (await db.task.create({ data: { projectId: proj, title: "A", startDate: d("2027-02-01"), dueDate: d("2027-02-05") } })).id;
+    b = (await db.task.create({ data: { projectId: proj, title: "B", assigneeId: ana, startDate: d("2027-02-05"), dueDate: d("2027-02-09"), blockedBy: [a] } })).id;
+    c = (await db.task.create({ data: { projectId: proj, title: "C", dueDate: d("2027-02-10"), blockedBy: [b] } })).id;
+    side = (await db.task.create({ data: { projectId: proj, title: "Side", startDate: d("2027-03-01"), dueDate: d("2027-03-02"), blockedBy: [a] } })).id;
+    fin = (await db.task.create({ data: { projectId: proj, title: "Fin", status: "DONE", startDate: d("2027-02-02"), dueDate: d("2027-02-03"), blockedBy: [a] } })).id;
+  });
+
+  it("plans nothing while every waiting task starts on or after the due date", async () => {
+    expect(await planFollowers(db, { projectId: proj, taskId: a })).toEqual([]);
+  });
+
+  it("pushes the chain later by the days needed, keeping each task's length, and skips done tasks and ones with room", async () => {
+    await scheduleTask(db, { actor: bossActor(), taskId: a, start: "2027-02-01", due: "2027-02-08" }); // 3 days later
+    const plan = await planFollowers(db, { projectId: proj, taskId: a });
+    expect(plan.map((m) => [m.title, m.days, m.after])).toEqual([
+      ["B", 3, { startDate: "2027-02-08", dueDate: "2027-02-12" }],
+      ["C", 2, { startDate: null, dueDate: "2027-02-12" }], // no start: its due date may not fall before B is due
+    ]);
+    expect(plan.find((m) => m.id === side) ?? plan.find((m) => m.id === fin)).toBeUndefined();
+    const r = await shiftFollowers(db, { actor: bossActor(), taskId: a });
+    expect(r.moves).toHaveLength(2);
+    expect(ymd((await db.task.findUniqueOrThrow({ where: { id: b } })).startDate)).toBe("2027-02-08");
+    expect(ymd((await db.task.findUniqueOrThrow({ where: { id: c } })).dueDate)).toBe("2027-02-12");
+    expect(ymd((await db.task.findUniqueOrThrow({ where: { id: fin } })).dueDate)).toBe("2027-02-03");
+    expect(await planFollowers(db, { projectId: proj, taskId: a })).toEqual([]); // nothing left to move
+  });
+
+  it("never pulls waiting tasks earlier when a task moves sooner", async () => {
+    await scheduleTask(db, { actor: bossActor(), taskId: a, start: "2027-01-20", due: "2027-01-25" });
+    expect(await planFollowers(db, { projectId: proj, taskId: a })).toEqual([]);
+  });
+
+  it("lets only the project manager move followers, and not on a closed project", async () => {
+    await expect(shiftFollowers(db, { actor: { id: ana, organizationId: org, permissions: perms("tasks.edit") }, taskId: a })).rejects.toThrow("Only the project manager");
+    await expect(shiftFollowers(db, { actor: { id: outsider, organizationId: org, permissions: perms("tasks.edit") }, taskId: a })).rejects.toThrow("Task not found");
+    await expect(shiftFollowers(db, { actor: bossActor(), taskId: shut })).rejects.toThrow("closed");
   });
 });

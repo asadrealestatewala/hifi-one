@@ -60,3 +60,58 @@ export async function scheduleTask(db: Db, p: { actor: { id: string; organizatio
   const warnings = await scheduleWarnings(db, { projectId: t.projectId, blockedBy: t.blockedBy, start: p.start, due: p.due, deadline: t.project.deadline });
   return { task: { id: t.id, title: t.title, projectId: t.projectId, assigneeId: t.assigneeId }, before, after, changed, warnings };
 }
+
+// Tasks that wait for a moved task and now start before it is due ("followers"), with the dates that would put each one right
+// after the work it waits for. A follower keeps its length: start and due shift by the same number of days. The push carries on down
+// the chain (a follower's own followers move when it moves), within the project, and never pulls a task earlier. Done tasks and
+// tasks with no dates are left alone. Dependencies cannot loop (tasks.ts refuses that), but a visited set guards anyway.
+export type FollowerMove = { id: string; title: string; assigneeId: string | null; days: number; before: { startDate: string | null; dueDate: string | null }; after: { startDate: string | null; dueDate: string | null } };
+const DAY = 86_400_000;
+const addDays = (s: string | null, n: number) => (s ? ymd(new Date(Date.parse(`${s}T00:00:00Z`) + n * DAY)) : null);
+const gap = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY);
+
+export async function planFollowers(db: Db, p: { projectId: string; taskId: string }): Promise<FollowerMove[]> {
+  const rows = await db.task.findMany({ where: { projectId: p.projectId, status: { not: "DONE" } }, select: { id: true, title: true, assigneeId: true, startDate: true, dueDate: true, blockedBy: true } });
+  const dates = new Map(rows.map((r) => [r.id, { start: r.startDate ? ymd(r.startDate) : null, due: r.dueDate ? ymd(r.dueDate) : null }]));
+  const moves = new Map<string, FollowerMove>();
+  const queue = [p.taskId];
+  const seen = new Set<string>();
+  while (queue.length) {
+    const id = queue.shift()!;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const due = dates.get(id)?.due;
+    if (!due) continue;
+    for (const f of rows) {
+      if (f.id === p.taskId || !f.blockedBy.includes(id)) continue;
+      const cur = dates.get(f.id)!;
+      const from = cur.start ?? cur.due;
+      if (!from) continue;
+      const days = gap(from, due);
+      if (days <= 0) continue;
+      const next = { start: addDays(cur.start, days), due: addDays(cur.due, days) };
+      dates.set(f.id, next);
+      const prev = moves.get(f.id);
+      const before = prev?.before ?? { startDate: f.startDate ? ymd(f.startDate) : null, dueDate: f.dueDate ? ymd(f.dueDate) : null };
+      moves.set(f.id, { id: f.id, title: f.title, assigneeId: f.assigneeId, days: (prev?.days ?? 0) + days, before, after: { startDate: next.start, dueDate: next.due } });
+      seen.delete(f.id); // its own followers are checked against its new due date
+      queue.push(f.id);
+    }
+  }
+  return [...moves.values()].sort((a, b) => ((a.after.startDate ?? a.after.dueDate ?? "") < (b.after.startDate ?? b.after.dueDate ?? "") ? -1 : 1));
+}
+
+// Applies planFollowers for a task the actor may schedule (same rules as scheduleTask), in one transaction. Returns the moves made.
+export async function shiftFollowers(db: Db, p: { actor: { id: string; organizationId: string; permissions: ReadonlySet<string> }; taskId: string }): Promise<{ projectId: string; moves: FollowerMove[] }> {
+  const viewAll = p.actor.permissions.has("projects.view_all");
+  const t = await db.task.findFirst({
+    where: { id: p.taskId, project: { organizationId: p.actor.organizationId, ...(viewAll ? {} : { OR: [{ managerId: p.actor.id }, { members: { some: { userId: p.actor.id } } }] }) } },
+    select: { id: true, projectId: true, project: { select: { managerId: true, status: true } } },
+  });
+  if (!t) throw new TaskError("Task not found.");
+  if (!(p.actor.permissions.has("projects.manage") || t.project.managerId === p.actor.id)) throw new TaskError("Only the project manager can change these tasks' dates.");
+  if (t.project.status === "COMPLETED" || t.project.status === "CANCELLED") throw new TaskError("This project is closed.");
+  const moves = await planFollowers(db, { projectId: t.projectId, taskId: t.id });
+  if (moves.length) await db.$transaction(moves.map((m) => db.task.update({ where: { id: m.id }, data: { startDate: at(m.after.startDate), dueDate: at(m.after.dueDate) } })));
+  return { projectId: t.projectId, moves };
+}

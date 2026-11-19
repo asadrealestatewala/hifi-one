@@ -290,7 +290,7 @@ export default async function ProjectPage({
         labels={labels}
       />
       <ProjectTimeline projectId={project.id} canEdit={(canManage || project.managerId === user.id) && !closed} today={todayIso} projectStart={project.startDate} deadline={project.deadline} milestones={milestones}
-        tasks={top.map((t) => ({ id: t.id, title: t.title, status: t.status, createdAt: t.createdAt, startDate: t.startDate, dueDate: t.dueDate, completedAt: t.completedAt, assignee: t.assigneeId ? nameOf.get(t.assigneeId) ?? null : null }))} />
+        tasks={top.map((t) => ({ id: t.id, title: t.title, status: t.status, createdAt: t.createdAt, startDate: t.startDate, dueDate: t.dueDate, completedAt: t.completedAt, assignee: t.assigneeId ? nameOf.get(t.assigneeId) ?? null : null, blockedBy: t.blockedBy }))} />
       <ProjectDepth user={user} projectId={project.id} closed={closed} part="milestones" />
     </div>
   );
