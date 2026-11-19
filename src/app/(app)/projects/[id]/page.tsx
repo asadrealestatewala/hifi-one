@@ -29,6 +29,8 @@ import ConfirmButton from "@/components/ui/ConfirmButton";
 import FilesPanel from "@/components/FilesPanel";
 import PhaseTracker from "@/components/PhaseTracker";
 import { openBlockers } from "@/lib/task-rules";
+import { HEALTH_LABEL, HEALTH_TONE, loadProjectHealth } from "@/lib/project-health";
+import { dateInZone } from "@/lib/hr-rules";
 import { Badge, Notice, PageHeader, PanelForm, Stat, StatusBadge } from "@/components/ui";
 import RemoveRecordPanel from "@/components/RemoveRecordPanel";
 import { projectDeleteBlockers } from "@/lib/record-removal";
@@ -79,11 +81,14 @@ export default async function ProjectPage({
     projectAssetRights(db, toFileActor(user), project.id),
   ]);
   const labels = await listLabels(db, user.organizationId);
-  const [fin, fileCount, removalBlockers] = await Promise.all([
+  const profile = await db.companyProfile.findFirst({ where: { organizationId: org, isDefault: true }, select: { timezone: true } });
+  const [fin, fileCount, removalBlockers, healthMap] = await Promise.all([
     canCosts ? projectProfitability(db, org, project.id) : null,
     assetRights.read ? listAssets(db, org, project.id).then((a) => a.length) : 0,
     canRemove ? projectDeleteBlockers(db, project.id) : [],
+    loadProjectHealth(db, { organizationId: org, projects: [project], today: dateInZone(now, profile?.timezone ?? "UTC"), withBudget: canCosts }),
   ]);
+  const health = healthMap.get(project.id) ?? null;
 
   const nameOf = new Map(orgUsers.map((u) => [u.id, u.name]));
   const progress = projectProgress(project.tasks);
@@ -157,7 +162,8 @@ export default async function ProjectPage({
     <div key="overview" className="grid gap-6 lg:grid-cols-3">
       <div className="space-y-6 lg:col-span-2">
         <section className="card space-y-2">
-          <h2 className="font-semibold">Needs attention</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">Needs attention</h2>{health && <Badge tone={HEALTH_TONE[health.health]}>{HEALTH_LABEL[health.health]}</Badge>}</div>
+          {health && health.health !== "PAUSED" && health.reasons.length > 0 && <p className="text-sm">{health.reasons.join(" · ")}</p>}
           {attention.length === 0 ? <p className="text-sm text-muted">Nothing overdue or due in the next 7 days.</p> : (
             <ul className="divide-y divide-border text-sm">
               {attention.map((t) => (
