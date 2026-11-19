@@ -227,15 +227,18 @@ const ids = (v: string | null) => (v ? v.match(/<[^<>\s]+>/g) ?? [] : []);
 
 // Files one received email into every active mailbox it was addressed to, and tells the members.
 // Emails for addresses nobody has a mailbox for are ignored. Retries of the same webhook store nothing new.
-export async function receiveInbound(db: Db, event: { type?: string; data?: { email_id?: string } }, fetchEmail: FetchReceived) {
+// `onReply` handles mail sent to private reply addresses (reply-…@, task emails; see task-mail.ts) before mailbox filing.
+export type ReplyHook = (m: { emailId: string; recipients: string[]; from: string; text: string }) => Promise<unknown>;
+export async function receiveInbound(db: Db, event: { type?: string; data?: { email_id?: string } }, fetchEmail: FetchReceived, onReply?: ReplyHook) {
   if (event.type !== "email.received" || !event.data?.email_id) return { stored: 0, ignored: "not an email.received event" };
   const emailId = event.data.email_id;
   const e = await fetchEmail(emailId);
   const recipients = [...new Set([...(e.to ?? []), ...(e.cc ?? []), ...(e.received_for ?? [])].map((a) => parseAddress(a).address))];
-  const mailboxes = await db.mailbox.findMany({ where: { address: { in: recipients }, active: true }, include: { members: { select: { userId: true } } } });
-  if (!mailboxes.length) return { stored: 0, ignored: "no mailbox for these addresses" };
   const from = parseAddress(e.from);
   const text = (e.text?.trim() || (e.html ? htmlToText(e.html) : "")).slice(0, 100_000);
+  const reply = onReply && recipients.some((r) => r.startsWith("reply-")) ? await onReply({ emailId, recipients, from: from.address, text }) : undefined;
+  const mailboxes = await db.mailbox.findMany({ where: { address: { in: recipients }, active: true }, include: { members: { select: { userId: true } } } });
+  if (!mailboxes.length) return { stored: 0, ignored: "no mailbox for these addresses", ...(reply ? { reply } : {}) };
   const subject = (e.subject ?? "").replace(/[\r\n\0]+/g, " ").trim().slice(0, 200) || "(no subject)";
   let stored = 0;
   for (const mb of mailboxes) {
@@ -253,5 +256,5 @@ export async function receiveInbound(db: Db, event: { type?: string; data?: { em
     await stopForReply(db, { organizationId: mb.organizationId, from: from.address, threadId: msg.threadId });
     await notifyMany(db, mb.members.map((m) => m.userId), { kind: "mail", title: `New email in ${mb.address}`, body: `${from.name ?? from.address}: ${subject}`, link: `/mail/${msg.threadId}`, dedupeKey: `mail:${providerId}` });
   }
-  return { stored };
+  return { stored, ...(reply ? { reply } : {}) };
 }

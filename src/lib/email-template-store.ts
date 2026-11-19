@@ -139,6 +139,7 @@ export type SendTemplateInput = {
   organizationId: string; key: string; to: string; vars: Record<string, string | null | undefined>; buttonUrl?: string | null;
   relatedType?: string; relatedId?: string; actorId?: string; purpose?: SystemPurpose; mailboxId?: string | null;
   attachment?: Attachment; secret?: boolean; // secret: the outbox keeps the message without its code and link
+  replyTo?: string;
 };
 
 // Renders a built-in template with the company's branding and sends it. Never throws for delivery problems (sendEmail logs them).
@@ -148,7 +149,7 @@ export async function sendTemplate(db: Db, p: SendTemplateInput) {
   const r = renderEmail({ content, vars, brand, blocks: def.blocks, buttonUrl: p.buttonUrl ?? null });
   return sendEmail(db, {
     organizationId: p.organizationId, to: p.to, subject: r.subject, text: r.text, html: r.html, relatedType: p.relatedType, relatedId: p.relatedId, actorId: p.actorId,
-    purpose: p.purpose, mailboxId: p.mailboxId, attachment: p.attachment,
+    purpose: p.purpose, mailboxId: p.mailboxId, attachment: p.attachment, replyTo: p.replyTo,
     storedText: p.secret ? `${r.subject}\n\n[This message contained a one-time code or link, which is not kept.]` : undefined,
   });
 }

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { taskReplyReceived } from "@/lib/events";
 import { receiveInbound, receivingConfig, resendFetcher, verifyWebhook } from "@/lib/mailboxes";
 
 export const dynamic = "force-dynamic";
@@ -6,6 +7,7 @@ export const dynamic = "force-dynamic";
 // Public by design: Resend calls this when an email arrives for a receiving domain. There is no session; every request must
 // carry a valid Resend (Svix) signature made with RESEND_WEBHOOK_SECRET, and the email body is then fetched from Resend's API
 // with RESEND_API_KEY rather than trusted from the request. Without both settings the endpoint refuses everything.
+// Replies to task emails (reply-…@ addresses) become task comments (task-mail.ts) before the email is filed into mailboxes.
 const MAX_BYTES = 256_000;
 const reply = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 
@@ -19,7 +21,7 @@ export async function POST(req: Request) {
   let event: { type?: string; data?: { email_id?: string } };
   try { event = JSON.parse(raw); } catch { return reply({ ok: false, error: "Bad JSON." }, 400); }
   try {
-    const r = await receiveInbound(db, event, resendFetcher(cfg.apiKey!));
+    const r = await receiveInbound(db, event, resendFetcher(cfg.apiKey!), (m) => taskReplyReceived(db, m));
     return reply({ ok: true, ...r }, 200);
   } catch (e) {
     // A 500 makes Resend retry later; storing is idempotent so a retry never duplicates a message.

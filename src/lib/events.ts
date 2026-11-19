@@ -6,6 +6,7 @@ import { salesOwnerOf } from "./commissions";
 import { formatMoney } from "./money";
 import { notify, notifyMany, notifyPermission } from "./notifications";
 import { appUrl, firstName, sendTemplateQuietly } from "./email-template-store";
+import { receiveTaskReply, replyAddressFor, replyNote } from "./task-mail";
 
 type Db = PrismaClient;
 
@@ -118,11 +119,13 @@ export async function taskAssigned(db: Db, p: { organizationId: string; taskId: 
   const to = fresh ? await emailable(db, p.toUserId) : null;
   if (to) {
     const by = (await db.user.findUnique({ where: { id: p.byUserId }, select: { name: true } }))?.name ?? "A colleague";
+    const replyTo = await replyAddressFor(db, { organizationId: p.organizationId, taskId: t.id, userId: p.toUserId });
     await sendTemplateQuietly(db, {
       organizationId: p.organizationId, key: "task_assigned", to: to.email!, purpose: "NOREPLY", relatedType: "Task", relatedId: t.id, buttonUrl: `${appUrl()}${PROJECT_LINK(t.projectId, t.id)}`,
+      replyTo: replyTo ?? undefined,
       vars: {
         first_name: firstName(to.name), task_title: t.title, project: t.project.name, priority: t.priority.charAt(0) + t.priority.slice(1).toLowerCase(),
-        due_date: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : "No due date", assigned_by: by, description: (t.description ?? "").slice(0, 600),
+        due_date: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : "No due date", assigned_by: by, description: (t.description ?? "").slice(0, 600), reply_note: replyNote(replyTo),
       },
     });
   }
@@ -164,7 +167,7 @@ export function mentionedMembers(body: string, members: { id: string; name: stri
 // A comment on a task. Mentioned members get a "mentioned you" message; the assignee, creator, project manager and earlier
 // commenters get "new comment". Nobody is told twice, and never the author.
 export async function taskCommented(db: Db, p: { organizationId: string; taskId: string; commentId: string; authorId: string; body: string }) {
-  const t = await db.task.findFirst({ where: { id: p.taskId, project: { organizationId: p.organizationId } }, select: { id: true, title: true, projectId: true, assigneeId: true, createdById: true, project: { select: { managerId: true, members: { select: { userId: true } } } } } });
+  const t = await db.task.findFirst({ where: { id: p.taskId, project: { organizationId: p.organizationId } }, select: { id: true, title: true, projectId: true, assigneeId: true, createdById: true, project: { select: { name: true, managerId: true, members: { select: { userId: true } } } } } });
   if (!t) return;
   const memberIds = [...new Set([t.project.managerId, ...t.project.members.map((m) => m.userId)])];
   const members = await db.user.findMany({ where: { id: { in: memberIds }, active: true }, select: { id: true, name: true } });
@@ -175,6 +178,17 @@ export async function taskCommented(db: Db, p: { organizationId: string; taskId:
   const snippet = p.body.length > 140 ? p.body.slice(0, 137) + "..." : p.body;
   await notifyMany(db, mentioned, { kind: "task.mention", title: `${author} mentioned you on ${t.title}`, body: snippet, link: PROJECT_LINK(t.projectId, t.id), dedupeKey: `comment:${p.commentId}` });
   await notifyMany(db, watchers, { kind: "task.comment", title: `${author} commented on ${t.title}`, body: snippet, link: PROJECT_LINK(t.projectId, t.id), dedupeKey: `comment:${p.commentId}` });
+  // A mention is also emailed, so the person can answer from their inbox (the reply lands here as their comment).
+  for (const id of mentioned) {
+    const to = await emailable(db, id);
+    if (!to) continue;
+    const replyTo = await replyAddressFor(db, { organizationId: p.organizationId, taskId: t.id, userId: id });
+    await sendTemplateQuietly(db, {
+      organizationId: p.organizationId, key: "task_mention", to: to.email!, purpose: "NOREPLY", relatedType: "Task", relatedId: t.id, buttonUrl: `${appUrl()}${PROJECT_LINK(t.projectId, t.id)}`,
+      replyTo: replyTo ?? undefined,
+      vars: { first_name: firstName(to.name), author, task_title: t.title, project: t.project.name, comment: p.body.slice(0, 2000), reply_note: replyNote(replyTo) },
+    });
+  }
 }
 
 // The client wrote on a task in the portal: the assignee, project manager and task creator are told.
@@ -191,4 +205,31 @@ export async function commentSharedWithClient(db: Db, p: { organizationId: strin
   const t = await db.task.findFirst({ where: { id: p.taskId, clientVisible: true, project: { organizationId: p.organizationId, clientId: { not: null } } }, select: { title: true, project: { select: { id: true, name: true, clientId: true } } } });
   if (!t?.project.clientId) return;
   await notifyMany(db, await portalUsers(db, { clientId: t.project.clientId }), { kind: "task.shared_comment", title: `New message on ${t.title}`, body: t.project.name, link: `/portal/projects/${t.project.id}`, dedupeKey: `shared-comment:${p.commentId}` });
+  // ...and emailed to each of them, with a private reply address so they can answer from their inbox.
+  const c = await db.taskComment.findUnique({ where: { id: p.commentId }, select: { body: true } });
+  const author = (await db.user.findUnique({ where: { id: p.authorId }, select: { name: true } }))?.name ?? "The team";
+  const people = await db.user.findMany({ where: { clientId: t.project.clientId, active: true, email: { not: null } }, select: { id: true, name: true, email: true } });
+  for (const u of people) {
+    const replyTo = await replyAddressFor(db, { organizationId: p.organizationId, taskId: p.taskId, userId: u.id });
+    await sendTemplateQuietly(db, {
+      organizationId: p.organizationId, key: "task_shared_comment", to: u.email!, purpose: "NOREPLY", relatedType: "Task", relatedId: p.taskId, buttonUrl: `${appUrl()}/portal/projects/${t.project.id}#t-${p.taskId}`,
+      replyTo: replyTo ?? undefined,
+      vars: { first_name: firstName(u.name), author, task_title: t.title, project: t.project.name, comment: (c?.body ?? "").slice(0, 2000), reply_note: replyNote(replyTo) },
+    });
+  }
+}
+
+// An email arrived at a task reply address (inbound webhook). Rules in task-mail.ts; a comment added this way notifies exactly
+// like one written on screen: staff replies as task comments (mentions emailed), client replies as portal comments.
+export async function taskReplyReceived(db: Db, m: { emailId: string; recipients: string[]; from: string; text: string }) {
+  const r = await receiveTaskReply(db, m);
+  if (!r.added) return r;
+  const u = await db.user.findUnique({ where: { id: r.userId }, select: { organizationId: true } });
+  if (!u) return r;
+  if (r.fromClient) await clientCommented(db, { organizationId: u.organizationId, taskId: r.taskId, commentId: r.commentId, userId: r.userId });
+  else {
+    const c = await db.taskComment.findUnique({ where: { id: r.commentId }, select: { body: true } });
+    await taskCommented(db, { organizationId: u.organizationId, taskId: r.taskId, commentId: r.commentId, authorId: r.userId, body: c?.body ?? "" });
+  }
+  return r;
 }

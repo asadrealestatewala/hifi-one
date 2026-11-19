@@ -615,16 +615,16 @@ model Project {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  campaign    Campaign?           @relation(fields: [campaignId], references: [id], onDelete: SetNull)
-  updates     ProjectUpdate[]
-  members     ProjectMember[]
-  tasks       Task[]
+  campaign       Campaign?           @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  updates        ProjectUpdate[]
+  members        ProjectMember[]
+  tasks          Task[]
   clientRequests ClientRequest[]
-  milestones  Milestone[]
-  timeEntries TimeEntry[]
-  cloutPosts  CloutPost[]
-  assets      ProjectAsset[]
-  assetShares ProjectAssetShare[]
+  milestones     Milestone[]
+  timeEntries    TimeEntry[]
+  cloutPosts     CloutPost[]
+  assets         ProjectAsset[]
+  assetShares    ProjectAssetShare[]
 
   @@unique([organizationId, number])
   @@index([organizationId, status])
@@ -665,10 +665,11 @@ model Task {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  project   Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  milestone Milestone?          @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
-  comments  TaskComment[]
-  checklist TaskChecklistItem[]
+  project        Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestone      Milestone?          @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  comments       TaskComment[]
+  replyAddresses TaskReplyAddress[]
+  checklist      TaskChecklistItem[]
 
   @@index([parentId])
   @@index([projectId, status])
@@ -737,16 +738,31 @@ model TaskLabel {
 }
 
 model TaskComment {
-  id        String   @id @default(cuid())
-  taskId    String
-  authorId  String
-  body      String
-  internal  Boolean  @default(true) // internal comments are never shown to clients
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  taskId        String
+  authorId      String
+  body          String
+  internal      Boolean  @default(true) // internal comments are never shown to clients
+  sourceEmailId String?  @unique // set when the comment came from an email reply (Resend's received email id); a retried webhook adds nothing
+  createdAt     DateTime @default(now())
 
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([taskId])
+}
+
+// The private reply address one person gets for one task (reply-<token>@company domain). Replying to a task email from that
+// person's own address adds a comment as them. One per task and person, reused for every email about that task.
+model TaskReplyAddress {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  taskId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
 }
 
 model ClientInvite {
