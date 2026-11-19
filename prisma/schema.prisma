@@ -1905,6 +1905,21 @@ model Milestone {
   @@index([projectId, sortOrder])
 }
 
+// A running stopwatch on a task: at most one per person. Stopping it saves the elapsed time as a TimeEntry (through logTime, with the
+// usual rules) and removes this row; discarding removes it without saving. Separate from WorkSession (the attendance clock).
+model TaskTimer {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String   @unique
+  projectId      String
+  taskId         String
+  startedAt      DateTime @default(now())
+  note           String?
+
+  @@index([organizationId])
+  @@index([taskId])
+}
+
 model TimeEntry {
   id             String    @id @default(cuid())
   organizationId String

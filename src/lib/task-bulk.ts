@@ -52,6 +52,7 @@ export async function deleteTaskFamilies(tx: Tx, projectId: string, ids: string[
   if (dropAll.length) {
     const waiting = await tx.task.findMany({ where: { projectId, blockedBy: { hasSome: dropAll } }, select: { id: true, blockedBy: true } });
     for (const w of waiting) await tx.task.update({ where: { id: w.id }, data: { blockedBy: w.blockedBy.filter((b) => !dropAll.includes(b)) } });
+    await tx.taskTimer.deleteMany({ where: { taskId: { in: dropAll } } }); // a running timer on a deleted task has nothing to log to
     await tx.task.deleteMany({ where: { id: { in: dropAll } } });
   }
   return { deleted: drop, kept: ids.filter((id) => keepRoots.has(id)) };

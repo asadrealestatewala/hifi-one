@@ -15,6 +15,8 @@ import KeyboardShortcuts from "./KeyboardShortcuts";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import WorkfolioDock from "./WorkfolioDock";
+import TaskTimerDock from "./TaskTimerDock";
+import type { RunningTimer } from "@/lib/task-timer";
 import CircularPopup from "./CircularPopup";
 import ViewAsBanner from "./ViewAsBanner";
 import ViewAsMenu from "./ViewAsMenu";
@@ -24,8 +26,8 @@ type ViewAs = { roles: { key: string; name: string }[]; active: { key: string; n
 type Group = { id: string; title: string; icon: string; items: { href: string; label: string }[] };
 
 // The signed-in frame: sidebar, top bar and the page. Only layout state lives here; every permission decision was made on the server.
-export default function Shell({ groups, allGroups, destinations, menuPrefs, quick, name, roles, userId, unread, chatUnread, stats, canSearch, canAsk, callerId, signOut, viewAs, children }: {
-  groups: Group[]; allGroups: Group[]; destinations: Destination[]; menuPrefs: MenuPrefs; quick: { href: string; label: string; icon: string }[]; name: string; roles: string; userId: string; unread: number; chatUnread: number | null; stats: NavStats; canSearch: boolean; canAsk: boolean; callerId: string | null; signOut: () => Promise<void>; viewAs: ViewAs | null; children: React.ReactNode;
+export default function Shell({ timer, canTrack, groups, allGroups, destinations, menuPrefs, quick, name, roles, userId, unread, chatUnread, stats, canSearch, canAsk, callerId, signOut, viewAs, children }: {
+  timer?: RunningTimer | null; canTrack?: boolean; groups: Group[]; allGroups: Group[]; destinations: Destination[]; menuPrefs: MenuPrefs; quick: { href: string; label: string; icon: string }[]; name: string; roles: string; userId: string; unread: number; chatUnread: number | null; stats: NavStats; canSearch: boolean; canAsk: boolean; callerId: string | null; signOut: () => Promise<void>; viewAs: ViewAs | null; children: React.ReactNode;
 }) {
   const [mobile, setMobile] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
@@ -39,6 +41,7 @@ export default function Shell({ groups, allGroups, destinations, menuPrefs, quic
         {viewAs?.active && <ViewAsBanner roleName={viewAs.active.name} stop={viewAs.stop} />}
         <Topbar unread={unread} chatUnread={chatUnread} quick={quick} canSearch={canSearch} onMenu={() => setMobile(true)} extra={viewAs ? <ViewAsMenu roles={viewAs.roles} active={viewAs.active?.key ?? null} start={viewAs.start} /> : null} />
         <WorkfolioDock />
+        {canTrack && <TaskTimerDock initial={timer ?? null} />}
         <CircularPopup />
         {callerId && <CallListener meId={callerId} />}
         <main className="mx-auto w-full max-w-[1400px] p-4 md:p-8"><RowClick /><KeyboardShortcuts /><div key={pathname} className="[animation:fade_.25s_ease-out]">{children}</div></main>

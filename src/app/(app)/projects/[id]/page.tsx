@@ -17,6 +17,8 @@ import Deliverables from "./Deliverables";
 import ProjectAssets from "./ProjectAssets";
 import ProjectUpdates from "./ProjectUpdates";
 import ProjectTimeline from "./ProjectTimeline";
+import TaskTimerButton from "./TaskTimerButton";
+import { currentTimer } from "@/lib/task-timer";
 import ProjectTabs, { type ProjectTab } from "./ProjectTabs";
 import { resolveTab } from "./tabs";
 import TaskBoard from "./TaskBoard";
@@ -470,6 +472,8 @@ export default async function ProjectPage({
               canWork={canMove && !closed && (canManage || project.managerId === user.id || open.assigneeId === user.id)}
               items={checklist.map((i) => ({ id: i.id, text: i.text, done: i.done, by: i.doneById ? nameOf.get(i.doneById) ?? outsiders.get(i.doneById)?.name ?? "Former staff" : null, at: i.doneAt ? i.doneAt.toLocaleString() : null }))}
               saved={savedChecklists.map((c) => ({ id: c.id, name: c.name, count: c.items.length }))} />}
+            timer={canMove && !closed && open.status !== "DONE" && user.userType === "EMPLOYEE" && (project.managerId === user.id || project.members.some((m) => m.userId === user.id))
+              ? <TaskTimerButton taskId={open.id} runningTaskId={(await currentTimer(db, { organizationId: user.organizationId, userId: user.id }))?.taskId ?? null} /> : null}
             canManage={(canManage || project.managerId === user.id) && !closed} canMoveSubtasks={canMove && !closed && (canManage || project.managerId === user.id || open.assigneeId === user.id)} canComment={canMove}
           >
             <FilesPanel user={user} ownerType="TASK" ownerId={open.id} returnTo={`${base}?task=${open.id}`} title="Files" flash={{ fileError, fileOk }} />

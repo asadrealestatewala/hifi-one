@@ -17,9 +17,9 @@ export type TaskDetailData = {
 };
 
 // The panel for one task: details, what it waits for, whether it repeats, checklist, subtasks, comments and files (files arrive as children from the server).
-export default function TaskDetail({ task, subtasks, candidates, members, labels, canManageLabels, comments, canManage, canMoveSubtasks, canComment, checklist, children }: {
+export default function TaskDetail({ task, subtasks, candidates, members, labels, canManageLabels, comments, canManage, canMoveSubtasks, canComment, checklist, timer, children }: {
   task: TaskDetailData; subtasks: Sub[]; candidates: { id: string; title: string }[]; members: { id: string; name: string }[]; labels: Label[]; canManageLabels: boolean; comments: Comment[];
-  canManage: boolean; canMoveSubtasks: boolean; canComment: boolean; checklist?: ReactNode; children: ReactNode;
+  canManage: boolean; canMoveSubtasks: boolean; canComment: boolean; checklist?: ReactNode; timer?: ReactNode; children: ReactNode;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -39,6 +39,7 @@ export default function TaskDetail({ task, subtasks, candidates, members, labels
     <div className="h-full space-y-6 overflow-y-auto p-5 text-sm">
       {task.parentTitle && <p className="text-xs text-muted">Subtask of {task.parentTitle}</p>}
       <div className="flex flex-wrap items-center gap-2"><StatusBadge status={task.status} />{task.recurrence && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">repeats {task.recurrence.toLowerCase()}</span>}</div>
+      {timer}
       {error && <p role="alert" className="rounded-lg bg-brand/10 px-3 py-2 text-brand">{error}</p>}
       {saved && <p className="rounded-lg bg-success/10 px-3 py-2 text-success">Saved.</p>}
 
