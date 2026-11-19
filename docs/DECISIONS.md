@@ -272,3 +272,7 @@ Asad approved the plan's "simple automations". Three run on their own, with no s
 ## 2026-11-18: Client requests need the project manager's approval
 
 Asad chose "Yes, with approval" for letting clients raise new requests from their portal. A request never becomes work on its own: the project manager (or `projects.manage`) accepts it as a client-visible task or declines it with a reason the client reads, so scope stays in the agency's hands and the client always hears back. A new `ClientRequest` record was used rather than Support requests, because support is for problems with a Solution, while these are additions to project work and end as tasks. Up to 20 can wait per project.
+
+## 2026-11-18: Portfolio health thresholds (Phase 3 of the project management plan)
+
+Asad asked that owners see trouble without asking the team. Health is computed on read, never stored, so it can't drift from the tasks, updates and costs it comes from. Thresholds (`src/lib/project-health.ts`): red for a passed deadline with work open, 3 or more overdue tasks (or more than a quarter of the open ones), or more than 100% of the budget used; amber for any overdue task, a deadline within 7 days with under 80% done, 80% or more of the budget, or 14 days without a project update. Budget only counts for people with `projects.costs`, so the same project can read green to a designer and amber to the owner; that is intended, because the reason would reveal cost figures. Health lives in the existing Projects list rather than a new screen, to avoid a second list of the same projects.
