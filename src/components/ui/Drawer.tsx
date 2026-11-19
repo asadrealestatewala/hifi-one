@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import Icon from "@/components/shell/Icon";
+import { navStarted } from "@/components/shell/NavProgress";
 
 const CloseContext = createContext<(() => void) | null>(null);
 
@@ -24,6 +25,7 @@ export default function Drawer({ title, closeTo, children }: { title: string; cl
     setClosed(true);
     document.body.style.overflow = "";
     const from = window.location.href;
+    navStarted(closeTo);
     router.push(closeTo);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => { if (window.location.href === from) window.location.assign(closeTo); }, 2500);
