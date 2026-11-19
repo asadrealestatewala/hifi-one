@@ -1,7 +1,8 @@
-// A project's timeline: each task is a bar from the day it was created to its due date (or, once done, the day it was completed).
+// A project's timeline: each task is a bar from its start date (or, when none is set, the day it was created) to its due date
+// (or, once done, the day it was completed).
 // Tasks with no due date are listed apart, never given an invented date. Pure and tested; the page only draws what this returns.
-export type TimelineTask = { id: string; title: string; status: string; createdAt: Date; dueDate: Date | null; completedAt: Date | null; assignee?: string | null };
-export type Bar = { id: string; title: string; status: string; assignee: string | null; start: string; end: string; left: number; width: number; overdue: boolean; done: boolean };
+export type TimelineTask = { id: string; title: string; status: string; createdAt: Date; startDate?: Date | null; dueDate: Date | null; completedAt: Date | null; assignee?: string | null };
+export type Bar = { id: string; title: string; status: string; assignee: string | null; start: string; end: string; startSet: boolean; due: string | null; left: number; width: number; overdue: boolean; done: boolean };
 export type Timeline = {
   from: string; to: string; days: number; todayPct: number | null;
   bars: Bar[]; undated: { id: string; title: string; status: string }[];
@@ -17,7 +18,7 @@ export function buildTimeline(p: { tasks: TimelineTask[]; today: string; project
   const undated = p.tasks.filter((t) => !rows.includes(t)).map((t) => ({ id: t.id, title: t.title, status: t.status }));
   const spans = rows.map((t) => {
     const end = ymd(t.status === "DONE" && t.completedAt ? t.completedAt : t.dueDate!);
-    const rawStart = ymd(t.createdAt);
+    const rawStart = ymd(t.startDate ?? t.createdAt);
     return { t, start: rawStart > end ? end : rawStart, end };
   });
   const points = [...spans.flatMap((s) => [s.start, s.end]), ...(p.projectStart ? [ymd(p.projectStart)] : []), ...(p.deadline ? [ymd(p.deadline)] : []), p.today];
@@ -28,7 +29,7 @@ export function buildTimeline(p: { tasks: TimelineTask[]; today: string; project
   const bars = spans
     .sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : a.t.id < b.t.id ? -1 : 1))
     .map(({ t, start, end }) => ({
-      id: t.id, title: t.title, status: t.status, assignee: t.assignee ?? null, start, end,
+      id: t.id, title: t.title, status: t.status, assignee: t.assignee ?? null, start, end, startSet: Boolean(t.startDate), due: t.dueDate ? ymd(t.dueDate) : null,
       left: pos(start), width: Math.max(((midnight(end) - midnight(start)) / DAY + 1) / days * 100, 1.2),
       done: t.status === "DONE", overdue: t.status !== "DONE" && end < p.today,
     }));

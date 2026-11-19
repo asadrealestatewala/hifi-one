@@ -287,8 +287,8 @@ export default async function ProjectPage({
         }))}
         labels={labels}
       />
-      <ProjectTimeline projectId={project.id} today={todayIso} projectStart={project.startDate} deadline={project.deadline} milestones={milestones}
-        tasks={top.map((t) => ({ id: t.id, title: t.title, status: t.status, createdAt: t.createdAt, dueDate: t.dueDate, completedAt: t.completedAt, assignee: t.assigneeId ? nameOf.get(t.assigneeId) ?? null : null }))} />
+      <ProjectTimeline projectId={project.id} canEdit={(canManage || project.managerId === user.id) && !closed} today={todayIso} projectStart={project.startDate} deadline={project.deadline} milestones={milestones}
+        tasks={top.map((t) => ({ id: t.id, title: t.title, status: t.status, createdAt: t.createdAt, startDate: t.startDate, dueDate: t.dueDate, completedAt: t.completedAt, assignee: t.assigneeId ? nameOf.get(t.assigneeId) ?? null : null }))} />
       <ProjectDepth user={user} projectId={project.id} closed={closed} part="milestones" />
     </div>
   );
@@ -460,7 +460,7 @@ export default async function ProjectPage({
         <Drawer title={open.title} closeTo={`${base}?tab=tasks`}>
           <TaskDetail
             key={`${open.id}:${open.status}:${project.tasks.length}:${comments.length}`}
-            task={{ id: open.id, title: open.title, status: open.status, description: open.description ?? "", priority: open.priority, assigneeId: open.assigneeId ?? "", due: open.dueDate ? open.dueDate.toISOString().slice(0, 10) : "", estimate: open.estimatedHours ? String(open.estimatedHours) : "", clientVisible: open.clientVisible, recurrence: open.recurrence ?? "", blockedBy: open.blockedBy, labelIds: open.labelIds, parentTitle: open.parentId ? byId.get(open.parentId)?.title ?? "another task" : null }}
+            task={{ id: open.id, title: open.title, status: open.status, description: open.description ?? "", priority: open.priority, assigneeId: open.assigneeId ?? "", due: open.dueDate ? open.dueDate.toISOString().slice(0, 10) : "", start: open.startDate ? open.startDate.toISOString().slice(0, 10) : "", estimate: open.estimatedHours ? String(open.estimatedHours) : "", clientVisible: open.clientVisible, recurrence: open.recurrence ?? "", blockedBy: open.blockedBy, labelIds: open.labelIds, parentTitle: open.parentId ? byId.get(open.parentId)?.title ?? "another task" : null }}
             subtasks={project.tasks.filter((t) => t.parentId === open.id).map((t) => ({ id: t.id, title: t.title, status: t.status }))}
             candidates={project.tasks.filter((t) => t.id !== open.id && t.parentId !== open.id && open.parentId !== t.id).map((t) => ({ id: t.id, title: t.title }))}
             members={project.members.map((m) => ({ id: m.userId, name: nameOf.get(m.userId) ?? "Unknown" }))}
