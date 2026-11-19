@@ -12,7 +12,7 @@ export type FileActor = {
   permissions: ReadonlySet<string>;
 };
 
-export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT", "CIRCULAR", "CHAT_MESSAGE", "PROJECT_ASSET", "EMPLOYEE_REQUEST", "PAYMENT", "PARTNER_IDENTITY", "PARTNER_PAYMENT_NOTICE", "BRAND"] as const;
+export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT", "CIRCULAR", "CHAT_MESSAGE", "PROJECT_ASSET", "EMPLOYEE_REQUEST", "PAYMENT", "PARTNER_IDENTITY", "PARTNER_PAYMENT_NOTICE", "BRAND", "DELIVERABLE"] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 export type Mode = "read" | "upload" | "delete";
 
@@ -112,6 +112,22 @@ export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: 
     if (mode === "read") return true;
     const manager = a.permissions.has("projects.manage") || t.project.managerId === a.id;
     return (manager || t.assigneeId === a.id) && has("tasks.edit") && !["COMPLETED", "CANCELLED"].includes(t.project.status);
+  }
+
+  if (ownerType === "DELIVERABLE") {
+    // A proof sent for client approval. Staff: the project's visibility; the project manager (or projects.manage) adds and removes
+    // the proof while the version is a draft. The client: read only, their own project, once the version has been sent to them.
+    const d0 = await db.deliverable.findFirst({ where: { id: ownerId, organizationId: a.organizationId }, select: { status: true, projectId: true } });
+    const project = d0 && (await db.project.findFirst({ where: { id: d0.projectId, organizationId: a.organizationId }, select: { clientId: true, managerId: true, status: true, members: { select: { userId: true } } } }));
+    if (!d0 || !project) return false;
+    const d = { ...d0, project };
+    if (a.userType === "CLIENT") return mode === "read" && a.clientId !== null && a.clientId === d.project.clientId && d.status !== "DRAFT";
+    if (!has("projects.view")) return false;
+    const manager = a.permissions.has("projects.manage") || d.project.managerId === a.id;
+    const inProject = manager || a.permissions.has("projects.view_all") || d.project.members.some((m) => m.userId === a.id);
+    if (!inProject) return false;
+    if (mode === "read") return true;
+    return manager && d.status === "DRAFT" && !["COMPLETED", "CANCELLED"].includes(d.project.status);
   }
 
   if (ownerType === "PROJECT_ASSET") {

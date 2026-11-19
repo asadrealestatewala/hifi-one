@@ -280,3 +280,7 @@ Asad chose "Yes, with approval" for letting clients raise new requests from thei
 ## 2026-11-18: Weekly project emails on Monday at 9:00
 
 As part of Phase 3, owners and clients get one email each Monday from 9:00 company time, so nobody has to ask for a status report. The time was assumed and told to Asad, and he did not object. "Owners" means people who have both the Executive dashboard and View all projects, so the email never shows projects the reader couldn't open anyway. Clients only see tasks the team shared with them. Progress uses the same count as the portal, so the email and the portal agree. Clients also get the existing Monday review form, which is a separate email; the two could be combined later if Asad prefers.
+
+## 2026-11-18: Proofing builds on deliverables
+
+Client comments on a design are part of the existing deliverable approval, not a separate review tool. The proof is stored like any other protected file (`StoredFile`, read through signed links and the DELIVERABLE access rule). Comments belong to a version, so a new version starts clean and the history stays. Images take pins. PDFs take page numbers, because the browser's own PDF viewer is used and no PDF-rendering library was added. Pinned comments can replace the "what to change" note.

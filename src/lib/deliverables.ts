@@ -46,7 +46,8 @@ export async function submitForApproval(db: Db, p: { organizationId: string; id:
   const d = await db.deliverable.findFirst({ where: { id: p.id, organizationId: p.organizationId } });
   if (!d) throw new DeliverableError("Deliverable not found.");
   if (d.status !== "DRAFT") throw new DeliverableError(d.status === "PENDING" ? "Already sent for approval." : d.status === "APPROVED" ? "Already approved." : "Edit it first: the client asked for changes.");
-  if (!d.link && !d.description) throw new DeliverableError("Add a link or a description so the client can see what to approve.");
+  const proof = await db.storedFile.count({ where: { ownerType: "DELIVERABLE", ownerId: d.id, category: `v${d.version}`, deletedAt: null } });
+  if (!d.link && !d.description && !proof) throw new DeliverableError("Attach the design, or add a link or a description, so the client can see what to approve.");
   const project = await db.project.findUnique({ where: { id: d.projectId }, select: { clientId: true, name: true } });
   if (!project?.clientId) throw new DeliverableError("This project has no client to approve it. Attach a client to the project first.");
   const u = await db.deliverable.updateMany({ where: { id: d.id, status: "DRAFT" }, data: { status: "PENDING", requestedAt: new Date(), requestedById: p.actorId } });
@@ -64,10 +65,15 @@ export async function portalDeliverables(db: Db, clientId: string) {
 }
 
 export async function decide(db: Db, p: { organizationId: string; clientId: string; userId: string; id: string; decision: "APPROVE" | "CHANGES"; note?: string }) {
-  const note = clean(p.note, 1000);
-  if (p.decision === "CHANGES" && (!note || note.length < 5)) throw new DeliverableError("Say what you would like changed.");
+  let note = clean(p.note, 1000);
   const d = await db.deliverable.findFirst({ where: { id: p.id, organizationId: p.organizationId, projectId: { in: (await db.project.findMany({ where: { clientId: p.clientId, organizationId: p.organizationId }, select: { id: true } })).map((x) => x.id) } } });
   if (!d) throw new DeliverableError("Not found.");
+  if (p.decision === "CHANGES" && (!note || note.length < 5)) {
+    // Comments placed on the proof can stand in for the note
+    const pinned = await db.deliverableComment.count({ where: { deliverableId: d.id, version: d.version, fromClient: true, resolvedAt: null } });
+    if (!pinned) throw new DeliverableError("Say what you would like changed, here or as comments on the design.");
+    note = `${note ? `${note} ` : ""}See ${pinned} comment${pinned === 1 ? "" : "s"} on the design.`.trim();
+  }
   if (d.status !== "PENDING") throw new DeliverableError(d.status === "APPROVED" ? "Already approved." : "This is not waiting for your decision.");
   // Only the first decision counts, even if two people click at the same moment
   const u = await db.deliverable.updateMany({ where: { id: d.id, status: "PENDING" }, data: { status: p.decision === "APPROVE" ? "APPROVED" : "CHANGES_REQUESTED", decidedAt: new Date(), decidedById: p.userId, decisionNote: note } });

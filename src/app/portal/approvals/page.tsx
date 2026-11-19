@@ -1,25 +1,11 @@
-import { redirect } from "next/navigation";
-import { audit, requireClientUser } from "@/lib/auth";
+import Link from "next/link";
+import { requireClientUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { DeliverableError, decide, portalDeliverables } from "@/lib/deliverables";
+import { portalDeliverables } from "@/lib/deliverables";
+import { decideAction } from "./actions";
 import { Empty, Notice, PageHeader, StatusBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
-
-async function decideAction(formData: FormData): Promise<void> {
-  "use server";
-  const user = await requireClientUser();
-  const id = String(formData.get("id") ?? "");
-  const decision = formData.get("decision") === "approve" ? "APPROVE" : "CHANGES";
-  try {
-    await decide(db, { organizationId: user.organizationId, clientId: user.clientId, userId: user.id, id, decision, note: String(formData.get("note") ?? "") });
-    await audit(user, { action: `portal.deliverable_${decision.toLowerCase()}`, entity: "Deliverable", entityId: id });
-  } catch (e) {
-    if (e instanceof DeliverableError) redirect(`/portal/approvals?error=${encodeURIComponent(e.message)}`);
-    throw e;
-  }
-  redirect(`/portal/approvals?done=${decision === "APPROVE" ? "approved" : "changes"}`);
-}
 
 export default async function PortalApprovals({ searchParams }: { searchParams: Promise<{ error?: string; done?: string }> }) {
   const user = await requireClientUser();
@@ -27,6 +13,8 @@ export default async function PortalApprovals({ searchParams }: { searchParams: 
   const all = await portalDeliverables(db, user.clientId);
   const pending = all.filter((d) => d.status === "PENDING");
   const history = all.filter((d) => d.status !== "PENDING");
+  // Which waiting items carry a design to comment on
+  const proofs = new Set((await db.storedFile.findMany({ where: { ownerType: "DELIVERABLE", ownerId: { in: pending.map((d) => d.id) }, deletedAt: null }, select: { ownerId: true, category: true } })).filter((f) => pending.some((d) => d.id === f.ownerId && f.category === `v${d.version}`)).map((f) => f.ownerId));
   return (
     <div className="space-y-5">
       <PageHeader title="Approvals" subtitle="Work we need your decision on. Approve it, or tell us what to change and we will send a new version." />
@@ -36,10 +24,13 @@ export default async function PortalApprovals({ searchParams }: { searchParams: 
         <section key={d.id} className="card space-y-3">
           <div className="flex flex-wrap items-start justify-between gap-2"><div><h2 className="font-semibold">{d.title}</h2><p className="text-xs text-muted">{d.projectName} · version {d.version}{d.requestedAt && ` · sent ${d.requestedAt.toLocaleDateString()}`}</p></div><StatusBadge status="PENDING" /></div>
           {d.description && <p className="whitespace-pre-wrap text-sm">{d.description}</p>}
-          {d.link && <a href={d.link} target="_blank" rel="noopener noreferrer" className="btn-ghost inline-block">Open to review</a>}
+          <div className="flex flex-wrap gap-2">
+            {proofs.has(d.id) && <Link href={`/portal/approvals/${d.id}`} className="btn">Review the design and comment</Link>}
+            {d.link && <a href={d.link} target="_blank" rel="noopener noreferrer" className="btn-ghost inline-block">Open to review</a>}
+          </div>
           <form action={decideAction} className="space-y-2 border-t border-border pt-3">
             <input type="hidden" name="id" value={d.id} />
-            <label className="label" htmlFor={`n-${d.id}`}>Comments (needed if you want changes)</label>
+            <label className="label" htmlFor={`n-${d.id}`}>{proofs.has(d.id) ? "Note (optional if you commented on the design)" : "Comments (needed if you want changes)"}</label>
             <textarea id={`n-${d.id}`} name="note" rows={2} maxLength={1000} className="input" />
             <div className="flex flex-wrap gap-2">
               <button name="decision" value="approve" className="btn">Approve</button>
