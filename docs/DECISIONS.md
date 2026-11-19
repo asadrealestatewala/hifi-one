@@ -297,3 +297,7 @@ The timer (Phase 4 part 3) does not keep its own record of hours. Stopping it cr
 
 The Timeline used to start every bar on the day the task was created, which says nothing about when work is planned. Tasks now have an optional `startDate`, set by dragging Timeline bars or in the task panel. Without one, the bar still starts at creation, so existing projects look the same until someone plans them. Dependency and deadline clashes are warnings, not refusals: a manager may knowingly overlap work, but they see it at once. Only the project's manager (or `projects.manage`) changes dates, matching the task list and planner rules.
 
+## 2026-11-19: One Monday email for clients
+
+Asad agreed to combine the Monday client emails. Clients with an open project used to get two emails on Monday: the weekly review form and, at 9:00, the project update. Now the update carries the rating link at the bottom, so the client rates the week after seeing what was done, and gets one email instead of two. The review job keeps making every form (portal and staff copy-link still work) and still emails clients who have only a retainer. Nothing about how reviews are scored or how they feed the project manager's bonus changed.
+

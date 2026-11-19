@@ -53,11 +53,11 @@ export const JOBS: JobDef[] = [
     },
   },
   {
-    key: "client_weekly_reviews", label: "Weekly client review forms", what: "Every Monday, emails each active service client (an active project or retainer) a form to rate the week before. Clients without an email get the form in their portal, and staff can copy the link from the client's Delivery tab.",
+    key: "client_weekly_reviews", label: "Weekly client review forms", what: "Every Monday, makes a form for each active service client (an active project or retainer) to rate the week before. Clients with an open project get the rating link inside their Monday project update at 9:00 (one email); clients with only a retainer get the form by email on its own. Clients without an email get the form in their portal, and staff can copy the link from the client's Delivery tab.",
     async run({ db, organizationId, today, now }) {
       if (new Date(`${today}T00:00:00Z`).getUTCDay() !== 1) return "Sent on Mondays only";
       const r = await sendWeeklyReviewRequests(db, { organizationId, today, now });
-      return `${r.created} review form${r.created === 1 ? "" : "s"} for the week of ${r.weekStart}, ${r.emailed} emailed`;
+      return `${r.created} review form${r.created === 1 ? "" : "s"} for the week of ${r.weekStart}, ${r.emailed} emailed on their own, ${r.inUpdate} going in the Monday project update`;
     },
   },
   {
@@ -104,7 +104,7 @@ export const JOBS: JobDef[] = [
   },
   {
     key: "project_weekly_digest", label: "Weekly project emails", notBefore: "09:00",
-    what: "Every Monday at 9:00, emails the owners how every active project stands (at risk, to watch, on track) and what moved last week, and emails each client with an active project their progress, finished work and what is waiting for their approval. Once per person and client each week.",
+    what: "Every Monday at 9:00, emails the owners how every active project stands (at risk, to watch, on track) and what moved last week, and emails each client with an active project their progress, finished work, what is waiting for their approval and, when last week's review is due, the link to rate it. Once per person and client each week.",
     async run({ db, organizationId, today }) {
       if (new Date(`${today}T00:00:00Z`).getUTCDay() !== 1) return "Sent on Mondays only";
       const r = await sendWeeklyDigests(db, { organizationId, today });

@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { clientDigest, listed, ownerDigest, sendWeeklyDigests, weekWindow } from "./weekly-digest";
+import { sendWeeklyReviewRequests } from "./client-reviews";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
 const db = new PrismaClient({ datasourceUrl: url });
@@ -22,7 +23,7 @@ const role = async (key: string, perms: string[]) => {
 const staff = (name: string, roleId: string | null, email: string | null = `${name}@digest.test`) => db.user.create({ data: { organizationId: org, name, email, passwordHash: "x", userType: "EMPLOYEE", ...(roleId ? { roles: { create: { roleId } } } : {}) } }).then((u) => u.id);
 
 beforeAll(async () => {
-  await db.$executeRawUnsafe('TRUNCATE "ClientRequest","Deliverable","ContentItem","EmailMessage","Notification","TaskChecklistItem","Task","ProjectUpdate","ProjectMember","Project","Client","UserRole","Role","User","Organization" CASCADE');
+  await db.$executeRawUnsafe('TRUNCATE "ClientReview","ClientReviewRequest","ClientRequest","Deliverable","ContentItem","EmailMessage","Notification","TaskChecklistItem","Task","ProjectUpdate","ProjectMember","Project","Client","UserRole","Role","User","Organization" CASCADE');
   org = (await db.organization.create({ data: { name: "Digest Org" } })).id;
   owner = await staff("owner", await role("OWNER", ["dashboard.executive", "projects.view_all", "projects.costs"]));
   await staff("coo", await role("COO", ["dashboard.executive", "projects.view_all"]));
@@ -78,5 +79,25 @@ describe("weekly project emails", () => {
 
     expect(await sendWeeklyDigests(db, { organizationId: org, today })).toMatchObject({ owners: 0, clients: 0 });
     expect(await db.emailMessage.count({ where: { relatedType: "WeeklyDigest" } })).toBe(4);
+  });
+
+  it("carries last week's rating link in the client update, so the review form is not emailed separately", async () => {
+    // Run order on a Monday: the review job first (makes the forms, emails none of these clients), then the update at 9:00
+    await db.$executeRawUnsafe('TRUNCATE "ClientReview","ClientReviewRequest","EmailMessage","Notification" CASCADE');
+    const forms = await sendWeeklyReviewRequests(db, { organizationId: org, today });
+    expect(forms).toMatchObject({ weekStart: "2026-11-09", created: 2, emailed: 0, inUpdate: 2 });
+    expect(await db.emailMessage.count({ where: { relatedType: "ClientReviewRequest" } })).toBe(0);
+    // Shoe Co already rated last week by another route: its update has no link
+    await db.clientReview.create({ data: { organizationId: org, clientId: shoeCo, weekStart: "2026-11-09", rating: 5, review: "Great week", source: "STAFF", currency: "PKR" } });
+
+    await sendWeeklyDigests(db, { organizationId: org, today });
+    const food = await db.clientReviewRequest.findUniqueOrThrow({ where: { clientId_weekStart: { clientId: foodCo, weekStart: "2026-11-09" } } });
+    expect(food).toMatchObject({ sentTo: "hello@foodco.test" });
+    expect(food.emailStatus).not.toBeNull();
+    const mails = await db.emailMessage.findMany({ where: { relatedType: "WeeklyDigest", toEmail: { in: ["hello@foodco.test", "portal@shoeco.test"] } }, select: { toEmail: true, body: true } });
+    expect(mails).toHaveLength(2);
+    expect(mails.find((m) => m.toEmail === "hello@foodco.test")!.body).toContain("not kept"); // the one-time link is not stored in the log
+    expect(mails.find((m) => m.toEmail === "portal@shoeco.test")!.body).not.toContain("not kept"); // no link: the full text is kept
+    expect(await db.emailMessage.count({ where: { relatedType: "ClientReviewRequest" } })).toBe(0); // still one email per client
   });
 });
