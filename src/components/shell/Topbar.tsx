@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon";
+import { navStarted } from "@/components/shell/NavProgress";
 import { openSearch } from "./CommandPalette";
 import { BACKGROUNDS, DEFAULT_BACKGROUND, STORAGE, isBackground, type BackgroundKey } from "@/lib/appearance";
 import { loadBell, readBellAll, readBellItem, type BellItem } from "@/app/(app)/notifications/actions";
@@ -73,7 +74,7 @@ export default function Topbar({ unread, chatUnread, quick, canSearch, onMenu, e
       setItems((cur) => cur && cur.map((i) => (i.id === n.id ? { ...i, read: true } : i)));
       void readBellItem(n.id).catch(() => {});
     }
-    if (n.link) router.push(n.link);
+    if (n.link) { navStarted(n.link); router.push(n.link); }
   };
   const readAll = async () => {
     setCount(0);

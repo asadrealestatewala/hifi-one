@@ -3,6 +3,16 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+const START = "hifi:navstart";
+
+// Starts the bar for a move that is not a link click (a row click, a notification, a search result, a filter, a closing panel).
+// Moves to the page already shown are ignored, since they would never finish the bar.
+export function navStarted(href: string) {
+  const u = new URL(href, location.href);
+  if (u.pathname === location.pathname && u.search === location.search) return;
+  window.dispatchEvent(new Event(START));
+}
+
 // A thin bar across the top that starts the moment you click an in-app link and finishes when the new page arrives,
 // so a click never feels like it did nothing.
 export default function NavProgress() {
@@ -19,11 +29,15 @@ export default function NavProgress() {
       if (!a || a.target === "_blank" || a.hasAttribute("download")) return;
       const u = new URL(a.href, location.href);
       if (u.origin !== location.origin || (u.pathname === location.pathname && u.search === location.search)) return;
+      begin();
+    };
+    const begin = () => {
       stop(); setPct(8);
       timer.current = setInterval(() => setPct((p) => (p < 90 ? p + (90 - p) * 0.12 : p)), 120);
     };
     document.addEventListener("click", onClick, true);
-    return () => { document.removeEventListener("click", onClick, true); stop(); };
+    window.addEventListener(START, begin);
+    return () => { document.removeEventListener("click", onClick, true); window.removeEventListener(START, begin); stop(); };
   }, []);
 
   useEffect(() => {

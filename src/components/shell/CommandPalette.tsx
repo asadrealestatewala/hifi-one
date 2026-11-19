@@ -8,6 +8,7 @@ import { recordTypeFromHref } from "@/lib/tint";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Icon from "./Icon";
+import { navStarted } from "@/components/shell/NavProgress";
 
 // The one search: the top-bar box, the phone search button and Ctrl K / Cmd K all open it (the OPEN_SEARCH event).
 // "Go to" lists the screens and tabs the person may open, with the path to each; the list is built on the server with the
@@ -77,6 +78,7 @@ export default function CommandPalette({ destinations, quick, canSearch }: {
     const r = rows[i];
     if (!r) return;
     setOpen(false);
+    navStarted(r.href);
     router.push(r.href);
   };
   const onKey = (e: React.KeyboardEvent) => {
