@@ -15,6 +15,7 @@ import { validLabelIds } from "@/lib/task-labels";
 import { applyTemplate, parseTemplateBody } from "@/lib/project-templates";
 import { BULK_LIMIT, bulkEditTasks, type BulkChange, type BulkSkip } from "@/lib/task-bulk";
 import { notify } from "@/lib/notifications";
+import { scheduleError } from "@/lib/task-schedule";
 import { approveRequest, declineRequest } from "@/lib/client-requests";
 
 const optDate = z.string().optional().transform((v) => (v ? new Date(v) : null));
@@ -271,7 +272,10 @@ export async function saveTaskDetailAction(taskId: string, formData: FormData): 
   const due = String(formData.get("dueDate") ?? "");
   const assigneeId = String(formData.get("assigneeId") ?? "") || null;
   const priority = z.enum(["LOW", "MEDIUM", "HIGH"]).safeParse(formData.get("priority"));
+  const start = String(formData.get("startDate") ?? "");
   if (due && Number.isNaN(Date.parse(due))) return { ok: false, error: "Enter a valid due date." };
+  const dateError = scheduleError(start || null, due || null);
+  if (dateError) return { ok: false, error: dateError };
   const labelIds = await validLabelIds(db, user.organizationId, formData.getAll("labelIds").map(String));
   const estimate = parseEstimate(formData.get("estimatedHours"));
   if (!estimate.ok) return { ok: false, error: "Write the estimate in hours, for example 2 or 1.5." };
@@ -279,7 +283,7 @@ export async function saveTaskDetailAction(taskId: string, formData: FormData): 
   try {
     await setBlockers(db, { projectId: c.task.projectId, taskId, blockerIds: blockers });
     await setRecurrence(db, { projectId: c.task.projectId, taskId, recurrence });
-    await db.task.update({ where: { id: taskId }, data: { dueDate: due ? new Date(due) : null, estimatedHours: estimate.value, labelIds, assigneeId, description: String(formData.get("description") ?? "").trim().slice(0, 4000) || null, ...(priority.success ? { priority: priority.data } : {}), clientVisible: formData.get("clientVisible") === "on" } });
+    await db.task.update({ where: { id: taskId }, data: { startDate: start ? new Date(`${start}T00:00:00.000Z`) : null, dueDate: due ? new Date(due) : null, estimatedHours: estimate.value, labelIds, assigneeId, description: String(formData.get("description") ?? "").trim().slice(0, 4000) || null, ...(priority.success ? { priority: priority.data } : {}), clientVisible: formData.get("clientVisible") === "on" } });
     await audit(c.user, { action: "task.update", entity: "Task", entityId: taskId, after: { blockers: blockers.length, recurrence, assigneeId } });
     if (assigneeId !== c.task.assigneeId) await taskAssigned(db, { organizationId: c.user.organizationId, taskId, toUserId: assigneeId, byUserId: c.user.id });
   } catch (e) {

@@ -32,3 +32,12 @@ describe("buildTimeline", () => {
     expect(t.to).toBe("2026-10-30");
   });
 });
+
+describe("buildTimeline with start dates", () => {
+  it("starts a bar at the task's start date when one is set, and marks it", () => {
+    const t = buildTimeline({ tasks: [task("a", { startDate: d("2026-10-06"), dueDate: d("2026-10-09") }), task("b")], today: "2026-10-02" });
+    const a = t.bars.find((b) => b.id === "a")!;
+    expect(a).toMatchObject({ start: "2026-10-06", end: "2026-10-09", startSet: true, due: "2026-10-09" });
+    expect(t.bars.find((b) => b.id === "b")!.startSet).toBe(false);
+  });
+});

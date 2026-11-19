@@ -289,3 +289,7 @@ Client comments on a design are part of the existing deliverable approval, not a
 
 Phase 4 starts with a weekly planner (Projects → Planner). Tasks have only a due date, so a task's whole estimate counts on the day it is due rather than being spread over invented working days. The screen says so and suggests an earlier date or subtasks for big work. A move changes the due date and the assignee together in one checked step (`planTask`), using the same rules as the task list (only the project's manager or `projects.manage`, open projects, team members only). People who don't plan work see their own week read only, so the planner never becomes a second way to change dates without the manager. Part 2 adds a start date for the Timeline; the planner keeps using the due date.
 
+## 2026-11-19: Tasks get an optional start date for the Timeline
+
+The Timeline used to start every bar on the day the task was created, which says nothing about when work is planned. Tasks now have an optional `startDate`, set by dragging Timeline bars or in the task panel. Without one, the bar still starts at creation, so existing projects look the same until someone plans them. Dependency and deadline clashes are warnings, not refusals: a manager may knowingly overlap work, but they see it at once. Only the project's manager (or `projects.manage`) changes dates, matching the task list and planner rules.
+
