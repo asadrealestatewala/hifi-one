@@ -644,9 +644,9 @@ export const SYSTEM_TEMPLATES: TemplateDef[] = [
   },
   {
     key: "project_weekly_client", name: "Projects: weekly client update", audience: "Clients",
-    description: "Sent every Monday at 9:00 to each client with an active project: progress on each project, what was finished last week, and what is waiting for their approval.",
-    variables: { client_name: "HB Elan", company_name: "Hifi Marketing and Technologies", week: "9 to 15 Nov 2026", projects: "HB Elan social: 45% done", finished: "Reel for the Eid offer, November ad set", waiting: "2 designs and 1 post to approve", requests: "1 accepted, 1 waiting", next: "Launch video due 20 Nov", project_manager: "Naghma Riaz", link: "https://hifimarketing.co/portal" },
-    blocks: { label: "Weekly update", details: [["Week", "{{week}}"], ["Progress", "{{projects}}"], ["Finished last week", "{{finished}}"], ["Waiting for your approval", "{{waiting}}"], ["Your requests", "{{requests}}"], ["Coming up", "{{next}}"], ["Project manager", "{{project_manager}}"]] },
+    description: "Sent every Monday at 9:00 to each client with an active project: progress on each project, what was finished last week, what is waiting for their approval and, when last week's review is due, a Rate last week button (this replaces the separate review form email for these clients).",
+    variables: { client_name: "HB Elan", company_name: "Hifi Marketing and Technologies", week: "9 to 15 Nov 2026", projects: "HB Elan social: 45% done", finished: "Reel for the Eid offer, November ad set", waiting: "2 designs and 1 post to approve", requests: "1 accepted, 1 waiting", next: "Launch video due 20 Nov", project_manager: "Naghma Riaz", link: "https://hifimarketing.co/portal", review_link: "https://hifimarketing.co/review/sample", review_note: "How did we do? Rate last week with the button at the bottom (about a minute, no password; the link works for 14 days)." },
+    blocks: { label: "Weekly update", details: [["Week", "{{week}}"], ["Progress", "{{projects}}"], ["Finished last week", "{{finished}}"], ["Waiting for your approval", "{{waiting}}"], ["Your requests", "{{requests}}"], ["Coming up", "{{next}}"], ["Project manager", "{{project_manager}}"], ["Your feedback", "{{review_note}}"]], secondary: { label: "Rate last week", url: "{{review_link}}" } },
     buttonUrlVar: "link",
     defaults: {
       subject: "Your weekly project update ({{week}})",

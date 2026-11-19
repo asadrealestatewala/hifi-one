@@ -100,16 +100,24 @@ export async function issueReviewLink(db: Db, p: { organizationId: string; clien
   return { token, request };
 }
 
-// The Monday job: one form per reviewable client for last week, emailed when the client has an email. Running it again does nothing.
+// Clients with an open project (active or on hold) get the Monday project update, which carries the rating link, so the review
+// form is not emailed to them separately. One email instead of two; the rating comes after they have seen the week's work.
+export async function getsWeeklyUpdate(db: Db, organizationId: string, clientId: string) {
+  return Boolean(await db.project.findFirst({ where: { organizationId, clientId, status: { in: ["ACTIVE", "ON_HOLD"] }, archivedAt: null }, select: { id: true } }));
+}
+
+// The Monday job: one form per reviewable client for last week, emailed when the client has an email, unless the Monday project
+// update will carry it (see getsWeeklyUpdate). Every form also shows in the client portal. Running it again does nothing.
 export async function sendWeeklyReviewRequests(db: Db, p: { organizationId: string; today: string; now?: Date }) {
   const weekStart = lastWeekStart(p.today);
   const clients = await reviewableClients(db, p.organizationId, p.today);
-  let created = 0, emailed = 0;
+  let created = 0, emailed = 0, inUpdate = 0;
   for (const c of clients) {
     if (await db.clientReviewRequest.findUnique({ where: { clientId_weekStart: { clientId: c.id, weekStart } } })) continue;
     if (await db.clientReview.findUnique({ where: { clientId_weekStart: { clientId: c.id, weekStart } } })) continue;
     const { token, request } = await issueReviewLink(db, { organizationId: p.organizationId, clientId: c.id, weekStart, now: p.now });
     created++;
+    if (await getsWeeklyUpdate(db, p.organizationId, c.id)) { inUpdate++; continue; }
     if (!c.email) continue;
     const pm = c.projectManagerId ? await db.user.findUnique({ where: { id: c.projectManagerId }, select: { name: true } }) : null;
     const link = reviewUrl(token);
@@ -120,7 +128,7 @@ export async function sendWeeklyReviewRequests(db: Db, p: { organizationId: stri
     await db.clientReviewRequest.update({ where: { id: request.id }, data: { sentTo: c.email, emailStatus: sent?.status ?? "FAILED" } });
     if (sent?.status === "SENT") emailed++;
   }
-  return { weekStart, created, emailed };
+  return { weekStart, created, emailed, inUpdate };
 }
 
 // What the public form shows. Null when the link is unknown, expired or already answered.

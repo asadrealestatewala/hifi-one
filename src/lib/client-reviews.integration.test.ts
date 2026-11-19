@@ -45,7 +45,7 @@ describe("weekly review forms", () => {
 
   it("the Monday run makes one form per active service client, emails those with an email, and does nothing the second time", async () => {
     const r = await sendWeeklyReviewRequests(db, { organizationId: org, today: "2026-11-23" });
-    expect(r).toMatchObject({ weekStart: "2026-11-16", created: 2 });
+    expect(r).toMatchObject({ weekStart: "2026-11-16", created: 2, inUpdate: 1 }); // HB Elan has an open project: its link goes in the Monday update
     const rows = await db.clientReviewRequest.findMany({ where: { organizationId: org }, orderBy: { clientId: "asc" } });
     expect(rows.map((x) => x.clientId).sort()).toEqual([client, quiet].sort());
     expect(rows.find((x) => x.clientId === client)!.sentTo).toBeNull(); // no email on file: portal or a copied link instead

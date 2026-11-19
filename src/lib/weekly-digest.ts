@@ -7,6 +7,7 @@ import type { PrismaClient } from "@prisma/client";
 import { loadProjectHealth, type ProjectHealthRow } from "./project-health";
 import { notifyMany, usersWithPermission } from "./notifications";
 import { appUrl, firstName, sendTemplateQuietly } from "./email-template-store";
+import { issueReviewLink, lastWeekStart, reviewUrl, reviewableClients } from "./client-reviews";
 
 type Db = PrismaClient;
 const DAY = 86_400_000;
@@ -110,7 +111,10 @@ export async function sendWeeklyDigests(db: Db, p: { organizationId: string; tod
     owners++;
   }
 
-  // Clients: one email to the client's address (or its portal users when it has none), and a notice in their portal
+  // Clients: one email to the client's address (or its portal users when it has none), and a notice in their portal.
+  // When last week's review is due, the same email carries the rating link (the review job leaves these clients to this email).
+  const reviewWeek = lastWeekStart(p.today);
+  const reviewable = new Set((await reviewableClients(db, p.organizationId, p.today)).map((c) => c.id));
   const withProjects = await db.project.findMany({ where: { organizationId: p.organizationId, status: { in: ["ACTIVE", "ON_HOLD"] }, archivedAt: null, clientId: { not: null } }, distinct: ["clientId"], select: { clientId: true } });
   for (const { clientId } of withProjects) {
     const active = await db.client.findFirst({ where: { id: clientId!, organizationId: p.organizationId, active: true }, select: { id: true } });
@@ -122,14 +126,31 @@ export async function sendWeeklyDigests(db: Db, p: { organizationId: string; tod
     const portalUsers = await db.user.findMany({ where: { organizationId: p.organizationId, clientId: clientId!, active: true }, select: { id: true, email: true } });
     const to = d.clientEmail ? [d.clientEmail] : portalUsers.map((x) => x.email).filter((e): e is string => Boolean(e));
     const link = `${appUrl()}/portal`;
+    const review = to.length && reviewable.has(clientId!) ? await reviewForUpdate(db, p.organizationId, clientId!, reviewWeek) : null;
+    let status: string | null = null;
     for (const email of to) {
-      await sendTemplateQuietly(db, {
-        organizationId: p.organizationId, key: "project_weekly_client", to: email, relatedType: "WeeklyDigest", relatedId, buttonUrl: link,
-        vars: { client_name: d.clientName, week: w.label, projects: d.progress.join("; "), finished: listed(d.finished), waiting: d.waiting, requests: d.requests, next: listed(d.next), project_manager: d.projectManager, link },
+      const sent = await sendTemplateQuietly(db, {
+        organizationId: p.organizationId, key: "project_weekly_client", to: email, relatedType: "WeeklyDigest", relatedId, buttonUrl: link, secret: Boolean(review),
+        vars: {
+          client_name: d.clientName, week: w.label, projects: d.progress.join("; "), finished: listed(d.finished), waiting: d.waiting, requests: d.requests, next: listed(d.next), project_manager: d.projectManager, link,
+          review_link: review?.link ?? "", review_note: review ? `How did we do? Rate last week with the button at the bottom (about a minute, no password; the link works for 14 days).` : "",
+        },
       });
+      if (sent?.status === "SENT" || !status) status = sent?.status ?? "FAILED";
     }
+    if (review) await db.clientReviewRequest.update({ where: { id: review.requestId }, data: { sentTo: to.join(", ").slice(0, 300), emailStatus: status ?? "FAILED" } });
     await notifyMany(db, portalUsers.map((x) => x.id), { kind: "portal.weekly", title: `Your weekly update: ${d.finished.length} finished${d.waitingCount ? `, ${d.waitingCount} waiting for you` : ""}`, body: d.progress.join("; ").slice(0, 300), link: "/portal/projects", dedupeKey: `portal-weekly:${relatedId}` });
     if (to.length || portalUsers.length) clients++;
   }
   return { owners, clients, week: w.label };
+}
+
+// The rating link for last week, for the Monday update. Null when the week is already rated or its form was already emailed on its own.
+// Issuing a fresh link replaces the one made earlier by the review job, which was never sent.
+async function reviewForUpdate(db: Db, organizationId: string, clientId: string, weekStart: string) {
+  if (await db.clientReview.findUnique({ where: { clientId_weekStart: { clientId, weekStart } } })) return null;
+  const existing = await db.clientReviewRequest.findUnique({ where: { clientId_weekStart: { clientId, weekStart } }, select: { sentTo: true, answeredAt: true } });
+  if (existing?.sentTo || existing?.answeredAt) return null;
+  const { token, request } = await issueReviewLink(db, { organizationId, clientId, weekStart });
+  return { link: reviewUrl(token), requestId: request.id };
 }
