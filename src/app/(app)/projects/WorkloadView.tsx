@@ -8,6 +8,7 @@ import { getWorkingContext } from "@/lib/working-calendar";
 import { loadWorkload, type LoadLevel, type PersonLoad } from "@/lib/workload";
 import { Badge, Empty, PageHeader, Pager, Stat } from "@/components/ui";
 import TaskListTable from "./TaskListTable";
+import WorkloadSwitch from "./WorkloadSwitch";
 import { buildTaskRows } from "./task-rows";
 import { listLabels } from "@/lib/task-labels";
 
@@ -51,6 +52,7 @@ export default async function WorkloadView({ user, sp, tabs }: { user: SessionUs
     <div className="space-y-5">
       <PageHeader title="Projects" subtitle="Delivery work, progress and deadlines in one place." />
       {tabs}
+      <WorkloadSwitch current="next" />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Over capacity" value={over} hint={`of ${wl.people.length} people`} />
         <Stat label="Overdue tasks" value={overdue} hint="held by the team" />

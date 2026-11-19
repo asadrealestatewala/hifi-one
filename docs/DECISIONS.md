@@ -301,3 +301,6 @@ The Timeline used to start every bar on the day the task was created, which says
 
 Asad agreed to combine the Monday client emails. Clients with an open project used to get two emails on Monday: the weekly review form and, at 9:00, the project update. Now the update carries the rating link at the bottom, so the client rates the week after seeing what was done, and gets one email instead of two. The review job keeps making every form (portal and staff copy-link still work) and still emails clients who have only a retainer. Nothing about how reviews are scored or how they feed the project manager's bonus changed.
 
+## 2026-11-19: The team hours report splits client and internal time, and lives inside Workload
+
+Time entries have no billable flag, and adding one would mean asking everyone to tick it on every entry. The report therefore splits logged hours by whether the project has a client (client work) or not (internal). It sits as "Hours report" next to "Next 7 days" in Workload rather than as a new screen, because it serves the same people and asks the same question about the past instead of the coming week. Utilisation compares logged hours with working hours up to today, so a month in progress is not shown as half empty. Attendance (clocked hours) stays on the HR screens because project managers do not have the HR permission to see it.
