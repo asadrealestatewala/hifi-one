@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { Notice, SubmitButton } from "@/components/ui";
+import { DrawerCancel } from "@/components/ui/Drawer";
 import { createStaffAction, updateStaffAction, type StaffFormState } from "./actions";
 
 type Opt = { id: string; name: string };
@@ -68,7 +69,7 @@ export default function StaffForm({ mode, values, roles, departments, managers, 
         {state.sameName && <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="allowSameName" /> This is a different person with the same name</label>}
       </div>
       <div className={mode === "create" ? "flex items-center justify-end gap-2 border-t border-border bg-surface px-5 py-3" : "mt-4 flex gap-2"}>
-        {mode === "create" && <Link href={closeTo} className="btn-ghost">Cancel</Link>}
+        {mode === "create" && <DrawerCancel href={closeTo} className="btn-ghost">Cancel</DrawerCancel>}
         <SubmitButton>{mode === "create" ? "Add staff member" : "Save changes"}</SubmitButton>
       </div>
     </form>

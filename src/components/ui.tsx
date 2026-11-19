@@ -5,6 +5,7 @@ import Icon from "@/components/shell/Icon";
 import type { IconName } from "@/components/shell/Icon";
 import { guess, type Tone } from "@/lib/tint";
 import SubmitButton from "./ui/SubmitButton";
+import { DrawerCancel } from "./ui/Drawer";
 import { rangePresets } from "@/lib/date-range";
 import { listHref } from "@/lib/list-params";
 
@@ -253,7 +254,7 @@ export function PanelForm({ action, closeTo, submit, error, hint, children }: { 
       </div>
       <footer className="flex items-center justify-between gap-3 border-t border-border bg-surface px-5 py-3">
         <p className="text-xs text-muted">{hint}</p>
-        <div className="flex gap-2"><Link href={closeTo} className="btn-ghost">Cancel</Link><SubmitButton>{submit}</SubmitButton></div>
+        <div className="flex gap-2"><DrawerCancel href={closeTo} className="btn-ghost">Cancel</DrawerCancel><SubmitButton>{submit}</SubmitButton></div>
       </footer>
     </form>
   );
