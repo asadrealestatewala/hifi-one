@@ -301,3 +301,6 @@ The Timeline used to start every bar on the day the task was created, which says
 
 Asad agreed to combine the Monday client emails. Clients with an open project used to get two emails on Monday: the weekly review form and, at 9:00, the project update. Now the update carries the rating link at the bottom, so the client rates the week after seeing what was done, and gets one email instead of two. The review job keeps making every form (portal and staff copy-link still work) and still emails clients who have only a retainer. Nothing about how reviews are scored or how they feed the project manager's bonus changed.
 
+## 2026-11-19: Moving a task can push the work that waits for it, never pull it
+
+The Timeline draws "waits for" links as arrows. When a move leaves waiting tasks starting before the moved task is due, the manager is asked rather than the tasks moving silently, because a manager may knowingly overlap work (the rule since start dates were added). "Move them too" only pushes later, by the days needed, keeping each task's length, and follows the chain inside the project. Moving a task earlier never pulls others forward: free time is the manager's to fill. Done tasks and tasks with no dates stay as they are.
