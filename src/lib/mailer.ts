@@ -120,6 +120,7 @@ export async function sendEmail(db: Db, p: {
   mailboxId?: string | null; // send from this mailbox instead (follow-ups from a salesperson's or the sales mailbox)
   html?: string; // branded HTML version; `text` stays the plain-text part
   headers?: Record<string, string>;
+  replyTo?: string; // where replies go instead of the sending mailbox (task emails: the person's private reply address)
 }) {
   const to = cleanAddress(p.to);
   const subject = oneLine(p.subject).slice(0, 200);
@@ -156,7 +157,7 @@ export async function sendEmail(db: Db, p: {
   const messageId = mailbox ? newMessageId(mailbox.address) : undefined;
   let r: { messageId?: string };
   try {
-    r = await t.send({ from, to, subject, text: p.text, html: p.html, attachments: p.attachment ? [p.attachment] : undefined, messageId, headers: p.headers });
+    r = await t.send({ from, to, subject, text: p.text, html: p.html, attachments: p.attachment ? [p.attachment] : undefined, messageId, headers: p.headers, replyTo: p.replyTo ? cleanAddress(p.replyTo) : undefined });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     await keep("FAILED", { error: msg.slice(0, 500), messageId });
