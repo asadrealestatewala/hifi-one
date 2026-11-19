@@ -289,6 +289,10 @@ Client comments on a design are part of the existing deliverable approval, not a
 
 Phase 4 starts with a weekly planner (Projects → Planner). Tasks have only a due date, so a task's whole estimate counts on the day it is due rather than being spread over invented working days. The screen says so and suggests an earlier date or subtasks for big work. A move changes the due date and the assignee together in one checked step (`planTask`), using the same rules as the task list (only the project's manager or `projects.manage`, open projects, team members only). People who don't plan work see their own week read only, so the planner never becomes a second way to change dates without the manager. Part 2 adds a start date for the Timeline; the planner keeps using the due date.
 
+## 2026-11-19: The task timer writes ordinary time entries
+
+The timer (Phase 4 part 3) does not keep its own record of hours. Stopping it creates a normal `TimeEntry` through `logTime`, so time approval, cost rates, profitability, scorecards and Hours on projects all treat it like typed time, and the existing rules (team only, open project, 24 hours a day) apply unchanged. Only one timer runs per person, so time is never counted twice. A timer left running more than 10 hours must have its hours typed in, so a forgotten timer never logs a night. The timer is kept apart from the attendance clock: clocking in says you are at work, the timer says what you worked on.
+
 ## 2026-11-19: Tasks get an optional start date for the Timeline
 
 The Timeline used to start every bar on the day the task was created, which says nothing about when work is planned. Tasks now have an optional `startDate`, set by dragging Timeline bars or in the task panel. Without one, the bar still starts at creation, so existing projects look the same until someone plans them. Dependency and deadline clashes are warnings, not refusals: a manager may knowingly overlap work, but they see it at once. Only the project's manager (or `projects.manage`) changes dates, matching the task list and planner rules.

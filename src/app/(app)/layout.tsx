@@ -11,6 +11,7 @@ import { startViewAs, stopViewAs } from "./view-as/actions";
 import { canPreviewRole } from "@/lib/view-as";
 import { destinations } from "@/lib/go-to";
 import { applyMenu, sanitizeMenu } from "@/lib/menu-layout";
+import { currentTimer } from "@/lib/task-timer";
 
 async function signOut() {
   "use server";
@@ -27,6 +28,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     user.viewAs ? null : db.userPreference.findUnique({ where: { userId_key: { userId: user.id, key: "menu" } } }),
     user.realSuperAdmin ? db.role.findMany({ where: { organizationId: user.organizationId }, orderBy: { name: "asc" }, select: { key: true, name: true } }) : null,
   ]);
+  // The task timer bar: staff who can work on tasks, never while viewing as someone else (that view is read-only)
+  const canTrack = user.permissions.has("tasks.edit") && user.userType === "EMPLOYEE" && !user.viewAs && !user.viewAsPerson;
+  const timer = canTrack ? await currentTimer(db, { organizationId: user.organizationId, userId: user.id }) : null;
   const allGroups = visibleNav(user.permissions);
   const prefs = sanitizeMenu(saved?.value, allGroups);
   const groups = applyMenu(allGroups, prefs);
@@ -34,7 +38,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <>
     {user.viewAsPerson && <ViewAsPersonBanner name={user.viewAsPerson.userName} adminName={user.viewAsPerson.adminName} typeLabel="staff" />}
-    <Shell groups={groups} allGroups={allGroups} destinations={destinations(user.permissions)} menuPrefs={prefs} quick={quick} name={user.name} roles={user.roles.join(", ")} userId={user.id} unread={unread} chatUnread={chatUnread} callerId={chatUnread !== null && user.permissions.has("meetings.use") ? user.id : null} stats={stats} canSearch={user.permissions.has("dashboard.view")} canAsk={user.permissions.has("assistant.use")} signOut={signOut}
+    <Shell groups={groups} allGroups={allGroups} destinations={destinations(user.permissions)} menuPrefs={prefs} quick={quick} name={user.name} roles={user.roles.join(", ")} userId={user.id} unread={unread} chatUnread={chatUnread} callerId={chatUnread !== null && user.permissions.has("meetings.use") ? user.id : null} stats={stats} canSearch={user.permissions.has("dashboard.view")} canAsk={user.permissions.has("assistant.use")} canTrack={canTrack} timer={timer} signOut={signOut}
       viewAs={switchRoles ? { roles: switchRoles.filter((r) => canPreviewRole(r.key)), active: user.viewAs ? { key: user.viewAs.roleKey, name: user.viewAs.roleName } : null, start: startViewAs, stop: stopViewAs } : null}>
       {children}
     </Shell>

@@ -156,7 +156,7 @@ function Card({ t, days, people, today, onDrag, onMove, busy, showWho }: {
                 <option value="__keep">Keep {who ?? "unassigned"}</option>
                 {people.filter((p) => p.id !== t.assigneeId).map((p) => <option key={p.id} value={p.id}>Give to {p.name}</option>)}
               </select>
-              <button className="btn-primary !px-2 !py-0.5 !text-xs" disabled={busy}>Move task</button>
+              <button className="btn !px-2 !py-0.5 !text-xs" disabled={busy}>Move task</button>
             </form>
           )}
         </>
