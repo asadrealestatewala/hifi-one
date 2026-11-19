@@ -293,3 +293,7 @@ Phase 4 starts with a weekly planner (Projects → Planner). Tasks have only a d
 
 The timer (Phase 4 part 3) does not keep its own record of hours. Stopping it creates a normal `TimeEntry` through `logTime`, so time approval, cost rates, profitability, scorecards and Hours on projects all treat it like typed time, and the existing rules (team only, open project, 24 hours a day) apply unchanged. Only one timer runs per person, so time is never counted twice. A timer left running more than 10 hours must have its hours typed in, so a forgotten timer never logs a night. The timer is kept apart from the attendance clock: clocking in says you are at work, the timer says what you worked on.
 
+## 2026-11-19: Tasks get an optional start date for the Timeline
+
+The Timeline used to start every bar on the day the task was created, which says nothing about when work is planned. Tasks now have an optional `startDate`, set by dragging Timeline bars or in the task panel. Without one, the bar still starts at creation, so existing projects look the same until someone plans them. Dependency and deadline clashes are warnings, not refusals: a manager may knowingly overlap work, but they see it at once. Only the project's manager (or `projects.manage`) changes dates, matching the task list and planner rules.
+

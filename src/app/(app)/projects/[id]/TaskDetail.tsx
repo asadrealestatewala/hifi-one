@@ -12,7 +12,7 @@ import { addSubtaskAction, addTaskCommentAction, moveTask, saveTaskDetailAction 
 type Sub = { id: string; title: string; status: string };
 type Comment = { id: string; authorId: string; author: string; body: string; at: string; shared: boolean; fromClient: boolean };
 export type TaskDetailData = {
-  id: string; title: string; status: string; description: string; priority: string; assigneeId: string; due: string; estimate: string; clientVisible: boolean; recurrence: string; labelIds: string[];
+  id: string; title: string; status: string; description: string; priority: string; assigneeId: string; due: string; start: string; estimate: string; clientVisible: boolean; recurrence: string; labelIds: string[];
   blockedBy: string[]; parentTitle: string | null;
 };
 
@@ -48,6 +48,7 @@ export default function TaskDetail({ task, subtasks, candidates, members, labels
           <div className="sm:col-span-2"><label className="label" htmlFor="td-desc">Description</label><textarea id="td-desc" name="description" rows={3} maxLength={4000} defaultValue={task.description} className="input" /></div>
           <div><label className="label" htmlFor="td-as">Assignee</label><select id="td-as" name="assigneeId" defaultValue={task.assigneeId} className="input"><option value="">Unassigned</option>{members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
           <div><label className="label" htmlFor="td-pr">Priority</label><select id="td-pr" name="priority" defaultValue={task.priority} className="input">{["LOW", "MEDIUM", "HIGH"].map((p) => <option key={p}>{p}</option>)}</select></div>
+          <div><label className="label" htmlFor="td-start">Start date</label><input id="td-start" name="startDate" type="date" defaultValue={task.start} className="input" /></div>
           <div><label className="label" htmlFor="td-due">Due date</label><input id="td-due" name="dueDate" type="date" defaultValue={task.due} className="input" /></div>
           <div><label className="label" htmlFor="td-est">Estimate (hours)</label><input id="td-est" name="estimatedHours" inputMode="decimal" defaultValue={task.estimate} placeholder="e.g. 3" className="input" /></div>
           <div><label className="label" htmlFor="td-rep">Repeats</label><select id="td-rep" name="recurrence" defaultValue={task.recurrence} className="input" disabled={Boolean(task.parentTitle)}><option value="">Does not repeat</option><option value="DAILY">Daily</option><option value="WEEKLY">Weekly</option><option value="MONTHLY">Monthly</option></select></div>

@@ -649,6 +649,7 @@ model Task {
   status         String    @default("TODO") // TODO | IN_PROGRESS | REVIEW | DONE
   priority       String    @default("MEDIUM")
   assigneeId     String?
+  startDate      DateTime? // when work on the task should begin (the Timeline bar's left end); empty = drawn from the day it was created
   dueDate        DateTime?
   estimatedHours Decimal?  @db.Decimal(8, 2)
   clientVisible  Boolean   @default(false)
