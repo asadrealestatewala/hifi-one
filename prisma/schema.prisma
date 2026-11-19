@@ -619,6 +619,7 @@ model Project {
   updates     ProjectUpdate[]
   members     ProjectMember[]
   tasks       Task[]
+  clientRequests ClientRequest[]
   milestones  Milestone[]
   timeEntries TimeEntry[]
   cloutPosts  CloutPost[]
@@ -4405,4 +4406,30 @@ model SolutionConnection {
   lastError     String?
 
   product SaasProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+// Something a client asks for from their portal. Nothing reaches the team's task list until the project manager approves it
+// (it then becomes a client-visible task) or declines it with a reason the client sees.
+model ClientRequest {
+  id             String    @id @default(cuid())
+  organizationId String
+  projectId      String
+  clientId       String
+  createdById    String // the portal user who asked
+  title          String
+  details        String?
+  wantedBy       String? // YYYY-MM-DD, the date the client would like it by
+  status         String    @default("PENDING") // PENDING | APPROVED | DECLINED | WITHDRAWN
+  decidedById    String?
+  decidedAt      DateTime?
+  declineReason  String?
+  taskId         String?   @unique
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([projectId, status])
+  @@index([clientId, createdAt])
 }

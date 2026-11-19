@@ -12,6 +12,7 @@ would send a message says "not configured" or hands the person a link to copy.
 | `commission_accrual` | Commissions for payments received (once per payment), then tells the approvers |
 | `expiry_sweep` | Sent quotations past valid-until and active contracts past their end date become expired |
 | `partner_certificates` | Emails partners 30, 7 and 1 day before a certificate of authorisation expires (with the refresher test link) and tells the Partner Managers |
+| `project_weekly_digest` | Mondays from 09:00 company time: emails the owners (`dashboard.executive` and `projects.view_all`) every active project's health and last week's numbers, and each active client with an open project their progress, finished shared tasks, approvals waiting and requests (`src/lib/weekly-digest.ts`); once per person and client per week, with an in-app notice beside each email |
 | `partner_academy_weekly` | Mondays only: emails everyone with `partners.manage` the Partner Academy summary of the last 7 days (once per week) |
 | `invoice_reminders` | Weekly overdue reminder to finance and the client; heads-up to the client three days before the due date |
 | `task_reminders` | Tasks due tomorrow and tasks that became overdue today |

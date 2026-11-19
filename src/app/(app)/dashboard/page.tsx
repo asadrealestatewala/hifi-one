@@ -12,6 +12,7 @@ import { questFor } from "@/lib/crm-contacts";
 import { loadMyDay } from "@/lib/my-day";
 import { getWorkingContext } from "@/lib/working-calendar";
 import { formatMoney } from "@/lib/money";
+import { loadProjectHealth } from "@/lib/project-health";
 import Icon from "@/components/shell/Icon";
 import { Avatar, Empty, Stat } from "@/components/ui";
 import QuestCard from "../contacts/QuestCard";
@@ -48,6 +49,10 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     loadAttention(db, org, user, today, now, leadWhere, { calendar: work.calendar, holidays: work.holidayDates }),
     loadMyDay(db, { organizationId: org, userId: user.id, permissions: user.permissions, date: today, timeZone: profile?.timezone ?? "UTC", calendar: work.calendar, holidayName: work.holidays.find((h) => h.date === today)?.name ?? null, now }),
   ]);
+  // Projects at risk, for people who see every project: the same health as the Projects list
+  const health = att.teamOverdueTasks !== null ? await loadProjectHealth(db, { organizationId: org, today, withBudget: has("projects.costs"), projects: await db.project.findMany({ where: { organizationId: org, status: "ACTIVE", archivedAt: null }, select: { id: true, status: true, deadline: true, createdAt: true, budgetAmount: true } }) }) : null;
+  const healthRows = health ? [...health.values()] : [];
+  const red = healthRows.filter((h) => h.health === "RED").length, amber = healthRows.filter((h) => h.health === "AMBER").length;
   // The person's own day comes first: nothing else counts as "attention" while their own attendance or report is open.
   const mine = myDay.items.filter((i) => i.id !== "tasks-overdue"); // the overdue-task line is already in the list below
   const needsMe = mine.length + att.total;
@@ -77,6 +82,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         : "not a working day",
       href: "/hr/attendance",
     } : null,
+    health ? { label: "Projects at risk", value: red, sub: red + amber === 0 ? "every active project is on track" : amber ? `${amber} more to watch` : "the rest are on track", href: "/projects?status=ATTENTION" } : null,
     att.teamOverdueTasks !== null ? { label: "Work overdue", value: att.teamOverdueTasks, sub: att.teamOverdueTasks === 0 ? "every task is on time" : "tasks past their due date", href: "/projects?view=tasks&who=all&due=overdue" } : null,
   ];
 

@@ -15,6 +15,7 @@ import { validLabelIds } from "@/lib/task-labels";
 import { applyTemplate, parseTemplateBody } from "@/lib/project-templates";
 import { BULK_LIMIT, bulkEditTasks, type BulkChange, type BulkSkip } from "@/lib/task-bulk";
 import { notify } from "@/lib/notifications";
+import { approveRequest, declineRequest } from "@/lib/client-requests";
 
 const optDate = z.string().optional().transform((v) => (v ? new Date(v) : null));
 
@@ -335,4 +336,30 @@ export async function bulkTasksAction(taskIds: string[], change: BulkChange): Pr
   const n = (k: number) => `${k} task${k === 1 ? "" : "s"}`;
   const done = change.kind === "delete" ? `Deleted ${n(r.deleted)}.` : `Updated ${n(r.changed.length)}.`;
   return { ok: true, message: `${done}${r.skipped.length ? ` ${n(r.skipped.length)} not changed.` : ""}`, skipped: r.skipped };
+}
+
+// Client requests from the portal: the project manager (or projects.manage) approves one into a task or declines it.
+const requestBack = (projectId: string, q: string) => `/projects/${encodeURIComponent(projectId)}?${q}#requests`;
+
+export async function approveClientRequestAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("projects.view");
+  const projectId = String(formData.get("projectId") ?? "");
+  const requestId = String(formData.get("requestId") ?? "");
+  const r = await approveRequest(db, { organizationId: user.organizationId, userId: user.id, canManageAll: user.permissions.has("projects.manage"), requestId, assigneeId: String(formData.get("assigneeId") ?? "") || null, dueDate: String(formData.get("dueDate") ?? "") || null, priority: String(formData.get("priority") ?? "MEDIUM") });
+  if (!r.ok) redirect(requestBack(projectId, `error=${encodeURIComponent(r.error)}`));
+  await audit(user, { action: "client_request.approve", entity: "ClientRequest", entityId: requestId, after: { taskId: r.value.taskId } });
+  revalidatePath(`/projects/${projectId}`);
+  redirect(requestBack(projectId, "req=accepted"));
+}
+
+export async function declineClientRequestAction(formData: FormData): Promise<void> {
+  const user = await requirePermission("projects.view");
+  const projectId = String(formData.get("projectId") ?? "");
+  const requestId = String(formData.get("requestId") ?? "");
+  const reason = String(formData.get("reason") ?? "");
+  const r = await declineRequest(db, { organizationId: user.organizationId, userId: user.id, canManageAll: user.permissions.has("projects.manage"), requestId, reason });
+  if (!r.ok) redirect(requestBack(projectId, `error=${encodeURIComponent(r.error)}`));
+  await audit(user, { action: "client_request.decline", entity: "ClientRequest", entityId: requestId, after: { reason: reason.slice(0, 300) } });
+  revalidatePath(`/projects/${projectId}`);
+  redirect(requestBack(projectId, "req=declined"));
 }

@@ -16,6 +16,7 @@ import { sendIdentityRecheckReminders } from "./partner-identity";
 import { runResaleDaily } from "./partner-resale";
 import { feedHealthAlerts } from "./solution-feed";
 import { sendAcademyWeekly } from "./partner-academy";
+import { sendWeeklyDigests } from "./weekly-digest";
 import { expireContracts, expireQuotes, generateDueInvoices } from "./sales";
 import { defaultStorage } from "./storage";
 import { type Calendar, getWorkingContext } from "./working-calendar";
@@ -99,6 +100,15 @@ export const JOBS: JobDef[] = [
     async run({ db, organizationId, today, now }) {
       const people = await usersWithPermission(db, organizationId, "partners.manage");
       return feedHealthAlerts(db, organizationId, now, today, (title, body, dedupeKey) => notifyMany(db, people, { kind: "partner.solution_feed", title, body, link: "/partner-stack/live", dedupeKey }));
+    },
+  },
+  {
+    key: "project_weekly_digest", label: "Weekly project emails", notBefore: "09:00",
+    what: "Every Monday at 9:00, emails the owners how every active project stands (at risk, to watch, on track) and what moved last week, and emails each client with an active project their progress, finished work and what is waiting for their approval. Once per person and client each week.",
+    async run({ db, organizationId, today }) {
+      if (new Date(`${today}T00:00:00Z`).getUTCDay() !== 1) return "Sent on Mondays only";
+      const r = await sendWeeklyDigests(db, { organizationId, today });
+      return `Week of ${r.week}: ${r.owners} owner${r.owners === 1 ? "" : "s"} and ${r.clients} client${r.clients === 1 ? "" : "s"} sent`;
     },
   },
   {
