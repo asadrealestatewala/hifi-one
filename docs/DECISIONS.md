@@ -284,3 +284,8 @@ As part of Phase 3, owners and clients get one email each Monday from 9:00 compa
 ## 2026-11-18: Proofing builds on deliverables
 
 Client comments on a design are part of the existing deliverable approval, not a separate review tool. The proof is stored like any other protected file (`StoredFile`, read through signed links and the DELIVERABLE access rule). Comments belong to a version, so a new version starts clean and the history stays. Images take pins. PDFs take page numbers, because the browser's own PDF viewer is used and no PDF-rendering library was added. Pinned comments can replace the "what to change" note.
+
+## 2026-11-19: The weekly planner counts a task on its due day
+
+Phase 4 starts with a weekly planner (Projects → Planner). Tasks have only a due date, so a task's whole estimate counts on the day it is due rather than being spread over invented working days. The screen says so and suggests an earlier date or subtasks for big work. A move changes the due date and the assignee together in one checked step (`planTask`), using the same rules as the task list (only the project's manager or `projects.manage`, open projects, team members only). People who don't plan work see their own week read only, so the planner never becomes a second way to change dates without the manager. Part 2 adds a start date for the Timeline; the planner keeps using the due date.
+
