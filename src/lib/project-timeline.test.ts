@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTimeline } from "./project-timeline";
+import { buildTimeline, timelineLinks } from "./project-timeline";
 
 const d = (s: string) => new Date(`${s}T10:00:00Z`);
 const task = (id: string, over: Partial<Parameters<typeof buildTimeline>[0]["tasks"][number]> = {}) => ({ id, title: id, status: "TODO", createdAt: d("2026-10-01"), dueDate: d("2026-10-10"), completedAt: null, ...over });
@@ -39,5 +39,16 @@ describe("buildTimeline with start dates", () => {
     const a = t.bars.find((b) => b.id === "a")!;
     expect(a).toMatchObject({ start: "2026-10-06", end: "2026-10-09", startSet: true, due: "2026-10-09" });
     expect(t.bars.find((b) => b.id === "b")!.startSet).toBe(false);
+  });
+  it("links a task to the dated work it waits for, and marks the link late when the waiting task starts first", () => {
+    const t = buildTimeline({ tasks: [
+      task("design", { dueDate: d("2026-10-10") }),
+      task("build", { startDate: d("2026-10-08"), dueDate: d("2026-10-20"), blockedBy: ["design"] }),
+      task("test", { startDate: d("2026-10-21"), dueDate: d("2026-10-25"), blockedBy: ["build", "undated", "gone"] }),
+      task("undated", { dueDate: null }),
+    ], today: "2026-10-05" });
+    expect(t.links).toEqual([{ from: "design", to: "build", late: true }, { from: "build", to: "test", late: false }]);
+    const done = timelineLinks([{ id: "a", start: "2026-10-01", due: "2026-10-10", done: true }, { id: "b", start: "2026-10-02", due: "2026-10-12", done: false }], new Map([["b", ["a"]]]));
+    expect(done).toEqual([{ from: "a", to: "b", late: false }]); // finished work never makes a link late
   });
 });
