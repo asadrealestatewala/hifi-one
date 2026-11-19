@@ -22,7 +22,8 @@ Master prompt section in brackets.
 - **Weekly project emails (2026-11-18, tested at the service level; email layout previewed, not sent through a real mailbox):** Monday 9:00 summary to owners and an update to each active client. See `docs/PORTALS_AND_PROJECTS.md`.
 - **Proofing (2026-11-18, tested; checked in a browser on a local seed as a client and as the owner):** clients pin comments on a design image or comment on PDF pages, the team replies and ticks them off; per-version files and comments. See `docs/PORTALS_AND_PROJECTS.md`.
 - **Archive and delete (2026-11-18):** people with `records.delete` can archive a closed project (hidden from lists, restorable) or permanently delete a test project or client that has nothing real attached, after typing its name; audited. Service tested; checked in a browser on a local seed.
-- **Not built:** calendar and Gantt views, workload view, timesheet approval, client-visible comments, subtasks on the client portal.
+- **Weekly planner (2026-11-19, tested; checked in a browser on a local seed as the owner, including drag and drop and the Move menu):** Projects → Planner, the week by person and day with each day's estimates against working hours; drag a task to another day or person. See `docs/PORTALS_AND_PROJECTS.md`.
+- **Not built:** dragging bars on the project Timeline (Phase 4 part 2), a start/stop task timer (Phase 4 part 3), client-visible comments, subtasks on the client portal.
 
 ## Reports, profile, projects and portals (2026-10-14, see `docs/PORTALS_AND_PROJECTS.md`)
 - **Report downloads (done, tested):** CSV and PDF for profit and loss, balance sheet, cash movement, receivables and payables aging, sales tax, the leads report and the workforce report, from one route (`/reports/download`) that uses each report's own permission, the same loaders as the screens, and audits every download. Consolidated (multi-currency) reports are not downloadable yet.

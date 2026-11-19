@@ -11,6 +11,7 @@ import { isOverdue } from "@/lib/project-rules";
 import TasksView from "./TasksView";
 import WorkloadView from "./WorkloadView";
 import TemplatesView from "./TemplatesView";
+import PlannerView from "./PlannerView";
 import { parseTemplateBody } from "@/lib/project-templates";
 import { HEALTH_LABEL, HEALTH_TONE, STALE_UPDATE_DAYS, loadProjectHealth } from "@/lib/project-health";
 import { dateInZone } from "@/lib/hr-rules";
@@ -18,7 +19,7 @@ import { dateInZone } from "@/lib/hr-rules";
 export const dynamic = "force-dynamic";
 
 const STATUSES = ["ACTIVE", "ON_HOLD", "COMPLETED", "CANCELLED"];
-type SP = { deleted?: string; error?: string; status?: string; q?: string; new?: string; client?: string; campaign?: string; from?: string; view?: string; who?: string; tstatus?: string; priority?: string; project?: string; due?: string; page?: string; person?: string; template?: string; ok?: string };
+type SP = { deleted?: string; error?: string; status?: string; q?: string; new?: string; client?: string; campaign?: string; from?: string; view?: string; who?: string; tstatus?: string; priority?: string; project?: string; due?: string; page?: string; person?: string; template?: string; ok?: string; week?: string };
 
 export default async function Projects({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requirePermission("projects.view");
@@ -26,9 +27,10 @@ export default async function Projects({ searchParams }: { searchParams: Promise
   const canManage = user.permissions.has("projects.manage");
   // Workload is for whoever assigns work: project management rights, or the manager of at least one project
   const canWorkload = canManage || (await db.project.count({ where: { organizationId: user.organizationId, managerId: user.id } })) > 0;
-  const view = sp.view === "tasks" ? "tasks" : sp.view === "workload" && canWorkload ? "workload" : sp.view === "templates" && canManage ? "templates" : "projects";
-  const tabs = <Tabs current={view} items={[{ key: "projects", label: "Projects", href: "/projects" }, { key: "tasks", label: "Tasks", href: "/projects?view=tasks" }, ...(canWorkload ? [{ key: "workload", label: "Workload", href: "/projects?view=workload" }] : []), ...(canManage ? [{ key: "templates", label: "Templates", href: "/projects?view=templates" }] : [])]} />;
+  const view = sp.view === "tasks" ? "tasks" : sp.view === "planner" ? "planner" : sp.view === "workload" && canWorkload ? "workload" : sp.view === "templates" && canManage ? "templates" : "projects";
+  const tabs = <Tabs current={view} items={[{ key: "projects", label: "Projects", href: "/projects" }, { key: "tasks", label: "Tasks", href: "/projects?view=tasks" }, { key: "planner", label: "Planner", href: "/projects?view=planner" }, ...(canWorkload ? [{ key: "workload", label: "Workload", href: "/projects?view=workload" }] : []), ...(canManage ? [{ key: "templates", label: "Templates", href: "/projects?view=templates" }] : [])]} />;
   if (view === "tasks") return <TasksView user={user} sp={sp} tabs={tabs} />;
+  if (view === "planner") return <PlannerView user={user} sp={{ week: sp.week }} tabs={tabs} canPlan={canWorkload} />;
   if (view === "workload") return <WorkloadView user={user} sp={{ person: sp.person, page: sp.page }} tabs={tabs} />;
   if (view === "templates") return <TemplatesView user={user} sp={{ ok: sp.ok, status: sp.status }} tabs={tabs} />;
   const status = STATUSES.includes(sp.status ?? "") || sp.status === "ARCHIVED" || sp.status === "ATTENTION" ? sp.status! : "all";
