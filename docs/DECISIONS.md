@@ -312,3 +312,7 @@ Until now only "task assigned" was emailed; comments notified in the app. To let
 ## 2026-11-19: The team hours report splits client and internal time, and lives inside Workload
 
 Time entries have no billable flag, and adding one would mean asking everyone to tick it on every entry. The report therefore splits logged hours by whether the project has a client (client work) or not (internal). It sits as "Hours report" next to "Next 7 days" in Workload rather than as a new screen, because it serves the same people and asks the same question about the past instead of the coming week. Utilisation compares logged hours with working hours up to today, so a month in progress is not shown as half empty. Attendance (clocked hours) stays on the HR screens because project managers do not have the HR permission to see it.
+
+## 2026-11-19: The task panel saves as you go
+
+Asad asked for a cleaner task panel. Fields now save when they change, and text fields when you leave them, instead of with a Save details button. The panel shows "Saving…" then "Saved", and an error appears at the top if a check refuses the change. Each save still goes through the one existing action with the whole form, so no rule moved. Rarely used settings sit in a closed "More options" section with a summary, so the panel opens on what people change most: status, assignee, due date and priority.
