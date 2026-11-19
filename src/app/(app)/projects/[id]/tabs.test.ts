@@ -7,6 +7,7 @@ describe("project page tabs", () => {
   it("opens the tab named by a hash or a ?tab value", () => {
     expect(resolveTab("#tasks", keys)).toBe("tasks");
     expect(resolveTab("settings", keys)).toBe("settings");
+    expect(resolveTab("#requests", keys)).toBe("overview"); // client requests sit on the overview
   });
   it("maps older section anchors to the tab that holds them", () => {
     expect(resolveTab("#deliverables", keys)).toBe("updates");

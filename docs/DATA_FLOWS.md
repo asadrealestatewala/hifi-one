@@ -111,3 +111,7 @@ A clocked-in person starts a browser screen share themselves; the dock saves a s
 ## Reseller partner billing (2026-11-16)
 
 Owner: `src/lib/partner-resale.ts`. Resale terms (`PartnerResaleTerm`) and schools (`ResaleSchool`, each a `Client`) are set by the partner team (`partners.manage`); monthly counts (`ResaleCount`) come from the partner and are confirmed by staff. Confirmed counts become **draft** invoices (to the partner's billing client for Partner collects, to each school for Hifi collects); Finance issues them through `issueInvoice` (journal, number, bank snapshot). A partner's payment report (`PartnerPaymentNotice` + receipt file) becomes money only when Finance confirms it, through `recordPayment` with key `partner-notice:<id>`. Reports: invoices, receivables and receipts as for any client. Portal views: partner My schools and Invoices. Details: `docs/PARTNER_STACK.md`.
+
+## Client request to task (2026-11-18)
+
+Client portal → `raiseRequest` (project must be the session client's, open) → notice to the project manager → project page Overview and Approvals list it → the project manager or `projects.manage` calls `approveRequest` (one transaction: claim the request, create the client-visible task, link it; then `taskAssigned` and a portal notice) or `declineRequest` (reason required, portal notice). `ClientRequest` owns the ask and the decision; `Task` owns the work from then on. No financial effect.

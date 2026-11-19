@@ -8,6 +8,9 @@ import { portalAddComment, portalProject } from "@/lib/portal";
 import PhaseTracker from "@/components/PhaseTracker";
 import { KIND_LABEL, PHASE_LABEL, clientFeed, type ProjectPhase, type UpdateKind } from "@/lib/project-updates";
 import { Badge, Notice, PageHeader, StatusBadge, SubmitButton } from "@/components/ui";
+import ConfirmButton from "@/components/ui/ConfirmButton";
+import { REQUEST_STATUS_LABEL, portalRequests, raiseRequest, withdrawRequest } from "@/lib/client-requests";
+import { dateInZone } from "@/lib/hr-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -27,19 +30,43 @@ async function comment(formData: FormData) {
   redirect(`/portal/projects/${projectId}?sent=1#t-${taskId}`);
 }
 
-export default async function PortalProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; sent?: string }> }) {
+async function ask(formData: FormData) {
+  "use server";
+  const user = await requireClientUser();
+  const projectId = String(formData.get("projectId") ?? "");
+  const profile = await db.companyProfile.findFirst({ where: { organizationId: user.organizationId, isDefault: true }, select: { timezone: true } });
+  const r = await raiseRequest(db, { clientId: user.clientId, userId: user.id, projectId, title: String(formData.get("title") ?? ""), details: String(formData.get("details") ?? ""), wantedBy: String(formData.get("wantedBy") ?? ""), today: dateInZone(new Date(), profile?.timezone ?? "UTC") });
+  if (!r.ok) redirect(`/portal/projects/${encodeURIComponent(projectId)}?error=${encodeURIComponent(r.error)}#requests`);
+  await audit(user, { action: "portal.client_request", entity: "ClientRequest", entityId: r.value.id, after: { projectId, title: r.value.title } });
+  redirect(`/portal/projects/${encodeURIComponent(projectId)}?asked=1#requests`);
+}
+
+async function withdraw(formData: FormData) {
+  "use server";
+  const user = await requireClientUser();
+  const projectId = String(formData.get("projectId") ?? "");
+  const requestId = String(formData.get("requestId") ?? "");
+  const r = await withdrawRequest(db, { clientId: user.clientId, requestId });
+  if (!r.ok) redirect(`/portal/projects/${encodeURIComponent(projectId)}?error=${encodeURIComponent(r.error)}#requests`);
+  await audit(user, { action: "portal.client_request_withdraw", entity: "ClientRequest", entityId: requestId });
+  redirect(`/portal/projects/${encodeURIComponent(projectId)}#requests`);
+}
+
+export default async function PortalProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; sent?: string; asked?: string }> }) {
   const user = await requireClientUser();
   const { id } = await params;
   const sp = await searchParams;
   const p = await portalProject(db, user.clientId, id);
   if (!p) notFound();
-  const feed = await clientFeed(db, { clientId: user.clientId, projectId: p.id, take: 50 });
+  const [feed, requests] = await Promise.all([clientFeed(db, { clientId: user.clientId, projectId: p.id, take: 50 }), portalRequests(db, { clientId: user.clientId, projectId: p.id })]);
+  const open = p.status === "ACTIVE" || p.status === "ON_HOLD";
   return (
     <div className="space-y-5">
       <Link href="/portal/projects" className="text-sm text-muted hover:underline">← All projects</Link>
       <PageHeader title={p.name} subtitle={`${p.number}${p.deadline ? ` · due ${p.deadline.toLocaleDateString()}` : ""} · ${p.progress}% complete`} actions={<StatusBadge status={p.status} />} />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {sp.sent && <Notice kind="ok">Your message was sent to the team.</Notice>}
+      {sp.asked && <Notice kind="ok">Your request was sent. Your project manager will accept it or reply, and you will get a notice either way.</Notice>}
       <section className="card grid gap-3 text-sm sm:grid-cols-4" aria-label="Project details">
         <div><p className="text-xs font-semibold text-muted">Your project manager</p><p className="font-medium">{p.manager ? p.manager.name : "Not assigned yet"}</p>{p.manager?.employeeNo && <p className="text-xs text-muted">ID {p.manager.employeeNo}</p>}</div>
         <div><p className="text-xs font-semibold text-muted">Project</p><p className="font-medium">{p.number}</p></div>
@@ -59,6 +86,40 @@ export default async function PortalProjectPage({ params, searchParams }: { para
                   <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-medium">{u.title}</p><Badge>{KIND_LABEL[u.kind as UpdateKind] ?? u.kind}</Badge></div>
                   {u.body && <p className="whitespace-pre-wrap text-muted">{u.body}</p>}
                   <p className="text-xs text-muted">{u.author} · {u.at.toLocaleString()}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+      {(open || requests.length > 0) && (
+        <section id="requests" className="card space-y-4" aria-labelledby="req-h">
+          <div><h2 id="req-h" className="font-semibold">Requests</h2><p className="text-sm text-muted">Ask the team for something new on this project. Your project manager accepts it as a task you can follow here, or tells you why not.</p></div>
+          {open && (
+            <form action={ask} className="grid gap-3 sm:grid-cols-3">
+              <input type="hidden" name="projectId" value={p.id} />
+              <div className="sm:col-span-2"><label className="label" htmlFor="rq-title">What do you need?</label><input id="rq-title" name="title" required minLength={3} maxLength={200} className="input" /></div>
+              <div><label className="label" htmlFor="rq-by">Needed by (optional)</label><input id="rq-by" name="wantedBy" type="date" className="input" /></div>
+              <div className="sm:col-span-3"><label className="label" htmlFor="rq-details">Details (optional)</label><textarea id="rq-details" name="details" rows={3} maxLength={4000} className="input" /></div>
+              <div className="sm:col-span-3"><SubmitButton pendingText="Sending…">Send request</SubmitButton></div>
+            </form>
+          )}
+          {requests.length > 0 && (
+            <ul className="divide-y divide-border text-sm">
+              {requests.map((r) => (
+                <li key={r.id} className="flex flex-wrap items-start justify-between gap-2 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">{r.title}</p>
+                    <p className="text-xs text-muted">Sent {r.createdAt.toLocaleDateString()}{r.wantedBy ? ` · needed by ${r.wantedBy}` : ""}</p>
+                    {r.status === "DECLINED" && r.declineReason && <p className="mt-1 text-muted">Reply from the team: {r.declineReason}</p>}
+                    {r.status === "APPROVED" && r.taskId && <a href={`#t-${r.taskId}`} className="text-xs text-primary hover:underline">Follow the task</a>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge tone={r.status === "APPROVED" ? "success" : r.status === "DECLINED" ? "danger" : r.status === "PENDING" ? "warning" : "neutral"}>{REQUEST_STATUS_LABEL[r.status] ?? r.status}</Badge>
+                    {r.status === "PENDING" && (
+                      <form action={withdraw}><input type="hidden" name="projectId" value={p.id} /><input type="hidden" name="requestId" value={r.id} /><ConfirmButton title="Withdraw this request?" message="The team will no longer see it as waiting." confirmLabel="Withdraw">Withdraw</ConfirmButton></form>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

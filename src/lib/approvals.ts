@@ -40,7 +40,7 @@ export async function pendingApprovals(db: Db, user: ApprovalUser): Promise<Appr
   const names = new Map<string, string>();
   const groups: ApprovalGroup[] = [];
 
-  const [leave, visits, requests, vouchers, commissions, conversions, onboarding, corrections, deliverables] = await Promise.all([
+  const [leave, visits, requests, vouchers, commissions, conversions, onboarding, corrections, deliverables, clientRequests] = await Promise.all([
     has("leave.approve")
       ? db.leaveRequest.findMany({ where: { status: "PENDING", userId: { not: user.id, ...(staffFilter ? { in: reports! } : {}) }, leaveType: { organizationId: org } }, orderBy: { createdAt: "asc" }, select: { id: true, userId: true, startDate: true, endDate: true, days: true, createdAt: true, leaveType: { select: { name: true } } } })
       : [],
@@ -68,6 +68,8 @@ export async function pendingApprovals(db: Db, user: ApprovalUser): Promise<Appr
     has("projects.manage")
       ? db.deliverable.findMany({ where: { status: "PENDING", organizationId: org }, orderBy: { requestedAt: "asc" }, select: { id: true, title: true, projectId: true, requestedAt: true, createdAt: true } })
       : [],
+    // Client requests: anyone with projects.manage, otherwise the manager of the project
+    db.clientRequest.findMany({ where: { organizationId: org, status: "PENDING", ...(has("projects.manage") ? {} : { project: { managerId: user.id } }) }, orderBy: { createdAt: "asc" }, select: { id: true, title: true, projectId: true, createdAt: true, wantedBy: true, project: { select: { name: true } } } }),
   ]);
 
   const ids = new Set<string>([...leave.map((l) => l.userId), ...visits.map((v) => v.userId), ...requests.map((r) => r.userId), ...vouchers.map((v) => v.submittedById), ...commissions.map((c) => c.userId), ...onboarding.map((o) => o.userId), ...corrections.map((c) => c.userId), ...conversions.map((c) => c.requestedById)]);
@@ -96,6 +98,9 @@ export async function pendingApprovals(db: Db, user: ApprovalUser): Promise<Appr
     corrections.map((c) => ({ id: c.id, title: `Day ${c.day}`, who: who(c.userId), since: c.createdAt, href: "/hr/monitoring" })));
   group("deliverables", "Client deliverables", "Work sent to a client for approval.", "folder", "/projects",
     deliverables.map((d) => ({ id: d.id, title: d.title, since: d.requestedAt ?? d.createdAt, href: `/projects/${d.projectId}` })));
+
+  group("clientRequests", "Client requests", "Things clients asked for from their portal, to accept as a task or decline.", "chat", "/projects",
+    clientRequests.map((r) => ({ id: r.id, title: r.title, sub: `${r.project.name}${r.wantedBy ? ` · wanted by ${r.wantedBy}` : ""}`, since: r.createdAt, href: `/projects/${r.projectId}#requests` })));
 
   return groups;
 }
