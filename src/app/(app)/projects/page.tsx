@@ -10,6 +10,7 @@ import Drawer from "@/components/ui/Drawer";
 import { isOverdue } from "@/lib/project-rules";
 import TasksView from "./TasksView";
 import WorkloadView from "./WorkloadView";
+import HoursReportView from "./HoursReportView";
 import TemplatesView from "./TemplatesView";
 import PlannerView from "./PlannerView";
 import { parseTemplateBody } from "@/lib/project-templates";
@@ -19,7 +20,7 @@ import { dateInZone } from "@/lib/hr-rules";
 export const dynamic = "force-dynamic";
 
 const STATUSES = ["ACTIVE", "ON_HOLD", "COMPLETED", "CANCELLED"];
-type SP = { deleted?: string; error?: string; status?: string; q?: string; new?: string; client?: string; campaign?: string; from?: string; view?: string; who?: string; tstatus?: string; priority?: string; project?: string; due?: string; page?: string; person?: string; template?: string; ok?: string; week?: string };
+type SP = { deleted?: string; error?: string; status?: string; q?: string; new?: string; client?: string; campaign?: string; from?: string; view?: string; who?: string; tstatus?: string; priority?: string; project?: string; due?: string; page?: string; person?: string; template?: string; ok?: string; week?: string; report?: string; period?: string; at?: string };
 
 export default async function Projects({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requirePermission("projects.view");
@@ -31,6 +32,7 @@ export default async function Projects({ searchParams }: { searchParams: Promise
   const tabs = <Tabs current={view} items={[{ key: "projects", label: "Projects", href: "/projects" }, { key: "tasks", label: "Tasks", href: "/projects?view=tasks" }, { key: "planner", label: "Planner", href: "/projects?view=planner" }, ...(canWorkload ? [{ key: "workload", label: "Workload", href: "/projects?view=workload" }] : []), ...(canManage ? [{ key: "templates", label: "Templates", href: "/projects?view=templates" }] : [])]} />;
   if (view === "tasks") return <TasksView user={user} sp={sp} tabs={tabs} />;
   if (view === "planner") return <PlannerView user={user} sp={{ week: sp.week }} tabs={tabs} canPlan={canWorkload} />;
+  if (view === "workload" && sp.report === "hours") return <HoursReportView user={user} sp={{ period: sp.period, at: sp.at }} tabs={tabs} />;
   if (view === "workload") return <WorkloadView user={user} sp={{ person: sp.person, page: sp.page }} tabs={tabs} />;
   if (view === "templates") return <TemplatesView user={user} sp={{ ok: sp.ok, status: sp.status }} tabs={tabs} />;
   const status = STATUSES.includes(sp.status ?? "") || sp.status === "ARCHIVED" || sp.status === "ATTENTION" ? sp.status! : "all";
