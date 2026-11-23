@@ -28,16 +28,20 @@ export async function register() {
         pullDue(db).catch((e) => console.error("Reading Solution summaries failed", e)).finally(() => { busy = false; });
       }, 60_000);
     }
-    // Task deadline alerts (2 hours before, and late at the deadline): checked every minute, on by default
+    // Task deadline alerts (2 hours before, and late at the deadline) and work waiting too long for review: checked every minute, on by default
     // (TASK_CLOCK_AUTORUN=0 turns it off). Each alert has a dedupe key, so two servers never send it twice.
     if (process.env.TASK_CLOCK_AUTORUN !== "0") {
       const { db } = await import("./lib/db");
       const { runTaskDeadlineAlerts } = await import("./lib/task-clock");
+      const { runReviewEscalations } = await import("./lib/task-review");
       let busy = false;
       setInterval(() => {
         if (busy) return;
         busy = true;
-        runTaskDeadlineAlerts(db).catch((e) => console.error("Task deadline alerts failed", e)).finally(() => { busy = false; });
+        Promise.all([
+          runTaskDeadlineAlerts(db).catch((e) => console.error("Task deadline alerts failed", e)),
+          runReviewEscalations(db).catch((e) => console.error("Review response alerts failed", e)),
+        ]).finally(() => { busy = false; });
       }, 60_000);
     }
     if (process.env.JOBS_AUTORUN !== "1") return;

@@ -9,15 +9,17 @@ import { Notice } from "@/components/ui";
 import type { Label } from "@/lib/task-labels";
 import LabelChip from "../LabelChip";
 import TaskCountdown from "@/components/ui/TaskCountdown";
+import WaitClock from "@/components/ui/WaitClock";
 import type { DeadlineView } from "@/lib/task-deadline";
 
 type T = {
   id: string; title: string; status: string; priority: string; assignee: string | null; assigneeId: string | null;
   due: string | null; overdue: boolean; subDone: number; subTotal: number; checkDone: number; checkTotal: number; waitingFor: string[]; recurrence: string | null; href: string; labelIds: string[];
   deadline: DeadlineView | null;
+  openIssues: number; waitingSince: string | null; revisions: number; // issues reported, waiting for the manager since, times sent back
 };
 
-export default function TaskBoard({ tasks: initial, canMove, userId, isManager, labels = [] }: { tasks: T[]; canMove: boolean; userId: string; isManager: boolean; labels?: Label[] }) {
+export default function TaskBoard({ tasks: initial, canMove, userId, isManager, labels = [], reviewLimit = 5 }: { tasks: T[]; canMove: boolean; userId: string; isManager: boolean; labels?: Label[]; reviewLimit?: number }) {
   const [tasks, setTasks] = useState(initial);
   // Columns by status (drag to move), or by label (a task with two labels shows in both; status still changes from the card)
   const [groupBy, setGroupBy] = useState<"status" | "label">("status");
@@ -74,6 +76,13 @@ export default function TaskBoard({ tasks: initial, canMove, userId, isManager, 
                       </p>
                     )}
                     <p className="flex items-center gap-1.5 text-xs text-muted">{t.assignee ? <Avatar name={t.assignee} userId={t.assigneeId} size={20} /> : null}{t.assignee ?? "Unassigned"} · {t.priority}</p>
+                    {(t.openIssues > 0 || (t.status === "REVIEW" && t.waitingSince) || t.revisions > 0) && (
+                      <p className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                        {t.openIssues > 0 && <span className="rounded-full bg-danger px-2 py-0.5 font-medium text-white">{t.openIssues} open issue{t.openIssues === 1 ? "" : "s"}</span>}
+                        {t.status === "REVIEW" && t.waitingSince && <WaitClock since={t.waitingSince} limitMinutes={reviewLimit} />}
+                        {t.revisions > 0 && <span className="rounded-full border border-danger/30 px-2 py-0.5 font-medium text-danger">Revision {t.revisions}</span>}
+                      </p>
+                    )}
                     {t.deadline && (
                       <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
                         {/* Moved to Done on this screen: the finish time arrives with the next load */}

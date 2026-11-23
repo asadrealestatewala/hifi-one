@@ -39,7 +39,10 @@ import RemoveRecordPanel from "@/components/RemoveRecordPanel";
 import { projectDeleteBlockers } from "@/lib/record-removal";
 import { listLabels } from "@/lib/task-labels";
 import { getCalendar } from "@/lib/working-calendar";
-import { deadlineAt, deadlineView, taskTimes } from "@/lib/task-deadline";
+import { deadlineAt, deadlineView, spanText, taskTimes } from "@/lib/task-deadline";
+import TaskReviewBox from "./TaskReviewBox";
+import TaskIssues from "./TaskIssues";
+import { OUTCOME_LABEL, responseText, type ReviewOutcome } from "@/lib/task-review";
 import { archiveProjectAction, deleteProjectAction, restoreProjectAction } from "../removal-actions";
 import { saveProjectAsTemplateAction } from "../template-actions";
 import SubmitButton from "@/components/ui/SubmitButton";
@@ -118,6 +121,17 @@ export default async function ProjectPage({
   const nextMilestone = milestonesRaw.filter((m) => m.status !== "DONE").sort((a, b) => String(a.dueDate ?? "9999").localeCompare(String(b.dueDate ?? "9999")))[0] ?? null;
   const openTasks = top.filter((t) => t.status !== "DONE");
   const cal = await getCalendar(db, user.organizationId);
+  // Issues and reviews: open ones for the board and the overview, every one for the open task's panel
+  const [openIssues, openReviews, taskReviews, taskIssues] = await Promise.all([
+    db.taskIssue.findMany({ where: { status: "OPEN", task: { projectId: project.id } }, orderBy: { createdAt: "asc" }, select: { id: true, taskId: true, body: true, reportedById: true, createdAt: true } }),
+    db.taskReview.findMany({ where: { respondedAt: null, task: { projectId: project.id, status: "REVIEW" } }, select: { taskId: true, submittedAt: true, submittedById: true, escalatedAt: true } }),
+    open ? db.taskReview.findMany({ where: { taskId: open.id }, orderBy: { submittedAt: "desc" }, take: 50 }) : Promise.resolve([]),
+    open ? db.taskIssue.findMany({ where: { taskId: open.id }, orderBy: { createdAt: "desc" }, take: 50 }) : Promise.resolve([]),
+  ]);
+  const issuesOn = new Map<string, number>();
+  for (const i of openIssues) issuesOn.set(i.taskId, (issuesOn.get(i.taskId) ?? 0) + 1);
+  const waitingSince = new Map(openReviews.map((r) => [r.taskId, r.submittedAt.toISOString()]));
+  const at = (d: Date) => d.toLocaleString("en-GB", { timeZone: cal.timezone, day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true });
   // Late once the deadline (the due date's time, or the end of the office day) has passed
   const isOverdue = (t: (typeof top)[number]) => t.status !== "DONE" && t.dueDate !== null && deadlineAt(t.dueDate, t.dueTime, cal)! < now;
   const overdue = openTasks.filter(isOverdue);
@@ -185,6 +199,21 @@ export default async function ProjectPage({
           )}
           {overdue.length > attention.filter(isOverdue).length && <p className="text-xs text-muted">More on the <a href="#tasks" className="underline">Tasks</a> tab.</p>}
         </section>
+        {openIssues.length > 0 && (
+          <section className="card space-y-2" aria-labelledby="issues-h">
+            <div className="flex flex-wrap items-center justify-between gap-2"><h2 id="issues-h" className="font-semibold">Open issues</h2><Badge tone="danger">{openIssues.length} open</Badge></div>
+            <ul className="divide-y divide-border text-sm">
+              {openIssues.slice(0, 8).map((i) => (
+                <li key={i.id} className="py-2">
+                  <Link href={taskHref(i.taskId)} className="font-medium hover:underline">{byId.get(i.taskId)?.title ?? "Task"}</Link>
+                  <p className="text-muted">{i.body.length > 140 ? `${i.body.slice(0, 140)}…` : i.body}</p>
+                  <p className="text-xs text-muted">{nameOf.get(i.reportedById) ?? "Former staff"} · {at(i.createdAt)} · open for {spanText(now.getTime() - i.createdAt.getTime())}</p>
+                </li>
+              ))}
+            </ul>
+            {openIssues.length > 8 && <p className="text-xs text-muted">{openIssues.length - 8} more on the tasks themselves.</p>}
+          </section>
+        )}
         {requests && (requests.waiting.length > 0 || requests.answered.length > 0) && (
           <section id="requests" className="card space-y-3" aria-labelledby="req-h">
             <div className="flex flex-wrap items-center justify-between gap-2"><h2 id="req-h" className="font-semibold">Client requests</h2>{requests.waiting.length > 0 && <Badge tone="warning">{requests.waiting.length} waiting</Badge>}</div>
@@ -277,7 +306,7 @@ export default async function ProjectPage({
 
   const tasks = (
     <div key="tasks" className="space-y-6">
-      <TaskBoard
+      <TaskBoard reviewLimit={cal.reviewResponseMinutes}
         key={project.tasks.map((t) => `${t.id}:${t.status}:${t.blockedBy.join("")}:${t.labelIds.join("")}:${checkDone.get(t.id) ?? 0}/${checkTotal.get(t.id) ?? 0}`).join(",") + labels.map((l) => l.name + l.color).join("")}
         canMove={canMove && !closed}
         userId={user.id}
@@ -287,6 +316,7 @@ export default async function ProjectPage({
           assignee: t.assigneeId ? nameOf.get(t.assigneeId) ?? "Unknown" : null, assigneeId: t.assigneeId,
           due: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
           overdue: isOverdue(t), deadline: deadlineView(t, cal, now),
+          openIssues: issuesOn.get(t.id) ?? 0, waitingSince: t.status === "REVIEW" ? waitingSince.get(t.id) ?? null : null, revisions: t.revisionCount,
           subDone: project.tasks.filter((x) => x.parentId === t.id && x.status === "DONE").length, subTotal: project.tasks.filter((x) => x.parentId === t.id).length,
           checkDone: checkDone.get(t.id) ?? 0, checkTotal: checkTotal.get(t.id) ?? 0,
           waitingFor: openBlockers(t.blockedBy, byId).map((x) => x.title), recurrence: t.recurrence, href: taskHref(t.id), labelIds: t.labelIds,
@@ -481,6 +511,15 @@ export default async function ProjectPage({
             timer={canMove && !closed && open.status !== "DONE" && user.userType === "EMPLOYEE" && (project.managerId === user.id || project.members.some((m) => m.userId === user.id))
               ? <TaskTimerButton taskId={open.id} runningTaskId={(await currentTimer(db, { organizationId: user.organizationId, userId: user.id }))?.taskId ?? null} /> : null}
             canManage={(canManage || project.managerId === user.id) && !closed} canMoveSubtasks={canMove && !closed && (canManage || project.managerId === user.id || open.assigneeId === user.id)} canComment={canMove}
+            review={<TaskReviewBox taskId={open.id} status={open.status} revisions={open.revisionCount} limitMinutes={cal.reviewResponseMinutes}
+              isManager={canMove && !closed && (canManage || project.managerId === user.id)}
+              canSend={canMove && !closed && (canManage || project.managerId === user.id || open.assigneeId === user.id)}
+              open={(() => { const r = taskReviews.find((x) => !x.respondedAt); return r && open.status === "REVIEW" ? { since: r.submittedAt.toISOString(), sentBy: nameOf.get(r.submittedById) ?? "Former staff", sentAt: at(r.submittedAt), escalated: Boolean(r.escalatedAt) } : null; })()}
+              history={taskReviews.map((r) => ({ id: r.id, sentBy: nameOf.get(r.submittedById) ?? "Former staff", sentAt: at(r.submittedAt), outcome: r.outcome ? OUTCOME_LABEL[r.outcome as ReviewOutcome] ?? r.outcome : null, answeredBy: r.respondedById ? nameOf.get(r.respondedById) ?? "Former staff" : null, answer: responseText(r, now), comment: r.comment, escalated: Boolean(r.escalatedAt) }))} />}
+            issues={<TaskIssues taskId={open.id}
+              canReport={canMove && !closed && (canManage || project.managerId === user.id || open.assigneeId === user.id || project.members.some((m) => m.userId === user.id))}
+              canResolve={canMove && !closed && (canManage || project.managerId === user.id)}
+              issues={taskIssues.map((i) => ({ id: i.id, body: i.body, by: nameOf.get(i.reportedById) ?? "Former staff", at: at(i.createdAt), open: i.status === "OPEN", resolvedBy: i.resolvedById ? nameOf.get(i.resolvedById) ?? "Former staff" : null, resolvedAt: i.resolvedAt ? at(i.resolvedAt) : null, resolution: i.resolution }))} />}
           >
             <FilesPanel user={user} ownerType="TASK" ownerId={open.id} returnTo={`${base}?task=${open.id}`} title="Files" flash={{ fileError, fileOk }} />
           </TaskDetail>

@@ -24,7 +24,7 @@ export default async function TasksView({ user, sp, tabs }: { user: SessionUser;
   const who = sp.who === "all" ? "all" : "me";
   const tstatus = TS.includes(sp.tstatus ?? "") ? sp.tstatus! : sp.tstatus === "all" ? "all" : "open";
   const priority = PRIORITIES.includes(sp.priority ?? "") ? sp.priority : undefined;
-  const due = ["overdue", "week"].includes(sp.due ?? "") ? sp.due : undefined;
+  const due = ["overdue", "week", "issues"].includes(sp.due ?? "") ? sp.due : undefined;
   const q = sp.q?.trim();
   const labels = await listLabels(db, user.organizationId);
   const labelId = labels.some((l) => l.id === sp.label) ? sp.label : undefined;
@@ -38,18 +38,19 @@ export default async function TasksView({ user, sp, tabs }: { user: SessionUser;
     ...(priority ? { priority } : {}),
     ...(sp.project ? { projectId: sp.project } : {}),
     ...(labelId ? { labelIds: { has: labelId } } : {}),
-    ...(due === "overdue" ? { status: { not: "DONE" }, dueDate: { lt: dayStart } } : due === "week" ? { status: { not: "DONE" }, dueDate: { gte: dayStart, lt: weekEnd } } : {}),
+    ...(due === "overdue" ? { status: { not: "DONE" }, dueDate: { lt: dayStart } } : due === "week" ? { status: { not: "DONE" }, dueDate: { gte: dayStart, lt: weekEnd } } : due === "issues" ? { issues: { some: { status: "OPEN" } } } : {}),
     ...(q ? { title: { contains: q, mode: "insensitive" as const } } : {}),
   };
   const pg = paging(sp.page);
   const mine = { ...scope, assigneeId: user.id, status: { not: "DONE" } };
-  const [rows, matched, open, overdue, week, review, projects] = await Promise.all([
+  const [rows, matched, open, overdue, week, review, issues, projects] = await Promise.all([
     db.task.findMany({ where, include: { project: { select: { id: true, name: true, number: true, managerId: true, status: true } } }, orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }, { id: "asc" }], skip: pg.skip, take: pg.take }),
     db.task.count({ where }),
     db.task.count({ where: mine }),
     db.task.count({ where: { ...mine, dueDate: { lt: dayStart } } }),
     db.task.count({ where: { ...mine, dueDate: { gte: dayStart, lt: weekEnd } } }),
     db.task.count({ where: { ...scope, status: "REVIEW" } }),
+    db.task.count({ where: { ...scope, issues: { some: { status: "OPEN" } } } }),
     db.project.findMany({ where: { ...projectScope(user), status: { not: "CANCELLED" } }, orderBy: { number: "asc" }, select: { id: true, name: true, number: true } }),
   ]);
   const list = await buildTaskRows(user, rows, dayStart.toISOString().slice(0, 10), labels);
@@ -61,7 +62,7 @@ export default async function TasksView({ user, sp, tabs }: { user: SessionUser;
     q && { label: `“${q}”`, removeHref: href({ q: undefined }) },
     priority && { label: `Priority: ${label(priority)}`, removeHref: href({ priority: undefined }) },
     sp.project && { label: `Project: ${pname?.name ?? "unknown"}`, removeHref: href({ project: undefined }) },
-    due && { label: due === "overdue" ? "Overdue" : "Due in 7 days", removeHref: href({ due: undefined }) },
+    due && { label: due === "overdue" ? "Overdue" : due === "issues" ? "With an open issue" : "Due in 7 days", removeHref: href({ due: undefined }) },
     labelId && { label: `Label: ${labels.find((l) => l.id === labelId)!.name}`, removeHref: href({ label: undefined }) },
   ].filter(Boolean) as { label: string; removeHref: string }[];
   return (
@@ -69,11 +70,12 @@ export default async function TasksView({ user, sp, tabs }: { user: SessionUser;
       <PageHeader title="Projects" subtitle="Delivery work, progress and deadlines in one place." />
       {sp.labelOk && !sp.labels && <Notice kind="ok">{sp.labelOk}</Notice>}
       {tabs}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Stat label="My open tasks" value={open} href={href({ who: undefined, tstatus: undefined, due: undefined, page: undefined })} />
         <Stat label="Overdue" value={overdue} hint="assigned to me" href={href({ who: undefined, due: "overdue", tstatus: undefined })} />
         <Stat label="Due in 7 days" value={week} hint="assigned to me" href={href({ who: undefined, due: "week", tstatus: undefined })} />
         <Stat label="Waiting for review" value={review} hint="across my projects" href={href({ who: "all", tstatus: "REVIEW", due: undefined })} />
+        <Stat label="Open issues" value={issues} hint={issues ? "tasks someone is stuck on" : "nobody is stuck"} href={href({ who: "all", due: "issues", tstatus: "all" })} />
       </div>
       <AppliedFilters items={applied} clearHref="/projects?view=tasks" backHref={sp.from === "dashboard" ? "/dashboard" : undefined} />
       <ListToolbar>

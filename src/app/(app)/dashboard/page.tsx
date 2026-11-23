@@ -83,7 +83,11 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       href: "/hr/attendance",
     } : null,
     health ? { label: "Projects at risk", value: red, sub: red + amber === 0 ? "every active project is on track" : amber ? `${amber} more to watch` : "the rest are on track", href: "/projects?status=ATTENTION" } : null,
-    att.teamOverdueTasks !== null ? { label: "Work overdue", value: att.teamOverdueTasks, sub: att.teamOverdueTasks === 0 ? "every task is on time" : "tasks past their due date", href: "/projects?view=tasks&who=all&due=overdue" } : null,
+    att.teamOverdueTasks !== null ? {
+      label: "Work overdue", value: att.teamOverdueTasks,
+      sub: [att.teamOverdueTasks === 0 ? "every task is on time" : "tasks past their due date", att.teamOpenIssues ? `${att.teamOpenIssues} open issue${att.teamOpenIssues === 1 ? "" : "s"}` : "", att.teamLateReviews ? `${att.teamLateReviews} waiting on a manager` : ""].filter(Boolean).join(" · "),
+      href: att.teamOpenIssues && !att.teamOverdueTasks ? "/projects?view=tasks&who=all&due=issues&tstatus=all" : "/projects?view=tasks&who=all&due=overdue",
+    } : null,
   ];
 
   let body: ReactNode;

@@ -11,7 +11,7 @@ export class CalendarError extends Error {}
 
 // Decision 2026-11-08 (Asad): 9:00 to 18:30 Pakistan time with a 30 minute lunch, so a full day is 9 hours.
 // Monday to Friday; Saturday is off until an administrator says otherwise.
-export const DEFAULT_CALENDAR = { workStart: "09:00", workEnd: "18:30", lunchMinutes: 30, graceMinutes: 10, workDays: [1, 2, 3, 4, 5] } as const;
+export const DEFAULT_CALENDAR = { workStart: "09:00", workEnd: "18:30", lunchMinutes: 30, graceMinutes: 10, workDays: [1, 2, 3, 4, 5], reviewResponseMinutes: 5 } as const;
 export const DEFAULT_TIMEZONE = "Asia/Karachi";
 
 export type Calendar = {
@@ -23,6 +23,7 @@ export type Calendar = {
   workDays: number[]; // 0 = Sunday
   weekendDays: number[]; // the rest of the week
   fullDayMinutes: number; // office hours less lunch: what a full attendance day is worth
+  reviewResponseMinutes: number; // office minutes a project manager has to answer work sent for review
 };
 
 export const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
@@ -37,7 +38,7 @@ export function parseWorkDays(raw: string): number[] {
 
 export const weekendOf = (workDays: readonly number[]) => [0, 1, 2, 3, 4, 5, 6].filter((d) => !workDays.includes(d));
 
-export function calendarFrom(row: { workStart: string; workEnd: string; lunchMinutes: number; graceMinutes: number; workDays: string } | null, timezone: string): Calendar {
+export function calendarFrom(row: { workStart: string; workEnd: string; lunchMinutes: number; graceMinutes: number; workDays: string; reviewResponseMinutes?: number } | null, timezone: string): Calendar {
   const workStart = row?.workStart ?? DEFAULT_CALENDAR.workStart;
   const workEnd = row?.workEnd ?? DEFAULT_CALENDAR.workEnd;
   const lunchMinutes = row?.lunchMinutes ?? DEFAULT_CALENDAR.lunchMinutes;
@@ -48,6 +49,7 @@ export function calendarFrom(row: { workStart: string; workEnd: string; lunchMin
     graceMinutes: row?.graceMinutes ?? DEFAULT_CALENDAR.graceMinutes,
     workDays: days, weekendDays: weekendOf(days),
     fullDayMinutes: Math.max(0, minutesOfTime(workEnd) - minutesOfTime(workStart) - lunchMinutes),
+    reviewResponseMinutes: row?.reviewResponseMinutes ?? DEFAULT_CALENDAR.reviewResponseMinutes,
   };
 }
 
@@ -92,7 +94,7 @@ export async function getWorkingContext(db: Db, organizationId: string, from?: s
 
 // ---------- Writes ----------
 
-export type CalendarInput = { workStart: string; workEnd: string; lunchMinutes: number; graceMinutes: number; workDays: number[] };
+export type CalendarInput = { workStart: string; workEnd: string; lunchMinutes: number; graceMinutes: number; workDays: number[]; reviewResponseMinutes?: number };
 
 export function readCalendarInput(get: (k: string) => string): CalendarInput {
   const workStart = get("workStart").trim();
@@ -108,7 +110,10 @@ export function readCalendarInput(get: (k: string) => string): CalendarInput {
   const graceMinutes = num("graceMinutes", "The grace period", 120);
   const workDays = parseWorkDays(get("workDays"));
   if (workDays.length === 0) throw new CalendarError("Choose at least one working day.");
-  return { workStart, workEnd, lunchMinutes, graceMinutes, workDays };
+  // Left out of the form (older screens, scripts): the saved value stays as it is
+  const reviewResponseMinutes = get("reviewResponseMinutes").trim() ? num("reviewResponseMinutes", "The review response time", 240) : undefined;
+  if (reviewResponseMinutes === 0) throw new CalendarError("The review response time must be at least 1 minute.");
+  return { workStart, workEnd, lunchMinutes, graceMinutes, workDays, ...(reviewResponseMinutes !== undefined ? { reviewResponseMinutes } : {}) };
 }
 
 export async function saveCalendar(db: Db, organizationId: string, input: CalendarInput, updatedById: string) {

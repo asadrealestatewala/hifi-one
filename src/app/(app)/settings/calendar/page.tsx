@@ -42,6 +42,10 @@ export default async function WorkingCalendarSettings({ searchParams }: { search
           <div><label className="label" htmlFor="graceMinutes">Grace (minutes)</label><input id="graceMinutes" name="graceMinutes" inputMode="numeric" className="input" defaultValue={cal.graceMinutes} disabled={!canEdit} /></div>
         </div>
         <p className="text-xs text-muted">Grace is how long after opening a clock-in still counts as on time. Punctuality on the scorecard is worked out from it.</p>
+        <div className="grid gap-3 sm:grid-cols-4">
+          <div><label className="label" htmlFor="reviewResponseMinutes">Review response (minutes)</label><input id="reviewResponseMinutes" name="reviewResponseMinutes" inputMode="numeric" className="input" defaultValue={cal.reviewResponseMinutes} disabled={!canEdit} aria-describedby="rr-hint" /></div>
+          <p id="rr-hint" className="self-end text-xs text-muted sm:col-span-3">When someone sends work for review, the project manager has this many office minutes to approve it or ask for a revision. After that, owners and HR are told.</p>
+        </div>
         <fieldset>
           <legend className="label">Working days</legend>
           <div className="flex flex-wrap gap-x-5 gap-y-2">
