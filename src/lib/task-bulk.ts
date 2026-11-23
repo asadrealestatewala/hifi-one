@@ -106,7 +106,7 @@ export async function bulkEditTasks(db: Db, p: { actor: BulkActor; taskIds: stri
     if (c.kind === "assign") {
       if (c.userId && !onTeam.has(t.projectId)) { skip("That person is not on this project's team."); continue; }
       if (t.assigneeId === c.userId) continue;
-      await db.task.update({ where: { id: t.id }, data: { assigneeId: c.userId } });
+      await db.task.update({ where: { id: t.id }, data: { assigneeId: c.userId, assignedAt: c.userId ? new Date() : null } });
       res.changed.push({ id: t.id, projectId: t.projectId, before: { assigneeId: t.assigneeId } });
     } else if (c.kind === "due") {
       const due = c.date ? new Date(`${c.date}T00:00:00.000Z`) : null;

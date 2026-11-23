@@ -38,6 +38,8 @@ import { Badge, Notice, PageHeader, PanelForm, Stat, StatusBadge } from "@/compo
 import RemoveRecordPanel from "@/components/RemoveRecordPanel";
 import { projectDeleteBlockers } from "@/lib/record-removal";
 import { listLabels } from "@/lib/task-labels";
+import { getCalendar } from "@/lib/working-calendar";
+import { deadlineAt, deadlineView, taskTimes } from "@/lib/task-deadline";
 import { archiveProjectAction, deleteProjectAction, restoreProjectAction } from "../removal-actions";
 import { saveProjectAsTemplateAction } from "../template-actions";
 import SubmitButton from "@/components/ui/SubmitButton";
@@ -115,7 +117,9 @@ export default async function ProjectPage({
   const milestones = milestonesRaw.map((m) => ({ name: m.name, dueDate: m.dueDate ? String(m.dueDate).slice(0, 10) : null }));
   const nextMilestone = milestonesRaw.filter((m) => m.status !== "DONE").sort((a, b) => String(a.dueDate ?? "9999").localeCompare(String(b.dueDate ?? "9999")))[0] ?? null;
   const openTasks = top.filter((t) => t.status !== "DONE");
-  const isOverdue = (t: (typeof top)[number]) => t.status !== "DONE" && t.dueDate !== null && t.dueDate < now;
+  const cal = await getCalendar(db, user.organizationId);
+  // Late once the deadline (the due date's time, or the end of the office day) has passed
+  const isOverdue = (t: (typeof top)[number]) => t.status !== "DONE" && t.dueDate !== null && deadlineAt(t.dueDate, t.dueTime, cal)! < now;
   const overdue = openTasks.filter(isOverdue);
   const soon = new Date(now.getTime() + 7 * 86_400_000);
   const attention = openTasks.filter((t) => t.dueDate && t.dueDate <= soon).sort((a, b) => a.dueDate!.getTime() - b.dueDate!.getTime()).slice(0, 6);
@@ -282,7 +286,7 @@ export default async function ProjectPage({
           id: t.id, title: t.title, status: t.status, priority: t.priority,
           assignee: t.assigneeId ? nameOf.get(t.assigneeId) ?? "Unknown" : null, assigneeId: t.assigneeId,
           due: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
-          overdue: isOverdue(t),
+          overdue: isOverdue(t), deadline: deadlineView(t, cal, now),
           subDone: project.tasks.filter((x) => x.parentId === t.id && x.status === "DONE").length, subTotal: project.tasks.filter((x) => x.parentId === t.id).length,
           checkDone: checkDone.get(t.id) ?? 0, checkTotal: checkTotal.get(t.id) ?? 0,
           waitingFor: openBlockers(t.blockedBy, byId).map((x) => x.title), recurrence: t.recurrence, href: taskHref(t.id), labelIds: t.labelIds,
@@ -452,6 +456,7 @@ export default async function ProjectPage({
               <div><label className="label" htmlFor="nt-pr">Priority</label>
                 <select id="nt-pr" name="priority" defaultValue="MEDIUM" className="input">{["LOW", "MEDIUM", "HIGH"].map((c) => <option key={c} value={c}>{c.charAt(0) + c.slice(1).toLowerCase()}</option>)}</select></div>
               <div><label className="label" htmlFor="nt-due">Due date</label><input id="nt-due" name="dueDate" type="date" className="input" /></div>
+              <div><label className="label" htmlFor="nt-time">Due time</label><input id="nt-time" name="dueTime" type="time" className="input" aria-describedby="nt-time-hint" /><p id="nt-time-hint" className="mt-1 text-xs text-muted">Leave empty for the end of the office day ({cal.workEnd}).</p></div>
               <div><label className="label" htmlFor="nt-est">Estimate (hours)</label><input id="nt-est" name="estimatedHours" inputMode="decimal" placeholder="e.g. 3" className="input" /></div>
             </div>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="clientVisible" /> Visible to the client in their portal</label>
@@ -462,7 +467,8 @@ export default async function ProjectPage({
         <Drawer title={open.title} closeTo={`${base}?tab=tasks`}>
           <TaskDetail
             key={`${open.id}:${open.status}:${project.tasks.length}:${comments.length}`}
-            task={{ id: open.id, title: open.title, status: open.status, description: open.description ?? "", priority: open.priority, assigneeId: open.assigneeId ?? "", due: open.dueDate ? open.dueDate.toISOString().slice(0, 10) : "", start: open.startDate ? open.startDate.toISOString().slice(0, 10) : "", estimate: open.estimatedHours ? String(open.estimatedHours) : "", clientVisible: open.clientVisible, recurrence: open.recurrence ?? "", blockedBy: open.blockedBy, labelIds: open.labelIds, parentTitle: open.parentId ? byId.get(open.parentId)?.title ?? "another task" : null }}
+            task={{ id: open.id, title: open.title, status: open.status, description: open.description ?? "", priority: open.priority, assigneeId: open.assigneeId ?? "", due: open.dueDate ? open.dueDate.toISOString().slice(0, 10) : "", start: open.startDate ? open.startDate.toISOString().slice(0, 10) : "", estimate: open.estimatedHours ? String(open.estimatedHours) : "", clientVisible: open.clientVisible, recurrence: open.recurrence ?? "", blockedBy: open.blockedBy, labelIds: open.labelIds, parentTitle: open.parentId ? byId.get(open.parentId)?.title ?? "another task" : null,
+              dueTime: open.dueTime ?? "", workEnd: cal.workEnd, deadline: deadlineView(open, cal, now), times: taskTimes(open, cal.timezone, now) }}
             subtasks={project.tasks.filter((t) => t.parentId === open.id).map((t) => ({ id: t.id, title: t.title, status: t.status }))}
             candidates={project.tasks.filter((t) => t.id !== open.id && t.parentId !== open.id && open.parentId !== t.id).map((t) => ({ id: t.id, title: t.title }))}
             members={project.members.map((m) => ({ id: m.userId, name: nameOf.get(m.userId) ?? "Unknown" }))}

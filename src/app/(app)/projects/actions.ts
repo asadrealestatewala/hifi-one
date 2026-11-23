@@ -1,5 +1,6 @@
 "use server";
 
+import { readDueTime } from "@/lib/task-deadline";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -153,8 +154,10 @@ export async function createTask(formData: FormData) {
   const title = String(formData.get("title") ?? "").trim().slice(0, 200);
   const assigneeId = String(formData.get("assigneeId") ?? "") || null;
   const dueRaw = String(formData.get("dueDate") ?? "");
+  const dueTime = readDueTime(formData.get("dueTime"));
   const project = await loadProject(projectId, user);
   if (!project || title.length < 2) return;
+  if (!dueTime.ok) redirect(`/projects/${projectId}?new=task&error=${encodeURIComponent("Enter the due time as hours and minutes, for example 15:00.")}`);
   if (assigneeId && !(await db.projectMember.findUnique({ where: { projectId_userId: { projectId, userId: assigneeId } } }))) return;
   const estimate = parseEstimate(formData.get("estimatedHours"));
   const task = await db.task.create({
@@ -162,11 +165,13 @@ export async function createTask(formData: FormData) {
       projectId, title, assigneeId, createdById: user.id,
       priority: z.enum(["LOW", "MEDIUM", "HIGH"]).catch("MEDIUM").parse(formData.get("priority")),
       dueDate: dueRaw ? new Date(dueRaw) : null,
+      dueTime: dueRaw ? dueTime.value : null,
+      assignedAt: assigneeId ? new Date() : null,
       estimatedHours: estimate.ok ? estimate.value : null,
       clientVisible: formData.get("clientVisible") === "on",
     },
   });
-  await audit(user, { action: "task.create", entity: "Task", entityId: task.id, after: { title, projectId, assigneeId } });
+  await audit(user, { action: "task.create", entity: "Task", entityId: task.id, after: { title, projectId, assigneeId, dueDate: dueRaw || null, dueTime: dueRaw ? dueTime.value : null } });
   await taskAssigned(db, { organizationId: user.organizationId, taskId: task.id, toUserId: assigneeId, byUserId: user.id });
   revalidatePath(`/projects/${projectId}`);
   // The form sits in a side panel on the Tasks tab; close it and show the board with the new task
@@ -274,6 +279,8 @@ export async function saveTaskDetailAction(taskId: string, formData: FormData): 
   const priority = z.enum(["LOW", "MEDIUM", "HIGH"]).safeParse(formData.get("priority"));
   const start = String(formData.get("startDate") ?? "");
   if (due && Number.isNaN(Date.parse(due))) return { ok: false, error: "Enter a valid due date." };
+  const dueTime = readDueTime(formData.get("dueTime"));
+  if (!dueTime.ok) return { ok: false, error: "Enter the due time as hours and minutes, for example 15:00." };
   const dateError = scheduleError(start || null, due || null);
   if (dateError) return { ok: false, error: dateError };
   const labelIds = await validLabelIds(db, user.organizationId, formData.getAll("labelIds").map(String));
@@ -283,8 +290,8 @@ export async function saveTaskDetailAction(taskId: string, formData: FormData): 
   try {
     await setBlockers(db, { projectId: c.task.projectId, taskId, blockerIds: blockers });
     await setRecurrence(db, { projectId: c.task.projectId, taskId, recurrence });
-    await db.task.update({ where: { id: taskId }, data: { startDate: start ? new Date(`${start}T00:00:00.000Z`) : null, dueDate: due ? new Date(due) : null, estimatedHours: estimate.value, labelIds, assigneeId, description: String(formData.get("description") ?? "").trim().slice(0, 4000) || null, ...(priority.success ? { priority: priority.data } : {}), clientVisible: formData.get("clientVisible") === "on" } });
-    await audit(c.user, { action: "task.update", entity: "Task", entityId: taskId, after: { blockers: blockers.length, recurrence, assigneeId } });
+    await db.task.update({ where: { id: taskId }, data: { startDate: start ? new Date(`${start}T00:00:00.000Z`) : null, dueDate: due ? new Date(due) : null, dueTime: due ? dueTime.value : null, estimatedHours: estimate.value, labelIds, assigneeId, description: String(formData.get("description") ?? "").trim().slice(0, 4000) || null, ...(priority.success ? { priority: priority.data } : {}), clientVisible: formData.get("clientVisible") === "on" } });
+    await audit(c.user, { action: "task.update", entity: "Task", entityId: taskId, after: { blockers: blockers.length, recurrence, assigneeId, dueDate: due || null, dueTime: due ? dueTime.value : null } });
     if (assigneeId !== c.task.assigneeId) await taskAssigned(db, { organizationId: c.user.organizationId, taskId, toUserId: assigneeId, byUserId: c.user.id });
   } catch (e) {
     if (e instanceof TaskError) return { ok: false, error: e.message };

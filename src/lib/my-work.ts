@@ -14,6 +14,7 @@ export const WORK_GROUP_LABEL: Record<WorkGroup | "done", string> = {
 
 export type WorkRow = {
   id: string; title: string; status: string; priority: string; dueDate: Date | null;
+  dueTime: string | null; assignedAt: Date | null; createdAt: Date; completedAt: Date | null; // for the deadline countdown
   project: { id: string; name: string; number: string; status: string };
   parentTitle: string | null; // set when the row is a subtask
   openSubtasks: number;
@@ -85,6 +86,7 @@ export async function loadMyWork(
     key: s.key, count: s.count,
     rows: s.rows.map((t): WorkRow => ({
       id: t.id, title: t.title, status: t.status, priority: t.priority, dueDate: t.dueDate, project: t.project,
+      dueTime: t.dueTime, assignedAt: t.assignedAt, createdAt: t.createdAt, completedAt: t.completedAt,
       parentTitle: t.parentId ? parentTitle.get(t.parentId) ?? null : null,
       openSubtasks: subCount.get(t.id) ?? 0,
       waiting: t.blockedBy.filter((id) => notDone.has(id)).length,

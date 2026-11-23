@@ -316,3 +316,7 @@ Time entries have no billable flag, and adding one would mean asking everyone to
 ## 2026-11-19: The task panel saves as you go
 
 Asad asked for a cleaner task panel. Fields now save when they change, and text fields when you leave them, instead of with a Save details button. The panel shows "Saving…" then "Saved", and an error appears at the top if a check refuses the change. Each save still goes through the one existing action with the whole form, so no rule moved. Rarely used settings sit in a closed "More options" section with a summary, so the panel opens on what people change most: status, assignee, due date and priority.
+
+## 2026-11-23: Task deadlines have a time of day, and the countdown colours
+
+HR asked (Required Changes, 16 Nov 2026) for a countdown on every task that turns green, orange and red and shows Overdue. A task keeps its due date and gets an optional due time; with no time it is due at the end of the office day from the Working calendar, so existing tasks did not change meaning and a task due today is no longer shown as overdue from midnight. Orange starts in the last 2 hours or the last quarter of the time the person was given (from when it was assigned), red in the last 30 minutes. The 2-hour and late alerts run on a one-minute timer inside the server, like social publishing, because the daily jobs cannot hit a time of day; each alert's dedupe key includes the deadline, so it is sent once per deadline and again after the deadline moves. Asad accepted the default of the end of the office day on 2026-11-23.

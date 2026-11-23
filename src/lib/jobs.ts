@@ -146,23 +146,18 @@ export const JOBS: JobDef[] = [
     },
   },
   {
-    key: "task_reminders", label: "Task reminders", what: "Tells people about tasks due tomorrow and tasks that became overdue today.",
+    key: "task_reminders", label: "Task reminders", what: "Tells people about tasks due tomorrow. The 2-hour and late alerts are sent by the minute, from the deadline time.",
     async run({ db, organizationId, today }) {
       const tomorrow = addDays(today, 1);
       const rows = await db.task.findMany({
         where: { assigneeId: { not: null }, status: { not: "DONE" }, parentId: null, dueDate: { gte: new Date(`${today}T00:00:00Z`), lt: new Date(`${addDays(today, 2)}T00:00:00Z`) }, project: { organizationId, status: { in: ["ACTIVE", "ON_HOLD"] } } },
         select: { id: true, title: true, assigneeId: true, dueDate: true, projectId: true, project: { select: { name: true } } },
       });
-      const yesterdayOverdue = await db.task.findMany({ where: { assigneeId: { not: null }, status: { not: "DONE" }, parentId: null, dueDate: { gte: new Date(`${addDays(today, -1)}T00:00:00Z`), lt: new Date(`${today}T00:00:00Z`) }, project: { organizationId, status: { in: ["ACTIVE", "ON_HOLD"] } } }, select: { id: true, title: true, assigneeId: true, projectId: true, project: { select: { name: true } } } });
       let n = 0;
       for (const t of rows) {
         if (day(t.dueDate!) !== tomorrow) continue;
         n++;
         await notifyMany(db, [t.assigneeId!], { kind: "task.due_soon", title: `Due tomorrow: ${t.title}`, body: t.project.name, link: `/projects/${t.projectId}?task=${t.id}`, dedupeKey: `task-due:${t.id}` });
-      }
-      for (const t of yesterdayOverdue) {
-        n++;
-        await notifyMany(db, [t.assigneeId!], { kind: "task.overdue", title: `Now overdue: ${t.title}`, body: t.project.name, link: `/projects/${t.projectId}?task=${t.id}`, dedupeKey: `task-overdue:${t.id}` });
       }
       return `${n} task reminder${n === 1 ? "" : "s"}`;
     },

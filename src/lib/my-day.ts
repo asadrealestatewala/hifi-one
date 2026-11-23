@@ -6,6 +6,7 @@ import type { PrismaClient } from "@prisma/client";
 import { REPORTS_SINCE, dayBounds } from "./daily-reports";
 import { workedMinutes } from "./hr-rules";
 import { type Calendar, DAY_NAMES, dayOfWeek, isWorkingDate } from "./working-calendar";
+import { countdown, deadlineAt } from "./task-deadline";
 
 type Db = PrismaClient;
 
@@ -16,13 +17,16 @@ export type DayKind = { working: boolean; reason: string | null }; // reason is 
 // One thing the person still has to do today. `tone` decides how loudly the home screen says it.
 export type DayItem = { id: string; icon: string; tone: "primary" | "warning" | "danger"; text: string; sub?: string; href: string };
 
+// The soonest deadline still ahead today, with its countdown as it was when the page loaded
+export type NextDeadline = { id: string; title: string; projectId: string; left: string; tone: "green" | "orange" | "red"; at: string };
+
 export type MyDay = {
   date: string;
   kind: DayKind;
   clock: { state: ClockState; since: Date | null; workedMinutes: number; breaks: number };
   report: ReportState;
   circulars: number;
-  tasks: { dueToday: number; overdue: number; open: number };
+  tasks: { dueToday: number; overdue: number; open: number; next?: NextDeadline | null };
   meetings: { id: string; title: string; at: Date | null; live: boolean }[];
   items: DayItem[];
 };
@@ -56,6 +60,10 @@ export function dayItems(d: Omit<MyDay, "items">, opts: { canAttendance: boolean
   if (d.tasks.overdue > 0) {
     items.push({ id: "tasks-overdue", icon: "check", tone: "danger", text: `${d.tasks.overdue} of your tasks ${d.tasks.overdue === 1 ? "is" : "are"} overdue`, href: "/me/tasks" });
   }
+  if (d.tasks.next) {
+    const n = d.tasks.next;
+    items.push({ id: "next-deadline", icon: "clock", tone: n.tone === "green" ? "primary" : n.tone === "orange" ? "warning" : "danger", text: `Next deadline: ${n.title}`, sub: `${n.left} · due ${n.at}`, href: `/projects/${n.projectId}?task=${n.id}` });
+  }
   if (d.tasks.dueToday > 0) {
     items.push({ id: "tasks-today", icon: "check", tone: "primary", text: `${d.tasks.dueToday} task${d.tasks.dueToday === 1 ? "" : "s"} due today`, href: "/me/tasks" });
   }
@@ -87,6 +95,14 @@ export async function loadMyDay(
         })
       : [],
   ]);
+  const todays = dueToday > 0
+    ? await db.task.findMany({ where: { assigneeId: p.userId, status: { not: "DONE" }, dueDate: { gte: new Date(`${p.date}T00:00:00.000Z`), lt: new Date(new Date(`${p.date}T00:00:00.000Z`).getTime() + 86_400_000) }, project: { organizationId: p.organizationId, status: { not: "CANCELLED" }, archivedAt: null } }, select: { id: true, title: true, projectId: true, dueDate: true, dueTime: true, assignedAt: true, createdAt: true }, take: 200 })
+    : [];
+  const ahead = todays.map((t) => ({ t, at: deadlineAt(t.dueDate, t.dueTime, p.calendar)! })).filter((x) => x.at > now).sort((a, b) => a.at.getTime() - b.at.getTime())[0];
+  const nextCount = ahead ? countdown(ahead.at, now, ahead.t.assignedAt ?? ahead.t.createdAt) : null;
+  const next: NextDeadline | null = ahead && nextCount && nextCount.tone !== "overdue"
+    ? { id: ahead.t.id, title: ahead.t.title, projectId: ahead.t.projectId, left: nextCount.text, tone: nextCount.tone, at: ahead.at.toLocaleTimeString("en-US", { timeZone: p.calendar.timezone, hour: "numeric", minute: "2-digit" }) }
+    : null;
   const kind = dayKindFor({ date: p.date, calendar: p.calendar, holidayName: p.holidayName, onLeave: leave?.leaveType.name ?? null });
   const openBreak = attendance?.breaks.some((b) => !b.endAt) ?? false;
   const worked = attendance ? workedMinutes(attendance, attendance.breaks, now) : null;
@@ -96,7 +112,7 @@ export async function loadMyDay(
     date: p.date, kind,
     clock: { state, since: attendance?.clockIn ?? null, workedMinutes: worked?.worked ?? 0, breaks: worked?.breaks ?? 0 },
     report: reportState, circulars,
-    tasks: { dueToday, overdue, open },
+    tasks: { dueToday, overdue, open, next },
     meetings: meetings.map((m) => ({ id: m.id, title: m.title, at: m.scheduledAt, live: m.status === "LIVE" })),
   };
   return { ...base, items: dayItems(base, { canAttendance: has("self.attendance"), canReport: has("self.attendance") }) };

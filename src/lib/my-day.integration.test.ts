@@ -80,6 +80,17 @@ describe("loadMyDay", () => {
     expect(order.indexOf("tasks-overdue")).toBeLessThan(order.indexOf("tasks-today"));
   });
 
+  it("names the next deadline still ahead today, with the time left when the page loaded", async () => {
+    const project = await db.project.findFirstOrThrow({ where: { organizationId: org } });
+    const early = await db.task.create({ data: { projectId: project.id, title: "Morning post", assigneeId: user, dueDate: new Date("2026-11-12T00:00:00Z"), dueTime: "11:00" } }); // already passed at 1 PM
+    const soon = await db.task.create({ data: { projectId: project.id, title: "Call list", assigneeId: user, dueDate: new Date("2026-11-12T00:00:00Z"), dueTime: "14:30" } });
+    const d = await day(); // 1:00 PM in Karachi
+    expect(d.tasks.next).toMatchObject({ id: soon.id, title: "Call list", left: "1 h 30 m left", tone: "orange", at: "2:30 PM" });
+    const item = d.items.find((i) => i.id === "next-deadline")!;
+    expect(item).toMatchObject({ tone: "warning", text: "Next deadline: Call list", sub: "1 h 30 m left · due 2:30 PM" });
+    await db.task.deleteMany({ where: { id: { in: [early.id, soon.id] } } });
+  });
+
   it("expects nothing on a public holiday", async () => {
     const d = await day({ date: "2026-11-13", holidayName: "Company day" }); // a Friday
     expect(d.kind.working).toBe(false);
