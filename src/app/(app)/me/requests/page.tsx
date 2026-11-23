@@ -19,9 +19,11 @@ export default async function MyRequests({ searchParams }: { searchParams: Promi
   const files = await attachmentsFor(db, user.organizationId, mine.map((r) => r.id));
   const filesOf = (id: string) => files.filter((f) => f.ownerId === id);
   const open = mine.filter((r) => isOpen(r.status));
+  const me = await db.user.findUnique({ where: { id: user.id }, select: { manager: { select: { name: true, active: true } } } });
+  const manager = me?.manager?.active ? me.manager.name : null;
   return (
     <div className="space-y-5 max-w-5xl">
-      <PageHeader title="My requests" subtitle="Write to HR about anything that has no form of its own: a salary or experience certificate, an advance, a resignation, a complaint, equipment. HR answers here and you are notified." />
+      <PageHeader title="My requests" subtitle="Write to HR about anything that has no form of its own: a salary or experience certificate, an advance, a resignation, a complaint, equipment. Your manager is kept informed unless you mark it private. HR answers here and you are notified." />
       {sp.error && <Notice kind="error">{sp.error}</Notice>}
       {sp.msg && <Notice kind="ok">{sp.msg}</Notice>}
       <p className="text-sm text-muted">
@@ -35,10 +37,13 @@ export default async function MyRequests({ searchParams }: { searchParams: Promi
         <div className="sm:col-span-2"><label className="label" htmlFor="subject">Subject</label><input id="subject" name="subject" required minLength={3} maxLength={120} className="input" placeholder="Salary certificate for a bank account" /></div>
         <div className="sm:col-span-3"><label className="label" htmlFor="body">Application</label>
           <textarea id="body" name="body" required minLength={10} maxLength={4000} rows={5} className="input" placeholder="What you are asking for, why, and by when if it matters." /></div>
-        <div className="sm:col-span-2"><label className="label" htmlFor="file">Attachment (optional: PDF, image, Word, Excel; up to 15 MB)</label>
+        <div className="sm:col-span-3"><label className="label" htmlFor="file">Attachment (optional: PDF, image, Word, Excel; up to 15 MB)</label>
           <input id="file" name="file" type="file" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.docx,.xlsx,.csv,.txt" className="input" /></div>
-        <div className="flex items-end"><SubmitButton pendingText="Sending…">Send to HR</SubmitButton></div>
-        <p className="sm:col-span-3 text-xs text-muted">Only HR reads these; your manager does not see them. A complaint about a person is handled by HR in confidence.</p>
+        <div className="sm:col-span-3 space-y-1">
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="hrOnly" /> Private, HR only</label>
+          <p className="text-xs text-muted">HR answers every application. {manager ? <>Your manager, {manager}, is also told and can read it and add a comment for HR, unless you tick Private.</> : "Nobody is set as your manager, so only HR reads it."} A complaint is always private: HR handles it in confidence.</p>
+        </div>
+        <div className="sm:col-span-3"><SubmitButton pendingText="Sending…">Send</SubmitButton></div>
       </form>
 
       <section className="card space-y-3">
@@ -51,6 +56,7 @@ export default async function MyRequests({ searchParams }: { searchParams: Promi
                   <span className="font-medium">{r.subject}</span>
                   <span className="text-xs text-muted">{REQUEST_TYPE_LABEL[r.type as RequestType] ?? r.type} · sent {when(r.createdAt)}</span>
                   <StatusBadge status={r.status} />
+                  <span className="text-xs text-muted">{r.managerId ? "HR and your manager" : "HR only"}</span>
                   {isOpen(r.status) && (
                     <form action={cancelRequestAction} className="ml-auto"><input type="hidden" name="id" value={r.id} /><ConfirmButton title="Withdraw this application?" message="HR will no longer see it. You can send a new one later." confirmLabel="Withdraw">Withdraw</ConfirmButton></form>
                   )}

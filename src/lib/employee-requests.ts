@@ -1,7 +1,9 @@
 // Applications from an employee to HR that no other form covers: certificates, an advance or loan, a resignation, a grievance,
 // equipment, or anything else. The employee writes it (optionally with a file), HR takes it up and then approves or declines
 // with a note, and each side is notified. Leave, documents, site visits and daily reports have their own screens and are not
-// duplicated here. Grievances may concern a manager, so only HR (hr.manage) ever reads these; managers do not.
+// duplicated here. HR (hr.manage) reads every application. The employee's line manager is also told and can read it and
+// leave a comment for HR (HR's Required Changes, item 6), unless the employee ticks "Private, HR only". A grievance may
+// concern the manager, so it is always HR only. Only HR answers.
 // Free of Next.js imports so it can be tested against the database.
 import type { PrismaClient } from "@prisma/client";
 
@@ -25,7 +27,7 @@ const MAX_SUBJECT = 120;
 const MAX_BODY = 4000;
 
 // The employee writes the application. Validation only; the caller stores any attachment against the returned id.
-export async function submitRequest(db: Db, p: { organizationId: string; userId: string; type: string; subject: string; body: string }) {
+export async function submitRequest(db: Db, p: { organizationId: string; userId: string; type: string; subject: string; body: string; hrOnly?: boolean }) {
   if (!isRequestType(p.type)) throw new RequestError("Choose what the application is about.");
   const subject = p.subject.trim();
   const body = p.body.trim();
@@ -33,11 +35,17 @@ export async function submitRequest(db: Db, p: { organizationId: string; userId:
   if (subject.length > MAX_SUBJECT) throw new RequestError(`The subject can be at most ${MAX_SUBJECT} characters.`);
   if (body.length < 10) throw new RequestError("Write the application itself: what you are asking for and why.");
   if (body.length > MAX_BODY) throw new RequestError(`The application can be at most ${MAX_BODY} characters.`);
-  const profile = await db.employeeProfile.findFirst({ where: { userId: p.userId, organizationId: p.organizationId }, select: { id: true } });
+  const profile = await db.employeeProfile.findFirst({ where: { userId: p.userId, organizationId: p.organizationId }, select: { id: true, user: { select: { managerId: true } } } });
   if (!profile) throw new RequestError("Your HR record has not been created yet, so HR cannot take applications from you. Ask HR to add you to the staff directory.");
   const open = await db.employeeRequest.count({ where: { userId: p.userId, status: { in: [...OPEN_STATUSES] } } });
   if (open >= 10) throw new RequestError("You already have ten open applications. Wait for HR to answer some before sending more.");
-  return db.employeeRequest.create({ data: { organizationId: p.organizationId, userId: p.userId, type: p.type, subject, body } });
+  const hrOnly = p.type === "GRIEVANCE" || !!p.hrOnly;
+  let managerId: string | null = null;
+  const m = profile.user.managerId;
+  if (!hrOnly && m && m !== p.userId) {
+    managerId = (await db.user.findFirst({ where: { id: m, organizationId: p.organizationId, active: true, userType: "EMPLOYEE" }, select: { id: true } }))?.id ?? null;
+  }
+  return db.employeeRequest.create({ data: { organizationId: p.organizationId, userId: p.userId, type: p.type, subject, body, hrOnly, managerId } });
 }
 
 // The employee withdraws an application HR has not answered yet.
@@ -63,6 +71,28 @@ export async function reviewRequest(db: Db, p: { organizationId: string; request
     where: { id: r.id },
     data: { status: p.decision, handledById: p.reviewerId, handledAt: p.decision === "IN_REVIEW" ? null : new Date(), responseNote: p.decision === "IN_REVIEW" ? r.responseNote : note },
   });
+}
+
+// The manager it was shared with adds (or changes) a comment for HR while the application is open. HR sees it beside the
+// application; the employee does not. Never on an HR-only application, and never by anyone else.
+export async function noteAsManager(db: Db, p: { organizationId: string; requestId: string; managerId: string; note: string }) {
+  const r = await db.employeeRequest.findFirst({ where: { id: p.requestId, organizationId: p.organizationId, managerId: p.managerId, hrOnly: false } });
+  if (!r) throw new RequestError("Application not found.");
+  if (!isOpen(r.status)) throw new RequestError("HR has already answered this application.");
+  const note = p.note.trim();
+  if (note.length < 2) throw new RequestError("Write your comment for HR.");
+  if (note.length > 2000) throw new RequestError("The comment can be at most 2000 characters.");
+  return db.employeeRequest.update({ where: { id: r.id }, data: { managerNote: note, managerNotedAt: new Date() } });
+}
+
+// A manager's list: only the applications shared with them (never HR only), open first, then the last answered ones.
+export async function requestsForManager(db: Db, organizationId: string, managerId: string) {
+  const where = { organizationId, managerId, hrOnly: false };
+  const [open, answered] = await Promise.all([
+    db.employeeRequest.findMany({ where: { ...where, status: { in: [...OPEN_STATUSES] } }, orderBy: { createdAt: "asc" } }),
+    db.employeeRequest.findMany({ where: { ...where, status: { notIn: [...OPEN_STATUSES] } }, orderBy: { updatedAt: "desc" }, take: 10 }),
+  ]);
+  return { open, answered };
 }
 
 export const myRequests = (db: Db, userId: string, take = 50) =>

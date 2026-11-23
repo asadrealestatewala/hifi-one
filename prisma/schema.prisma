@@ -1018,11 +1018,16 @@ model EmployeeRequest {
   handledById    String?
   handledAt      DateTime?
   responseNote   String?
+  hrOnly         Boolean   @default(false) // "Private, HR only": the manager is not told and cannot read it (always for a grievance)
+  managerId      String? // the line manager it was shared with when sent; empty when HR only or nobody manages the person
+  managerNote    String? // the manager's comment for HR; the employee does not see it
+  managerNotedAt DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   @@index([organizationId, status, createdAt])
   @@index([userId, createdAt])
+  @@index([managerId, status])
 }
 
 // ---------- Phase 4: payroll ----------
@@ -1378,7 +1383,7 @@ model Circular {
   kind           String   @default("GENERAL") // GENERAL | WORK_FROM_HOME | HOLIDAY | POLICY | URGENT
   title          String
   body           String
-  audience       String   @default("ALL") // ALL | ROLES | PEOPLE (who it was addressed to; the recipient rows are the record)
+  audience       String   @default("ALL") // ALL | DEPARTMENTS | ROLES | PEOPLE (who it was addressed to; the recipient rows are the record)
   audienceLabel  String?
   sentById       String
   createdAt      DateTime @default(now())

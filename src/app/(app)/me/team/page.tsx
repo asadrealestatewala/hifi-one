@@ -4,7 +4,10 @@ import { db } from "@/lib/db";
 import { dayStatus } from "@/lib/daily-reports";
 import { dateInZone, fmtMinutes, isDateString } from "@/lib/hr-rules";
 import { getWorkingContext } from "@/lib/working-calendar";
-import { Avatar, Badge, Empty, Notice, PageHeader, Stat } from "@/components/ui";
+import { REQUEST_TYPE_LABEL, attachmentsFor, isOpen, requestsForManager, type RequestType } from "@/lib/employee-requests";
+import { noteRequestAction } from "./actions";
+import RequestAttachments from "@/components/RequestAttachments";
+import { Avatar, Badge, Empty, Notice, PageHeader, Stat, SubmitButton } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +15,7 @@ const addDays = (s: string, n: number) => new Date(Date.parse(`${s}T00:00:00Z`) 
 
 // One screen for a manager: who reports to them, what each of them did today, and what of theirs is waiting.
 // Reads only; every decision is still made on the screen that owns it.
-export default async function MyTeam({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
+export default async function MyTeam({ searchParams }: { searchParams: Promise<{ date?: string; msg?: string; error?: string }> }) {
   const user = await requirePermission("leave.approve");
   const sp = await searchParams;
   const org = user.organizationId;
@@ -33,6 +36,12 @@ export default async function MyTeam({ searchParams }: { searchParams: Promise<{
       ? db.expenseVoucher.count({ where: { organizationId: org, submittedById: { in: ids }, status: { in: ["SUBMITTED", "UNDER_REVIEW"] } } }) : 0,
   ]);
   const byId = new Map(rows.map((r) => [r.userId, r]));
+  const apps = await requestsForManager(db, org, user.id);
+  const appList = [...apps.open, ...apps.answered];
+  const appFiles = await attachmentsFor(db, org, appList.map((a) => a.id));
+  const nameOf = new Map(team.map((t) => [t.id, t.name]));
+  for (const u of await db.user.findMany({ where: { id: { in: appList.map((a) => a.userId).filter((id) => !nameOf.has(id)) } }, select: { id: true, name: true } })) nameOf.set(u.id, u.name);
+  const STATUS: Record<string, [string, "neutral" | "warning" | "success" | "danger" | "primary"]> = { SUBMITTED: ["Waiting for HR", "warning"], IN_REVIEW: ["HR is reviewing", "primary"], APPROVED: ["Approved", "success"], DECLINED: ["Declined", "danger"], CANCELLED: ["Withdrawn", "neutral"] };
   const present = rows.filter((r) => (r.attendanceMinutes ?? 0) > 0).length;
   const expected = rows.filter((r) => r.expected).length;
   const reported = rows.filter((r) => r.expected && r.report).length;
@@ -61,6 +70,8 @@ export default async function MyTeam({ searchParams }: { searchParams: Promise<{
           </form>
         }
       />
+      {sp.error && <Notice kind="error">{sp.error}</Notice>}
+      {sp.msg && <Notice kind="ok">{sp.msg}</Notice>}
       {holiday && <Notice kind="ok">{holiday.name} — a public holiday, so nobody was expected to work.</Notice>}
 
       <div className="grid gap-4 sm:grid-cols-4">
@@ -102,6 +113,47 @@ export default async function MyTeam({ searchParams }: { searchParams: Promise<{
           </tbody>
         </table>
       </div>
+
+      <section id="requests" className="card space-y-3" aria-labelledby="team-requests">
+        <div>
+          <h2 id="team-requests" className="font-semibold">Applications to HR</h2>
+          <p className="text-sm text-muted">What your team asked HR for, when they shared it with you. HR answers; you can add a comment for HR, which the employee does not see. Applications marked &ldquo;Private, HR only&rdquo; and complaints never appear here.</p>
+        </div>
+        {appList.length === 0 ? (
+          <p className="rounded-xl bg-hover/60 px-4 py-6 text-center text-sm text-muted">No applications from your team.</p>
+        ) : (
+          <ul className="divide-y divide-border rounded-xl border border-border">
+            {appList.map((a) => {
+              const [label, tone] = STATUS[a.status] ?? [a.status, "neutral"];
+              const files = appFiles.filter((f) => f.ownerId === a.id);
+              return (
+                <li key={a.id} className="space-y-2 px-4 py-3 text-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">{nameOf.get(a.userId) ?? "Former staff"}</span>
+                    <span className="text-muted">· {REQUEST_TYPE_LABEL[a.type as RequestType] ?? a.type}</span>
+                    <Badge tone={tone}>{label}</Badge>
+                    <span className="ml-auto text-xs text-muted">{a.createdAt.toISOString().slice(0, 10)}</span>
+                  </div>
+                  <p className="font-medium">{a.subject}</p>
+                  <p className="whitespace-pre-line text-muted">{a.body}</p>
+                  <RequestAttachments files={files} viewerId={user.id} />
+                  {a.responseNote && !isOpen(a.status) && <p className="text-xs"><span className="font-medium">HR:</span> {a.responseNote}</p>}
+                  {isOpen(a.status) ? (
+                    <form action={noteRequestAction} className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                      <input type="hidden" name="id" value={a.id} />
+                      <div className="flex-1">
+                        <label htmlFor={`note-${a.id}`} className="label">{a.managerNote ? "Your comment for HR" : "Comment for HR (optional)"}</label>
+                        <textarea id={`note-${a.id}`} name="note" className="input min-h-16" maxLength={2000} defaultValue={a.managerNote ?? ""} placeholder="For example: I support this; the laptop is needed for the new client." />
+                      </div>
+                      <SubmitButton pendingText="Saving…">{a.managerNote ? "Update comment" : "Send to HR"}</SubmitButton>
+                    </form>
+                  ) : a.managerNote ? <p className="text-xs text-muted">Your comment: {a.managerNote}</p> : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

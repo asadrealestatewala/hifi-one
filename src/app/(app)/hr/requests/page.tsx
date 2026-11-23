@@ -1,7 +1,7 @@
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { REQUEST_TYPES, REQUEST_TYPE_LABEL, attachmentsFor, isOpen, requestCounts, requestsForHr, type RequestType } from "@/lib/employee-requests";
-import { Avatar, Chips, ConfirmButton, Empty, Notice, PageHeader, Stat, StatusBadge, SubmitButton } from "@/components/ui";
+import { Avatar, Badge, Chips, ConfirmButton, Empty, Notice, PageHeader, Stat, StatusBadge, SubmitButton } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import RequestAttachments from "@/components/RequestAttachments";
 import { reviewRequestAction } from "./actions";
@@ -21,7 +21,7 @@ export default async function HrRequests({ searchParams }: { searchParams: Promi
   const type = sp.type && (REQUEST_TYPES as readonly string[]).includes(sp.type) ? sp.type : undefined;
   const [rows, counts] = await Promise.all([requestsForHr(db, org, { status, type }), requestCounts(db, org)]);
   const [people, files] = await Promise.all([
-    db.user.findMany({ where: { id: { in: [...new Set(rows.flatMap((r) => [r.userId, r.handledById].filter((x): x is string => Boolean(x))))] } }, select: { id: true, name: true } }),
+    db.user.findMany({ where: { id: { in: [...new Set(rows.flatMap((r) => [r.userId, r.handledById, r.managerId].filter((x): x is string => Boolean(x))))] } }, select: { id: true, name: true } }),
     attachmentsFor(db, org, rows.map((r) => r.id)),
   ]);
   const names = new Map(people.map((p) => [p.id, p.name]));
@@ -72,9 +72,11 @@ export default async function HrRequests({ searchParams }: { searchParams: Promi
                 <span className="font-medium">{r.subject}</span>
                 <span className="text-xs text-muted">{REQUEST_TYPE_LABEL[r.type as RequestType] ?? r.type} · sent {when(r.createdAt)}{isOpen(r.status) && daysAgo(r.createdAt) >= 3 && <strong className="text-brand"> · {daysAgo(r.createdAt)} days waiting</strong>}</span>
                 <StatusBadge status={r.status} />
+                {r.hrOnly ? <Badge tone="danger">Private, HR only</Badge> : r.managerId ? <span className="text-xs text-muted">Shared with {names.get(r.managerId) ?? "their manager"}</span> : null}
               </div>
               <p className="whitespace-pre-line">{r.body}</p>
               <RequestAttachments files={filesOf(r.id)} viewerId={user.id} />
+              {r.managerNote && <p className="rounded-lg border border-border px-3 py-2"><span className="text-xs font-semibold text-muted">Manager, {names.get(r.managerId ?? "") ?? "manager"}{r.managerNotedAt ? `, ${when(r.managerNotedAt)}` : ""}: </span>{r.managerNote}</p>}
               {r.responseNote && <p className="rounded-lg bg-hover/60 px-3 py-2"><span className="text-xs font-semibold text-muted">{names.get(r.handledById ?? "") ?? "HR"}{r.handledAt ? `, ${when(r.handledAt)}` : ""}: </span>{r.responseNote}</p>}
               {isOpen(r.status) && r.userId !== user.id && (
                 <div className="flex flex-wrap items-center gap-2 border-t border-border pt-2">

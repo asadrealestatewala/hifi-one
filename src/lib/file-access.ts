@@ -224,11 +224,12 @@ export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: 
 
   if (ownerType === "EMPLOYEE_REQUEST") {
     // A file attached to an employee's application to HR: the employee and HR (hr.manage) read it; the employee adds files while the
-    // request is still open, HR at any time; removal follows the same rule. Managers never see these (a grievance may be about them).
-    const r = await db.employeeRequest.findFirst({ where: { id: ownerId, organizationId: a.organizationId }, select: { userId: true, status: true } });
+    // request is still open, HR at any time; removal follows the same rule. The line manager it was shared with may read it too;
+    // never when the employee marked it HR only (a grievance always is: it may be about the manager).
+    const r = await db.employeeRequest.findFirst({ where: { id: ownerId, organizationId: a.organizationId }, select: { userId: true, status: true, hrOnly: true, managerId: true } });
     if (!r || !staff) return false;
     const mine = a.id === r.userId;
-    if (mode === "read") return mine || has("hr.manage");
+    if (mode === "read") return mine || has("hr.manage") || (!r.hrOnly && r.managerId === a.id);
     const open = r.status === "SUBMITTED" || r.status === "IN_REVIEW";
     return (mine && open) || has("hr.manage");
   }

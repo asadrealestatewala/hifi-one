@@ -1,4 +1,4 @@
-// HR circulars. Free of Next.js imports. A circular goes to all active staff, to some roles or to chosen people.
+// HR circulars. Free of Next.js imports. A circular goes to all active staff, to some departments, to some roles or to chosen people.
 // Each recipient gets a normal in-app notification (and a phone push through notify) plus a popup until they press "I have read this".
 import type { PrismaClient } from "@prisma/client";
 import { notify } from "./notifications";
@@ -6,7 +6,7 @@ import { signDownload } from "./files";
 
 export const CIRCULAR_KINDS = { GENERAL: "General notice", WORK_FROM_HOME: "Work from home", HOLIDAY: "Holiday or leave", POLICY: "Policy change", URGENT: "Urgent" } as const;
 export type CircularKind = keyof typeof CIRCULAR_KINDS;
-export type CircularAudience = { type: "ALL" } | { type: "ROLES"; roleKeys: string[] } | { type: "PEOPLE"; userIds: string[] };
+export type CircularAudience = { type: "ALL" } | { type: "DEPARTMENTS"; departmentIds: string[] } | { type: "ROLES"; roleKeys: string[] } | { type: "PEOPLE"; userIds: string[] };
 
 export class CircularError extends Error {}
 
@@ -24,6 +24,13 @@ export async function sendCircular(db: PrismaClient, i: { id?: string; organizat
   if (i.audience.type === "ALL") {
     ids = (await db.user.findMany({ where: staff, select: { id: true } })).map((u) => u.id);
     label = "All staff";
+  } else if (i.audience.type === "DEPARTMENTS") {
+    const want = [...new Set(i.audience.departmentIds)];
+    if (want.length === 0) throw new CircularError("Choose at least one department.");
+    const depts = await db.department.findMany({ where: { organizationId: i.organizationId, id: { in: want } }, select: { id: true, name: true }, orderBy: { name: "asc" } });
+    if (depts.length === 0) throw new CircularError("Choose at least one department.");
+    ids = (await db.user.findMany({ where: { ...staff, departmentId: { in: depts.map((d) => d.id) } }, select: { id: true } })).map((u) => u.id);
+    label = depts.map((d) => d.name).join(", ");
   } else if (i.audience.type === "ROLES") {
     const keys = [...new Set(i.audience.roleKeys)];
     if (keys.length === 0) throw new CircularError("Choose at least one role.");
