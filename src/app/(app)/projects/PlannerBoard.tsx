@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { Notice } from "@/components/ui";
 import type { PlannerDay, PlannerTask } from "@/lib/planner";
+import type { WeekProgress } from "@/lib/week-plan";
 import { planTaskAction } from "./planner-actions";
 
 type Row = { userId: string | null; name: string; capacity: Record<string, number>; away: string[] };
@@ -17,7 +18,7 @@ const h = (n: number) => `${n % 1 === 0 ? n : n.toFixed(1)} h`;
 // The week as a grid you can drag tasks around in. Dropping on a cell sets that day as the due date and, on another row, hands
 // the task to that person. Every card also has a Move menu, so the same thing works with a keyboard or on a phone.
 // Moves show at once and are undone with a message if the server refuses them.
-export default function PlannerBoard({ days, rows, tasks: initial, people, today, trayHidden }: { days: PlannerDay[]; rows: Row[]; tasks: PlannerTask[]; people: { id: string; name: string }[]; today: string; trayHidden: number }) {
+export default function PlannerBoard({ days, rows, tasks: initial, people, today, trayHidden, progress = {} }: { days: PlannerDay[]; rows: Row[]; tasks: PlannerTask[]; people: { id: string; name: string }[]; today: string; trayHidden: number; progress?: Record<string, WeekProgress> }) {
   const router = useRouter();
   const [tasks, setTasks] = useState(initial);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +82,7 @@ export default function PlannerBoard({ days, rows, tasks: initial, people, today
                     <th scope="row" className="px-3 py-2 text-left font-medium">
                       {r.name}
                       {r.userId && <span className={`block text-[11px] font-normal ${week.plan > week.cap ? "text-brand" : "text-muted"}`}>{h(Math.round(week.plan * 10) / 10)} of {h(week.cap)}</span>}
+                      {r.userId && progress[r.userId] && <WeekCounts p={progress[r.userId]} />}
                     </th>
                     {days.map((d) => {
                       const key = `${r.userId ?? "none"}|${d.date}`;
@@ -162,5 +164,16 @@ function Card({ t, days, people, today, onDrag, onMove, busy, showWho }: {
         </>
       )}
     </li>
+  );
+}
+
+// The person's week in three numbers: done, late (past the deadline, open or finished after it) and not started.
+function WeekCounts({ p }: { p: WeekProgress }) {
+  return (
+    <span className="mt-1 block text-[11px] font-normal leading-snug text-muted" title={`${p.total} task${p.total === 1 ? "" : "s"} due this week`}>
+      <span className="text-success">{p.done}/{p.total} done</span>
+      {p.late > 0 && <span className="block font-medium text-brand">{p.late} late</span>}
+      {p.notStarted > 0 && <span className="block">{p.notStarted} not started</span>}
+    </span>
   );
 }
