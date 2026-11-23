@@ -15,6 +15,7 @@ export const SCREEN_GROUPS: ScreenGroup[] = [
   ] },
   { id: "hr-activity", label: "Staff activity", tabs: [
     { href: "/hr/attendance", label: "Attendance", permission: "attendance.view_all" },
+    { href: "/hr/attendance/report", label: "Attendance report", permission: "attendance.view_all" },
     { href: "/hr/reports", label: "Daily reports", permission: "leave.approve" },
     { href: "/hr/reports/eod", label: "End of day", permission: "attendance.view_all" },
     { href: "/hr/scorecards", label: "Scorecards", permission: "attendance.view_all" },

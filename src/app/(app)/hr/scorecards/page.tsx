@@ -3,7 +3,9 @@ import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { dateInZone, fmtMinutes } from "@/lib/hr-rules";
 import { monthlyScorecards } from "@/lib/scorecards";
-import { Avatar, Badge, Empty, ExportLink, PageHeader, Stat } from "@/components/ui";
+import { taskPerformance } from "@/lib/attendance-report";
+import { getWorkingContext } from "@/lib/working-calendar";
+import { Avatar, Badge, DownloadButtons, Empty, ExportLink, PageHeader, Stat } from "@/components/ui";
 import ScreenTabs from "@/components/shell/ScreenTabs";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +22,12 @@ export default async function Scorecards({ searchParams }: { searchParams: Promi
   const profile = await db.companyProfile.findFirst({ where: { organizationId: org, isDefault: true }, select: { timezone: true } });
   const thisMonth = dateInZone(new Date(), profile?.timezone ?? "UTC").slice(0, 7);
   const month = sp.month && /^\d{4}-(0[1-9]|1[0-2])$/.test(sp.month) && sp.month <= thisMonth ? sp.month : thisMonth;
-  const rows = await monthlyScorecards(db, { organizationId: org, month });
+  const monthEnd = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
+  const { calendar } = await getWorkingContext(db, org);
+  const [rows, perf] = await Promise.all([
+    monthlyScorecards(db, { organizationId: org, month }),
+    taskPerformance(db, { organizationId: org, from: `${month}-01`, to: monthEnd, calendar }),
+  ]);
   const avg = rows.length ? Math.round(rows.reduce((s, r) => s + r.avgScore, 0) / rows.length) : 0;
   const days = Math.max(0, ...rows.map((r) => r.days));
   const reportRate = rows.reduce((s, r) => s + r.days, 0) ? Math.round((rows.reduce((s, r) => s + r.reportsSent, 0) / rows.reduce((s, r) => s + r.days, 0)) * 100) : 0;
@@ -37,7 +44,10 @@ export default async function Scorecards({ searchParams }: { searchParams: Promi
       } />
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted">
         <span>{monthLabel(month)} · {days} working day{days === 1 ? "" : "s"} recorded so far</span>
-        {rows.length > 0 && <ExportLink href={`/hr/scorecards/export?month=${month}`} />}
+        <span className="flex flex-wrap items-center gap-3">
+          {rows.length > 0 && <ExportLink href={`/hr/scorecards/export?month=${month}`} excel />}
+          <DownloadButtons report="performance" label="Performance report" params={{ from: `${month}-01`, to: monthEnd }} />
+        </span>
       </div>
       {rows.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-4">
@@ -50,17 +60,20 @@ export default async function Scorecards({ searchParams }: { searchParams: Promi
       {rows.length === 0 ? <Empty title="No scorecards for this month yet">They build up from the end-of-day report, written each working day at office close.</Empty> : (
         <div className="card overflow-x-auto p-0">
           <table className="w-full text-sm">
-            <thead><tr className="text-left text-xs text-muted"><th className="px-4 py-2">Employee</th><th className="px-2 py-2">Present</th><th className="px-2 py-2">Avg day</th><th className="px-2 py-2">Late days</th><th className="px-2 py-2">Daily reports</th><th className="px-2 py-2">Avg rating</th><th className="px-2 py-2">Tasks done</th><th className="px-2 py-2">Hours on projects</th><th className="px-2 py-2">Sales activity</th><th className="px-4 py-2 text-right">Avg score</th></tr></thead>
+            <thead><tr className="text-left text-xs text-muted"><th className="px-4 py-2">Employee</th><th className="px-2 py-2">Present</th><th className="px-2 py-2">Avg day</th><th className="px-2 py-2">Late days</th><th className="px-2 py-2">Daily reports</th><th className="px-2 py-2">Avg rating</th><th className="px-2 py-2">Tasks done</th><th className="px-2 py-2">On time / late</th><th className="px-2 py-2">Revisions</th><th className="px-2 py-2" title="Average time a project manager took to approve or ask for a revision">Review answer</th><th className="px-2 py-2">Hours on projects</th><th className="px-2 py-2">Sales activity</th><th className="px-4 py-2 text-right">Avg score</th></tr></thead>
             <tbody className="divide-y divide-border">
               {rows.map((r) => (
                 <tr key={r.userId}>
-                  <td className="px-4 py-2"><Link href={`/me/scorecard?user=${r.userId}&month=${month}`} className="flex items-center gap-2 font-medium hover:underline"><Avatar name={r.name} userId={r.userId} size={26} />{r.name}</Link></td>
+                  <td className="px-4 py-2"><Link href={`/me/scorecard?user=${r.userId}&month=${month}`} className="flex items-center gap-2 whitespace-nowrap font-medium hover:underline"><Avatar name={r.name} userId={r.userId} size={26} />{r.name}</Link></td>
                   <td className="px-2 py-2 whitespace-nowrap">{r.present} / {r.days}</td>
                   <td className="px-2 py-2 whitespace-nowrap">{r.avgMinutes ? fmtMinutes(r.avgMinutes) : "—"}</td>
                   <td className="px-2 py-2">{r.lateDays || <span className="text-muted">0</span>}</td>
                   <td className="px-2 py-2 whitespace-nowrap">{r.reportsSent} / {r.days}{r.reportsLate > 0 && <span className="text-xs text-muted"> ({r.reportsLate} late)</span>}</td>
                   <td className="px-2 py-2">{r.avgRating ?? <span className="text-muted">—</span>}</td>
-                  <td className="px-2 py-2">{r.tasksDone}</td>
+                  <td className="px-2 py-2">{perf.get(r.userId)?.done ?? 0}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">{(() => { const t = perf.get(r.userId); return t && t.done > 0 ? <><span className="text-success">{t.onTime}</span> / <span className={t.late ? "text-brand" : "text-muted"}>{t.late}</span>{t.noDeadline > 0 && <span className="text-xs text-muted"> ({t.noDeadline} no deadline)</span>}</> : <span className="text-muted">—</span>; })()}</td>
+                  <td className="px-2 py-2">{perf.get(r.userId)?.revisions || <span className="text-muted">0</span>}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">{(() => { const t = perf.get(r.userId); return t?.avgResponseMinutes != null ? <>{t.avgResponseMinutes < 60 ? `${t.avgResponseMinutes} min` : fmtMinutes(t.avgResponseMinutes)} <span className="text-xs text-muted">({t.reviewsAnswered})</span></> : <span className="text-muted">—</span>; })()}</td>
                   <td className="px-2 py-2">{r.hoursLogged || <span className="text-muted">—</span>}</td>
                   <td className="px-2 py-2 whitespace-nowrap">{r.target > 0 ? <span className={r.activity >= r.target ? "text-success" : "text-brand"}>{r.activity} / {r.target} <span className="text-xs text-muted">({Math.round((r.activity / r.target) * 100)}%)</span></span> : <span className="text-muted">—</span>}</td>
                   <td className="px-4 py-2 text-right"><Badge tone={tone(r.avgScore)}>{r.avgScore}</Badge></td>

@@ -69,3 +69,11 @@ export function buildXlsx(sheets: XlsxSheet[]): Uint8Array {
 }
 
 export const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+// A table as an .xlsx download: the heading row in bold, numbers kept as numbers.
+export function xlsxDownload(sheet: string, headers: string[], rows: XlsxCell[][], filename: string): Response {
+  const safe = filename.replace(/[^A-Za-z0-9._-]+/g, "_").slice(0, 80) || "export";
+  const widths = headers.map((h, i) => Math.min(40, Math.max(8, h.length + 2, ...rows.slice(0, 200).map((r) => String(r[i] ?? "").length + 2))));
+  const bytes = buildXlsx([{ name: sheet, rows: [headers, ...rows], widths }]);
+  return new Response(Buffer.from(bytes), { headers: { "content-type": XLSX_TYPE, "content-disposition": `attachment; filename="${safe}.xlsx"`, "cache-control": "private, no-store", "x-content-type-options": "nosniff" } });
+}

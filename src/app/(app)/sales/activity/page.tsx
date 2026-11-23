@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
-import { METRICS, salesDashboard, type Metric } from "@/lib/crm";
+import { METRICS, METRIC_LABEL, salesDashboard, type Metric } from "@/lib/crm";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { Badge, Empty, Notice, PageHeader, Progress, Stat } from "@/components/ui";
@@ -9,7 +9,7 @@ import { setTargetAction, verifyAction } from "../../leads/crm-actions";
 
 export const dynamic = "force-dynamic";
 
-const LABEL: Record<Metric, string> = { CALLS: "Calls made", CONNECTED_CALLS: "Connected calls", EMAILS: "Emails", MEETINGS: "Meetings", FOLLOW_UPS: "Follow-ups", PROPOSALS: "Proposals", CONVERSIONS: "Conversions" };
+const LABEL: Record<Metric, string> = METRIC_LABEL;
 
 export default async function SalesActivity({ searchParams }: { searchParams: Promise<{ error?: string; msg?: string }> }) {
   const user = await requirePermission("crm.view");

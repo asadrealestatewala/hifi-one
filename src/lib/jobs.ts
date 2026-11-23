@@ -8,6 +8,7 @@ import { accrueCommissions } from "./commissions";
 import { sendWeeklyReviewRequests, settlePmBonuses } from "./client-reviews";
 import { missingReports } from "./daily-reports";
 import { generateEndOfDay } from "./scorecards";
+import { sendOwnerDaily } from "./owner-daily";
 import { formatMoney } from "./money";
 import { notifyMany, usersWithPermission } from "./notifications";
 import { purgeMonitoring } from "./monitoring";
@@ -24,8 +25,15 @@ import { type Calendar, getWorkingContext } from "./working-calendar";
 type Db = PrismaClient;
 export type JobContext = { db: Db; organizationId: string; today: string; now: Date; actorId: string; calendar: Calendar; holidays: string[] };
 // notBefore: HH:MM company-local; the scheduler waits for it (a forced manual run does not).
-// notBeforeClose: wait until the office closes, whatever the working calendar says that is.
-export type JobDef = { key: string; label: string; what: string; notBefore?: string; notBeforeClose?: boolean; run: (c: JobContext) => Promise<string> };
+// notBeforeClose: wait until the office closes, whatever the working calendar says that is (plus afterCloseMinutes).
+export type JobDef = { key: string; label: string; what: string; notBefore?: string; notBeforeClose?: boolean; afterCloseMinutes?: number; run: (c: JobContext) => Promise<string> };
+
+// "18:30" + 15 → "18:45", capped at 23:59 so the job still runs that day
+export function addMinutesToTime(hhmm: string, minutes: number): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  const t = Math.min(23 * 60 + 59, h * 60 + m + minutes);
+  return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+}
 
 const SYSTEM_ACTOR = "system-job";
 const day = (d: Date) => d.toISOString().slice(0, 10);
@@ -193,6 +201,15 @@ export const JOBS: JobDef[] = [
     },
   },
   {
+    key: "owner_daily_report", label: "Daily staff report to owners", what: "Fifteen minutes after the office closes, emails everyone with the Executive dashboard the day in one place: who was present, late, absent, on leave or out for work; tasks finished and late; issues and reviews still open; and who has not sent the daily report. The button opens the attendance report for the day (PDF and Excel). Skipped on days nobody was expected at work.",
+    notBeforeClose: true, afterCloseMinutes: 15,
+    async run({ db, organizationId, today, now, calendar }) {
+      const r = await sendOwnerDaily(db, { organizationId, date: today, calendar, now });
+      if (r.skipped) return r.skipped;
+      return `${r.day!.present} of ${r.day!.expected} present; ${r.sent} email${r.sent === 1 ? "" : "s"} sent`;
+    },
+  },
+  {
     key: "monitoring_purge", label: "Time tracking retention", what: "Deletes screenshots and activity records that passed the retention period in the monitoring policy.",
     async run({ db }) {
       const r = await purgeMonitoring(db, defaultStorage());
@@ -252,7 +269,7 @@ export async function runJobs(db: Db, o: RunOptions = {}): Promise<RunResult[]> 
     for (const job of JOBS.filter((j) => !o.only || o.only.includes(j.key))) {
       const done = await db.jobRun.findFirst({ where: { organizationId: org.id, key: job.key, runDate: today, status: "OK" } });
       if (done && !o.force) { out.push({ organizationId: org.id, key: job.key, status: "SKIPPED", summary: "Already ran today" }); continue; }
-      const notBefore = job.notBeforeClose ? calendar.workEnd : job.notBefore;
+      const notBefore = job.notBeforeClose ? addMinutesToTime(calendar.workEnd, job.afterCloseMinutes ?? 0) : job.notBefore;
       if (notBefore && !o.force && localTime < notBefore) { out.push({ organizationId: org.id, key: job.key, status: "SKIPPED", summary: `Waits until ${notBefore}` }); continue; }
       // A run that never finished (the server stopped) must not block the job for ever
       await db.jobRun.updateMany({ where: { organizationId: org.id, key: job.key, status: "RUNNING", startedAt: { lt: new Date(now.getTime() - 30 * 60_000) } }, data: { status: "FAILED", error: "Timed out", finishedAt: now } });

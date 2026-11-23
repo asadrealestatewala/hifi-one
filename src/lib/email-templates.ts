@@ -587,6 +587,20 @@ export const SYSTEM_TEMPLATES: TemplateDef[] = [
     },
   },
   {
+    key: "owner_daily_report", name: "Daily staff report to owners", audience: "Staff",
+    description: "Sent fifteen minutes after the office closes to everyone with the Executive dashboard: attendance, tasks, open issues and reviews, and missing daily reports for the day.",
+    variables: { first_name: "Asad", date: "Monday 23 November", present: "11 of 12", late: "1: Bilal Ahmed (09:41, 26 min)", absent: "1: Hina Shah", leave: "Nobody", out: "Sara Khan (Site or client visit, Blue Area)", tasks_done: "14 tasks", tasks_late: "None", issues: "None open", reviews: "None waiting", reports: "10 sent; missing: Bilal Ahmed and Hina Shah", link: "https://hifimarketing.co/hr/attendance/report?date=2026-11-23", company_name: "Hifi Marketing and Technologies" },
+    blocks: { label: "Today at the office", details: [["Present", "{{present}}"], ["Late", "{{late}}"], ["Absent", "{{absent}}"], ["On leave", "{{leave}}"], ["Out for work", "{{out}}"], ["Tasks finished", "{{tasks_done}}"], ["Tasks late", "{{tasks_late}}"], ["Issues", "{{issues}}"], ["Reviews", "{{reviews}}"], ["Daily reports", "{{reports}}"]] },
+    buttonUrlVar: "link",
+    defaults: {
+      subject: "Staff today, {{date}}: {{present}} present",
+      preheader: "Late: {{late}}. Absent: {{absent}}.",
+      heading: "Your team today",
+      body: "Hi {{first_name}},\n\nHere is {{date}} at a glance. The attendance report has the detail, with PDF and Excel downloads.",
+      buttonLabel: "Open the attendance report",
+    },
+  },
+  {
     key: "task_mention", name: "Mentioned on a task", audience: "Staff",
     description: "Sent when a colleague @mentions someone in a task comment. Replying to it adds a comment to the task (when receiving mail is set up).",
     variables: { first_name: "Bilal", author: "Sara Khan", task_title: "Design the launch post", project: "Acme Retainer", comment: "@Bilal can you check the copy before 4 PM?", reply_note: "You can reply to this email: your reply is added to the task as a comment.", link: "https://hifimarketing.co/projects/sample", company_name: "Hifi Marketing and Technologies" },

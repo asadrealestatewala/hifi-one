@@ -19,6 +19,7 @@ would send a message says "not configured" or hands the person a link to copy.
 | `monitoring_purge` | Workfolio screenshots and activity past the policy's retention |
 | `document_expiry` | Vendor and employee documents expiring within 30 days, and ones already expired |
 | `daily_report_missing` | Each morning, reminds anyone who missed yesterday's daily report and tells HR the count |
+| `owner_daily_report` | Fifteen minutes after office close (`notBeforeClose` + `afterCloseMinutes: 15`, so 18:45 with the default calendar), emails everyone with `dashboard.executive` the day (template `owner_daily_report`): present of expected, late with clock-in and minutes, absent, on leave, out for work, tasks finished and late (past the deadline time), open task issues, reviews waiting, and who has not sent the daily report; plus one bell notice (`report.owner_daily`, dedupe per org and day) linking to the attendance report. Skipped when nobody was expected at work (`src/lib/owner-daily.ts`) |
 | `end_of_day_report` | At 18:30 company time (`notBefore`), writes the day's `DayScorecard` rows, nudges people whose daily report is missing, and tells HR the end-of-day report is ready |
 
 - **Idempotent.** One `JobRun` row per organization, job and day. A finished day is skipped ("Already ran today") unless forced. A partial unique index allows one `RUNNING` row per organization and job, so two schedulers cannot run the same job at once; a run stuck for more than 30 minutes is marked failed and may be retried. A failure in one job or organization never stops the others.

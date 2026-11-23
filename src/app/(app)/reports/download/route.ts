@@ -5,7 +5,8 @@ import { leadScope } from "@/lib/leads";
 import { reportPdf } from "@/lib/pdf";
 import { loadReportLetterhead } from "@/lib/pdf-data";
 import { pdfResponse } from "@/lib/pdf-response";
-import { REPORTS, buildReport, isReportKey, reportCsv } from "@/lib/report-tables";
+import { REPORTS, buildReport, isReportKey, reportCsv, reportXlsx } from "@/lib/report-tables";
+import { XLSX_TYPE } from "@/lib/xlsx";
 import { logReportAccess } from "@/lib/monitoring";
 
 export const dynamic = "force-dynamic";
@@ -17,11 +18,11 @@ export async function GET(req: Request) {
   const key = sp.get("report");
   if (!isReportKey(key)) return new Response("Unknown report", { status: 404 });
   const user = await requirePermission(REPORTS[key].permission);
-  const format = sp.get("format") === "pdf" ? "pdf" : "csv";
+  const format = sp.get("format") === "pdf" ? "pdf" : sp.get("format") === "xlsx" ? "xlsx" : "csv";
   const today = new Date().toISOString().slice(0, 10);
   const r = parseRange(sp.get("from") ?? undefined, sp.get("to") ?? undefined);
   const to = r.to ?? today;
-  const from = r.from ?? (key === "workforce" ? new Date(Date.parse(to) - 6 * 86400000).toISOString().slice(0, 10) : `${to.slice(0, 7)}-01`);
+  const from = r.from ?? (key === "workforce" ? new Date(Date.parse(to) - 6 * 86400000).toISOString().slice(0, 10) : key === "attendance" ? to : `${to.slice(0, 7)}-01`);
   const org = user.organizationId;
   const table = await buildReport(db, key, {
     organizationId: org, from, to, departmentId: sp.get("dept") || undefined,
@@ -33,6 +34,9 @@ export async function GET(req: Request) {
   }
   await audit(user, { action: "report.download", entity: "Report", entityId: key, after: { format, from, to, campaign: sp.get("campaign") || undefined } });
   const name = `${key}-${from}-to-${to}`;
+  if (format === "xlsx") {
+    return new Response(Buffer.from(reportXlsx(table)), { headers: { "content-type": XLSX_TYPE, "content-disposition": `attachment; filename="${name}.xlsx"`, "cache-control": "no-store" } });
+  }
   if (format === "csv") {
     return new Response("﻿" + reportCsv(table), { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="${name}.csv"`, "cache-control": "no-store" } });
   }

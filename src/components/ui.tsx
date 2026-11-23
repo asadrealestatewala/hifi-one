@@ -179,17 +179,26 @@ export function Pager({ page, size, total, href }: { page: number; size: number;
 
 // "Export CSV" for a list: `href` is the list's export route with the on-screen filters, so the file holds
 // every matching row (not just the page shown). A plain link: it works without JavaScript and is never prefetched.
-export function ExportLink({ href, label = "Export CSV" }: { href: string; label?: string }) {
-  return <a href={href} className="btn-ghost" download>{label}</a>;
+// With `excel`, a second link asks the same route for ?format=xlsx.
+export function ExportLink({ href, label = "Export CSV", excel = false }: { href: string; label?: string; excel?: boolean }) {
+  if (!excel) return <a href={href} className="btn-ghost" download>{label}</a>;
+  return (
+    <span className="inline-flex gap-2">
+      <a href={`${href}${href.includes("?") ? "&" : "?"}format=xlsx`} className="btn-ghost" download>Export Excel</a>
+      <a href={href} className="btn-ghost" download>{label}</a>
+    </span>
+  );
 }
 
-// Download links for a report: CSV for spreadsheets, PDF for sharing. `params` carries the on-screen filters.
-export function DownloadButtons({ report, params }: { report: string; params?: Record<string, string | undefined> }) {
+// Download links for a report: Excel or CSV for spreadsheets, PDF for sharing. `params` carries the on-screen filters.
+export function DownloadButtons({ report, params, label = "Download" }: { report: string; params?: Record<string, string | undefined>; label?: string }) {
   const q = (format: string) => { const p = new URLSearchParams({ report, format }); for (const [k, v] of Object.entries(params ?? {})) if (v) p.set(k, v); return `/reports/download?${p}`; };
   return (
-    <span className="inline-flex gap-2" role="group" aria-label="Download this report">
-      <a href={q("csv")} className="btn-ghost" download>Download CSV</a>
-      <a href={q("pdf")} className="btn-ghost" download>Download PDF</a>
+    <span className="inline-flex flex-wrap items-center gap-2" role="group" aria-label={label}>
+      <span className="text-xs text-muted">{label}</span>
+      <a href={q("xlsx")} className="btn-ghost" download aria-label={`${label}: Excel`}>Excel</a>
+      <a href={q("csv")} className="btn-ghost" download aria-label={`${label}: CSV`}>CSV</a>
+      <a href={q("pdf")} className="btn-ghost" download aria-label={`${label}: PDF`}>PDF</a>
     </span>
   );
 }
