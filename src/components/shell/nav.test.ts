@@ -23,7 +23,7 @@ describe("screen groups", () => {
   });
 
   it("shows only the tabs a person may open", () => {
-    expect(groupTabs("hr-activity", perms("attendance.view_all")).map((t) => t.label)).toEqual(["Attendance", "End of day", "Scorecards", "Site visits"]);
+    expect(groupTabs("hr-activity", perms("attendance.view_all")).map((t) => t.label)).toEqual(["Attendance", "Attendance report", "End of day", "Scorecards", "Site visits"]);
     expect(groupTabs("hr-activity", perms("monitoring.view_team")).map((t) => t.label)).toEqual(["Time tracking"]);
   });
 });

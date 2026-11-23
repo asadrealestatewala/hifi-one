@@ -53,7 +53,7 @@ export default async function EndOfDayReport({ searchParams }: { searchParams: P
         <span className="flex items-center gap-2">
           <Link href={`/hr/reports?date=${date}`} className="underline">Daily reports</Link>
           <Link href={`/hr/scorecards?month=${date.slice(0, 7)}`} className="underline">Month scorecards</Link>
-          {rows.length > 0 && <ExportLink href={`/hr/reports/eod/export?date=${date}`} />}
+          {rows.length > 0 && <ExportLink href={`/hr/reports/eod/export?date=${date}`} excel />}
           <form action={generateEndOfDayAction}><input type="hidden" name="date" value={date} /><SubmitButton className="btn-ghost" pendingText="Generating…">{rows.length ? "Regenerate now" : "Generate now"}</SubmitButton></form>
         </span>
       </div>

@@ -8,6 +8,10 @@ import { AGING_BUCKETS, buildBalanceSheet, buildIncomeStatement, groupByCurrency
 import { performance } from "./campaign-performance";
 import { projectProgress } from "./project-rules";
 import { salesTaxReport } from "./tax";
+import { STATE_LABEL, STATE_SHORT, attendanceReport, taskPerformance } from "./attendance-report";
+import { fmtMinutes } from "./hr-rules";
+import { getWorkingContext } from "./working-calendar";
+import { buildXlsx, type XlsxSheet } from "./xlsx";
 
 export type ReportColumn = { label: string; align?: "left" | "right" };
 export type ReportSection = { heading: string; columns: ReportColumn[]; rows: string[][]; totals?: string[] };
@@ -25,6 +29,8 @@ export const REPORTS = {
   workforce: { title: "Workforce Time and Activity", permission: "monitoring.view_team" },
   campaign: { title: "Campaign Performance", permission: "campaigns.view" },
   campaign_client: { title: "Campaign Report for the Client", permission: "campaigns.view" },
+  attendance: { title: "Attendance Report", permission: "attendance.view_all" },
+  performance: { title: "Staff Performance", permission: "attendance.view_all" },
 } as const;
 export type ReportKey = keyof typeof REPORTS;
 export const isReportKey = (k: string | null | undefined): k is ReportKey => !!k && k in REPORTS;
@@ -105,6 +111,45 @@ export async function buildReport(db: PrismaClient, key: ReportKey, p: ReportPar
     });
     r.notes.push("Clocked minutes come from the attendance record (clock in to clock out, less breaks), the same figure as Staff activity. Active and idle minutes are what the tracker saw on the computer during that time, and only for people who accepted the monitoring policy. Figures are context, not a verdict.");
   }
+  else if (key === "attendance" || key === "performance") {
+    const work = await getWorkingContext(db, p.organizationId, p.from, p.to);
+    const a = await attendanceReport(db, { organizationId: p.organizationId, from: p.from, to: p.to, calendar: work.calendar, holidays: work.holidays, departmentId: p.departmentId });
+    if (a.to !== p.to) r.subtitle = `${p.from} to ${a.to} (up to 31 days at a time)`;
+    if (p.from === a.to) r.subtitle = p.from;
+    const mins = (m: number) => (m ? fmtMinutes(m) : "");
+    if (key === "attendance" && a.dates.length === 1) {
+      r.sections.push({
+        heading: "Attendance", columns: [{ label: "Person" }, { label: "Employee ID" }, { label: "Department" }, { label: "Status" }, { label: "Clock in" }, { label: "Clock out" }, { label: "Late by" }, { label: "Worked" }, { label: "Note" }],
+        rows: a.people.map((x) => { const d = x.days[0]; return [x.name, x.employeeNo, x.department ?? "", STATE_LABEL[d.state] || (d.note ?? ""), d.clockIn ?? "", d.clockOut ?? (d.clockIn ? "still in" : ""), d.lateMinutes ? `${d.lateMinutes} min` : "", mins(d.workedMinutes), d.state === "UPCOMING" ? "" : d.note ?? ""]; }),
+        totals: ["Total", "", "", `${a.totals.present} present`, "", "", `${a.totals.late} late`, "", `${a.totals.absent} absent, ${a.totals.leave} on leave, ${a.totals.out} out for work`],
+      });
+    } else if (key === "attendance") {
+      r.sections.push({
+        heading: "Summary", columns: [{ label: "Person" }, { label: "Employee ID" }, { label: "Department" }, { label: "Working days", align: "right" }, { label: "Present", align: "right" }, { label: "Late", align: "right" }, { label: "Absent", align: "right" }, { label: "On leave", align: "right" }, { label: "Out for work", align: "right" }, { label: "Minutes late", align: "right" }, { label: "Worked" }],
+        rows: a.people.map((x) => [x.name, x.employeeNo, x.department ?? "", String(x.totals.expected), String(x.totals.present), String(x.totals.late), String(x.totals.absent), String(x.totals.leave), String(x.totals.out), String(x.totals.lateMinutes), mins(x.totals.workedMinutes)]),
+        totals: ["Total", "", "", String(a.totals.expected), String(a.totals.present), String(a.totals.late), String(a.totals.absent), String(a.totals.leave), String(a.totals.out), String(a.totals.lateMinutes), mins(a.totals.workedMinutes)],
+      });
+      r.sections.push({
+        heading: "By day", columns: [{ label: "Person" }, ...a.dates.map((d) => ({ label: d.slice(8) }))],
+        rows: a.people.map((x) => [x.name, ...x.days.map((d) => STATE_SHORT[d.state])]),
+      });
+      r.notes.push("By day: P present, L late, A absent, LV on leave, OW out for work (site visit, field work or work from home), H holiday, – day off. Blank: not yet, or before the person joined.");
+    } else {
+      const perf = await taskPerformance(db, { organizationId: p.organizationId, from: p.from, to: a.to, calendar: work.calendar, userIds: a.people.map((x) => x.userId) });
+      const cards = await db.dayScorecard.findMany({ where: { organizationId: p.organizationId, workDate: { gte: p.from, lte: a.to }, expected: true, userId: { in: a.people.map((x) => x.userId) } }, select: { userId: true, activity: true, target: true, score: true } });
+      const card = new Map<string, { activity: number; target: number; score: number; days: number }>();
+      for (const c of cards) { const m = card.get(c.userId) ?? { activity: 0, target: 0, score: 0, days: 0 }; m.activity += c.activity; m.target += c.target ?? 0; m.score += c.score; m.days++; card.set(c.userId, m); }
+      r.sections.push({
+        heading: "Performance", columns: [{ label: "Person" }, { label: "Present", align: "right" }, { label: "Late days", align: "right" }, { label: "Tasks done", align: "right" }, { label: "On time", align: "right" }, { label: "Late", align: "right" }, { label: "Revisions", align: "right" }, { label: "Reviews answered", align: "right" }, { label: "Average answer" }, { label: "Sales activity" }, { label: "Average score", align: "right" }],
+        rows: a.people.map((x) => {
+          const t = perf.get(x.userId), c = card.get(x.userId);
+          return [x.name, `${x.totals.present} of ${x.totals.expected}`, String(x.totals.late), String(t?.done ?? 0), String(t?.onTime ?? 0), String(t?.late ?? 0), String(t?.revisions ?? 0), String(t?.reviewsAnswered ?? 0), t?.avgResponseMinutes == null ? "" : `${t.avgResponseMinutes} min`, c && c.target > 0 ? `${c.activity} of ${c.target} (${Math.round((c.activity / c.target) * 100)}%)` : "", c?.days ? String(Math.round(c.score / c.days)) : ""];
+        }),
+      });
+      r.notes.push("On time and late compare when a task was finished with its deadline (its due time, or the end of the office day). Revisions are the times a project manager sent the person's work back. Reviews answered and average answer are for project managers: how long work they were sent waited for Approve or Revision needed. Sales activity and the score come from the end-of-day scorecards.");
+    }
+    if (a.people.length === 0) r.notes.push("Nobody with an active HR record matches.");
+  }
   else if (key === "campaign" || key === "campaign_client") {
     const c = p.campaignId ? await db.campaign.findFirst({ where: { id: p.campaignId, organizationId: p.organizationId }, include: { category: { select: { name: true } } } }) : null;
     if (!c) { r.notes.push("Campaign not found."); return r; }
@@ -137,4 +182,16 @@ export function reportCsv(r: ReportTable): string {
   for (const s of r.sections) parts.push(tableCsv([s.heading], []) + tableCsv(s.columns.map((c) => c.label), [...s.rows, ...(s.totals ? [s.totals] : [])]));
   if (r.notes.length) parts.push(tableCsv(["Notes"], r.notes.map((n) => [n])));
   return parts.join("\r\n");
+}
+
+// Excel: one sheet per section, headings in bold, numbers as numbers so they can be summed. Notes go on a last sheet.
+export function reportXlsx(r: ReportTable): Uint8Array {
+  const num = (v: string) => (/^-?\d+(\.\d+)?$/.test(v) && v.length < 16 ? Number(v) : v);
+  const sheets: XlsxSheet[] = r.sections.map((s) => ({
+    name: s.heading,
+    rows: [s.columns.map((c) => c.label), ...s.rows.map((row) => row.map(num)), ...(s.totals ? [s.totals.map(num)] : [])],
+    widths: s.columns.map((c, i) => Math.min(48, Math.max(8, c.label.length + 2, ...s.rows.slice(0, 200).map((row) => String(row[i] ?? "").length + 2)))),
+  }));
+  sheets.push({ name: "About", rows: [[r.title], [r.subtitle], ...r.notes.map((n) => [n])], widths: [100] });
+  return buildXlsx(sheets);
 }

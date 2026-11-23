@@ -3,10 +3,11 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { dateInZone, fmtMinutes } from "@/lib/hr-rules";
 import { loadMyDay } from "@/lib/my-day";
+import { myTargetToday } from "@/lib/my-target";
 import { getWorkingContext } from "@/lib/working-calendar";
 import { MY_SPACE_GROUPS as GROUPS } from "@/lib/my-space";
 import Icon from "@/components/shell/Icon";
-import { Notice, PageHeader } from "@/components/ui";
+import { Notice, PageHeader, Progress } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,7 @@ export default async function MyDayPage() {
     organizationId: user.organizationId, userId: user.id, permissions: user.permissions, date: today, timeZone: tz,
     calendar: work.calendar, holidayName: work.holidays.find((h) => h.date === today)?.name ?? null,
   });
+  const targets = await myTargetToday(db, { organizationId: user.organizationId, userId: user.id, date: today, timeZone: tz });
   const clockLabel = { NOT_STARTED: "Not clocked in", WORKING: "Clocked in", ON_BREAK: "On a break", FINISHED: "Clocked out" }[day.clock.state];
   const reportLabel = { SENT: "Sent", LATE: "Sent late", MISSING: "Not written yet", NOT_EXPECTED: "Not expected today" }[day.report];
   const groups = GROUPS.map((g) => ({ ...g, entries: g.entries.filter((e) => e.permission === null || user.permissions.has(e.permission)) })).filter((g) => g.entries.length > 0);
@@ -54,6 +56,26 @@ export default async function MyDayPage() {
             <p className="text-xs text-muted">{day.tasks.overdue > 0 ? `${day.tasks.overdue} overdue · ` : ""}{day.tasks.open} open in all</p>
           </Link>
         </div>
+
+        {targets.length > 0 && day.kind.working && (
+          <div>
+            <h2 className="mb-2 font-semibold">My target today</h2>
+            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {targets.map((t) => (
+                <li key={t.key}>
+                  <Link href={t.href} className="block rounded-xl border border-border p-3 transition hover:border-primary/40">
+                    <p className="mb-2 text-sm font-medium">{t.label}</p>
+                    <Progress value={t.done} max={t.target} label={`${t.label}: ${t.done} of ${t.target}`} />
+                    <p className="mt-1 text-xs text-muted">
+                      {t.done >= t.target ? "Target reached" : `${t.target - t.done} to go`}
+                      {t.pending ? ` · ${t.pending} waiting for a manager to verify` : ""}
+                    </p>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div>
           <h2 className="mb-2 font-semibold">Still to do today</h2>

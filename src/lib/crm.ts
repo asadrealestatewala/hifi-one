@@ -150,6 +150,7 @@ export async function verifyActivity(db: Db, p: { organizationId: string; activi
 }
 
 // ---------- targets and daily dashboard ----------
+export const METRIC_LABEL = { CALLS: "Calls made", CONNECTED_CALLS: "Connected calls", EMAILS: "Emails", MEETINGS: "Meetings", FOLLOW_UPS: "Follow-ups", PROPOSALS: "Proposals", CONVERSIONS: "Conversions" } as const;
 export const METRICS = ["CALLS", "CONNECTED_CALLS", "EMAILS", "MEETINGS", "FOLLOW_UPS", "PROPOSALS", "CONVERSIONS"] as const;
 export type Metric = (typeof METRICS)[number];
 
@@ -168,10 +169,10 @@ export async function setTarget(db: Db, p: { organizationId: string; userId: str
   });
 }
 
-type Counts = Record<Metric, number> & { connectedPending: number };
+export type Counts = Record<Metric, number> & { connectedPending: number };
 const zero = (): Counts => ({ CALLS: 0, CONNECTED_CALLS: 0, EMAILS: 0, MEETINGS: 0, FOLLOW_UPS: 0, PROPOSALS: 0, CONVERSIONS: 0, connectedPending: 0 });
 
-async function countFor(db: Db, organizationId: string, from: Date, to: Date): Promise<Map<string, Counts>> {
+export async function countFor(db: Db, organizationId: string, from: Date, to: Date): Promise<Map<string, Counts>> {
   const [acts, conv] = await Promise.all([
     db.leadActivity.findMany({ where: { createdAt: { gte: from, lte: to }, actorId: { not: null }, lead: { organizationId }, kind: { in: ["CALL", "EMAIL", "MEETING", "APPOINTMENT", "FOLLOW_UP", "PROPOSAL"] } }, select: { actorId: true, kind: true, outcome: true, verified: true } }),
     db.lead.findMany({ where: { organizationId, convertedAt: { gte: from, lte: to }, assignedToId: { not: null } }, select: { assignedToId: true } }),
