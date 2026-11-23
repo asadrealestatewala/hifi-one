@@ -78,6 +78,7 @@ would send a message says "not configured" or hands the person a link to copy.
 | Name | Purpose |
 |---|---|
 | `JOBS_TOKEN` | Enables `POST /api/jobs/run` (at least 24 characters) |
+| `TASK_CLOCK_AUTORUN` | `0` stops the one-minute task deadline alerts (on by default; see `src/lib/task-clock.ts`) |
 | `JOBS_AUTORUN` | `1` starts the in-process scheduler (checks every 15 minutes) |
 | `CLAMAV_HOST`, `CLAMAV_PORT` | Turns on virus scanning of uploads |
 

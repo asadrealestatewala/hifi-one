@@ -67,7 +67,7 @@ export async function removeProjectMember(db: Db, p: { organizationId: string; p
     const ids = open.map((t) => t.id);
     let reassigned: string[] = [], unassigned = 0, deleted = 0;
     if (handover.mode === "reassign") {
-      await tx.task.updateMany({ where: { id: { in: ids } }, data: { assigneeId: handover.toUserId } });
+      await tx.task.updateMany({ where: { id: { in: ids } }, data: { assigneeId: handover.toUserId, assignedAt: new Date() } });
       reassigned = ids;
     } else if (handover.mode === "delete" && ids.length) {
       // A task (with its subtasks) is only deleted when nothing worth keeping hangs off it; the rest wait, unassigned

@@ -20,7 +20,7 @@ export async function addSubtask(db: Db, p: { projectId: string; parentId: strin
   const title = p.title.trim().slice(0, 200);
   if (title.length < 2) throw new TaskError("Give the subtask a title.");
   if (p.assigneeId && !(await db.projectMember.findUnique({ where: { projectId_userId: { projectId: p.projectId, userId: p.assigneeId } } }))) throw new TaskError("Assign subtasks to project members.");
-  return db.task.create({ data: { projectId: p.projectId, parentId: parent.id, title, assigneeId: p.assigneeId ?? null, createdById: p.actorId, priority: parent.priority, dueDate: parent.dueDate } });
+  return db.task.create({ data: { projectId: p.projectId, parentId: parent.id, title, assigneeId: p.assigneeId ?? null, createdById: p.actorId, priority: parent.priority, dueDate: parent.dueDate, dueTime: parent.dueTime, assignedAt: p.assigneeId ? new Date() : null } });
 }
 
 export async function setBlockers(db: Db, p: { projectId: string; taskId: string; blockerIds: string[] }) {
@@ -66,7 +66,7 @@ function moveInTransaction(db: Db, p: { projectId: string; taskId: string; statu
       const unticked = await tx.taskChecklistItem.count({ where: { taskId: task.id, done: false } });
       if (unticked) throw new TaskError(`${unticked} checklist item${unticked === 1 ? " is" : "s are"} not ticked yet.`);
     }
-    const updated = await tx.task.update({ where: { id: task.id }, data: { status: p.status, completedAt: p.status === "DONE" ? (p.now ?? new Date()) : null } });
+    const updated = await tx.task.update({ where: { id: task.id }, data: { status: p.status, completedAt: p.status === "DONE" ? (p.now ?? new Date()) : null, ...(p.status === "IN_PROGRESS" && !task.startedAt ? { startedAt: p.now ?? new Date() } : {}) } });
     let next: Task | null = null;
     if (p.status === "DONE" && task.recurrence) {
       // The unique recurredFromId makes this safe if two people complete the task at the same moment
@@ -75,7 +75,7 @@ function moveInTransaction(db: Db, p: { projectId: string; taskId: string; statu
         next = await tx.task.create({
           data: {
             projectId: task.projectId, title: task.title, description: task.description, priority: task.priority, assigneeId: task.assigneeId, clientVisible: task.clientVisible, milestoneId: task.milestoneId,
-            estimatedHours: task.estimatedHours, recurrence: task.recurrence, recurredFromId: task.id, createdById: p.actorId, dueDate: nextDue(task.dueDate, task.recurrence as Recurrence, p.now),
+            estimatedHours: task.estimatedHours, recurrence: task.recurrence, recurredFromId: task.id, createdById: p.actorId, dueDate: nextDue(task.dueDate, task.recurrence as Recurrence, p.now), dueTime: task.dueTime, assignedAt: task.assigneeId ? (p.now ?? new Date()) : null,
             labelIds: task.labelIds,
           },
         });

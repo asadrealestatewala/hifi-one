@@ -8,10 +8,13 @@ import { STATUS_LABEL, TASK_STATUSES } from "@/lib/project-rules";
 import { Notice } from "@/components/ui";
 import type { Label } from "@/lib/task-labels";
 import LabelChip from "../LabelChip";
+import TaskCountdown from "@/components/ui/TaskCountdown";
+import type { DeadlineView } from "@/lib/task-deadline";
 
 type T = {
   id: string; title: string; status: string; priority: string; assignee: string | null; assigneeId: string | null;
   due: string | null; overdue: boolean; subDone: number; subTotal: number; checkDone: number; checkTotal: number; waitingFor: string[]; recurrence: string | null; href: string; labelIds: string[];
+  deadline: DeadlineView | null;
 };
 
 export default function TaskBoard({ tasks: initial, canMove, userId, isManager, labels = [] }: { tasks: T[]; canMove: boolean; userId: string; isManager: boolean; labels?: Label[] }) {
@@ -71,7 +74,13 @@ export default function TaskBoard({ tasks: initial, canMove, userId, isManager, 
                       </p>
                     )}
                     <p className="flex items-center gap-1.5 text-xs text-muted">{t.assignee ? <Avatar name={t.assignee} userId={t.assigneeId} size={20} /> : null}{t.assignee ?? "Unassigned"} · {t.priority}</p>
-                    {t.due && <p className={`text-xs ${t.overdue ? "text-brand font-semibold" : "text-muted"}`}>{t.overdue ? "Overdue: " : "Due "}{t.due}</p>}
+                    {t.deadline && (
+                      <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                        {/* Moved to Done on this screen: the finish time arrives with the next load */}
+                        {(t.status !== "DONE" || t.deadline.completedAt) && <TaskCountdown deadline={t.deadline.deadline} from={t.deadline.from} completedAt={t.status === "DONE" ? t.deadline.completedAt : null} title={t.deadline.title} />}
+                        <span>Due {t.deadline.title}</span>
+                      </p>
+                    )}
                     {mayMove(t) && (
                       <select aria-label={`Status of ${t.title}`} value={t.status} onChange={(e) => move(t.id, e.target.value)} className="input !py-1 !text-xs">
                         {TASK_STATUSES.map((x) => <option key={x} value={x}>{STATUS_LABEL[x]}</option>)}

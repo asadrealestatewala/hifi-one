@@ -7,6 +7,9 @@ import { Chips, Empty, PageHeader, Pager, Stat, StatusBadge } from "@/components
 import { paging } from "@/lib/paging";
 import MyTaskStatus from "./MyTaskStatus";
 import QuickDone from "./QuickDone";
+import TaskCountdown from "@/components/ui/TaskCountdown";
+import { deadlineView, type DeadlineCalendar } from "@/lib/task-deadline";
+import { getCalendar } from "@/lib/working-calendar";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +24,7 @@ export default async function MyTasks({ searchParams }: { searchParams: Promise<
   const sp = await searchParams;
   const profile = await db.companyProfile.findFirst({ where: { organizationId: user.organizationId, isDefault: true }, select: { timezone: true } });
   const tz = profile?.timezone ?? "UTC";
+  const cal = await getCalendar(db, user.organizationId);
   const today = dateInZone(new Date(), tz);
   const canMove = user.permissions.has("tasks.edit");
   const showDone = sp.show === "done";
@@ -57,14 +61,14 @@ export default async function MyTasks({ searchParams }: { searchParams: Promise<
 
       {showDone ? (
         doneRows.length === 0 ? <Empty title="Nothing finished yet">Tasks you tick as done will appear here.</Empty> : (
-          <TaskTable rows={doneRows.map((t) => ({ id: t.id, title: t.title, status: t.status, priority: t.priority, dueDate: t.dueDate, project: t.project, parentTitle: null, openSubtasks: 0, waiting: 0 }))} today={today} canMove={false}
+          <TaskTable cal={cal} rows={doneRows.map((t) => ({ id: t.id, title: t.title, status: t.status, priority: t.priority, dueDate: t.dueDate, dueTime: t.dueTime, assignedAt: t.assignedAt, createdAt: t.createdAt, completedAt: t.completedAt, project: t.project, parentTitle: null, openSubtasks: 0, waiting: 0 }))} today={today} canMove={false}
             footer={<Pager page={pg.page} size={pg.size} total={doneCount} href={(n) => `/me/tasks?show=done${n > 1 ? `&page=${n}` : ""}`} />} />
         )
       ) : group && focus ? (
         <section className="space-y-2" aria-labelledby="group-title">
           <h2 id="group-title" className="font-semibold">{WORK_GROUP_LABEL[group]} <span className="text-sm font-normal text-muted">· {focus.sections[0].count}</span></h2>
           {focus.sections[0].count === 0 ? <Empty title={`Nothing in ${WORK_GROUP_LABEL[group]}`}><Link className="underline" href="/me/tasks">Back to all open tasks</Link></Empty> : (
-            <TaskTable rows={focus.sections[0].rows} today={today} canMove={canMove}
+            <TaskTable cal={cal} rows={focus.sections[0].rows} today={today} canMove={canMove}
               footer={<Pager page={pg.page} size={pg.size} total={focus.sections[0].count} href={(n) => `/me/tasks?group=${group}${n > 1 ? `&page=${n}` : ""}`} />} />
           )}
         </section>
@@ -79,7 +83,7 @@ export default async function MyTasks({ searchParams }: { searchParams: Promise<
                 <h2 id={`g-${s.key}`} className={`font-semibold ${s.key === "overdue" ? "text-brand" : ""}`}>{WORK_GROUP_LABEL[s.key]} <span className="text-sm font-normal text-muted">· {s.count}</span></h2>
                 {s.key !== "done" && s.count > s.rows.length && <Link className="text-sm text-primary hover:underline" href={`/me/tasks?group=${s.key}`}>Show all {s.count}</Link>}
               </div>
-              <TaskTable rows={s.rows} today={today} canMove={canMove} done={s.key === "done"}
+              <TaskTable cal={cal} rows={s.rows} today={today} canMove={canMove} done={s.key === "done"}
                 footer={s.key === "done" && s.count > s.rows.length ? <p className="border-t border-border px-4 py-2 text-xs text-muted">{s.rows.length} of {s.count} shown. <Link className="underline" href="/me/tasks?show=done">See all finished tasks</Link></p> : undefined} />
             </section>
           ))}
@@ -99,24 +103,28 @@ export default async function MyTasks({ searchParams }: { searchParams: Promise<
   );
 }
 
-function TaskTable({ rows, today, canMove, done = false, footer }: { rows: WorkRow[]; today: string; canMove: boolean; done?: boolean; footer?: React.ReactNode }) {
+function TaskTable({ rows, canMove, done = false, footer, cal }: { rows: WorkRow[]; today: string; canMove: boolean; done?: boolean; footer?: React.ReactNode; cal: DeadlineCalendar }) {
+  const now = new Date();
   const closed = (s: string) => s === "COMPLETED" || s === "CANCELLED";
   return (
     <div className="card overflow-x-auto !p-0">
       {/* Fixed column widths so every group's table lines up with the next */}
       <table className="w-full min-w-[720px] table-fixed text-sm">
-        <colgroup><col className="w-12" /><col /><col className="w-[22%]" /><col className="w-24" /><col className="w-36" /><col className="w-44" /></colgroup>
+        <colgroup><col className="w-12" /><col /><col className="w-[22%]" /><col className="w-24" /><col className="w-48" /><col className="w-44" /></colgroup>
         <thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="px-4 py-2.5"><span className="sr-only">Done</span></th><th className="py-2.5 pr-4">Task</th><th className="pr-4">Project</th><th className="pr-4">Priority</th><th className="pr-4">Due</th><th className="pr-4">Status</th></tr></thead>
         <tbody>
           {rows.map((t) => {
             const due = t.dueDate?.toISOString().slice(0, 10);
-            const late = t.status !== "DONE" && due && due < today;
+            const dv = deadlineView(t, cal, now);
+            const late = t.status !== "DONE" && Boolean(dv) && new Date(dv!.deadline) < now;
             const editable = canMove && !closed(t.project.status);
             return (
               <tr key={t.id} className={`border-t border-border transition hover:bg-hover/50 ${t.status === "DONE" ? "text-muted" : ""}`}>
                 <td className="px-4 py-2.5 align-top">{editable ? <QuickDone id={t.id} title={t.title} done={t.status === "DONE"} /> : null}</td>
                 <td className="py-2.5 pr-4">
                   <Link href={`/projects/${t.project.id}?task=${t.id}`} className={`font-medium hover:underline ${t.status === "DONE" ? "line-through" : ""}`}>{t.title}</Link>
+                  {/* On a phone the Due column is off to the right, so the countdown also sits under the title */}
+                  {dv && <span className="mt-1 block sm:hidden"><TaskCountdown deadline={dv.deadline} from={dv.from} completedAt={dv.completedAt} title={dv.title} /></span>}
                   {(t.parentTitle || t.openSubtasks > 0 || t.waiting > 0) && (
                     <span className="mt-0.5 block text-xs text-muted">
                       {[t.parentTitle && `Subtask of ${t.parentTitle}`, t.openSubtasks > 0 && `${t.openSubtasks} open subtask${t.openSubtasks === 1 ? "" : "s"}`, t.waiting > 0 && `Waiting for ${t.waiting} task${t.waiting === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}
@@ -125,7 +133,9 @@ function TaskTable({ rows, today, canMove, done = false, footer }: { rows: WorkR
                 </td>
                 <td className="truncate pr-4 text-muted"><Link className="hover:underline" href={`/projects/${t.project.id}`} title={t.project.name}>{t.project.name}</Link></td>
                 <td className="pr-4"><span className={t.priority === "HIGH" ? "font-medium text-brand" : "text-muted"}>{label(t.priority)}</span></td>
-                <td className={`whitespace-nowrap pr-4 ${late ? "font-medium text-brand" : "text-muted"}`}>{due ? new Date(`${due}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", timeZone: "UTC" }) : ""}{late ? " · overdue" : ""}</td>
+                <td className={`py-2 pr-4 text-xs ${late ? "font-medium text-brand" : "text-muted"}`}>
+                  {dv ? <span className="flex flex-col items-start gap-1"><TaskCountdown deadline={dv.deadline} from={dv.from} completedAt={dv.completedAt} title={dv.title} /><span className="whitespace-nowrap">{dv.title}</span></span> : due ?? ""}
+                </td>
                 <td className="pr-4">{editable && !done ? <MyTaskStatus id={t.id} status={t.status} title={t.title} /> : <StatusBadge status={t.status} />}</td>
               </tr>
             );

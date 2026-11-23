@@ -1,5 +1,7 @@
 "use client";
 
+import TaskCountdown from "@/components/ui/TaskCountdown";
+import type { DeadlineView } from "@/lib/task-deadline";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -13,6 +15,7 @@ import LabelChip from "./LabelChip";
 export type ListRow = {
   id: string; title: string; projectId: string; projectName: string; assigneeId: string | null; assigneeName: string | null;
   priority: string; status: string; due: string | null; estimate: string | null; labels: Label[]; late: boolean; canManage: boolean; canMove: boolean;
+  deadline: DeadlineView | null;
 };
 type Person = { id: string; name: string };
 
@@ -139,7 +142,8 @@ export default function TaskListTable({ rows, members, people, selectable, label
                   {t.canManage ? (
                     <input type="date" aria-label={`Due date of ${t.title}`} className={`input !w-36 !py-1 !text-xs ${t.late ? "!border-brand/50 text-brand" : ""}`} disabled={pending} defaultValue={t.due ?? ""} key={t.due ?? "none"}
                       onBlur={(e) => { const v = e.target.value || null; if (v !== t.due) applyOne(t.id, { kind: "due", date: v }); }} />
-                  ) : <>{t.due ? shortDate(t.due) : ""}{t.late ? " · overdue" : ""}</>}
+                  ) : <>{t.due ? shortDate(t.due) : ""}</>}
+                  {t.deadline && (t.status !== "DONE" || t.deadline.completedAt) && <span className="mt-1 block"><TaskCountdown deadline={t.deadline.deadline} from={t.deadline.from} completedAt={t.status === "DONE" ? t.deadline.completedAt : null} title={t.deadline.title} /></span>}
                 </td>
                 <td className="pr-4">
                   {t.canManage ? (

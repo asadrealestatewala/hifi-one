@@ -650,7 +650,10 @@ model Task {
   priority       String    @default("MEDIUM")
   assigneeId     String?
   startDate      DateTime? // when work on the task should begin (the Timeline bar's left end); empty = drawn from the day it was created
-  dueDate        DateTime?
+  dueDate        DateTime? // the calendar date at 00:00 UTC
+  dueTime        String? // "HH:MM" company time on the due date; empty = the end of the office day (Working calendar)
+  assignedAt     DateTime? // when the current assignee got the task; empty = when it was created
+  startedAt      DateTime? // first move to In progress
   estimatedHours Decimal?  @db.Decimal(8, 2)
   clientVisible  Boolean   @default(false)
   milestoneId    String?

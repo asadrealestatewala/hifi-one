@@ -7,6 +7,15 @@ import { formatMoney } from "./money";
 import { notify, notifyMany, notifyPermission } from "./notifications";
 import { appUrl, firstName, sendTemplateQuietly } from "./email-template-store";
 import { receiveTaskReply, replyAddressFor, replyNote } from "./task-mail";
+import { deadlineAt } from "./task-deadline";
+import { getCalendar } from "./working-calendar";
+
+// "2026-11-24, 6:30 PM": the date and the time of day it is due, in company time
+async function dueLabel(db: Db, organizationId: string, dueDate: Date, dueTime: string | null) {
+  const cal = await getCalendar(db, organizationId);
+  const at = deadlineAt(dueDate, dueTime, cal)!;
+  return `${dueDate.toISOString().slice(0, 10)}, ${at.toLocaleTimeString("en-US", { timeZone: cal.timezone, hour: "numeric", minute: "2-digit" })}`;
+}
 
 type Db = PrismaClient;
 
@@ -108,13 +117,17 @@ export async function projectMemberAdded(db: Db, p: { organizationId: string; pr
 }
 
 // A task was given to someone (at creation or by reassigning). Once per task and assignee.
+// It also records when the task was assigned, which the countdown and the task panel show.
 export async function taskAssigned(db: Db, p: { organizationId: string; taskId: string; toUserId: string | null; byUserId: string }) {
-  if (!p.toUserId || p.toUserId === p.byUserId) return;
-  const t = await db.task.findFirst({ where: { id: p.taskId, project: { organizationId: p.organizationId } }, select: { id: true, title: true, projectId: true, dueDate: true, priority: true, description: true, project: { select: { name: true } } } });
+  if (!p.toUserId) return;
+  await db.task.updateMany({ where: { id: p.taskId, assigneeId: p.toUserId, project: { organizationId: p.organizationId } }, data: { assignedAt: new Date() } });
+  if (p.toUserId === p.byUserId) return;
+  const t = await db.task.findFirst({ where: { id: p.taskId, project: { organizationId: p.organizationId } }, select: { id: true, title: true, projectId: true, dueDate: true, dueTime: true, priority: true, description: true, project: { select: { name: true } } } });
   if (!t) return;
+  const dueText = t.dueDate ? await dueLabel(db, p.organizationId, t.dueDate, t.dueTime) : null;
   const key = `task-assigned:${t.id}:${p.toUserId}`;
   const fresh = await firstTime(db, p.toUserId, key);
-  await notify(db, p.toUserId, { kind: "task.assigned", title: "A task was assigned to you", body: `${t.title} (${t.project.name})${t.dueDate ? `, due ${t.dueDate.toISOString().slice(0, 10)}` : ""}`, link: PROJECT_LINK(t.projectId, t.id), dedupeKey: key });
+  await notify(db, p.toUserId, { kind: "task.assigned", title: "A task was assigned to you", body: `${t.title} (${t.project.name})${dueText ? `, due ${dueText}` : ""}`, link: PROJECT_LINK(t.projectId, t.id), dedupeKey: key });
   // ...and an email with the task template, so sales and delivery staff see it even when they are not signed in
   const to = fresh ? await emailable(db, p.toUserId) : null;
   if (to) {
@@ -125,7 +138,7 @@ export async function taskAssigned(db: Db, p: { organizationId: string; taskId: 
       replyTo: replyTo ?? undefined,
       vars: {
         first_name: firstName(to.name), task_title: t.title, project: t.project.name, priority: t.priority.charAt(0) + t.priority.slice(1).toLowerCase(),
-        due_date: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : "No due date", assigned_by: by, description: (t.description ?? "").slice(0, 600), reply_note: replyNote(replyTo),
+        due_date: dueText ?? "No due date", assigned_by: by, description: (t.description ?? "").slice(0, 600), reply_note: replyNote(replyTo),
       },
     });
   }

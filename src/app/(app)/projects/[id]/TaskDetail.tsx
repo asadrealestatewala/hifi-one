@@ -7,6 +7,8 @@ import type { Label } from "@/lib/task-labels";
 import LabelChip from "../LabelChip";
 import Avatar from "@/components/ui/Avatar";
 import { Notice } from "@/components/ui";
+import TaskCountdown from "@/components/ui/TaskCountdown";
+import type { DeadlineView } from "@/lib/task-deadline";
 import { addSubtaskAction, addTaskCommentAction, moveTask, saveTaskDetailAction } from "../actions";
 
 type Sub = { id: string; title: string; status: string };
@@ -14,6 +16,10 @@ type Comment = { id: string; authorId: string; author: string; body: string; at:
 export type TaskDetailData = {
   id: string; title: string; status: string; description: string; priority: string; assigneeId: string; due: string; start: string; estimate: string; clientVisible: boolean; recurrence: string; labelIds: string[];
   blockedBy: string[]; parentTitle: string | null;
+  dueTime: string; // "HH:MM" or "" for the end of the office day
+  workEnd: string; // the office day's end, shown when no time is set
+  deadline: DeadlineView | null;
+  times: { assigned: string | null; started: string | null; taken: string | null }; // already written out in company time
 };
 
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -44,7 +50,7 @@ export default function TaskDetail({ task, subtasks, candidates, members, labels
   const [note, setNote] = useState("");
   const [share, setShare] = useState(false);
   // Values shown outside plain inputs (dates, waits for, summary) are kept here so they update before the server answers
-  const [v, setV] = useState({ start: task.start, due: task.due, estimate: task.estimate, recurrence: task.recurrence, blockedBy: task.blockedBy, labelIds: task.labelIds, clientVisible: task.clientVisible });
+  const [v, setV] = useState({ start: task.start, due: task.due, dueTime: task.dueTime, estimate: task.estimate, recurrence: task.recurrence, blockedBy: task.blockedBy, labelIds: task.labelIds, clientVisible: task.clientVisible });
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) => start(async () => {
     setError("");
     const r = await fn();
@@ -65,7 +71,7 @@ export default function TaskDetail({ task, subtasks, candidates, members, labels
   const set = (patch: Partial<typeof v>) => { setV((x) => ({ ...x, ...patch })); save(); };
   const done = subtasks.filter((s) => s.status === "DONE").length;
   const titles = useMemo(() => new Map(candidates.map((c) => [c.id, c.title])), [candidates]);
-  const overdue = v.due && task.status !== "DONE" && v.due < new Date().toISOString().slice(0, 10);
+  const overdue = task.status !== "DONE" && Boolean(task.deadline) && v.due === task.due && new Date(task.deadline!.deadline) < new Date();
   const summary = [
     v.start && `Starts ${nice(v.start)}`,
     v.estimate && `${v.estimate} h estimate`,
@@ -97,6 +103,11 @@ export default function TaskDetail({ task, subtasks, candidates, members, labels
           </Field>
           <Field label="Due">
             <DateField name="dueDate" label="Due date" value={v.due} disabled={!canManage} onChange={(d) => set({ due: d })} tone={overdue ? "text-brand font-medium" : ""} empty="No due date" />
+            {v.due ? (
+              <input type="time" form={FORM} name="dueTime" aria-label="Due time (empty means the end of the office day)" value={v.dueTime} disabled={!canManage}
+                title={`Empty means the end of the office day (${task.workEnd})`} onChange={(e) => setV((x) => ({ ...x, dueTime: e.target.value }))}
+                onBlur={(e) => { if (e.target.value !== task.dueTime) set({ dueTime: e.target.value }); }} className="input mt-1 !py-1 text-xs" />
+            ) : <input type="hidden" form={FORM} name="dueTime" value="" />}
           </Field>
           <Field label="Priority">
             <select form={FORM} name="priority" aria-label="Priority" defaultValue={task.priority} disabled={!canManage} onChange={save} className="input !py-1.5">
@@ -104,6 +115,13 @@ export default function TaskDetail({ task, subtasks, candidates, members, labels
             </select>
           </Field>
         </div>
+        {(task.deadline || task.times.assigned) && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+            {task.deadline && v.due === task.due && v.dueTime === task.dueTime && <TaskCountdown deadline={task.deadline.deadline} from={task.deadline.from} completedAt={task.deadline.completedAt} title={task.deadline.title} />}
+            {task.deadline && <span>Due {task.deadline.title}</span>}
+            {[task.times.assigned && `Assigned ${task.times.assigned}`, task.times.started && `Started ${task.times.started}`, task.times.taken].filter(Boolean).map((x) => <span key={x as string}>{x}</span>)}
+          </div>
+        )}
         <div className="flex min-h-8 flex-wrap items-center justify-between gap-2">
           {timer ?? <span />}
           <span role="status" aria-live="polite" className="text-xs text-muted">{state === "saving" || (pending && state !== "idle") ? "Saving…" : state === "saved" ? "Saved" : ""}</span>

@@ -2,9 +2,12 @@ import type { SessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import type { ListRow } from "./TaskListTable";
 import type { Label } from "@/lib/task-labels";
+import { getCalendar } from "@/lib/working-calendar";
+import { deadlineView } from "@/lib/task-deadline";
 
 type TaskWithProject = {
   id: string; title: string; assigneeId: string | null; priority: string; status: string; dueDate: Date | null; estimatedHours: { toString(): string } | null; labelIds: string[];
+  dueTime?: string | null; assignedAt?: Date | null; createdAt?: Date; completedAt?: Date | null;
   project: { id: string; name: string; managerId: string; status: string };
 };
 
@@ -27,12 +30,15 @@ export async function buildTaskRows(user: SessionUser, tasks: TaskWithProject[],
   for (const list of Object.values(members)) list.sort((a, b) => a.name.localeCompare(b.name));
   const inTeams = new Set(team.map((m) => m.userId));
   const people = [...staff.values()].filter((u) => inTeams.has(u.id));
+  const cal = await getCalendar(db, user.organizationId);
+  const now = new Date();
   const rows: ListRow[] = tasks.map((t) => {
     const due = t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null;
+    const deadline = deadlineView(t, cal, now);
     return {
       id: t.id, title: t.title, projectId: t.project.id, projectName: t.project.name, assigneeId: t.assigneeId, assigneeName: t.assigneeId ? name.get(t.assigneeId) ?? null : null,
       priority: t.priority, status: t.status, due, estimate: t.estimatedHours ? String(Number(t.estimatedHours.toString())) : null,
-      labels: t.labelIds.map((id) => byId.get(id)).filter((l): l is Label => Boolean(l)), late: Boolean(t.status !== "DONE" && due && due < today),
+      labels: t.labelIds.map((id) => byId.get(id)).filter((l): l is Label => Boolean(l)), late: Boolean(t.status !== "DONE" && deadline && new Date(deadline.deadline) < now), deadline,
       canManage: canEdit && isManager(t.project) && !closed(t.project.status),
       canMove: canEdit && !closed(t.project.status) && (isManager(t.project) || t.assigneeId === user.id),
     };
