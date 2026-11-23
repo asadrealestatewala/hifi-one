@@ -18,7 +18,7 @@ const s = (f: FormData, k: string) => String(f.get(k) ?? "");
 export async function sendCircularAction(formData: FormData): Promise<void> {
   const user = await requirePermission("circulars.send");
   const type = s(formData, "audience");
-  const audience: CircularAudience = type === "ROLES" ? { type: "ROLES", roleKeys: formData.getAll("roleKeys").map(String) } : type === "PEOPLE" ? { type: "PEOPLE", userIds: formData.getAll("userIds").map(String) } : { type: "ALL" };
+  const audience: CircularAudience = type === "DEPARTMENTS" ? { type: "DEPARTMENTS", departmentIds: formData.getAll("departmentIds").map(String) } : type === "ROLES" ? { type: "ROLES", roleKeys: formData.getAll("roleKeys").map(String) } : type === "PEOPLE" ? { type: "PEOPLE", userIds: formData.getAll("userIds").map(String) } : { type: "ALL" };
   const id = crypto.randomUUID();
   let n: number;
   const saved: string[] = [];

@@ -13,7 +13,8 @@ export default async function Circulars({ searchParams }: { searchParams: Promis
   const user = await requirePermission("circulars.send");
   const sp = await searchParams;
   const org = user.organizationId;
-  const [roles, people, recent] = await Promise.all([
+  const [departments, roles, people, recent] = await Promise.all([
+    db.department.findMany({ where: { organizationId: org }, orderBy: { name: "asc" }, select: { id: true, name: true, _count: { select: { users: { where: { active: true, userType: "EMPLOYEE" } } } } } }),
     db.role.findMany({ where: { organizationId: org, key: { notIn: EXTERNAL } }, orderBy: { name: "asc" }, select: { key: true, name: true } }),
     db.user.findMany({ where: { organizationId: org, active: true, userType: "EMPLOYEE" }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     db.circular.findMany({ where: { organizationId: org }, orderBy: { createdAt: "desc" }, take: 30, include: { recipients: { select: { ackAt: true } } } }),
@@ -33,6 +34,10 @@ export default async function Circulars({ searchParams }: { searchParams: Promis
         <fieldset className="space-y-3">
           <legend className="label">Send to</legend>
           <label className="flex items-center gap-2 text-sm"><input type="radio" name="audience" value="ALL" defaultChecked /> All active staff ({people.length})</label>
+          <label className="flex items-center gap-2 text-sm"><input type="radio" name="audience" value="DEPARTMENTS" /> These departments</label>
+          {departments.length === 0
+            ? <p className="ml-6 text-xs text-muted">No departments yet. Add them in Settings → Organization, then set each person&apos;s department on their staff record.</p>
+            : <div className="ml-6 grid gap-1 sm:grid-cols-2 lg:grid-cols-3">{departments.map((d) => <label key={d.id} className="flex items-center gap-2 text-sm"><input type="checkbox" name="departmentIds" value={d.id} /> {d.name} <span className="text-xs text-muted">({d._count.users})</span></label>)}</div>}
           <label className="flex items-center gap-2 text-sm"><input type="radio" name="audience" value="ROLES" /> People with these roles</label>
           <div className="ml-6 grid gap-1 sm:grid-cols-2 lg:grid-cols-3">{roles.map((r) => <label key={r.key} className="flex items-center gap-2 text-sm"><input type="checkbox" name="roleKeys" value={r.key} /> {r.name}</label>)}</div>
           <label className="flex items-center gap-2 text-sm"><input type="radio" name="audience" value="PEOPLE" /> Chosen people</label>

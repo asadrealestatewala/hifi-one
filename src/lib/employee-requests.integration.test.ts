@@ -1,8 +1,9 @@
 // Employee applications to HR against hifi_one_test: validation, who may answer, withdrawal, HR's list and counts, and who may see
-// the attached files (the employee and HR only; a manager is denied).
+// the attached files, and sharing with the line manager (HR's Required Changes, item 6): the "Private, HR only" tick,
+// grievances always private, the manager's comment for HR, and who may read what.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { cancelRequest, requestCounts, requestsForHr, reviewRequest, submitRequest } from "./employee-requests";
+import { cancelRequest, noteAsManager, requestCounts, requestsForHr, requestsForManager, reviewRequest, submitRequest } from "./employee-requests";
 import { authorizeOwner, type FileActor } from "./file-access";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgresql://hifi:hifi_local_dev@localhost:54329/hifi_one_test";
@@ -94,8 +95,8 @@ describe("HR answers", () => {
 });
 
 describe("attachments", () => {
-  it("are read by the employee and HR, added by the employee only while open, and never seen by the manager", async () => {
-    const open = (await db.employeeRequest.findFirst({ where: { userId: emp, status: "SUBMITTED" } }))!;
+  it("are read by the employee and HR, added by the employee only while open, and by the manager only when shared with them", async () => {
+    const open = (await db.employeeRequest.findFirst({ where: { userId: emp, status: "SUBMITTED", type: "ADVANCE" } }))!;
     const closed = (await db.employeeRequest.findFirst({ where: { userId: emp, status: "APPROVED" } }))!;
     expect(await authorizeOwner(db, actor(emp), "EMPLOYEE_REQUEST", open.id, "read")).toBe(true);
     expect(await authorizeOwner(db, actor(emp), "EMPLOYEE_REQUEST", open.id, "upload")).toBe(true);
@@ -103,9 +104,53 @@ describe("attachments", () => {
     expect(await authorizeOwner(db, actor(emp), "EMPLOYEE_REQUEST", closed.id, "read")).toBe(true);
     expect(await authorizeOwner(db, actor(hr, ["hr.manage"]), "EMPLOYEE_REQUEST", open.id, "read")).toBe(true);
     expect(await authorizeOwner(db, actor(hr, ["hr.manage"]), "EMPLOYEE_REQUEST", closed.id, "delete")).toBe(true);
-    expect(await authorizeOwner(db, actor(boss, ["leave.approve", "hr.view"]), "EMPLOYEE_REQUEST", open.id, "read")).toBe(false);
+    expect(open.managerId).toBe(boss);
+    expect(await authorizeOwner(db, actor(boss, ["leave.approve", "hr.view"]), "EMPLOYEE_REQUEST", open.id, "read")).toBe(true);
+    expect(await authorizeOwner(db, actor(boss, ["leave.approve", "hr.view"]), "EMPLOYEE_REQUEST", open.id, "upload")).toBe(false);
+    expect(await authorizeOwner(db, actor(hr2, ["leave.approve"]), "EMPLOYEE_REQUEST", open.id, "read")).toBe(false); // another manager
     expect(await authorizeOwner(db, actor(hr2, ["hr.view_sensitive"]), "EMPLOYEE_REQUEST", open.id, "read")).toBe(false);
     expect(await authorizeOwner(db, { ...actor(emp), userType: "CLIENT" }, "EMPLOYEE_REQUEST", open.id, "read")).toBe(false);
     expect(await authorizeOwner(db, actor(hr, ["hr.manage"]), "EMPLOYEE_REQUEST", "nope", "read")).toBe(false);
+  });
+});
+
+describe("sharing with the manager", () => {
+  it("goes to the line manager unless marked Private, HR only; a complaint is always private", async () => {
+    await db.$executeRawUnsafe('TRUNCATE "EmployeeRequest" CASCADE');
+    const shared = await submitRequest(db, { ...base(), type: "EQUIPMENT", subject: "New laptop" });
+    const priv = await submitRequest(db, { ...base(), type: "ADVANCE", subject: "Salary advance", hrOnly: true });
+    const complaint = await submitRequest(db, { ...base(), type: "GRIEVANCE", subject: "About my manager" });
+    expect([shared.hrOnly, shared.managerId]).toEqual([false, boss]);
+    expect([priv.hrOnly, priv.managerId]).toEqual([true, null]);
+    expect([complaint.hrOnly, complaint.managerId]).toEqual([true, null]);
+    const list = await requestsForManager(db, org, boss);
+    expect(list.open.map((r) => r.subject)).toEqual(["New laptop"]);
+    expect((await requestsForManager(db, org, hr)).open).toEqual([]); // not their team
+    expect(await authorizeOwner(db, actor(boss, ["leave.approve"]), "EMPLOYEE_REQUEST", priv.id, "read")).toBe(false);
+    expect(await authorizeOwner(db, actor(boss, ["leave.approve"]), "EMPLOYEE_REQUEST", complaint.id, "read")).toBe(false);
+  });
+
+  it("is not shared when nobody, an inactive person or the employee themselves is set as manager", async () => {
+    await db.user.update({ where: { id: boss }, data: { active: false } });
+    expect((await submitRequest(db, { ...base(), subject: "Manager left" })).managerId).toBeNull();
+    await db.user.update({ where: { id: boss }, data: { active: true } });
+    await db.user.update({ where: { id: hr2 }, data: { managerId: hr2 } });
+    expect((await submitRequest(db, { ...base(), userId: hr2, subject: "Self managed" })).managerId).toBeNull();
+    expect((await submitRequest(db, { ...base(), userId: hr, subject: "No manager" })).managerId).toBeNull();
+  });
+
+  it("lets only that manager comment for HR, only while open, and HR still decides", async () => {
+    const shared = (await db.employeeRequest.findFirst({ where: { subject: "New laptop" } }))!;
+    const priv = (await db.employeeRequest.findFirst({ where: { subject: "Salary advance" } }))!;
+    const noted = await noteAsManager(db, { organizationId: org, requestId: shared.id, managerId: boss, note: "I support this; the old one is broken." });
+    expect(noted.managerNote).toBe("I support this; the old one is broken.");
+    expect(noted.status).toBe("SUBMITTED");
+    await expect(noteAsManager(db, { organizationId: org, requestId: shared.id, managerId: hr, note: "Me too" })).rejects.toThrow("not found");
+    await expect(noteAsManager(db, { organizationId: org, requestId: priv.id, managerId: boss, note: "Let me see" })).rejects.toThrow("not found");
+    await expect(noteAsManager(db, { organizationId: org, requestId: shared.id, managerId: boss, note: " " })).rejects.toThrow("Write your comment");
+    await reviewRequest(db, { organizationId: org, requestId: shared.id, reviewerId: hr, decision: "APPROVED" });
+    await expect(noteAsManager(db, { organizationId: org, requestId: shared.id, managerId: boss, note: "Late note" })).rejects.toThrow("already answered");
+    const after = await requestsForManager(db, org, boss);
+    expect(after.answered.map((r) => [r.subject, r.status])).toEqual([["New laptop", "APPROVED"]]);
   });
 });

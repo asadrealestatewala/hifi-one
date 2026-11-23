@@ -43,6 +43,17 @@ describe("HR circulars", () => {
     await expect(sendCircular(db, { organizationId: org, sentById: hr, ...base, audience: { type: "PEOPLE", userIds: [outsider] } })).rejects.toBeInstanceOf(CircularError);
   });
 
+  it("can go to a department: its active staff only", async () => {
+    const design = await db.department.create({ data: { organizationId: org, name: "Design" } });
+    const theirs = await db.department.create({ data: { organizationId: other, name: "Their design" } });
+    await db.user.updateMany({ where: { id: { in: [a, gone] } }, data: { departmentId: design.id } });
+    const r = await sendCircular(db, { organizationId: org, sentById: hr, ...base, title: "Design team", audience: { type: "DEPARTMENTS", departmentIds: [design.id, theirs.id] } });
+    expect((await db.circularRecipient.findMany({ where: { circularId: r.id } })).map((x) => x.userId)).toEqual([a]);
+    expect((await db.circular.findUnique({ where: { id: r.id } }))?.audienceLabel).toBe("Design");
+    await expect(sendCircular(db, { organizationId: org, sentById: hr, ...base, audience: { type: "DEPARTMENTS", departmentIds: [theirs.id] } })).rejects.toThrow("department");
+    await expect(sendCircular(db, { organizationId: org, sentById: hr, ...base, audience: { type: "DEPARTMENTS", departmentIds: [] } })).rejects.toThrow("department");
+  });
+
   it("rejects empty text and empty audiences", async () => {
     await expect(sendCircular(db, { organizationId: org, sentById: hr, ...base, title: " ", audience: { type: "ALL" } })).rejects.toThrow("title");
     await expect(sendCircular(db, { organizationId: org, sentById: hr, ...base, audience: { type: "ROLES", roleKeys: [] } })).rejects.toThrow("role");
