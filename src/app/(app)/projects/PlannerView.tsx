@@ -6,23 +6,34 @@ import { projectScope } from "@/lib/projects";
 import { getWorkingContext } from "@/lib/working-calendar";
 import { CELL_LIMIT, loadPlannerWeek, plannerWeekStart } from "@/lib/planner";
 import { Empty, Notice, PageHeader, Stat } from "@/components/ui";
+import { loadPlanContext, weekProgress } from "@/lib/week-plan";
 import PlannerBoard from "./PlannerBoard";
+import WeekPlan from "./WeekPlan";
 
 const fmt = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const h = (n: number) => `${n % 1 === 0 ? n : n.toFixed(1)} h`;
 
 // Projects → Planner: the week by person and day. Whoever assigns work (projects.manage, or the manager of a project) sees the
 // team on the projects they run and can drag tasks between days and people; everyone else sees their own week.
-export default async function PlannerView({ user, sp, tabs, canPlan }: { user: SessionUser; sp: { week?: string }; tabs: React.ReactNode; canPlan: boolean }) {
+export default async function PlannerView({ user, sp, tabs, canPlan }: { user: SessionUser; sp: { week?: string; plan?: string }; tabs: React.ReactNode; canPlan: boolean }) {
   const scope = !canPlan ? projectScope(user) : user.permissions.has("projects.manage") ? projectScope(user) : { organizationId: user.organizationId, managerId: user.id };
   const profile = await db.companyProfile.findFirst({ where: { organizationId: user.organizationId, isDefault: true }, select: { timezone: true } });
   const today = dateInZone(new Date(), profile?.timezone ?? "UTC");
   const week = plannerWeekStart(sp.week, today);
   const end = new Date(new Date(`${week}T00:00:00Z`).getTime() + 6 * 86_400_000).toISOString().slice(0, 10);
   const work = await getWorkingContext(db, user.organizationId, week, end);
-  const pw = await loadPlannerWeek(db, { scope, organizationId: user.organizationId, today, week, calendar: work.calendar, holidays: work.holidays, actor: user, onlyUserId: canPlan ? undefined : user.id });
+  const [pw, progressMap, plan] = await Promise.all([
+    loadPlannerWeek(db, { scope, organizationId: user.organizationId, today, week, calendar: work.calendar, holidays: work.holidays, actor: user, onlyUserId: canPlan ? undefined : user.id }),
+    weekProgress(db, { projectWhere: scope, week, calendar: work.calendar, onlyUserId: canPlan ? undefined : user.id }),
+    canPlan ? loadPlanContext(db, user, week) : null,
+  ]);
+  const progress = Object.fromEntries(progressMap);
+  const weekTotals = [...progressMap.values()].reduce((a, r) => ({ total: a.total + r.total, done: a.done + r.done, late: a.late + r.late }), { total: 0, done: 0, late: 0 });
   const seen = new Set<string>();
   const tasks = [...pw.rows.flatMap((r) => r.cells.flatMap((c) => c.tasks)), ...pw.tray].filter((t) => (seen.has(t.id) ? false : (seen.add(t.id), true)));
+  // the board keeps its own copy of the tasks for instant moves; a new key gives it the fresh list after a save elsewhere
+  let boardKey = 0;
+  for (const ch of tasks.map((t) => `${t.id}${t.due}${t.assigneeId}`).join()) boardKey = (boardKey * 31 + ch.charCodeAt(0)) | 0;
   const rows = pw.rows.map((r) => ({ userId: r.userId, name: r.name, capacity: Object.fromEntries(r.cells.map((c) => [c.date, c.capacityHours])), away: r.cells.filter((c) => c.away).map((c) => c.date) }));
   const planned = pw.rows.reduce((n, r) => n + r.plannedHours, 0);
   const capacity = pw.rows.reduce((n, r) => n + r.capacityHours, 0);
@@ -41,6 +52,10 @@ export default async function PlannerView({ user, sp, tabs, canPlan }: { user: S
         <Stat label="To plan" value={pw.trayTotal} hint="no date yet, or overdue" />
         <Stat label="No estimate" value={noEstimate} hint="tasks this week without hours" />
       </div>
+      <p className="text-sm text-muted">This week: <span className="font-medium text-foreground">{weekTotals.done} of {weekTotals.total}</span> tasks done{weekTotals.late > 0 ? <>, <span className="font-medium text-brand">{weekTotals.late} late</span></> : ""}. Each person&apos;s counts are under their name.</p>
+      {plan && plan.ctx.projects.length > 0 && (
+        <WeekPlan key={week} week={plan.ctx.week} weekText={`${fmt(pw.from)} to ${fmt(pw.to)}`} days={plan.ctx.days} projects={plan.ctx.projects} people={plan.ctx.people} startOpen={sp.plan === "1"} />
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Link href={href(pw.prev)} className="btn-ghost" aria-label="Previous week">← Previous</Link>
@@ -54,7 +69,7 @@ export default async function PlannerView({ user, sp, tabs, canPlan }: { user: S
       {pw.rows.length === 0 && pw.tray.length === 0 ? (
         <Empty title="Nothing to plan yet">{canPlan ? "Add people to your project teams and give tasks due dates; they appear here by day." : "No open tasks are assigned to you."}</Empty>
       ) : (
-        <PlannerBoard key={week} days={pw.days} rows={rows} tasks={tasks} people={pw.people} today={today} trayHidden={Math.max(0, pw.trayTotal - pw.tray.length)} />
+        <PlannerBoard key={`${week}:${boardKey}`} days={pw.days} rows={rows} tasks={tasks} people={pw.people} today={today} progress={progress} trayHidden={Math.max(0, pw.trayTotal - pw.tray.length)} />
       )}
       <p className="text-xs text-muted">
         Each day shows the estimates of the tasks due that day against the hours that person can work, following the working calendar, public holidays and approved leave. A long task counts in full on its due day, so spread big work by giving it an earlier date or splitting it into subtasks. Red means more is due than fits.

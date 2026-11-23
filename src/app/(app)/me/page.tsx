@@ -50,8 +50,8 @@ export default async function MyDayPage() {
           )}
           <Link href="/me/tasks" className="rounded-xl border border-border p-3 transition hover:border-primary/40">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">Tasks</p>
-            <p className="mt-1 font-semibold">{day.tasks.open} open</p>
-            <p className="text-xs text-muted">{day.tasks.overdue > 0 ? `${day.tasks.overdue} overdue` : day.tasks.dueToday > 0 ? `${day.tasks.dueToday} due today` : "Nothing overdue"}</p>
+            <p className="mt-1 font-semibold">{day.tasks.dueToday} due today</p>
+            <p className="text-xs text-muted">{day.tasks.overdue > 0 ? `${day.tasks.overdue} overdue · ` : ""}{day.tasks.open} open in all</p>
           </Link>
         </div>
 

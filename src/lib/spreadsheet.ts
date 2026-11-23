@@ -28,9 +28,10 @@ export async function xlsxToCsv(data: Buffer): Promise<string> {
   return rows.map((r) => r.map(csvField).join(",")).join("\n");
 }
 
-const cellText = (v: unknown): string => {
+// A time-only cell (such as 15:00) comes back as a date on 30 Dec 1899, Excel's day zero: keep the time instead.
+export const cellText = (v: unknown): string => {
   if (v == null) return "";
-  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (v instanceof Date) return v.getUTCFullYear() < 1901 ? v.toISOString().slice(11, 16) : v.toISOString().slice(0, 10);
   return String(v).trim();
 };
 

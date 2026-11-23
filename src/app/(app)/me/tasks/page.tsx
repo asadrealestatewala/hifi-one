@@ -14,12 +14,19 @@ import { getCalendar } from "@/lib/working-calendar";
 export const dynamic = "force-dynamic";
 
 const PER_GROUP = 25;
+type Range = "today" | "week" | "all";
+const RANGE_GROUPS: Record<Range, WorkSection["key"][]> = {
+  today: ["overdue", "today", "done"],
+  week: ["overdue", "today", "week", "done"],
+  all: ["overdue", "today", "week", "later", "nodate", "done"],
+};
 const label = (s: string) => s.toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 
 // Everything assigned to the signed-in person, across projects, grouped by when it is due, with one tick to finish a
-// task. It is their own list, scoped by assignee and organization. ?group=<key> shows one group in full, page by page;
-// ?show=done is everything they have finished.
-export default async function MyTasks({ searchParams }: { searchParams: Promise<{ show?: string; group?: string; page?: string }> }) {
+// task. It is their own list, scoped by assignee and organization. It opens on today (overdue and due today, HR's
+// Required Changes item 4); ?range=week adds the rest of the week and ?range=all everything open. ?group=<key> shows one
+// group in full, page by page; ?show=done is everything they have finished.
+export default async function MyTasks({ searchParams }: { searchParams: Promise<{ show?: string; group?: string; page?: string; range?: string }> }) {
   const user = await requireUser();
   const sp = await searchParams;
   const profile = await db.companyProfile.findFirst({ where: { organizationId: user.organizationId, isDefault: true }, select: { timezone: true } });
@@ -30,6 +37,7 @@ export default async function MyTasks({ searchParams }: { searchParams: Promise<
   const showDone = sp.show === "done";
   const group = (WORK_GROUPS as readonly string[]).includes(sp.group ?? "") ? (sp.group as WorkGroup) : null;
   const pg = paging(sp.page);
+  const range: Range = sp.range === "week" || sp.range === "all" ? sp.range : "today";
   const mine = { assigneeId: user.id, project: { organizationId: user.organizationId, status: { not: "CANCELLED" as const }, archivedAt: null } };
 
   const [summary, focus, doneRows, doneCount, myCampaigns] = await Promise.all([
@@ -43,6 +51,10 @@ export default async function MyTasks({ searchParams }: { searchParams: Promise<
   const count = (k: WorkSection["key"]) => summary.sections.find((s) => s.key === k)?.count ?? 0;
   const canOpenCampaigns = user.permissions.has("campaigns.view");
   const nothingOpen = summary.open === 0;
+  const shown = (k: WorkSection["key"]) => RANGE_GROUPS[range].includes(k);
+  const hidden = summary.sections.filter((x) => !shown(x.key) && x.count > 0);
+  const todayCount = count("overdue") + count("today");
+  const weekCount = todayCount + count("week");
 
   return (
     <div className="space-y-5">
@@ -53,8 +65,10 @@ export default async function MyTasks({ searchParams }: { searchParams: Promise<
         <Stat label="Next 7 days" value={count("week")} href="/me/tasks?group=week" />
         <Stat label="Done today" value={count("done")} hint={`${summary.open} still open`} icon="check" />
       </div>
-      <Chips current={showDone ? "done" : group ?? "open"} items={[
-        { key: "open", label: "Open", count: summary.open, href: "/me/tasks" },
+      <Chips current={showDone ? "done" : group ?? range} items={[
+        { key: "today", label: "Today", count: todayCount, href: "/me/tasks" },
+        { key: "week", label: "This week", count: weekCount, href: "/me/tasks?range=week" },
+        { key: "all", label: "All open", count: summary.open, href: "/me/tasks?range=all" },
         ...(group ? [{ key: group, label: WORK_GROUP_LABEL[group], count: count(group), href: `/me/tasks?group=${group}` }] : []),
         { key: "done", label: "Done", count: doneCount, href: "/me/tasks?show=done" },
       ]} />
@@ -67,7 +81,7 @@ export default async function MyTasks({ searchParams }: { searchParams: Promise<
       ) : group && focus ? (
         <section className="space-y-2" aria-labelledby="group-title">
           <h2 id="group-title" className="font-semibold">{WORK_GROUP_LABEL[group]} <span className="text-sm font-normal text-muted">· {focus.sections[0].count}</span></h2>
-          {focus.sections[0].count === 0 ? <Empty title={`Nothing in ${WORK_GROUP_LABEL[group]}`}><Link className="underline" href="/me/tasks">Back to all open tasks</Link></Empty> : (
+          {focus.sections[0].count === 0 ? <Empty title={`Nothing in ${WORK_GROUP_LABEL[group]}`}><Link className="underline" href="/me/tasks">Back to today&apos;s tasks</Link></Empty> : (
             <TaskTable cal={cal} rows={focus.sections[0].rows} today={today} canMove={canMove}
               footer={<Pager page={pg.page} size={pg.size} total={focus.sections[0].count} href={(n) => `/me/tasks?group=${group}${n > 1 ? `&page=${n}` : ""}`} />} />
           )}
@@ -77,7 +91,8 @@ export default async function MyTasks({ searchParams }: { searchParams: Promise<
       ) : (
         <>
           {nothingOpen && <Empty title="All done for now">Nothing open is assigned to you. Well done.</Empty>}
-          {summary.sections.filter((s) => s.count > 0).map((s) => (
+          {range === "today" && todayCount === 0 && !nothingOpen && <Empty title="Nothing due today">You are clear for today. See what is coming up below.</Empty>}
+          {summary.sections.filter((s) => s.count > 0 && shown(s.key)).map((s) => (
             <section key={s.key} className="space-y-2" aria-labelledby={`g-${s.key}`}>
               <div className="flex items-baseline justify-between gap-3">
                 <h2 id={`g-${s.key}`} className={`font-semibold ${s.key === "overdue" ? "text-brand" : ""}`}>{WORK_GROUP_LABEL[s.key]} <span className="text-sm font-normal text-muted">· {s.count}</span></h2>
@@ -87,6 +102,14 @@ export default async function MyTasks({ searchParams }: { searchParams: Promise<
                 footer={s.key === "done" && s.count > s.rows.length ? <p className="border-t border-border px-4 py-2 text-xs text-muted">{s.rows.length} of {s.count} shown. <Link className="underline" href="/me/tasks?show=done">See all finished tasks</Link></p> : undefined} />
             </section>
           ))}
+          {hidden.length > 0 && (
+            <p className="text-sm text-muted">
+              Not shown: {hidden.map((x) => `${x.count} ${x.key === "week" ? "later this week" : x.key === "later" ? "after this week" : "with no due date"}`).join(", ")}.{" "}
+              {range === "today" && count("week") > 0 && <Link className="text-primary hover:underline" href="/me/tasks?range=week">Show the rest of the week</Link>}
+              {range === "today" && count("week") > 0 && " · "}
+              <Link className="text-primary hover:underline" href="/me/tasks?range=all">Show all open tasks</Link>
+            </p>
+          )}
         </>
       )}
 
