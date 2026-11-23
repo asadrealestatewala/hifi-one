@@ -78,7 +78,8 @@ export async function loadAttention(
   const has = (p: string) => user.permissions.has(p);
   const dayEnd = endOfDay(today);
   const lateInv = has("finance.view") ? (await loadReceivablesAging(db, organizationId, now)).detail.filter((d) => d.bucket !== "Not yet due") : null;
-  const [followCount, followRows, voucherCount, voucherRows, commissions, staff, marked, posts, leave, awayToday, myOverdue, teamOverdue] = await Promise.all([
+  const seesAll = has("projects.view_all") || has("projects.manage");
+  const [followCount, followRows, voucherCount, voucherRows, commissions, staff, marked, posts, leave, awayToday, myOverdue, teamOverdue, teamIssues, teamWaiting] = await Promise.all([
     leadWhere ? db.lead.count({ where: { ...leadWhere, clientId: null, stage: { isWon: false, isLost: false }, nextFollowUp: { lte: dayEnd } } }) : 0,
     leadWhere ? db.lead.findMany({ where: { ...leadWhere, clientId: null, stage: { isWon: false, isLost: false }, nextFollowUp: { lte: dayEnd } }, orderBy: { nextFollowUp: "asc" }, take: 5, select: { id: true, name: true, phone: true, nextFollowUp: true } }) : [],
     has("expenses.review") || has("expenses.approve") ? db.expenseVoucher.count({ where: { organizationId, status: { in: ["SUBMITTED", "UNDER_REVIEW"] } } }) : 0,
@@ -93,7 +94,10 @@ export async function loadAttention(
     db.task.count({ where: { assigneeId: user.id, status: { not: "DONE" }, dueDate: { lt: startOfDay(today) }, project: { organizationId } } }),
     // Late work across the company, for someone who may see every project. Same rule as the Projects page's
     // "Overdue tasks" figure (isOverdue: not done, due before now, on an active project) so the two agree.
-    has("projects.view_all") || has("projects.manage") ? db.task.count({ where: { status: { not: "DONE" }, dueDate: { lt: now }, project: { organizationId, status: "ACTIVE" } } }) : null,
+    seesAll ? db.task.count({ where: { status: { not: "DONE" }, dueDate: { lt: now }, project: { organizationId, status: "ACTIVE" } } }) : null,
+    // Problems reported inside tasks and work the project manager has not answered within the response time
+    seesAll ? db.taskIssue.count({ where: { status: "OPEN", task: { project: { organizationId, status: { in: ["ACTIVE", "ON_HOLD"] } } } } }) : null,
+    seesAll ? db.taskReview.count({ where: { respondedAt: null, escalatedAt: { not: null }, task: { status: "REVIEW", project: { organizationId } } } }) : null,
   ]);
   // Nobody is "missing" on a day the company does not work, or while they are on approved leave.
   const workingToday = !work || isWorkingDate(work.calendar, today, work.holidays);
@@ -114,6 +118,8 @@ export async function loadAttention(
     leave: has("leave.approve") ? { count: leave } : null,
     myOverdueTasks: myOverdue,
     teamOverdueTasks: teamOverdue, // null when the reader may not see every project
+    teamOpenIssues: teamIssues,
+    teamLateReviews: teamWaiting, // waiting for a project manager past the response time
   };
   const total = (sections.followups?.count ?? 0) + (sections.overdue?.count ?? 0) + (sections.vouchers?.count ?? 0) + (sections.commissions?.count ?? 0) + (sections.attendance?.count ?? 0) + (sections.posts?.count ?? 0) + (sections.leave?.count ?? 0) + myOverdue;
   return { ...sections, total, urgent: lateForFollow + veryLate + myOverdue };

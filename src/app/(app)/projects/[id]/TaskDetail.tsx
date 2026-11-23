@@ -37,9 +37,9 @@ const nice = (d: string) => (d ? new Date(`${d}T12:00:00Z`).toLocaleDateString("
 // "More options" for settings that are rarely changed (shown as a one-line summary while closed), then checklist, subtasks,
 // comments and files. Every field saves as soon as it changes (text fields when you leave them) through the same checked action
 // as before, and the panel says "Saving…" then "Saved". Files arrive as children from the server.
-export default function TaskDetail({ task, subtasks, candidates, members, labels, canManageLabels, comments, canManage, canMoveSubtasks, canComment, checklist, timer, children }: {
+export default function TaskDetail({ task, subtasks, candidates, members, labels, canManageLabels, comments, canManage, canMoveSubtasks, canComment, checklist, timer, review, issues, children }: {
   task: TaskDetailData; subtasks: Sub[]; candidates: { id: string; title: string }[]; members: { id: string; name: string }[]; labels: Label[]; canManageLabels: boolean; comments: Comment[];
-  canManage: boolean; canMoveSubtasks: boolean; canComment: boolean; checklist?: ReactNode; timer?: ReactNode; children: ReactNode;
+  canManage: boolean; canMoveSubtasks: boolean; canComment: boolean; checklist?: ReactNode; timer?: ReactNode; review?: ReactNode; issues?: ReactNode; children: ReactNode;
 }) {
   const router = useRouter();
   const form = useRef<HTMLFormElement>(null);
@@ -128,6 +128,9 @@ export default function TaskDetail({ task, subtasks, candidates, members, labels
         </div>
         {error && <Notice kind="error">{error}</Notice>}
       </section>
+
+      {review}
+      {issues}
 
       <section className="space-y-1.5">
         <label className="label" htmlFor="td-desc">Description</label>

@@ -2,6 +2,7 @@
 import type { Prisma, PrismaClient, Task } from "@prisma/client";
 import { milestoneAfterTaskMove, type MilestoneAutomation } from "./project-automations";
 import { RECURRENCES, nextDue, openBlockers, wouldCycle, type Recurrence } from "./task-rules";
+import { recordReviewMove, type ReviewOutcome } from "./task-review-record";
 
 export class TaskError extends Error {}
 type Db = PrismaClient;
@@ -45,13 +46,15 @@ export async function setRecurrence(db: Db, p: { projectId: string; taskId: stri
 
 // Status change with the dependency rules. Returns the next occurrence when a recurring task was just completed, and what the
 // milestone automation did (milestone completed with its draft invoice, or reopened) so callers can audit it.
-export async function changeTaskStatus(db: Db, p: { projectId: string; taskId: string; status: string; actorId: string; now?: Date }): Promise<{ task: Task; next: Task | null; milestone: MilestoneAutomation | null }> {
+// `review` is set by the approval actions (Approve, Revision needed); `actorIsManager` defaults to "is the project's manager".
+type StatusMove = { projectId: string; taskId: string; status: string; actorId: string; now?: Date; review?: { outcome: ReviewOutcome; comment: string | null }; actorIsManager?: boolean };
+export async function changeTaskStatus(db: Db, p: StatusMove): Promise<{ task: Task; next: Task | null; milestone: MilestoneAutomation | null }> {
   const r = await moveInTransaction(db, p);
   const milestone = r.changed ? await milestoneAfterTaskMove(db, { taskId: p.taskId, status: p.status, actorId: p.actorId }) : null;
   return { task: r.task, next: r.next, milestone };
 }
 
-function moveInTransaction(db: Db, p: { projectId: string; taskId: string; status: string; actorId: string; now?: Date }) {
+function moveInTransaction(db: Db, p: StatusMove) {
   return db.$transaction(async (tx) => {
     const task = await load(tx, p.projectId, p.taskId);
     if (task.status === p.status) return { task, next: null, changed: false };
@@ -66,6 +69,9 @@ function moveInTransaction(db: Db, p: { projectId: string; taskId: string; statu
       const unticked = await tx.taskChecklistItem.count({ where: { taskId: task.id, done: false } });
       if (unticked) throw new TaskError(`${unticked} checklist item${unticked === 1 ? " is" : "s are"} not ticked yet.`);
     }
+    const now = p.now ?? new Date();
+    const isManager = p.actorIsManager ?? (await tx.project.findUnique({ where: { id: task.projectId }, select: { managerId: true } }))?.managerId === p.actorId;
+    await recordReviewMove(tx, { taskId: task.id, from: task.status, to: p.status, actorId: p.actorId, isManager, now, outcome: p.review?.outcome, comment: p.review?.comment });
     const updated = await tx.task.update({ where: { id: task.id }, data: { status: p.status, completedAt: p.status === "DONE" ? (p.now ?? new Date()) : null, ...(p.status === "IN_PROGRESS" && !task.startedAt ? { startedAt: p.now ?? new Date() } : {}) } });
     let next: Task | null = null;
     if (p.status === "DONE" && task.recurrence) {

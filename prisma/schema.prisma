@@ -665,6 +665,7 @@ model Task {
   recurrence     String? // DAILY | WEEKLY | MONTHLY: completing the task creates the next one
   recurredFromId String?   @unique // the completed task that created this one, so it is created once
   labelIds       String[]  @default([]) // TaskLabel ids (the organization's shared labels, such as Copy, Design, Ads)
+  revisionCount  Int       @default(0) // times the project manager sent the work back with "Revision needed"
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -673,10 +674,51 @@ model Task {
   comments       TaskComment[]
   replyAddresses TaskReplyAddress[]
   checklist      TaskChecklistItem[]
+  issues         TaskIssue[]
+  reviews        TaskReview[]
 
   @@index([parentId])
   @@index([projectId, status])
   @@index([assigneeId])
+}
+
+// A problem someone hit while working on a task ("Client has not sent the logo"). The project manager and owners hear at once;
+// it stays Open until a manager resolves it with a note. Kept forever as the task's record.
+model TaskIssue {
+  id           String    @id @default(cuid())
+  taskId       String
+  reportedById String
+  body         String
+  status       String    @default("OPEN") // OPEN | RESOLVED
+  resolvedById String?
+  resolvedAt   DateTime?
+  resolution   String?
+  createdAt    DateTime  @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, status])
+  @@index([status, createdAt])
+}
+
+// One time work was sent for review (the task moved to In review) and what the project manager did about it, with both times.
+// Open while respondedAt is empty; the response clock escalates to owners and HR once it has waited longer than the
+// Working calendar's reviewResponseMinutes of office time (escalatedAt, once).
+model TaskReview {
+  id            String    @id @default(cuid())
+  taskId        String
+  submittedById String
+  submittedAt   DateTime  @default(now())
+  respondedById String?
+  respondedAt   DateTime?
+  outcome       String? // APPROVED | REVISION | MOVED (status changed another way) | WITHDRAWN (the sender took it back)
+  comment       String?
+  escalatedAt   DateTime?
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, submittedAt])
+  @@index([respondedAt])
 }
 
 // A step inside one task ("Spelling checked", "Pixel firing"). Lighter than a subtask: no assignee or date. A task can't be
@@ -3874,15 +3916,16 @@ model LeadConversionRequest {
 // stays on CompanyProfile, which already owns it. One row per organization; missing means the defaults in
 // src/lib/working-calendar.ts.
 model WorkingCalendar {
-  organizationId String   @id
-  workStart      String   @default("09:00") // HH:MM in the company time zone
-  workEnd        String   @default("18:30")
-  lunchMinutes   Int      @default(30)
-  graceMinutes   Int      @default(10) // minutes after workStart before a clock-in counts as late
-  workDays       String   @default("1,2,3,4,5") // 0 = Sunday; days not listed are weekly off
-  updatedById    String?
-  updatedAt      DateTime @updatedAt
-  createdAt      DateTime @default(now())
+  organizationId        String   @id
+  workStart             String   @default("09:00") // HH:MM in the company time zone
+  workEnd               String   @default("18:30")
+  lunchMinutes          Int      @default(30)
+  graceMinutes          Int      @default(10) // minutes after workStart before a clock-in counts as late
+  reviewResponseMinutes Int      @default(5) // office minutes a project manager has to answer work sent for review before owners and HR are told
+  workDays              String   @default("1,2,3,4,5") // 0 = Sunday; days not listed are weekly off
+  updatedById           String?
+  updatedAt             DateTime @updatedAt
+  createdAt             DateTime @default(now())
 }
 
 // A public or company holiday: a day nobody is expected to work. Leave, daily reports, scorecards and the quest
