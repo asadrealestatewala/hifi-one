@@ -16,7 +16,7 @@ async function assign(formData: FormData) {
   const user = await requirePermission("assets.manage");
   const id = String(formData.get("id"));
   try {
-    await assignAsset(db, { organizationId: user.organizationId, assetId: id, userId: String(formData.get("userId") ?? "") || null });
+    await assignAsset(db, { organizationId: user.organizationId, assetId: id, userId: String(formData.get("userId") ?? "") || null, actorId: user.id });
     await audit(user, { action: "asset.assign", entity: "Asset", entityId: id });
   } catch (e) {
     if (e instanceof AssetError) back(id, e.message);
@@ -48,6 +48,8 @@ export default async function AssetPage({ params, searchParams }: { params: Prom
   const { error } = await searchParams;
   const exists = await db.asset.findFirst({ where: { id, organizationId: user.organizationId } });
   if (!exists) notFound();
+  // Items HR recorded outside the books have no purchase, depreciation or disposal here; their record is under People & HR.
+  if (!exists.inBooks) redirect(user.permissions.has("assets.custody") ? `/hr/assets/${id}` : "/assets");
   const [v, schedule, history, people, banks] = await Promise.all([
     assetValue(db, id),
     db.depreciationEntry.findMany({ where: { assetId: id }, orderBy: { period: "asc" } }),
@@ -59,7 +61,7 @@ export default async function AssetPage({ params, searchParams }: { params: Prom
   const name = (i: string | null) => people.find((p) => p.id === i)?.name ?? "";
   return (
     <div className="space-y-6">
-      <Link href="/assets" className="text-sm text-muted hover:underline">← All assets</Link>
+      <div className="flex flex-wrap justify-between gap-2"><Link href="/assets" className="text-sm text-muted hover:underline">← All assets</Link>{user.permissions.has("assets.custody") && <Link href={`/hr/assets/${a.id}`} className="text-sm text-muted hover:underline">Handover and condition under Company assets →</Link>}</div>
       <h1 className="text-2xl font-semibold tracking-tight">{a.name} <span className="text-base font-normal text-muted">{a.number} · {a.status.toLowerCase()}</span></h1>
       {error && <Notice kind="error">{error}</Notice>}
       <section className="card grid grid-cols-3 gap-y-1 text-sm max-w-2xl">

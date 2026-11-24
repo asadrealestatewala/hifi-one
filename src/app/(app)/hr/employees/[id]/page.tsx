@@ -12,6 +12,8 @@ import StaffForm from "../StaffForm";
 import SetupLink from "./SetupLink";
 import { handOverWorkAction, staffStatusAction } from "../actions";
 import { workHeldBy } from "@/lib/offboarding";
+import { CONDITIONS, CONDITION_LABEL, itemsHeldBy } from "@/lib/asset-custody";
+import { issueItemAction, returnItemAction } from "../../assets/actions";
 import { cancelDocumentRequestAction, requestDocumentAction } from "../../documents/actions";
 import { EMPLOYEE_DOC_CATEGORIES } from "@/lib/employee-docs";
 
@@ -67,6 +69,14 @@ export default async function EmployeePage({ params, searchParams }: { params: P
   const op = (value: string) => <><input type="hidden" name="id" value={p.id} /><input type="hidden" name="op" value={value} /></>;
   // Work still held on open projects, for the hand-over when someone leaves
   const held = canManage ? await workHeldBy(db, { organizationId: org, userId: p.userId }) : null;
+  // Company items this person has, for HR's handover and the exit check
+  const canCustody = user.permissions.has("assets.custody");
+  const [items, stock] = canCustody ? await Promise.all([
+    itemsHeldBy(db, org, p.userId),
+    db.asset.findMany({ where: { organizationId: org, status: "ACTIVE", assignedToId: null }, select: { id: true, number: true, name: true }, orderBy: { name: "asc" } }),
+  ]) : [[], []];
+  const back = `/hr/employees/${p.id}`;
+  const itemsNote = items.length ? ` ${u.name} still has ${items.length} company item${items.length === 1 ? "" : "s"} (${items.map((i) => i.name).join(", ")}). Take ${items.length === 1 ? "it" : "them"} back under Company items below.` : "";
   return (
     <div className="space-y-5">
       <Link href="/hr/employees" className="text-sm text-muted hover:underline">← Staff directory</Link>
@@ -144,7 +154,7 @@ export default async function EmployeePage({ params, searchParams }: { params: P
               <>
                 {p.status !== "ACTIVE" && <form action={staffStatusAction}>{op("ACTIVE")}<ConfirmButton title={`Reactivate ${u.name}?`} message="They can sign in again with their existing password." confirmLabel="Reactivate">Reactivate</ConfirmButton></form>}
                 {p.status === "ACTIVE" && <form action={staffStatusAction}>{op("INACTIVE")}<ConfirmButton title={`Deactivate ${u.name}?`} message="They are signed out everywhere and cannot sign in until reactivated." confirmLabel="Deactivate">Deactivate</ConfirmButton></form>}
-                {p.status !== "EXITED" && <form action={staffStatusAction}>{op("EXITED")}<ConfirmButton title={`Mark ${u.name} as exited?`} message="Use this when the person has left. Sign-in stops; the exit date is recorded." confirmLabel="Mark exited">Mark as exited</ConfirmButton></form>}
+                {p.status !== "EXITED" && <form action={staffStatusAction}>{op("EXITED")}<ConfirmButton title={`Mark ${u.name} as exited?`} message={`Use this when the person has left. Sign-in stops; the exit date is recorded.${itemsNote}`} confirmLabel="Mark exited">Mark as exited</ConfirmButton></form>}
                 <form action={staffStatusAction}>{op("archive")}<ConfirmButton title="Archive this record?" message="It leaves the directory and sign-in stops. History is kept and the record can be restored." confirmLabel="Archive">Archive</ConfirmButton></form>
               </>
             )}
@@ -186,6 +196,41 @@ export default async function EmployeePage({ params, searchParams }: { params: P
               <div className="sm:col-span-2">
                 <ConfirmButton className="btn" title={`Hand over ${u.name}'s work?`} message={`${held.projects.length} open project${held.projects.length === 1 ? "" : "s"} and ${held.openTasks} open task${held.openTasks === 1 ? "" : "s"} move now. Project managers can change task owners afterwards.`} confirmLabel="Hand over">Hand over work</ConfirmButton>
               </div>
+            </form>
+          )}
+        </section>
+      )}
+      {canCustody && (
+        <section id="items" className="card space-y-3 scroll-mt-20">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-semibold">Company items ({items.length})</h2>
+            <Link href="/hr/assets" className="text-sm text-muted hover:underline">All company assets →</Link>
+          </div>
+          {p.status !== "ACTIVE" && items.length > 0 && <Notice kind="error">{u.name} is {p.status === "EXITED" ? "no longer with the company" : "inactive"} and still has {items.length === 1 ? "this item" : "these items"}. Take {items.length === 1 ? "it" : "them"} back, or record what was not returned.</Notice>}
+          {items.length === 0 ? <p className="text-sm text-muted">No company items are with {u.name}.</p> : (
+            <ul className="divide-y divide-border text-sm">
+              {items.map((i) => (
+                <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <span><Link href={`/hr/assets/${i.id}`} className="font-medium hover:underline">{i.name}</Link> <span className="text-xs text-muted">{i.number}{i.serialNumber ? ` · ${i.serialNumber}` : ""}</span>
+                    {i.handover && !i.handover.acknowledgedAt && <> <Badge tone="warning">receipt not confirmed</Badge></>}</span>
+                  <form action={returnItemAction} className="flex flex-wrap items-center gap-2">
+                    <input type="hidden" name="assetId" value={i.id} /><input type="hidden" name="returnTo" value={back} />
+                    <label className="sr-only" htmlFor={`cond-${i.id}`}>Condition it came back in</label>
+                    <select id={`cond-${i.id}`} name="condition" className="input !w-auto !py-1" defaultValue={i.condition}>{[...CONDITIONS, "LOST"].map((c) => <option key={c} value={c}>{CONDITION_LABEL[c]}</option>)}</select>
+                    <input name="note" aria-label="Note" placeholder="Note" maxLength={500} className="input !w-40 !py-1" />
+                    <SubmitButton className="btn-ghost" pendingText="Saving…">Take back</SubmitButton>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
+          {p.status === "ACTIVE" && !p.archivedAt && (
+            <form action={issueItemAction} className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
+              <input type="hidden" name="userId" value={p.userId} /><input type="hidden" name="returnTo" value={back} />
+              <div><label className="label" htmlFor="issue-asset">Issue an item from stock</label>
+                <select id="issue-asset" name="assetId" required className="input" defaultValue=""><option value="" disabled>{stock.length ? "Choose an item" : "Nothing in stock"}</option>{stock.map((x) => <option key={x.id} value={x.id}>{x.name} ({x.number})</option>)}</select></div>
+              <SubmitButton pendingText="Issuing…">Issue</SubmitButton>
+              <Link href="/hr/assets?new=1" className="btn-ghost">Record a new item</Link>
             </form>
           )}
         </section>

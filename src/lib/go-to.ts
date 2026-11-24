@@ -57,6 +57,7 @@ export const GO_TO_WORDS: Record<string, string> = {
   "/assets": "equipment depreciation laptop",
   "/hr/employees": "staff employees team people",
   "/hr/documents": "cnic id papers",
+  "/hr/assets": "assets equipment laptop phone sim inventory items handover stock",
   "/hr/attendance": "clock in present absent late",
   "/hr/reports": "daily report work report",
   "/hr/reports/eod": "end of day eod",

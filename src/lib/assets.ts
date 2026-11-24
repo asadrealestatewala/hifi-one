@@ -76,15 +76,16 @@ export async function registerAsset(
   });
 }
 
-export async function assignAsset(db: PrismaClient, p: { organizationId: string; assetId: string; userId: string | null }) {
+// Finance's one-step reassignment on the fixed asset page. HR's handover (issue, confirm, take back with condition) is in asset-custody.ts.
+export async function assignAsset(db: PrismaClient, p: { organizationId: string; assetId: string; userId: string | null; actorId?: string }) {
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Asset" WHERE id = ${p.assetId} FOR UPDATE`;
     const a = await tx.asset.findFirst({ where: { id: p.assetId, organizationId: p.organizationId } });
     if (!a) throw new AssetError("Asset not found.");
     if (a.status !== "ACTIVE") throw new AssetError("A disposed asset cannot be assigned.");
     if (p.userId && !(await tx.user.findFirst({ where: { id: p.userId, organizationId: p.organizationId, active: true } }))) throw new AssetError("Unknown employee.");
-    await tx.assetAssignment.updateMany({ where: { assetId: a.id, returnedAt: null }, data: { returnedAt: new Date() } });
-    if (p.userId) await tx.assetAssignment.create({ data: { assetId: a.id, userId: p.userId } });
+    await tx.assetAssignment.updateMany({ where: { assetId: a.id, returnedAt: null }, data: { returnedAt: new Date(), returnedById: p.actorId ?? null } });
+    if (p.userId) await tx.assetAssignment.create({ data: { assetId: a.id, userId: p.userId, issuedById: p.actorId ?? null, conditionOut: a.condition } });
     return tx.asset.update({ where: { id: a.id }, data: { assignedToId: p.userId } });
   });
 }
@@ -94,8 +95,9 @@ export async function assignAsset(db: PrismaClient, p: { organizationId: string;
 export async function runDepreciation(db: PrismaClient, p: { organizationId: string; upTo: string; actorId: string }) {
   if (!/^\d{4}-\d{2}$/.test(p.upTo)) throw new AssetError("Choose a month.");
   return db.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM "Asset" WHERE "organizationId" = ${p.organizationId} AND status = 'ACTIVE' FOR UPDATE`;
-    const assets = await tx.asset.findMany({ where: { organizationId: p.organizationId, status: "ACTIVE" }, include: { depreciation: true } });
+    await tx.$queryRaw`SELECT id FROM "Asset" WHERE "organizationId" = ${p.organizationId} AND status = 'ACTIVE' AND "inBooks" FOR UPDATE`;
+    // Items HR records outside the books (src/lib/asset-custody.ts) are never depreciated
+    const assets = await tx.asset.findMany({ where: { organizationId: p.organizationId, status: "ACTIVE", inBooks: true }, include: { depreciation: true } });
     const expense = await sys(tx, p.organizationId, "DEPRECIATION_EXPENSE");
     const accum = await sys(tx, p.organizationId, "ACCUM_DEPRECIATION");
     const groups = new Map<string, { period: string; currency: string; items: { assetId: string; amount: Prisma.Decimal }[] }>();
@@ -145,6 +147,7 @@ export async function disposeAsset(
     const a = await tx.asset.findFirst({ where: { id: p.assetId, organizationId: p.organizationId }, include: { depreciation: true } });
     if (!a) throw new AssetError("Asset not found.");
     if (a.status === "DISPOSED") return a; // idempotent
+    if (!a.inBooks) throw new AssetError("This item is not in the books. HR writes it off under People & HR, Company assets.");
     if (p.date < a.purchaseDate) throw new AssetError("The disposal cannot be before the purchase.");
     // Depreciation must be fully posted through the disposal month, otherwise the gain or loss would be wrong
     const due = periodsDue(a.purchaseDate, a.usefulLifeMonths, p.date.slice(0, 7), a.depreciation.map((d) => d.period));

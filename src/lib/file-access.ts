@@ -12,7 +12,7 @@ export type FileActor = {
   permissions: ReadonlySet<string>;
 };
 
-export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT", "CIRCULAR", "CHAT_MESSAGE", "PROJECT_ASSET", "EMPLOYEE_REQUEST", "PAYMENT", "PARTNER_IDENTITY", "PARTNER_PAYMENT_NOTICE", "BRAND", "DELIVERABLE"] as const;
+export const OWNER_TYPES = ["EXPENSE", "VENDOR_BILL", "CONTENT", "EMPLOYEE", "CONTRACT", "CONTACT", "TASK", "USER_PHOTO", "VENDOR_DOC", "JOB_APPLICATION", "PROSPECT_VISIT", "CIRCULAR", "CHAT_MESSAGE", "PROJECT_ASSET", "EMPLOYEE_REQUEST", "PAYMENT", "PARTNER_IDENTITY", "PARTNER_PAYMENT_NOTICE", "BRAND", "DELIVERABLE", "ASSET"] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 export type Mode = "read" | "upload" | "delete";
 
@@ -220,6 +220,15 @@ export async function authorizeOwner(db: PrismaClient, a: FileActor, ownerType: 
     const officer = has("partners.view_identity");
     if (mode === "read" || mode === "upload") return self || officer;
     return officer || (self && e.identity?.status !== "VERIFIED");
+  }
+
+  if (ownerType === "ASSET") {
+    // Photos and papers on a company item (the handover form, a receipt, a damage photo): HR and Finance read them, and so does
+    // the person who has the item now. Only people who look after company items add or remove them.
+    const item = await db.asset.findFirst({ where: { id: ownerId, organizationId: a.organizationId }, select: { assignedToId: true } });
+    if (!item || !staff) return false;
+    if (mode === "read") return has("assets.custody") || has("assets.view") || item.assignedToId === a.id;
+    return has("assets.custody");
   }
 
   if (ownerType === "EMPLOYEE_REQUEST") {

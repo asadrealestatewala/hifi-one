@@ -198,7 +198,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       db.user.findMany({ where: { organizationId: org, userType: "EMPLOYEE" }, select: { id: true, name: true } }),
       db.asset.count({ where: activeWhere }),
       db.asset.count({ where: { ...activeWhere, assignedToId: { not: null } } }),
-      db.asset.groupBy({ by: ["currency"], where: activeWhere, _sum: { cost: true } }),
+      db.asset.groupBy({ by: ["currency"], where: { ...activeWhere, inBooks: true }, _sum: { cost: true } }),
       db.asset.groupBy({ by: ["category"], where: activeWhere, _count: true }),
     ]);
     const cost = new Map(costRows.map((r) => [r.currency, r._sum.cost ?? 0]));

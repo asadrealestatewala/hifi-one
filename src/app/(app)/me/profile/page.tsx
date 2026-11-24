@@ -2,8 +2,10 @@ import Tabs from "@/components/ui/Tabs";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { CONDITION_LABEL, itemsHeldBy } from "@/lib/asset-custody";
+import { acknowledgeItemAction } from "@/app/(app)/hr/assets/actions";
 import { formatMoney } from "@/lib/money";
-import { Avatar, Badge, Empty, Notice, PageHeader, PanelForm, StatusBadge } from "@/components/ui";
+import { Avatar, Badge, Empty, Notice, PageHeader, PanelForm, StatusBadge, SubmitButton } from "@/components/ui";
 import { leaveBalances } from "@/lib/hr";
 import { summarize } from "@/lib/monitoring";
 import Drawer from "@/components/ui/Drawer";
@@ -17,7 +19,7 @@ const Row = ({ label, children }: { label: string; children: React.ReactNode }) 
 );
 const EMPLOYMENT: Record<string, string> = { FULL_TIME: "Full time", PART_TIME: "Part time", CONTRACT: "Contract", INTERN: "Intern" };
 
-export default async function MyProfile({ searchParams }: { searchParams: Promise<{ photoOk?: string; photoError?: string; edit?: string; error?: string; saved?: string; tab?: string }> }) {
+export default async function MyProfile({ searchParams }: { searchParams: Promise<{ photoOk?: string; photoError?: string; edit?: string; error?: string; saved?: string; tab?: string; msg?: string }> }) {
   const user = await requireUser();
   const sp = await searchParams;
   const org = user.organizationId;
@@ -31,7 +33,7 @@ export default async function MyProfile({ searchParams }: { searchParams: Promis
     deptId ? db.department.findUnique({ where: { id: deptId }, select: { name: true } }) : null,
     me?.branchId ? db.branch.findUnique({ where: { id: me.branchId }, select: { name: true } }) : null,
     me?.managerId ? db.user.findUnique({ where: { id: me.managerId }, select: { id: true, name: true } }) : null,
-    db.asset.findMany({ where: { organizationId: org, assignedToId: user.id, status: "ACTIVE" }, orderBy: { name: "asc" } }),
+    itemsHeldBy(db, org, user.id),
   ]);
   const fmt = (v: string | Date | null | undefined) => (v ? new Date(typeof v === "string" ? v + "T00:00:00" : v).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : null);
   const has = (p: string) => user.permissions.has(p as never);
@@ -64,6 +66,9 @@ export default async function MyProfile({ searchParams }: { searchParams: Promis
       {sp.photoOk && <Notice kind="ok">{sp.photoOk}</Notice>}
       {sp.saved && <Notice kind="ok">Your contact details were updated.</Notice>}
       {sp.photoError && <Notice kind="error">{sp.photoError}</Notice>}
+      {sp.msg && <Notice kind="ok">{sp.msg}</Notice>}
+      {sp.error && !sp.edit && <Notice kind="error">{sp.error}</Notice>}
+      {assets.some((a) => a.handover && !a.handover.acknowledgedAt) && tab !== "overview" && <Notice kind="error">HR has issued you company items. <Link href="/me/profile#assets" className="underline">Confirm you received them</Link>.</Notice>}
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
         <section className="card space-y-3 text-center">
           <div className="flex justify-center"><Avatar name={user.name} userId={user.id} size={128} /></div>
@@ -108,11 +113,20 @@ export default async function MyProfile({ searchParams }: { searchParams: Promis
             ) : <p className="py-3 text-sm text-muted">HR has not created your employee profile yet.</p>}
           </section>
 
-          <section className="card !p-0">
-            <h2 className="border-b border-border px-5 py-3 font-semibold">Company assets ({assets.length})</h2>
-            {assets.length === 0 ? <div className="px-5 py-8"><Empty title="Nothing assigned">No company assets are assigned to you.</Empty></div> : (
-              <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="px-5 py-2.5">Asset</th><th className="pr-4">Number</th><th className="pr-4">Serial</th><th className="pr-4">Location</th><th className="pr-4 text-right">Cost</th></tr></thead>
-                <tbody>{assets.map((a) => <tr key={a.id} className="border-t border-border"><td className="px-5 py-2.5 font-medium">{a.name}</td><td className="pr-4 text-muted">{a.number}</td><td className="pr-4 text-muted">{a.serialNumber}</td><td className="pr-4 text-muted">{a.location}</td><td className="pr-4 text-right tabular-nums">{formatMoney(a.cost, a.currency)}</td></tr>)}</tbody></table></div>
+          <section id="assets" className="card !p-0 scroll-mt-20">
+            <h2 className="border-b border-border px-5 py-3 font-semibold">Company items with you ({assets.length})</h2>
+            {assets.length === 0 ? <div className="px-5 py-8"><Empty title="Nothing issued to you">Company items HR issues to you (a laptop, a phone, a SIM, an access card) are listed here.</Empty></div> : (
+              <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-hover/60 text-left text-xs text-muted"><tr><th className="px-5 py-2.5">Item</th><th className="pr-4">Issued to you</th><th className="pr-4">Receipt</th></tr></thead>
+                <tbody>{assets.map((a) => (
+                  <tr key={a.id} className="border-t border-border">
+                    <td className="px-5 py-2.5"><span className="block font-medium">{a.name}</span><span className="text-xs text-muted">{[a.number, a.serialNumber].filter(Boolean).join(" · ")}</span></td>
+                    <td className="pr-4"><span className="block">{a.handover ? fmt(a.handover.assignedAt) : ""}</span><span className="text-xs text-muted">{CONDITION_LABEL[a.handover?.conditionOut ?? a.condition] ?? ""}</span></td>
+                    <td className="py-2 pr-4">{!a.handover ? null : a.handover.acknowledgedAt ? <span className="whitespace-nowrap text-xs text-muted">Confirmed {fmt(a.handover.acknowledgedAt)}</span> : (
+                      <form action={acknowledgeItemAction}><input type="hidden" name="assignmentId" value={a.handover.id} /><input type="hidden" name="assetId" value={a.id} /><SubmitButton className="btn whitespace-nowrap !py-1" pendingText="Saving…">I&apos;ve received it</SubmitButton></form>
+                    )}</td>
+                  </tr>
+                ))}</tbody></table>
+                <p className="border-t border-border px-5 py-2.5 text-xs text-muted">If something listed here is not with you, or arrived damaged, tell HR under My requests.</p></div>
             )}
           </section>
           </>)}

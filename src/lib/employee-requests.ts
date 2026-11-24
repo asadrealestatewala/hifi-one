@@ -5,7 +5,7 @@
 // leave a comment for HR (HR's Required Changes, item 6), unless the employee ticks "Private, HR only". A grievance may
 // concern the manager, so it is always HR only. Only HR answers.
 // Free of Next.js imports so it can be tested against the database.
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 export class RequestError extends Error {}
 type Db = PrismaClient;
@@ -58,7 +58,7 @@ export async function cancelRequest(db: Db, p: { requestId: string; userId: stri
 
 // HR takes an application up (IN_REVIEW, so the employee sees it is being looked at) or answers it. Declining needs a note so the
 // employee is told why; approving may carry one (where to collect the certificate, the agreed amount). Never your own application.
-export async function reviewRequest(db: Db, p: { organizationId: string; requestId: string; reviewerId: string; decision: "IN_REVIEW" | "APPROVED" | "DECLINED"; note?: string }) {
+export async function reviewRequest(db: Db | Prisma.TransactionClient, p: { organizationId: string; requestId: string; reviewerId: string; decision: "IN_REVIEW" | "APPROVED" | "DECLINED"; note?: string }) {
   const r = await db.employeeRequest.findFirst({ where: { id: p.requestId, organizationId: p.organizationId } });
   if (!r) throw new RequestError("Application not found.");
   if (r.userId === p.reviewerId) throw new RequestError("You cannot answer your own application; another HR person must.");
