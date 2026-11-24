@@ -1292,6 +1292,12 @@ model Asset {
   disposedDate     String?
   disposalProceeds Decimal? @db.Decimal(14, 2)
   disposalEntryId  String?
+  // Company items HR records without touching the books (a mouse, a SIM, an access card): no journal, no depreciation.
+  inBooks          Boolean  @default(true)
+  condition        String   @default("GOOD") // NEW | GOOD | FAIR | DAMAGED
+  notes            String?
+  writeOffReason   String? // HR items only: LOST | STOLEN | BROKEN | GIVEN_AWAY | OTHER, with the note
+  createdById      String?
   createdAt        DateTime @default(now())
 
   depreciation DepreciationEntry[]
@@ -1318,10 +1324,19 @@ model AssetAssignment {
   userId     String
   assignedAt DateTime  @default(now())
   returnedAt DateTime?
+  // Handover record: who issued it and in what condition, when the employee confirmed receipt, and how it came back.
+  issuedById     String?
+  conditionOut   String?
+  acknowledgedAt DateTime?
+  returnedById   String?
+  conditionIn    String? // NEW | GOOD | FAIR | DAMAGED | LOST
+  returnNote     String?
+  requestId      String? // the equipment request it answered, if any
 
   asset Asset @relation(fields: [assetId], references: [id])
 
   @@index([assetId])
+  @@index([userId, returnedAt])
 }
 
 model Investment {

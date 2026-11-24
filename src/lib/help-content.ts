@@ -57,6 +57,8 @@ export const TASKS: Task[] = [
   { group: "people", title: "Get your payslip", why: "Every month you have been paid for, as a PDF.", href: "/me/payslips", permission: "self.payslip" },
   { group: "people", title: "Decide leave and off-site requests", why: "What your direct reports have asked for, with their balance beside it.", href: "/me/leave", permission: "leave.approve" },
   { group: "people", title: "Read the team's daily reports", why: "Who sent one, who is missing, and the day's attendance and tasks beside it.", href: "/hr/reports", permission: "leave.approve" },
+  { group: "people", title: "Keep track of company assets", why: "Laptops, phones, SIMs, furniture and access cards: record them, issue them to staff, take them back and see who still has what.", href: "/hr/assets", permission: "assets.custody" },
+  { group: "people", title: "Confirm a company item you received", why: "Items HR has issued to you are listed on your profile. Confirm each one so the handover is on record.", href: "/me/profile#assets", permission: "self.leave" },
   { group: "people", title: "Send a circular", why: "A notice to everyone or to chosen people, with attachments, and a list of who has read it.", href: "/hr/circulars", permission: "circulars.send" },
   { group: "people", title: "Add a member of staff", why: "Creates their record and their sign-in, and sends them an onboarding code.", href: "/hr/employees", permission: "hr.manage" },
 

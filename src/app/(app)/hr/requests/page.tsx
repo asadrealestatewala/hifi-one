@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { REQUEST_TYPES, REQUEST_TYPE_LABEL, attachmentsFor, isOpen, requestCounts, requestsForHr, type RequestType } from "@/lib/employee-requests";
@@ -5,6 +6,7 @@ import { Avatar, Badge, Chips, ConfirmButton, Empty, Notice, PageHeader, Stat, S
 import ScreenTabs from "@/components/shell/ScreenTabs";
 import RequestAttachments from "@/components/RequestAttachments";
 import { reviewRequestAction } from "./actions";
+import { issueItemAction } from "../assets/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,9 @@ export default async function HrRequests({ searchParams }: { searchParams: Promi
     attachmentsFor(db, org, rows.map((r) => r.id)),
   ]);
   const names = new Map(people.map((p) => [p.id, p.name]));
+  // Equipment requests can be answered by issuing an item from stock, which approves the request in the same step
+  const canIssue = user.permissions.has("assets.custody") && rows.some((r) => r.type === "EQUIPMENT" && isOpen(r.status));
+  const stock = canIssue ? await db.asset.findMany({ where: { organizationId: org, status: "ACTIVE", assignedToId: null }, select: { id: true, number: true, name: true }, orderBy: { name: "asc" } }) : [];
   const filesOf = (id: string) => files.filter((f) => f.ownerId === id);
   const href = (over: { status?: string; type?: string }) => {
     const q = new URLSearchParams();
@@ -87,6 +92,15 @@ export default async function HrRequests({ searchParams }: { searchParams: Promi
                   <form action={reviewRequestAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="decision" value="decline" /><input type="hidden" name="returnTo" value={returnTo} /><ConfirmButton title="Decline this application?" message="The employee is told the reason you give." confirmLabel="Decline" reason>Decline</ConfirmButton></form>
                   {r.status === "IN_REVIEW" && <span className="text-xs text-muted">In review by {names.get(r.handledById ?? "") ?? "HR"}</span>}
                 </div>
+              )}
+              {canIssue && r.type === "EQUIPMENT" && isOpen(r.status) && r.userId !== user.id && (
+                <form action={issueItemAction} className="flex flex-wrap items-center gap-2 border-t border-border pt-2">
+                  <input type="hidden" name="userId" value={r.userId} /><input type="hidden" name="requestId" value={r.id} /><input type="hidden" name="returnTo" value={`/hr/requests${returnTo}`} />
+                  <label className="text-xs text-muted" htmlFor={`issue-${r.id}`}>Issue from stock and approve</label>
+                  <select id={`issue-${r.id}`} name="assetId" required className="input !w-64 !py-1" defaultValue=""><option value="" disabled>{stock.length ? "Choose an item" : "Nothing in stock"}</option>{stock.map((x) => <option key={x.id} value={x.id}>{x.name} ({x.number})</option>)}</select>
+                  <SubmitButton className="btn-ghost" pendingText="Issuing…">Issue item</SubmitButton>
+                  <Link href="/hr/assets?new=1" className="text-xs text-muted underline">Record a new item</Link>
+                </form>
               )}
               {isOpen(r.status) && r.userId === user.id && <p className="text-xs text-muted">Your own application: another HR person answers it.</p>}
             </li>

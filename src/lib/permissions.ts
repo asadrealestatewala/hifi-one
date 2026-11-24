@@ -50,6 +50,7 @@ export const PERMISSIONS = {
   "assets.view": "View the fixed asset register",
   "assets.manage": "Register and assign assets",
   "assets.post": "Run depreciation and dispose of assets",
+  "assets.custody": "Record company items, issue them to staff and take them back",
   "investments.view": "View investments",
   "investments.manage": "Create investments and record capital and income",
   "reports.view": "View financial statements and aging reports",
@@ -146,7 +147,7 @@ export const ROLE_DEFS: RoleDef[] = [
   { key: "INTERN", name: "Intern", permissions: ["dashboard.view", "projects.view", "tasks.edit"] },
   { key: "CMO", name: "Chief Marketing Officer", permissions: ["dashboard.view", "dashboard.executive", "crm.view", "crm.view_all", "crm.edit", "catalog.view", "catalog.edit", "clients.view", "projects.view", "projects.view_all", "campaigns.view", "campaigns.manage", "clout.view", "clout.manage", "hr.view", "quotes.view", "contracts.view", "content.view", "content.manage", "content.publish", "leave.approve"] },
   { key: "COO", name: "Chief Operating Officer", permissions: ["dashboard.view", "dashboard.executive", "crm.view", "crm.view_all", "catalog.view", "clients.view", "projects.view", "projects.view_all", "projects.manage", "tasks.edit", "campaigns.view", "campaigns.manage", "clout.view", "jobs.run", "support.view", "support.manage", "leadsources.manage", "hr.view", "leave.approve", "attendance.view_all", "content.view", "vendors.view", "budget.view"] },
-  { key: "HR_COORDINATOR", name: "HR Coordinator", permissions: ["dashboard.view", "hr.view", "hr.manage", "hr.view_sensitive", "circulars.send", "leave.approve", "attendance.view_all"] },
+  { key: "HR_COORDINATOR", name: "HR Coordinator", permissions: ["dashboard.view", "hr.view", "hr.manage", "hr.view_sensitive", "circulars.send", "leave.approve", "attendance.view_all", "assets.custody"] },
   { key: "AI_DEVELOPER_INTERN", name: "AI Developer Intern", permissions: ["dashboard.view", "projects.view", "tasks.edit"] },
   { key: "PARTNER_MANAGER", name: "Partner Manager", permissions: ["dashboard.view", "crm.view", "catalog.view", "partners.manage", "partners.view_identity"] },
   { key: "CLIENT", name: "Client", permissions: [] },
@@ -158,7 +159,7 @@ export const ROLE_DEFS: RoleDef[] = [
 // Every internal role can use self-service; managers can approve their reports' leave; HR gets the HR tools.
 const EXTERNAL_ROLES = new Set(["CLIENT", "VENDOR", "BUSINESS_PARTNER", "INVESTOR"]);
 const EXTRA: Record<string, PermissionKey[]> = {
-  HR_MANAGER: ["onboarding.approve", "circulars.send", "hr.view", "hr.manage", "hr.view_sensitive", "leave.approve", "attendance.view_all", "payroll.view", "payroll.manage", "monitoring.view_team", "monitoring.screenshots", "monitoring.configure"],
+  HR_MANAGER: ["onboarding.approve", "circulars.send", "hr.view", "hr.manage", "hr.view_sensitive", "leave.approve", "attendance.view_all", "payroll.view", "payroll.manage", "monitoring.view_team", "monitoring.screenshots", "monitoring.configure", "assets.custody"],
   BRANCH_MANAGER: ["leave.approve", "hr.view"],
   SALES_MANAGER: ["prospector.use", "prospector.manage", "field.capture", "field.review", "prospector.schedule_demo", "followups.manage", "leadsources.manage", "leave.approve", "quotes.view", "quotes.manage", "contracts.view", "contracts.manage", "commissions.own", "campaigns.view", "campaigns.manage", "clout.view", "clout.manage"],
   SALES_AGENT: ["field.capture", "quotes.view", "quotes.manage", "commissions.own", "campaigns.view", "clout.view"],
@@ -170,8 +171,8 @@ const EXTRA: Record<string, PermissionKey[]> = {
   ADS_MANAGER: ["content.view", "campaigns.view", "clout.view"],
   ADS_EXPERT: ["campaigns.view", "clout.view"],
   CEO: ["meetings.recordings", "onboarding.approve", "circulars.send", "support.view", "campaigns.view", "hr.view", "leave.approve", "payroll.view", "payroll.approve", "expenses.view", "expenses.approve", "budget.view", "budget.approve", "budget.override", "vendors.view", "assets.view", "investments.view", "reports.view", "dashboard.executive", "journal.approve", "period.lock", "quotes.view", "contracts.view", "projects.costs", "commissions.approve", "clout.view"],
-  FINANCE_MANAGER: ["payroll.view", "payroll.approve", "payroll.post", "expenses.view", "expenses.review", "expenses.approve", "expenses.post", "budget.view", "budget.manage", "vendors.view", "vendors.bills", "vendors.post", "assets.view", "assets.manage", "assets.post", "investments.view", "investments.manage", "reports.view", "dashboard.executive", "journal.create", "journal.approve", "coa.manage", "period.lock", "finance.refund", "fx.manage", "quotes.view", "contracts.view", "contracts.manage", "subscriptions.manage", "projects.costs", "bank.reconcile", "finance.writeoff", "commissions.manage", "commissions.approve", "commissions.own"],
-  ACCOUNTANT: ["expenses.view", "expenses.review", "expenses.post", "budget.view", "vendors.view", "vendors.post", "assets.view", "assets.manage", "reports.view", "journal.create", "quotes.view", "contracts.view", "bank.reconcile", "commissions.manage"],
+  FINANCE_MANAGER: ["payroll.view", "payroll.approve", "payroll.post", "expenses.view", "expenses.review", "expenses.approve", "expenses.post", "budget.view", "budget.manage", "vendors.view", "vendors.bills", "vendors.post", "assets.view", "assets.manage", "assets.post", "investments.view", "investments.manage", "reports.view", "dashboard.executive", "journal.create", "journal.approve", "coa.manage", "period.lock", "finance.refund", "fx.manage", "quotes.view", "contracts.view", "contracts.manage", "subscriptions.manage", "projects.costs", "bank.reconcile", "finance.writeoff", "commissions.manage", "commissions.approve", "commissions.own", "assets.custody"],
+  ACCOUNTANT: ["expenses.view", "expenses.review", "expenses.post", "budget.view", "vendors.view", "vendors.post", "assets.view", "assets.manage", "reports.view", "journal.create", "quotes.view", "contracts.view", "bank.reconcile", "commissions.manage", "assets.custody"],
   PAYROLL_OFFICER: ["hr.view", "payroll.view", "payroll.manage"],
 };
 for (const r of ROLE_DEFS) {

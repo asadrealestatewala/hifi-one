@@ -51,7 +51,7 @@ export default async function Assets({ searchParams }: { searchParams: Promise<{
   const user = await requirePermission("assets.view");
   const { error, done } = await searchParams;
   const [assets, banks, dep] = await Promise.all([
-    db.asset.findMany({ where: { organizationId: user.organizationId }, orderBy: { number: "asc" } }),
+    db.asset.findMany({ where: { organizationId: user.organizationId, inBooks: true }, orderBy: { number: "asc" } }),
     db.bankAccount.findMany({ where: { organizationId: user.organizationId, active: true, ledgerAccountId: { not: null } } }),
     db.depreciationEntry.groupBy({ by: ["assetId"], _sum: { amount: true } }),
   ]);

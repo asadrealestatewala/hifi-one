@@ -12,6 +12,7 @@ export const SCREEN_GROUPS: ScreenGroup[] = [
   { id: "hr-records", label: "Staff directory", tabs: [
     { href: "/hr/employees", label: "Directory", permission: "hr.view" },
     { href: "/hr/documents", label: "Documents", permission: "hr.view_sensitive" },
+    { href: "/hr/assets", label: "Company assets", permission: "assets.custody" },
   ] },
   { id: "hr-activity", label: "Staff activity", tabs: [
     { href: "/hr/attendance", label: "Attendance", permission: "attendance.view_all" },
